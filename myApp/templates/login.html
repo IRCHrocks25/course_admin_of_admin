@@ -4,253 +4,552 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Swedish Wealth Institute</title>
-    
-    <!-- Tailwind CSS -->
+    <title>Login — SOP Master</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Google Fonts - Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind Config -->
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        'navy-dark': '#0a0e27',
-                        'navy-mid': '#1a1f3a',
-                        'cyan-electric': '#00f0ff',
-                        'purple-accent': '#a855f7',
-                    },
-                }
-            }
-        }
-    </script>
-    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --pink:   #1A6BFF;
+            --purple: #7B3FE4;
+            --yellow: #F5A800;
+            --blue:   #1A6BFF;
+            --navy:   #080f1e;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'DM Sans', sans-serif;
+            background: var(--navy);
+            min-height: 100vh;
+            overflow: hidden;
+            color: #fff;
         }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(5deg); }
+
+        /* ── LAYOUT ── */
+        .page {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 100vh;
         }
-        
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 20px rgba(0, 240, 255, 0.3), 0 0 40px rgba(0, 240, 255, 0.1); }
-            50% { box-shadow: 0 0 30px rgba(0, 240, 255, 0.5), 0 0 60px rgba(0, 240, 255, 0.2); }
+
+        /* ── LEFT PANEL ── */
+        .left-panel {
+            position: relative;
+            overflow: hidden;
         }
-        
-        @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
+        .left-bg {
+            position: absolute; inset: 0;
+            background-image: url('https://katalyst-crm.com/wp-content/uploads/2024/10/Katalyst-Project-2.1.png');
+            background-size: cover;
+            background-position: center;
+            filter: brightness(0.28) saturate(1.3);
         }
-        
-        .float-animation {
-            animation: float 6s ease-in-out infinite;
+        .left-overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(160deg,
+                rgba(123,63,228,0.35) 0%,
+                rgba(8,15,30,0.6) 45%,
+                rgba(228,23,126,0.2) 100%);
         }
-        
-        .pulse-glow {
-            animation: pulse-glow 3s ease-in-out infinite;
+        .left-grain {
+            position: absolute; inset: 0;
+            opacity: 0.04;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            background-size: 200px;
         }
-        
-        .gradient-animated {
-            background-size: 200% 200%;
-            animation: gradient-shift 8s ease infinite;
+        .left-content {
+            position: relative; z-index: 2;
+            height: 100%;
+            display: flex; flex-direction: column;
+            justify-content: space-between;
+            padding: 44px 52px;
         }
-        
-        .input-focus:focus {
-            box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.1), 0 0 20px rgba(0, 240, 255, 0.2);
+
+        /* color bar top */
+        .color-bar {
+            height: 3px;
+            background: linear-gradient(90deg, var(--purple), var(--pink), var(--yellow), var(--blue));
+            border-radius: 99px;
+            width: 64px;
         }
+
+        .left-logo {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 30px; font-weight: 900;
+            letter-spacing: 1px; color: #fff;
+        }
+        .left-logo span { color: var(--pink); }
+
+        .left-headline {
+            font-family: 'Barlow', sans-serif;
+            font-size: clamp(36px, 3.5vw, 54px);
+            font-weight: 900;
+            line-height: 1.0;
+            letter-spacing: -1.5px;
+            margin-bottom: 20px;
+        }
+        .left-headline .accent { color: var(--pink); }
+
+        .left-sub {
+            font-size: 15px;
+            color: rgba(255,255,255,0.55);
+            line-height: 1.7;
+            max-width: 340px;
+            margin-bottom: 40px;
+        }
+
+        .left-pills {
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .pill {
+            display: flex; align-items: center; gap: 14px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 14px 18px;
+            backdrop-filter: blur(8px);
+        }
+        .pill-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; flex-shrink: 0;
+        }
+        .pi-pink   { background: rgba(228,23,126,0.2); color: #ff6eb8; }
+        .pi-purple { background: rgba(123,63,228,0.2); color: #b78cff; }
+        .pi-yellow { background: rgba(245,168,0,0.2);  color: #ffc94d; }
+        .pill-text { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); }
+        .pill-sub  { font-size: 11px; color: rgba(255,255,255,0.38); margin-top: 1px; }
+
+        .left-footer {
+            font-size: 11px; color: rgba(255,255,255,0.2);
+            letter-spacing: 0.5px;
+        }
+
+        /* ── RIGHT PANEL ── */
+        .right-panel {
+            background: #080f1e;
+            display: flex; align-items: center; justify-content: center;
+            padding: 48px 64px;
+            position: relative;
+            overflow: hidden;
+        }
+        .right-panel::before {
+            content: '';
+            position: absolute;
+            top: -120px; right: -120px;
+            width: 400px; height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(123,63,228,0.12) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .right-panel::after {
+            content: '';
+            position: absolute;
+            bottom: -80px; left: -80px;
+            width: 320px; height: 320px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(228,23,126,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .right-inner {
+            width: 100%; max-width: 420px;
+            position: relative; z-index: 2;
+        }
+
+        /* top bar on right */
+        .right-top {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 52px;
+        }
+        .step-indicator {
+            display: flex; gap: 6px;
+        }
+        .step-dot {
+            width: 28px; height: 4px; border-radius: 99px;
+            background: rgba(255,255,255,0.08);
+        }
+        .step-dot.active { background: var(--pink); }
+
+        .right-welcome {
+            font-size: 12px; color: rgba(255,255,255,0.35);
+            font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
+        }
+
+        .form-title {
+            font-family: 'Barlow', sans-serif;
+            font-size: 38px; font-weight: 900;
+            letter-spacing: -1px; line-height: 1.05;
+            margin-bottom: 8px;
+        }
+        .form-title span { color: var(--pink); }
+
+        .form-tagline {
+            font-size: 14px; color: rgba(255,255,255,0.45);
+            margin-bottom: 40px; line-height: 1.6;
+        }
+
+        /* ── FORM FIELDS ── */
+        .field-group { margin-bottom: 22px; }
+
+        .field-label {
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 2px; text-transform: uppercase;
+            color: rgba(255,255,255,0.45);
+            margin-bottom: 10px; display: block;
+        }
+
+        .field-wrap {
+            position: relative;
+        }
+        .field-icon {
+            position: absolute; left: 18px; top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px; color: rgba(255,255,255,0.25);
+            transition: color 0.25s;
+            pointer-events: none;
+        }
+        .field-input {
+            width: 100%;
+            padding: 16px 18px 16px 48px;
+            background: rgba(255,255,255,0.04);
+            border: 1.5px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 15px;
+            font-family: 'DM Sans', sans-serif;
+            outline: none;
+            transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+        }
+        .field-input::placeholder { color: rgba(255,255,255,0.2); }
+        .field-input:focus {
+            border-color: rgba(228,23,126,0.55);
+            background: rgba(228,23,126,0.04);
+            box-shadow: 0 0 0 4px rgba(228,23,126,0.08);
+        }
+        .field-wrap:focus-within .field-icon {
+            color: var(--pink);
+        }
+
+        /* password toggle */
+        .toggle-pw {
+            position: absolute; right: 16px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; cursor: pointer;
+            color: rgba(255,255,255,0.25);
+            font-size: 14px;
+            transition: color 0.2s;
+            padding: 4px;
+        }
+        .toggle-pw:hover { color: rgba(255,255,255,0.6); }
+
+        /* options row */
+        .options-row {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 32px;
+        }
+        .remember-label {
+            display: flex; align-items: center; gap: 9px;
+            cursor: pointer;
+        }
+        .remember-label input[type="checkbox"] {
+            width: 16px; height: 16px;
+            accent-color: var(--pink);
+            cursor: pointer;
+        }
+        .remember-label span { font-size: 13px; color: rgba(255,255,255,0.45); }
+        .forgot-link {
+            font-size: 13px; font-weight: 600;
+            color: rgba(255,255,255,0.45);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .forgot-link:hover { color: var(--pink); }
+
+        /* submit */
+        .btn-submit {
+            width: 100%;
+            padding: 17px;
+            background: var(--pink);
+            color: #fff;
+            font-family: 'Barlow', sans-serif;
+            font-size: 16px; font-weight: 800;
+            letter-spacing: 0.5px;
+            border: none; border-radius: 12px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+            box-shadow: 0 0 36px rgba(228,23,126,0.35);
+            position: relative; overflow: hidden;
+        }
+        .btn-submit::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s;
+        }
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 48px rgba(228,23,126,0.5);
+        }
+        .btn-submit:hover::before { transform: translateX(100%); }
+        .btn-submit:active { transform: translateY(0); }
+
+        /* error alert */
+        .alert-error {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 10px;
+            padding: 14px 16px;
+            display: flex; align-items: center; gap: 10px;
+            color: #f87171; font-size: 13px;
+            margin-bottom: 24px;
+        }
+
+        /* divider */
+        .divider {
+            display: flex; align-items: center; gap: 14px;
+            margin: 28px 0;
+        }
+        .divider-line { flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+        .divider-text { font-size: 12px; color: rgba(255,255,255,0.25); white-space: nowrap; }
+
+        /* bottom note */
+        .bottom-note {
+            text-align: center;
+            font-size: 13px; color: rgba(255,255,255,0.3);
+        }
+        .bottom-note a {
+            color: rgba(255,255,255,0.6); font-weight: 600;
+            text-decoration: none; transition: color 0.2s;
+        }
+        .bottom-note a:hover { color: var(--pink); }
+
+        .security-note {
+            display: flex; align-items: center; justify-content: center; gap: 7px;
+            margin-top: 28px;
+            font-size: 11px; color: rgba(255,255,255,0.18);
+            letter-spacing: 0.4px;
+        }
+        .security-note i { color: rgba(245,168,0,0.5); font-size: 10px; }
+
+        /* already-logged-in */
+        .already-in {
+            background: rgba(245,168,0,0.07);
+            border: 1px solid rgba(245,168,0,0.2);
+            border-radius: 10px; padding: 14px 16px;
+            margin-top: 20px;
+            font-size: 12px; color: rgba(255,200,50,0.75);
+        }
+        .already-in a { color: #ffc94d; font-weight: 600; text-decoration: none; }
+
+        /* mobile */
+        @media (max-width: 900px) {
+            .page { grid-template-columns: 1fr; }
+            .left-panel { display: none; }
+            .right-panel { padding: 40px 28px; }
+        }
+
+        /* subtle entrance */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .right-inner { animation: slideUp 0.6s ease both; }
+        .left-content { animation: slideUp 0.7s ease both; }
     </style>
 </head>
-<body class="bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#000000] min-h-screen text-white overflow-hidden">
-    <!-- Animated Background Elements -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none">
-        <!-- Floating Orbs -->
-        <div class="absolute top-20 left-10 w-72 h-72 bg-cyan-electric/10 rounded-full blur-3xl float-animation"></div>
-        <div class="absolute bottom-20 right-10 w-96 h-96 bg-purple-accent/10 rounded-full blur-3xl float-animation" style="animation-delay: 2s;"></div>
-        <div class="absolute top-1/2 left-1/2 w-80 h-80 bg-cyan-electric/5 rounded-full blur-3xl float-animation" style="animation-delay: 4s;"></div>
-        
-        <!-- Grid Pattern Overlay -->
-        <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(rgba(0, 240, 255, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 240, 255, 0.1) 1px, transparent 1px); background-size: 50px 50px;"></div>
-    </div>
-    
-    <!-- Main Login Container -->
-    <div class="relative min-h-screen flex items-center justify-center px-4 py-12">
-        <div class="w-full max-w-md">
-            <!-- Logo/Brand Section -->
-            <div class="text-center mb-12">
-                <div class="flex justify-center mb-6">
-                    <img 
-                        src="https://res.cloudinary.com/dcuswyfur/image/upload/v1769099735/Frame_82_a2yvmn.png"
-                        alt="Swedish Wealth Institute Logo"
-                        class="h-24 w-auto"
-                        loading="eager"
-                    >
-                </div>
-                <p class="text-gray-400 text-sm">Welcome back. Sign in to continue your journey.</p>
+<body>
+<div class="page">
+
+    <!-- ── LEFT ── -->
+    <div class="left-panel">
+        <div class="left-bg"></div>
+        <div class="left-overlay"></div>
+        <div class="left-grain"></div>
+        <div class="left-content">
+
+            <!-- Logo -->
+            <div>
+                <div class="color-bar" style="margin-bottom:20px;"></div>
+                <div class="left-logo">SOP<span>Master</span></div>
             </div>
-            
-            <!-- Login Card -->
-            <div class="bg-[#0f1529]/90 backdrop-blur-xl border border-cyan-electric/20 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-                <!-- Card Glow Effect -->
-                <div class="absolute inset-0 bg-gradient-to-br from-cyan-electric/5 to-purple-accent/5 opacity-50"></div>
-                
-                <!-- Content -->
-                <div class="relative z-10">
-                    <!-- Error Messages -->
-                    {% if messages %}
-                        {% for message in messages %}
-                            <div class="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-3">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <span>{{ message }}</span>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                    
-                    <!-- Login Form -->
-                    <form method="POST" action="{% url 'login' %}" class="space-y-6">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.GET.next|default:'student_dashboard' }}">
-                        
-                        <!-- Username Field -->
-                        <div>
-                            <label for="username" class="block text-xs uppercase tracking-widest text-cyan-electric/70 font-semibold mb-3">
-                                Username
-                            </label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <i class="fas fa-user text-cyan-electric/50"></i>
-                                </div>
-                                <input 
-                                    type="text" 
-                                    id="username" 
-                                    name="username" 
-                                    required
-                                    autofocus
-                                    class="w-full pl-12 pr-4 py-4 bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-electric/50 focus:bg-[#0a0e27]/80 transition-all input-focus"
-                                    placeholder="Enter your username"
-                                >
-                            </div>
-                        </div>
-                        
-                        <!-- Password Field -->
-                        <div>
-                            <label for="password" class="block text-xs uppercase tracking-widest text-cyan-electric/70 font-semibold mb-3">
-                                Password
-                            </label>
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <i class="fas fa-lock text-cyan-electric/50"></i>
-                                </div>
-                                <input 
-                                    type="password" 
-                                    id="password" 
-                                    name="password" 
-                                    required
-                                    class="w-full pl-12 pr-4 py-4 bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan-electric/50 focus:bg-[#0a0e27]/80 transition-all input-focus"
-                                    placeholder="Enter your password"
-                                >
-                            </div>
-                        </div>
-                        
-                        <!-- Remember Me & Forgot Password -->
-                        <div class="flex items-center justify-between text-sm">
-                            <label class="flex items-center gap-2 cursor-pointer group">
-                                <input type="checkbox" name="remember" class="w-4 h-4 rounded border-cyan-electric/30 bg-[#0a0e27]/60 text-cyan-electric focus:ring-cyan-electric/50 focus:ring-2">
-                                <span class="text-gray-400 group-hover:text-gray-300 transition-colors">Remember me</span>
-                            </label>
-                            <a href="#" class="text-cyan-electric/70 hover:text-cyan-electric transition-colors">
-                                Forgot password?
-                            </a>
-                        </div>
-                        
-                        <!-- Submit Button -->
-                        <button 
-                            type="submit"
-                            class="w-full py-4 bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] rounded-xl font-bold text-base hover:shadow-2xl hover:shadow-cyan-electric/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] relative overflow-hidden group"
-                        >
-                            <span class="relative z-10 flex items-center justify-center gap-3">
-                                <span>Sign In</span>
-                                <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
-                            </span>
-                            <div class="absolute inset-0 bg-gradient-to-r from-purple-accent to-cyan-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        </button>
-                    </form>
-                    
-                    <!-- Divider -->
-                    <div class="relative my-8">
-                        <div class="absolute inset-0 flex items-center">
-                            <div class="w-full border-t border-cyan-electric/10"></div>
-                        </div>
-                        <div class="relative flex justify-center text-sm">
-                            <span class="px-4 bg-[#0f1529] text-gray-500">New to the platform?</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Sign Up Link -->
-                    <div class="text-center">
-                        <a href="#" class="text-cyan-electric/70 hover:text-cyan-electric transition-colors text-sm font-medium inline-flex items-center gap-2">
-                            <span>Create an account</span>
-                            <i class="fas fa-arrow-right text-xs"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Footer Text -->
-            <div class="mt-8 text-center">
-                <p class="text-xs text-gray-500">
-                    Secure login powered by enterprise-grade encryption
+
+            <!-- Main copy -->
+            <div>
+                <h2 class="left-headline">
+                    Train Smarter.<br/>
+                    Scale <span class="accent">Faster.</span><br/>
+                    Win Bigger.
+                </h2>
+                <p class="left-sub">
+                    Your company's SOPs, transformed into a structured learning system that certifies employees and maintains excellence at every level.
                 </p>
-                <div class="flex items-center justify-center gap-2 mt-2">
-                    <i class="fas fa-shield-alt text-cyan-electric/50 text-xs"></i>
-                    <span class="text-xs text-gray-600">256-bit SSL encryption</span>
+
+                <div class="left-pills">
+                    <div class="pill">
+                        <div class="pill-icon pi-pink"><i class="fas fa-play"></i></div>
+                        <div>
+                            <div class="pill-text">Automatic Progress Tracking</div>
+                            <div class="pill-sub">Resume exactly where you left off</div>
+                        </div>
+                    </div>
+                    <div class="pill">
+                        <div class="pill-icon pi-purple"><i class="fas fa-medal"></i></div>
+                        <div>
+                            <div class="pill-text">Certifications + Trophy Tiers</div>
+                            <div class="pill-sub">Proof of completion that matters</div>
+                        </div>
+                    </div>
+                    <div class="pill">
+                        <div class="pill-icon pi-yellow"><i class="fas fa-robot"></i></div>
+                        <div>
+                            <div class="pill-text">AI Chatbot Inside Lessons</div>
+                            <div class="pill-sub">In-lesson support, zero friction</div>
+                        </div>
+                    </div>
                 </div>
-                {% if user.is_authenticated %}
-                <div class="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                    <p class="text-xs text-yellow-400 mb-2">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        You're already logged in as <strong>{{ user.username }}</strong>
-                    </p>
-                    <a href="{% url 'logout' %}" class="text-xs text-cyan-electric hover:text-cyan-electric/80 underline">
-                        Log out to sign in as a different user
-                    </a>
-                </div>
-                {% endif %}
             </div>
+
+            <div class="left-footer">© 2025 SOP Master. All rights reserved.</div>
         </div>
     </div>
-    
-    <!-- JavaScript for Enhanced Interactions -->
-    <script>
-        // Add focus animations
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('focus', function() {
-                this.parentElement.classList.add('scale-105');
-            });
-            input.addEventListener('blur', function() {
-                this.parentElement.classList.remove('scale-105');
-            });
-        });
-        
-        // Form submission animation
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const button = this.querySelector('button[type="submit"]');
-            button.innerHTML = '<span class="flex items-center justify-center gap-2"><i class="fas fa-spinner fa-spin"></i> Signing in...</span>';
-        });
-    </script>
+
+    <!-- ── RIGHT ── -->
+    <div class="right-panel">
+        <div class="right-inner">
+
+            <div class="right-top">
+                <div class="right-welcome">Welcome back</div>
+                <div class="step-indicator">
+                    <div class="step-dot active"></div>
+                    <div class="step-dot"></div>
+                    <div class="step-dot"></div>
+                </div>
+            </div>
+
+            <h1 class="form-title">Sign <span>In.</span></h1>
+            <p class="form-tagline">Enter your credentials to access your learning dashboard.</p>
+
+            <!-- Error Messages -->
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert-error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="POST" action="{% url 'login' %}" id="loginForm">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.GET.next|default:'student_dashboard' }}">
+
+                <!-- Username -->
+                <div class="field-group">
+                    <label class="field-label" for="username">Username</label>
+                    <div class="field-wrap">
+                        <i class="fas fa-user field-icon"></i>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="field-input"
+                            placeholder="Enter your username"
+                            required
+                            autofocus
+                        >
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div class="field-group">
+                    <label class="field-label" for="password">Password</label>
+                    <div class="field-wrap">
+                        <i class="fas fa-lock field-icon"></i>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            class="field-input"
+                            placeholder="Enter your password"
+                            required
+                            style="padding-right: 48px;"
+                        >
+                        <button type="button" class="toggle-pw" id="togglePw" tabindex="-1">
+                            <i class="fas fa-eye" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Options -->
+                <div class="options-row">
+                    <label class="remember-label">
+                        <input type="checkbox" name="remember">
+                        <span>Remember me</span>
+                    </label>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="btn-submit" id="submitBtn">
+                    <span id="btnText">Sign In</span>
+                    <i class="fas fa-arrow-right" id="btnIcon"></i>
+                </button>
+            </form>
+
+            <div class="divider">
+                <div class="divider-line"></div>
+                <span class="divider-text">Don't have an account?</span>
+                <div class="divider-line"></div>
+            </div>
+
+            <div class="bottom-note">
+                <a href="#">Request access from your administrator</a>
+            </div>
+
+            <div class="security-note">
+                <i class="fas fa-shield-halved"></i>
+                256-bit SSL encryption &nbsp;·&nbsp; Enterprise-grade security
+            </div>
+
+            {% if user.is_authenticated %}
+            <div class="already-in">
+                <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+                Signed in as <strong>{{ user.username }}</strong>.
+                <a href="{% url 'logout' %}">Switch account</a>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // Password toggle
+    const togglePw = document.getElementById('togglePw');
+    const pwField  = document.getElementById('password');
+    const eyeIcon  = document.getElementById('eyeIcon');
+    togglePw.addEventListener('click', () => {
+        const isText = pwField.type === 'text';
+        pwField.type = isText ? 'password' : 'text';
+        eyeIcon.className = isText ? 'fas fa-eye' : 'fas fa-eye-slash';
+    });
+
+    // Submit loading state
+    document.getElementById('loginForm').addEventListener('submit', function() {
+        const btn  = document.getElementById('submitBtn');
+        const text = document.getElementById('btnText');
+        const icon = document.getElementById('btnIcon');
+        text.textContent = 'Signing in…';
+        icon.className = 'fas fa-spinner fa-spin';
+        btn.disabled = true;
+        btn.style.opacity = '0.75';
+    });
+</script>
 </body>
 </html>
-

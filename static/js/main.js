@@ -1,4 +1,4 @@
-// Main JavaScript for Swedish Wealth Institute
+// Main JavaScript for S.O.P Master
 
 // Smooth scrolling
 document.addEventListener('DOMContentLoaded', function() {

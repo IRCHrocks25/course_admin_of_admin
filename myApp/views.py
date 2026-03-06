@@ -71,7 +71,8 @@ def courses(request):
     course_type = request.GET.get('type', 'all')
     search_query = request.GET.get('search', '')
     
-    courses = Course.objects.all()
+    # Optimize queries with select_related and prefetch_related
+    courses = Course.objects.prefetch_related('lessons').all()
     
     if course_type != 'all':
         courses = courses.filter(course_type=course_type)
@@ -85,7 +86,55 @@ def courses(request):
     not_started_courses = []
     user = request.user if request.user.is_authenticated else None
     
-    for course in courses:
+    # Convert to list to avoid multiple queryset evaluations
+    courses_list = list(courses)
+    course_ids = [c.id for c in courses_list]
+    
+    if user:
+        # Batch fetch all progress data for this user
+        from .models import FavoriteCourse
+        user_progress = UserProgress.objects.filter(
+            user=user,
+            lesson__course_id__in=course_ids
+        ).values(
+            'lesson__course_id',
+            'completed',
+            'video_watch_percentage',
+            'status'
+        )
+        
+        # Batch fetch all favorites
+        favorite_course_ids = set(
+            FavoriteCourse.objects.filter(user=user, course_id__in=course_ids).values_list('course_id', flat=True)
+        )
+        
+        # Batch count lessons per course
+        from django.db.models import Count
+        course_lesson_counts = {
+            course_id: count 
+            for course_id, count in Course.objects.filter(
+                id__in=course_ids
+            ).annotate(lesson_count=Count('lessons')).values_list('id', 'lesson_count')
+        }
+        
+        # Organize progress data by course
+        progress_by_course = {}
+        completed_by_course = {}
+        for progress in user_progress:
+            course_id = progress['lesson__course_id']
+            if course_id not in progress_by_course:
+                progress_by_course[course_id] = []
+                completed_by_course[course_id] = 0
+            progress_by_course[course_id].append(progress)
+            if progress['completed']:
+                completed_by_course[course_id] += 1
+    else:
+        progress_by_course = {}
+        completed_by_course = {}
+        favorite_course_ids = set()
+        course_lesson_counts = {}
+    
+    for course in courses_list:
         course_info = {
             'course': course,
             'has_any_progress': False,
@@ -94,26 +143,26 @@ def courses(request):
         }
         
         if user:
-            # Check if course has any progress
-            has_any_progress = UserProgress.objects.filter(
-                user=user,
-                lesson__course=course
-            ).filter(
-                Q(completed=True) | Q(video_watch_percentage__gt=0) | Q(status__in=['in_progress', 'completed'])
-            ).exists()
+            course_id = course.id
+            # Check if course has any progress (from batch data)
+            has_any_progress = False
+            completed_lessons = 0
+            
+            if course_id in progress_by_course:
+                course_progresses = progress_by_course[course_id]
+                has_any_progress = any(
+                    p['completed'] or p['video_watch_percentage'] > 0 or 
+                    p['status'] in ['in_progress', 'completed']
+                    for p in course_progresses
+                )
+                completed_lessons = completed_by_course.get(course_id, 0)
             
             # Calculate progress percentage
-            total_lessons = course.lessons.count()
-            completed_lessons = UserProgress.objects.filter(
-                user=user,
-                lesson__course=course,
-                completed=True
-            ).count()
+            total_lessons = course_lesson_counts.get(course_id, course.lessons.count())
             progress_percentage = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
             
-            # Check if favorited
-            from .models import FavoriteCourse
-            is_favorited = FavoriteCourse.objects.filter(user=user, course=course).exists()
+            # Check if favorited (from batch data)
+            is_favorited = course_id in favorite_course_ids
             
             course_info.update({
                 'has_any_progress': has_any_progress,
@@ -162,33 +211,50 @@ def lesson_detail(request, course_slug, lesson_slug):
     course = get_object_or_404(Course, slug=course_slug)
     lesson = get_object_or_404(Lesson, course=course, slug=lesson_slug)
     
-    # Get user progress
+    # Get user progress with optimized queries
     enrollment = CourseEnrollment.objects.filter(
         user=request.user, 
         course=course
-    ).first()
+    ).select_related('course').first()
+    
+    # Batch fetch all progress data for this course
+    all_progress = UserProgress.objects.filter(
+        user=request.user,
+        lesson__course=course
+    ).select_related('lesson').values('lesson_id', 'completed', 'video_watch_percentage', 'last_watched_timestamp', 'status')
     
     progress_percentage = course.get_user_progress(request.user)
-    completed_lessons = list(
-        UserProgress.objects.filter(
-            user=request.user,
-            lesson__course=course,
-            completed=True
-        ).values_list('lesson_id', flat=True)
+    completed_lessons = [
+        p['lesson_id'] 
+        for p in all_progress 
+        if p['completed']
+    ]
+    
+    # Get current lesson progress from batch data
+    current_lesson_progress_data = next(
+        (p for p in all_progress if p['lesson_id'] == lesson.id),
+        None
     )
     
-    # Get current lesson progress
-    current_lesson_progress = UserProgress.objects.filter(
-        user=request.user,
-        lesson=lesson
-    ).first()
+    if current_lesson_progress_data:
+        video_watch_percentage = current_lesson_progress_data.get('video_watch_percentage', 0.0) or 0.0
+        last_watched_timestamp = current_lesson_progress_data.get('last_watched_timestamp', 0.0) or 0.0
+        lesson_status = current_lesson_progress_data.get('status', 'not_started') or 'not_started'
+        # Create a mock object for template compatibility
+        from types import SimpleNamespace
+        current_lesson_progress = SimpleNamespace(
+            video_watch_percentage=video_watch_percentage,
+            last_watched_timestamp=last_watched_timestamp,
+            status=lesson_status
+        )
+    else:
+        video_watch_percentage = 0.0
+        last_watched_timestamp = 0.0
+        lesson_status = 'not_started'
+        current_lesson_progress = None
     
-    video_watch_percentage = current_lesson_progress.video_watch_percentage if current_lesson_progress else 0.0
-    last_watched_timestamp = current_lesson_progress.last_watched_timestamp if current_lesson_progress else 0.0
-    lesson_status = current_lesson_progress.status if current_lesson_progress else 'not_started'
-    
-    # Get all lessons ordered by order field
-    all_lessons = course.lessons.order_by('order', 'id')
+    # Get all lessons ordered by order field with prefetch
+    all_lessons = course.lessons.select_related('module', 'course').prefetch_related('quiz', 'quiz__questions').order_by('order', 'id')
     
     # Determine which lessons are accessible
     accessible_lessons = []
@@ -339,8 +405,13 @@ def lesson_detail(request, course_slug, lesson_slug):
                         has_more_modules = True
                     break
 
-    # Get quiz and quiz attempts for this user
-    lesson_quiz = getattr(lesson, 'quiz', None)
+    # Get quiz and quiz attempts for this user (optimized)
+    lesson_quiz = None
+    try:
+        lesson_quiz = lesson.quiz
+    except:
+        pass
+    
     quiz_attempts = None
     latest_quiz_attempt = None
     quiz_passed = False
@@ -348,13 +419,9 @@ def lesson_detail(request, course_slug, lesson_slug):
         quiz_attempts = LessonQuizAttempt.objects.filter(
             user=request.user,
             quiz=lesson_quiz
-        ).order_by('-completed_at')
+        ).select_related('quiz', 'user').order_by('-completed_at')
         latest_quiz_attempt = quiz_attempts.first() if quiz_attempts.exists() else None
-        quiz_passed = LessonQuizAttempt.objects.filter(
-            user=request.user,
-            quiz=lesson_quiz,
-            passed=True
-        ).exists()
+        quiz_passed = quiz_attempts.filter(passed=True).exists()
 
     # Check if current lesson is the last in its module
     is_last_in_module = False
@@ -1159,6 +1226,69 @@ def student_dashboard(request):
             CourseEnrollment.objects.get_or_create(user=user, course=course)
         enrollments = CourseEnrollment.objects.filter(user=user).select_related('course')
     
+    # Batch fetch all data for optimization
+    my_course_ids = [c.id for c in my_courses]
+    
+    # Batch fetch enrollments
+    enrollments_dict = {
+        e.course_id: e 
+        for e in CourseEnrollment.objects.filter(user=user, course_id__in=my_course_ids).select_related('course')
+    }
+    
+    # Batch fetch progress data
+    from django.db.models import Count
+    progress_data = UserProgress.objects.filter(
+        user=user,
+        lesson__course_id__in=my_course_ids
+    ).values('lesson__course_id').annotate(
+        total_lessons=Count('lesson_id', distinct=True),
+        completed_lessons=Count('lesson_id', filter=Q(completed=True), distinct=True),
+        has_any_progress=Count('id', filter=Q(completed=True) | Q(video_watch_percentage__gt=0) | Q(status__in=['in_progress', 'completed'])),
+        avg_watch=Avg('video_watch_percentage')
+    )
+    
+    progress_by_course = {
+        item['lesson__course_id']: item 
+        for item in progress_data
+    }
+    
+    # Batch fetch lesson counts
+    course_lesson_counts = {
+        course_id: count 
+        for course_id, count in Course.objects.filter(id__in=my_course_ids).annotate(
+            lesson_count=Count('lessons')
+        ).values_list('id', 'lesson_count')
+    }
+    
+    # Batch fetch exams
+    exams_dict = {
+        exam.course_id: exam 
+        for exam in Exam.objects.filter(course_id__in=my_course_ids).select_related('course')
+    }
+    
+    # Batch fetch exam attempts
+    exam_attempts_by_exam = {}
+    if exams_dict:
+        exam_ids = list(exams_dict.keys())
+        attempts = ExamAttempt.objects.filter(user=user, exam_id__in=exam_ids).select_related('exam')
+        for attempt in attempts:
+            exam_id = attempt.exam_id
+            if exam_id not in exam_attempts_by_exam:
+                exam_attempts_by_exam[exam_id] = []
+            exam_attempts_by_exam[exam_id].append(attempt)
+    
+    # Batch fetch certifications
+    certifications_dict = {
+        cert.course_id: cert 
+        for cert in Certification.objects.filter(user=user, course_id__in=my_course_ids).select_related('course')
+    }
+    
+    # Batch fetch favorites
+    from .models import FavoriteCourse
+    favorite_course_ids = set(
+        FavoriteCourse.objects.filter(user=user, course_id__in=my_course_ids).values_list('course_id', flat=True)
+    )
+    
     # Process My Courses (courses with access)
     my_courses_data = []
     for course in my_courses:
@@ -1168,62 +1298,48 @@ def student_dashboard(request):
             continue
             
         # Get enrollment (legacy) or create access-based data
-        enrollment = CourseEnrollment.objects.filter(user=user, course=course).first()
+        enrollment = enrollments_dict.get(course.id)
         
-        # Calculate progress
-        total_lessons = course.lessons.count()
-        completed_lessons = UserProgress.objects.filter(
-            user=user,
-            lesson__course=course,
-            completed=True
-        ).count()
+        # Get progress data from batch
+        course_id = course.id
+        total_lessons = course_lesson_counts.get(course_id, 0)
+        progress_info = progress_by_course.get(course_id, {})
+        completed_lessons = progress_info.get('completed_lessons', 0)
+        has_any_progress = progress_info.get('has_any_progress', 0) > 0
+        avg_watch = progress_info.get('avg_watch', 0) or 0
         
         progress_percentage = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
         
-        # Check if course has any progress at all (watched videos, even if not completed)
-        has_any_progress = UserProgress.objects.filter(
-            user=user,
-            lesson__course=course
-        ).filter(
-            Q(completed=True) | Q(video_watch_percentage__gt=0) | Q(status__in=['in_progress', 'completed'])
-        ).exists()
-        
-        # Get average video watch percentage
-        avg_watch = UserProgress.objects.filter(
-            user=user,
-            lesson__course=course
-        ).aggregate(avg=Avg('video_watch_percentage'))['avg'] or 0
-        
-        # Get exam info
+        # Get exam info from batch data
         exam_info = None
-        try:
-            exam = Exam.objects.get(course=course)
-            exam_attempts = ExamAttempt.objects.filter(user=user, exam=exam).order_by('-started_at')
-            latest_attempt = exam_attempts.first()
+        exam = exams_dict.get(course_id)
+        if exam:
+            attempts = exam_attempts_by_exam.get(exam.id, [])
+            attempts_sorted = sorted(attempts, key=lambda x: x.started_at, reverse=True)
+            latest_attempt = attempts_sorted[0] if attempts_sorted else None
             exam_info = {
                 'exists': True,
-                'attempts_count': exam_attempts.count(),
+                'attempts_count': len(attempts),
                 'max_attempts': exam.max_attempts,
                 'latest_attempt': latest_attempt,
-                'passed': exam_attempts.filter(passed=True).exists(),
-                'is_available': enrollment.is_exam_available(),
+                'passed': any(a.passed for a in attempts),
+                'is_available': enrollment.is_exam_available() if enrollment else False,
             }
-        except Exam.DoesNotExist:
+        else:
             exam_info = {'exists': False}
         
-        # Get certification status
-        try:
-            certification = Certification.objects.get(user=user, course=course)
+        # Get certification status from batch data
+        certification = certifications_dict.get(course_id)
+        if certification:
             cert_status = certification.status
             cert_display = certification.get_status_display()
-        except Certification.DoesNotExist:
+        else:
             cert_status = 'not_eligible' if progress_percentage < 100 else 'eligible'
             cert_display = 'Not Eligible' if progress_percentage < 100 else 'Eligible'
             certification = None
         
-        # Check if course is favorited
-        from .models import FavoriteCourse
-        is_favorited = FavoriteCourse.objects.filter(user=user, course=course).exists()
+        # Check if course is favorited from batch data
+        is_favorited = course_id in favorite_course_ids
         
         my_courses_data.append({
             'course': course,
@@ -1242,10 +1358,11 @@ def student_dashboard(request):
         })
     
     # Also include legacy enrollments that might not have access records yet
+    existing_course_ids = {cd['course'].id for cd in my_courses_data}
     for enrollment in enrollments:
         course = enrollment.course
         # Skip if already in my_courses_data
-        if any(cd['course'].id == course.id for cd in my_courses_data):
+        if course.id in existing_course_ids:
             continue
             
         # Check if course has access
@@ -1260,42 +1377,43 @@ def student_dashboard(request):
                 notes="Migrated from legacy enrollment"
             )
         
-        # Calculate progress
-        total_lessons = course.lessons.count()
-        completed_lessons = UserProgress.objects.filter(
-            user=user,
-            lesson__course=course,
-            completed=True
-        ).count()
+        # Use batch data if available, otherwise calculate
+        course_id = course.id
+        if course_id in progress_by_course:
+            progress_info = progress_by_course[course_id]
+            total_lessons = course_lesson_counts.get(course_id, 0)
+            completed_lessons = progress_info.get('completed_lessons', 0)
+            avg_watch = progress_info.get('avg_watch', 0) or 0
+        else:
+            total_lessons = course_lesson_counts.get(course_id, course.lessons.count())
+            completed_lessons = 0
+            avg_watch = 0
         progress_percentage = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
-        avg_watch = UserProgress.objects.filter(
-            user=user,
-            lesson__course=course
-        ).aggregate(avg=Avg('video_watch_percentage'))['avg'] or 0
         
-        # Get exam info
+        # Get exam info from batch data
         exam_info = None
-        try:
-            exam = Exam.objects.get(course=course)
-            exam_attempts = ExamAttempt.objects.filter(user=user, exam=exam).order_by('-started_at')
-            latest_attempt = exam_attempts.first()
+        exam = exams_dict.get(course_id)
+        if exam:
+            attempts = exam_attempts_by_exam.get(exam.id, [])
+            attempts_sorted = sorted(attempts, key=lambda x: x.started_at, reverse=True)
+            latest_attempt = attempts_sorted[0] if attempts_sorted else None
             exam_info = {
                 'exists': True,
-                'attempts_count': exam_attempts.count(),
+                'attempts_count': len(attempts),
                 'max_attempts': exam.max_attempts,
                 'latest_attempt': latest_attempt,
-                'passed': exam_attempts.filter(passed=True).exists(),
+                'passed': any(a.passed for a in attempts),
                 'is_available': enrollment.is_exam_available(),
             }
-        except Exam.DoesNotExist:
+        else:
             exam_info = {'exists': False}
         
-        # Get certification
-        try:
-            certification = Certification.objects.get(user=user, course=course)
+        # Get certification from batch data
+        certification = certifications_dict.get(course_id)
+        if certification:
             cert_status = certification.status
             cert_display = certification.get_status_display()
-        except Certification.DoesNotExist:
+        else:
             cert_status = 'not_eligible' if progress_percentage < 100 else 'eligible'
             cert_display = 'Not Eligible' if progress_percentage < 100 else 'Eligible'
             certification = None

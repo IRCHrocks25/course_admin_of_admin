@@ -1,320 +1,710 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}My Certifications - Swedish Wealth Institute{% endblock %}
+{% block title %}My Certifications — SOP Master{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
+
+<style>
+    :root {
+        --blue:    #1A6BFF;
+        --blue2:   #4d8fff;
+        --pink:    #E4177E;
+        --purple:  #7B3FE4;
+        --yellow:  #F5A800;
+        --navy:    #060d1a;
+        --card:    rgba(255,255,255,0.035);
+        --border:  rgba(255,255,255,0.07);
+        --muted:   rgba(255,255,255,0.42);
+    }
+
+    .cert-page { font-family: 'DM Sans', 'Barlow', sans-serif; }
+
+    /* ── HEADER ── */
+    .back-link {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+        color: var(--blue2); text-decoration: none;
+        margin-bottom: 16px;
+        transition: color .2s, gap .2s;
+    }
+    .back-link:hover { color: #fff; gap: 10px; }
+    .back-link i { font-size: 11px; }
+
+    .page-hd {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 20px; flex-wrap: wrap;
+        margin-bottom: 40px;
+        padding-bottom: 32px;
+        border-bottom: 1px solid var(--border);
+    }
+    .page-eyebrow {
+        font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+        text-transform: uppercase; color: var(--blue2);
+        margin-bottom: 8px;
+    }
+    .page-title {
+        font-family: 'Barlow', 'DM Sans', sans-serif;
+        font-size: clamp(28px, 3vw, 42px);
+        font-weight: 900; letter-spacing: -1px; line-height: 1.05;
+        color: #fff; margin-bottom: 6px;
+    }
+    .page-sub { font-size: 14px; color: var(--muted); }
+
+    .cert-count-pill {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: rgba(26,107,255,0.1);
+        border: 1px solid rgba(26,107,255,0.2);
+        border-radius: 14px; padding: 18px 28px; text-align: center;
+        flex-shrink: 0;
+    }
+    .cert-count-num {
+        font-family: 'Barlow', sans-serif;
+        font-size: 44px; font-weight: 900; letter-spacing: -2px;
+        color: var(--blue2); line-height: 1;
+    }
+    .cert-count-label { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 4px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+    /* ── TROPHY SECTION ── */
+    .trophy-section {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 36px;
+        margin-bottom: 40px;
+        position: relative; overflow: hidden;
+    }
+    .trophy-section::before {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, var(--blue), var(--purple), var(--pink), var(--yellow));
+    }
+    .trophy-section-hd {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        margin-bottom: 32px; gap: 16px; flex-wrap: wrap;
+    }
+    .trophy-section-title {
+        font-family: 'Barlow', sans-serif;
+        font-size: 20px; font-weight: 900; letter-spacing: -0.4px; margin-bottom: 4px;
+    }
+    .trophy-section-sub { font-size: 13px; color: var(--muted); }
+
+    /* progress toward next trophy */
+    .next-trophy-wrap { min-width: 220px; }
+    .next-trophy-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .next-trophy-track {
+        width: 100%; height: 6px; border-radius: 99px;
+        background: rgba(255,255,255,0.06); overflow: hidden; margin-bottom: 6px;
+    }
+    .next-trophy-fill {
+        height: 100%; border-radius: 99px;
+        background: linear-gradient(90deg, var(--blue), var(--blue2));
+        transition: width .8s cubic-bezier(.4,0,.2,1);
+    }
+    .next-trophy-hint { font-size: 11px; color: var(--muted); }
+    .next-trophy-hint span { color: var(--blue2); font-weight: 700; }
+
+    /* ── TROPHY GRID ── */
+    .trophy-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+    }
+
+    .t-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px; padding: 18px 12px 14px;
+        text-align: center;
+        cursor: default;
+        transition: transform .25s, border-color .25s, box-shadow .25s;
+        position: relative; overflow: hidden;
+    }
+    .t-card.locked {
+        opacity: 0.35; filter: grayscale(1);
+    }
+    .t-card.unlocked { cursor: pointer; }
+    .t-card.unlocked:hover {
+        transform: translateY(-5px) scale(1.03);
+    }
+
+    /* per-tier glow & border on unlock */
+    .t-card[data-tier="bronze"].unlocked  { border-color: rgba(205,127,50,0.35);  box-shadow: 0 4px 24px rgba(205,127,50,0.15); }
+    .t-card[data-tier="silver"].unlocked  { border-color: rgba(192,192,192,0.35); box-shadow: 0 4px 24px rgba(192,192,192,0.15); }
+    .t-card[data-tier="gold"].unlocked    { border-color: rgba(255,215,0,0.4);    box-shadow: 0 4px 24px rgba(255,215,0,0.2); }
+    .t-card[data-tier="platinum"].unlocked{ border-color: rgba(229,228,226,0.35); box-shadow: 0 4px 24px rgba(229,228,226,0.12); }
+    .t-card[data-tier="diamond"].unlocked { border-color: rgba(125,211,252,0.4);  box-shadow: 0 4px 28px rgba(125,211,252,0.2); }
+    .t-card[data-tier="ultimate"].unlocked{ border-color: rgba(168,85,247,0.4);   box-shadow: 0 4px 32px rgba(168,85,247,0.25), 0 0 60px rgba(255,215,0,0.08); }
+
+    .t-card[data-tier="bronze"].unlocked:hover  { box-shadow: 0 12px 36px rgba(205,127,50,0.3); }
+    .t-card[data-tier="silver"].unlocked:hover  { box-shadow: 0 12px 36px rgba(192,192,192,0.25); }
+    .t-card[data-tier="gold"].unlocked:hover    { box-shadow: 0 12px 36px rgba(255,215,0,0.35); }
+    .t-card[data-tier="platinum"].unlocked:hover{ box-shadow: 0 12px 36px rgba(229,228,226,0.2); }
+    .t-card[data-tier="diamond"].unlocked:hover { box-shadow: 0 12px 36px rgba(125,211,252,0.35); }
+    .t-card[data-tier="ultimate"].unlocked:hover{ box-shadow: 0 12px 40px rgba(168,85,247,0.45), 0 0 80px rgba(255,215,0,0.12); }
+
+    .t-icon-wrap {
+        width: 72px; height: 72px; margin: 0 auto 12px;
+        position: relative;
+    }
+    .t-icon-wrap svg { width: 100%; height: 100%; }
+
+    .t-unlock-check {
+        position: absolute; top: -4px; right: -4px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #22d47b;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 9px; color: #fff; font-weight: 900;
+    }
+    .t-card.locked .t-unlock-check { display: none; }
+
+    .t-lock-icon {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px; color: rgba(255,255,255,0.2);
+    }
+    .t-card.unlocked .t-lock-icon { display: none; }
+
+    .t-name {
+        font-family: 'Barlow', sans-serif;
+        font-size: 13px; font-weight: 800; letter-spacing: -0.2px;
+        color: #fff; margin-bottom: 4px;
+    }
+    .t-req { font-size: 10px; color: var(--muted); font-weight: 500; }
+
+    /* ── CERT CARDS ── */
+    .certs-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+        margin-bottom: 40px;
+    }
+
+    .cert-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px; padding: 28px;
+        position: relative; overflow: hidden;
+        transition: border-color .25s, transform .25s, box-shadow .25s;
+    }
+    .cert-card::before {
+        content: '';
+        position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+        background: linear-gradient(180deg, var(--yellow), #ffa800);
+        opacity: 0; transition: opacity .25s;
+    }
+    .cert-card:hover {
+        border-color: rgba(245,168,0,0.28);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .cert-card:hover::before { opacity: 1; }
+
+    /* passed certs get a gold top bar */
+    .cert-card.status-passed {
+        border-color: rgba(245,168,0,0.18);
+    }
+    .cert-card.status-passed::after {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, var(--yellow), #ffd560);
+    }
+
+    .cert-top {
+        display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px;
+    }
+    .cert-icon-wrap {
+        width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center; font-size: 22px;
+        background: linear-gradient(135deg, rgba(245,168,0,0.2), rgba(245,168,0,0.08));
+        border: 1px solid rgba(245,168,0,0.25);
+        color: #ffc94d;
+    }
+    .cert-name {
+        font-family: 'Barlow', sans-serif;
+        font-size: 18px; font-weight: 900; letter-spacing: -0.3px;
+        color: #fff; line-height: 1.2; margin-bottom: 3px;
+    }
+    .cert-type { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+    .cert-meta {
+        display: flex; flex-direction: column; gap: 10px;
+        margin-bottom: 22px;
+        padding: 16px 18px;
+        background: rgba(255,255,255,0.025);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 10px;
+    }
+    .cert-meta-row {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 13px;
+    }
+    .cert-meta-key { color: var(--muted); font-weight: 500; }
+    .cert-meta-val { font-weight: 600; color: rgba(255,255,255,0.85); }
+    .cert-meta-val.mono { font-family: 'Courier New', monospace; font-size: 11px; color: var(--muted); }
+
+    .status-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 4px 10px; border-radius: 6px;
+        font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+    }
+    .sp-passed   { background: rgba(245,168,0,0.12);  border: 1px solid rgba(245,168,0,0.3);  color: #ffc94d; }
+    .sp-failed   { background: rgba(239,68,68,0.1);   border: 1px solid rgba(239,68,68,0.25); color: #f87171; }
+    .sp-eligible { background: rgba(26,107,255,0.12); border: 1px solid rgba(26,107,255,0.28); color: var(--blue2); }
+    .sp-other    { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); }
+
+    .btn-cert-view {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: 100%; padding: 13px;
+        background: linear-gradient(90deg, #c49a00, var(--yellow), #ffd560);
+        color: #0a0a0a; font-weight: 800; font-size: 14px;
+        border-radius: 10px; text-decoration: none;
+        transition: transform .2s, box-shadow .2s;
+        box-shadow: 0 0 24px rgba(245,168,0,0.3);
+    }
+    .btn-cert-view:hover { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(245,168,0,0.45); }
+
+    .btn-take-exam {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: 100%; padding: 13px;
+        background: var(--blue); color: #fff;
+        font-weight: 800; font-size: 14px;
+        border-radius: 10px; text-decoration: none;
+        transition: transform .2s, box-shadow .2s;
+        box-shadow: 0 0 20px rgba(26,107,255,0.3);
+    }
+    .btn-take-exam:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(26,107,255,0.45); }
+
+    .btn-processing {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        width: 100%; padding: 13px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: var(--muted); font-size: 13px; font-weight: 600;
+        border-radius: 10px; cursor: default;
+    }
+
+    /* ── ELIGIBLE SECTION ── */
+    .eligible-section { margin-top: 8px; margin-bottom: 40px; }
+    .section-hd2 {
+        display: flex; align-items: center; gap: 10px;
+        margin-bottom: 20px;
+    }
+    .section-hd2-title {
+        font-family: 'Barlow', sans-serif;
+        font-size: 20px; font-weight: 900; letter-spacing: -0.4px;
+    }
+    .section-hd2-badge {
+        background: rgba(26,107,255,0.12);
+        border: 1px solid rgba(26,107,255,0.25);
+        color: var(--blue2); font-size: 11px; font-weight: 700;
+        padding: 3px 10px; border-radius: 6px;
+    }
+
+    .eligible-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    .eligible-card {
+        background: rgba(26,107,255,0.05);
+        border: 1.5px solid rgba(26,107,255,0.18);
+        border-radius: 16px; padding: 24px;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        transition: border-color .25s, transform .25s;
+    }
+    .eligible-card:hover { border-color: rgba(26,107,255,0.38); transform: translateY(-2px); }
+    .eligible-name {
+        font-family: 'Barlow', sans-serif;
+        font-size: 17px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 4px;
+    }
+    .eligible-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .btn-eligible {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 10px 18px; border-radius: 9px;
+        background: var(--blue); color: #fff;
+        font-size: 13px; font-weight: 700; text-decoration: none;
+        transition: transform .2s, box-shadow .2s;
+        white-space: nowrap; flex-shrink: 0;
+        box-shadow: 0 0 18px rgba(26,107,255,0.28);
+    }
+    .btn-eligible:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(26,107,255,0.45); }
+
+    /* ── EMPTY STATE ── */
+    .empty-block {
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 18px; padding: 72px 40px; text-align: center;
+    }
+    .empty-ico {
+        width: 72px; height: 72px; border-radius: 16px;
+        background: rgba(245,168,0,0.1);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 28px; color: #ffc94d;
+        margin: 0 auto 20px;
+    }
+    .empty-title { font-family: 'Barlow', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+    .empty-text { font-size: 14px; color: var(--muted); max-width: 360px; margin: 0 auto 28px; line-height: 1.65; }
+    .btn-empty {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: var(--blue); color: #fff;
+        font-weight: 700; font-size: 14px;
+        padding: 13px 28px; border-radius: 10px; text-decoration: none;
+        transition: transform .2s, box-shadow .2s;
+        box-shadow: 0 0 24px rgba(26,107,255,0.3);
+    }
+    .btn-empty:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(26,107,255,0.45); }
+
+    /* ── REVEAL ── */
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 900px) {
+        .trophy-grid { grid-template-columns: repeat(3, 1fr); }
+        .certs-grid, .eligible-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+        .trophy-grid { grid-template-columns: repeat(2, 1fr); }
+        .page-hd { flex-direction: column; }
+        .eligible-card { flex-direction: column; align-items: flex-start; }
+    }
+</style>
+
+<div class="cert-page">
+
+    <!-- ── HEADER ── -->
+    <div class="page-hd reveal">
         <div>
-            <a href="{% url 'student_dashboard' %}" class="text-cyan-electric hover:text-cyan-electric/80 mb-2 inline-flex items-center gap-2 text-sm">
+            <a href="{% url 'student_dashboard' %}" class="back-link">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
-            <h1 class="text-4xl font-bold mb-2">My Certifications</h1>
-            <p class="text-gray-400">View and manage your earned certifications</p>
+            <div class="page-eyebrow">Achievements & Credentials</div>
+            <h1 class="page-title">My Certifications</h1>
+            <p class="page-sub">View, manage, and share your earned credentials</p>
+        </div>
+        <div class="cert-count-pill">
+            <div class="cert-count-num">{{ certifications|length }}</div>
+            <div class="cert-count-label">Certs Earned</div>
         </div>
     </div>
 
-    <!-- Trophy Achievements Section -->
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-8 mb-8">
-        <div class="flex items-center justify-between mb-6">
+    <!-- ── TROPHY CABINET ── -->
+    <div class="trophy-section reveal" style="transition-delay:.05s">
+        <div class="trophy-section-hd">
             <div>
-                <h2 class="text-2xl font-bold mb-2">Achievement Trophies</h2>
-                <p class="text-gray-400 text-sm">Unlock trophies by completing courses and earning certifications</p>
+                <div class="trophy-section-title">Achievement Trophies</div>
+                <div class="trophy-section-sub">Unlock trophies by completing courses and earning certifications</div>
             </div>
-            <div class="text-right">
-                <div class="text-3xl font-bold text-cyan-electric">{{ certifications|length }}</div>
-                <div class="text-xs text-gray-500">Certifications Earned</div>
+            <div class="next-trophy-wrap">
+                <div class="next-trophy-label">Progress to Next Trophy</div>
+                <div class="next-trophy-track">
+                    <div class="next-trophy-fill" id="trophyProgressBar" style="width:0%"></div>
+                </div>
+                <div class="next-trophy-hint" id="trophyProgressHint">—</div>
             </div>
         </div>
-        
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <!-- Bronze Trophy -->
-            <div class="trophy-card {% if certifications|length >= 1 %}unlocked{% else %}locked{% endif %}" data-tier="bronze">
-                <div class="trophy-icon">
-                    <svg viewBox="0 0 100 120" class="w-20 h-20 mx-auto">
+
+        <div class="trophy-grid">
+
+            <!-- Bronze -->
+            <div class="t-card {% if certifications|length >= 1 %}unlocked{% else %}locked{% endif %}" data-tier="bronze">
+                <div class="t-icon-wrap">
+                    {% if certifications|length >= 1 %}
+                    <div class="t-unlock-check"><i class="fas fa-check"></i></div>
+                    {% else %}
+                    <div class="t-lock-icon"><i class="fas fa-lock"></i></div>
+                    {% endif %}
+                    <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="bronzeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#cd7f32;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#b87333;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#8b5a2b;stop-opacity:1" />
-                            </linearGradient>
+                            <linearGradient id="b1" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e8943a"/><stop offset="1" stop-color="#8b4a18"/></linearGradient>
                         </defs>
-                        <path d="M50 10 L60 50 L50 60 L40 50 Z" fill="url(#bronzeGrad)" stroke="#cd7f32" stroke-width="2"/>
-                        <rect x="45" y="50" width="10" height="30" fill="url(#bronzeGrad)"/>
-                        <rect x="40" y="80" width="20" height="8" rx="2" fill="url(#bronzeGrad)"/>
-                        <rect x="35" y="88" width="30" height="25" rx="3" fill="url(#bronzeGrad)"/>
+                        <!-- Cup body -->
+                        <path d="M20 8 Q20 52 40 58 Q60 52 60 8 Z" fill="url(#b1)"/>
+                        <!-- Handles -->
+                        <path d="M20 16 Q8 20 10 32 Q12 42 20 40" stroke="#cd7f32" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <path d="M60 16 Q72 20 70 32 Q68 42 60 40" stroke="#cd7f32" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <!-- Stem -->
+                        <rect x="35" y="58" width="10" height="20" fill="url(#b1)" rx="2"/>
+                        <!-- Base -->
+                        <rect x="27" y="76" width="26" height="7" fill="url(#b1)" rx="3"/>
+                        <rect x="22" y="83" width="36" height="9" fill="url(#b1)" rx="3"/>
+                        <!-- Shine -->
+                        <path d="M28 14 Q32 10 36 16" stroke="rgba(255,255,255,0.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold mt-2">First Steps</h3>
-                <p class="text-xs text-gray-500">1 Certification</p>
+                <div class="t-name">First Steps</div>
+                <div class="t-req">1 Certification</div>
             </div>
-            
-            <!-- Silver Trophy -->
-            <div class="trophy-card {% if certifications|length >= 3 %}unlocked{% else %}locked{% endif %}" data-tier="silver">
-                <div class="trophy-icon">
-                    <svg viewBox="0 0 100 120" class="w-20 h-20 mx-auto">
+
+            <!-- Silver -->
+            <div class="t-card {% if certifications|length >= 3 %}unlocked{% else %}locked{% endif %}" data-tier="silver">
+                <div class="t-icon-wrap">
+                    {% if certifications|length >= 3 %}
+                    <div class="t-unlock-check"><i class="fas fa-check"></i></div>
+                    {% else %}
+                    <div class="t-lock-icon"><i class="fas fa-lock"></i></div>
+                    {% endif %}
+                    <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="silverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#c0c0c0;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#a8a8a8;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#808080;stop-opacity:1" />
-                            </linearGradient>
+                            <linearGradient id="s1" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#d8d8d8"/><stop offset="1" stop-color="#7a7a7a"/></linearGradient>
                         </defs>
-                        <path d="M50 10 L60 50 L50 60 L40 50 Z" fill="url(#silverGrad)" stroke="#c0c0c0" stroke-width="2"/>
-                        <rect x="45" y="50" width="10" height="30" fill="url(#silverGrad)"/>
-                        <rect x="40" y="80" width="20" height="8" rx="2" fill="url(#silverGrad)"/>
-                        <rect x="35" y="88" width="30" height="25" rx="3" fill="url(#silverGrad)"/>
+                        <path d="M20 8 Q20 52 40 58 Q60 52 60 8 Z" fill="url(#s1)"/>
+                        <path d="M20 16 Q8 20 10 32 Q12 42 20 40" stroke="#b8b8b8" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <path d="M60 16 Q72 20 70 32 Q68 42 60 40" stroke="#b8b8b8" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <rect x="35" y="58" width="10" height="20" fill="url(#s1)" rx="2"/>
+                        <rect x="27" y="76" width="26" height="7" fill="url(#s1)" rx="3"/>
+                        <rect x="22" y="83" width="36" height="9" fill="url(#s1)" rx="3"/>
+                        <path d="M28 14 Q32 10 36 16" stroke="rgba(255,255,255,0.5)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold mt-2">Rising Star</h3>
-                <p class="text-xs text-gray-500">3 Certifications</p>
+                <div class="t-name">Rising Star</div>
+                <div class="t-req">3 Certifications</div>
             </div>
-            
-            <!-- Gold Trophy -->
-            <div class="trophy-card {% if certifications|length >= 5 %}unlocked{% else %}locked{% endif %}" data-tier="gold">
-                <div class="trophy-icon">
-                    <svg viewBox="0 0 100 120" class="w-20 h-20 mx-auto">
+
+            <!-- Gold -->
+            <div class="t-card {% if certifications|length >= 5 %}unlocked{% else %}locked{% endif %}" data-tier="gold">
+                <div class="t-icon-wrap">
+                    {% if certifications|length >= 5 %}
+                    <div class="t-unlock-check"><i class="fas fa-check"></i></div>
+                    {% else %}
+                    <div class="t-lock-icon"><i class="fas fa-lock"></i></div>
+                    {% endif %}
+                    <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#ffed4e;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#daa520;stop-opacity:1" />
-                            </linearGradient>
+                            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffe066"/><stop offset="1" stop-color="#b8860b"/></linearGradient>
                         </defs>
-                        <path d="M50 10 L60 50 L50 60 L40 50 Z" fill="url(#goldGrad)" stroke="#ffd700" stroke-width="2"/>
-                        <rect x="45" y="50" width="10" height="30" fill="url(#goldGrad)"/>
-                        <rect x="40" y="80" width="20" height="8" rx="2" fill="url(#goldGrad)"/>
-                        <rect x="35" y="88" width="30" height="25" rx="3" fill="url(#goldGrad)"/>
+                        <path d="M20 8 Q20 52 40 58 Q60 52 60 8 Z" fill="url(#g1)"/>
+                        <path d="M20 16 Q8 20 10 32 Q12 42 20 40" stroke="#ffd700" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <path d="M60 16 Q72 20 70 32 Q68 42 60 40" stroke="#ffd700" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <rect x="35" y="58" width="10" height="20" fill="url(#g1)" rx="2"/>
+                        <rect x="27" y="76" width="26" height="7" fill="url(#g1)" rx="3"/>
+                        <rect x="22" y="83" width="36" height="9" fill="url(#g1)" rx="3"/>
+                        <!-- Star on cup -->
+                        <polygon points="40,18 42,24 48,24 43,28 45,34 40,30 35,34 37,28 32,24 38,24" fill="rgba(255,255,255,0.6)"/>
+                        <path d="M28 14 Q32 10 36 16" stroke="rgba(255,255,255,0.55)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold mt-2">Expert</h3>
-                <p class="text-xs text-gray-500">5 Certifications</p>
+                <div class="t-name">Expert</div>
+                <div class="t-req">5 Certifications</div>
             </div>
-            
-            <!-- Platinum Trophy -->
-            <div class="trophy-card {% if certifications|length >= 8 %}unlocked{% else %}locked{% endif %}" data-tier="platinum">
-                <div class="trophy-icon">
-                    <svg viewBox="0 0 100 120" class="w-20 h-20 mx-auto">
+
+            <!-- Platinum -->
+            <div class="t-card {% if certifications|length >= 8 %}unlocked{% else %}locked{% endif %}" data-tier="platinum">
+                <div class="t-icon-wrap">
+                    {% if certifications|length >= 8 %}
+                    <div class="t-unlock-check"><i class="fas fa-check"></i></div>
+                    {% else %}
+                    <div class="t-lock-icon"><i class="fas fa-lock"></i></div>
+                    {% endif %}
+                    <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="platinumGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#e5e4e2;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#d4d4d4;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#b8b8b8;stop-opacity:1" />
-                            </linearGradient>
+                            <linearGradient id="p1" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#eeecea"/><stop offset="1" stop-color="#a0a0a0"/></linearGradient>
                         </defs>
-                        <path d="M50 10 L60 50 L50 60 L40 50 Z" fill="url(#platinumGrad)" stroke="#e5e4e2" stroke-width="2"/>
-                        <rect x="45" y="50" width="10" height="30" fill="url(#platinumGrad)"/>
-                        <rect x="40" y="80" width="20" height="8" rx="2" fill="url(#platinumGrad)"/>
-                        <rect x="35" y="88" width="30" height="25" rx="3" fill="url(#platinumGrad)"/>
+                        <path d="M20 8 Q20 52 40 58 Q60 52 60 8 Z" fill="url(#p1)"/>
+                        <path d="M20 16 Q8 20 10 32 Q12 42 20 40" stroke="#d4d4d4" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <path d="M60 16 Q72 20 70 32 Q68 42 60 40" stroke="#d4d4d4" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <rect x="35" y="58" width="10" height="20" fill="url(#p1)" rx="2"/>
+                        <rect x="27" y="76" width="26" height="7" fill="url(#p1)" rx="3"/>
+                        <rect x="22" y="83" width="36" height="9" fill="url(#p1)" rx="3"/>
+                        <path d="M28 14 Q32 10 36 16" stroke="rgba(255,255,255,0.65)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="40" cy="26" r="5" fill="rgba(255,255,255,0.5)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold mt-2">Master</h3>
-                <p class="text-xs text-gray-500">8 Certifications</p>
+                <div class="t-name">Master</div>
+                <div class="t-req">8 Certifications</div>
             </div>
-            
-            <!-- Diamond Trophy -->
-            <div class="trophy-card {% if certifications|length >= 12 %}unlocked{% else %}locked{% endif %}" data-tier="diamond">
-                <div class="trophy-icon">
-                    <svg viewBox="0 0 100 120" class="w-20 h-20 mx-auto">
+
+            <!-- Diamond -->
+            <div class="t-card {% if certifications|length >= 12 %}unlocked{% else %}locked{% endif %}" data-tier="diamond">
+                <div class="t-icon-wrap">
+                    {% if certifications|length >= 12 %}
+                    <div class="t-unlock-check"><i class="fas fa-check"></i></div>
+                    {% else %}
+                    <div class="t-lock-icon"><i class="fas fa-lock"></i></div>
+                    {% endif %}
+                    <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="diamondGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#b9f2ff;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#7dd3fc;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#0ea5e9;stop-opacity:1" />
-                            </linearGradient>
+                            <linearGradient id="d1" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#c4f0ff"/><stop offset="1" stop-color="#0284c7"/></linearGradient>
                         </defs>
-                        <path d="M50 10 L60 50 L50 60 L40 50 Z" fill="url(#diamondGrad)" stroke="#b9f2ff" stroke-width="2"/>
-                        <rect x="45" y="50" width="10" height="30" fill="url(#diamondGrad)"/>
-                        <rect x="40" y="80" width="20" height="8" rx="2" fill="url(#diamondGrad)"/>
-                        <rect x="35" y="88" width="30" height="25" rx="3" fill="url(#diamondGrad)"/>
+                        <path d="M20 8 Q20 52 40 58 Q60 52 60 8 Z" fill="url(#d1)"/>
+                        <path d="M20 16 Q8 20 10 32 Q12 42 20 40" stroke="#7dd3fc" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <path d="M60 16 Q72 20 70 32 Q68 42 60 40" stroke="#7dd3fc" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <rect x="35" y="58" width="10" height="20" fill="url(#d1)" rx="2"/>
+                        <rect x="27" y="76" width="26" height="7" fill="url(#d1)" rx="3"/>
+                        <rect x="22" y="83" width="36" height="9" fill="url(#d1)" rx="3"/>
+                        <!-- Diamond gem -->
+                        <polygon points="40,16 47,22 44,30 36,30 33,22" fill="rgba(255,255,255,0.7)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+                        <path d="M28 14 Q32 10 36 16" stroke="rgba(255,255,255,0.7)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold mt-2">Legend</h3>
-                <p class="text-xs text-gray-500">12 Certifications</p>
+                <div class="t-name">Legend</div>
+                <div class="t-req">12 Certifications</div>
             </div>
-            
-            <!-- Ultimate Trophy -->
-            <div class="trophy-card {% if certifications|length >= 20 %}unlocked{% else %}locked{% endif %}" data-tier="ultimate">
-                <div class="trophy-icon">
-                    <svg viewBox="0 0 100 120" class="w-20 h-20 mx-auto">
+
+            <!-- Ultimate -->
+            <div class="t-card {% if certifications|length >= 20 %}unlocked{% else %}locked{% endif %}" data-tier="ultimate">
+                <div class="t-icon-wrap">
+                    {% if certifications|length >= 20 %}
+                    <div class="t-unlock-check"><i class="fas fa-check"></i></div>
+                    {% else %}
+                    <div class="t-lock-icon"><i class="fas fa-lock"></i></div>
+                    {% endif %}
+                    <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <defs>
-                            <linearGradient id="ultimateGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#9333ea;stop-opacity:1" />
-                                <stop offset="50%" style="stop-color:#a855f7;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#7e22ce;stop-opacity:1" />
-                            </linearGradient>
+                            <linearGradient id="u1" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#c084fc"/><stop offset="1" stop-color="#6b21a8"/></linearGradient>
+                            <linearGradient id="u2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd700"/><stop offset="1" stop-color="#ff8c00"/></linearGradient>
                         </defs>
-                        <path d="M50 10 L60 50 L50 60 L40 50 Z" fill="url(#ultimateGrad)" stroke="#9333ea" stroke-width="2"/>
-                        <rect x="45" y="50" width="10" height="30" fill="url(#ultimateGrad)"/>
-                        <rect x="40" y="80" width="20" height="8" rx="2" fill="url(#ultimateGrad)"/>
-                        <rect x="35" y="88" width="30" height="25" rx="3" fill="url(#ultimateGrad)"/>
-                        <circle cx="50" cy="30" r="8" fill="#ffd700"/>
+                        <path d="M20 8 Q20 52 40 58 Q60 52 60 8 Z" fill="url(#u1)"/>
+                        <path d="M20 16 Q8 20 10 32 Q12 42 20 40" stroke="#a855f7" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <path d="M60 16 Q72 20 70 32 Q68 42 60 40" stroke="#a855f7" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        <rect x="35" y="58" width="10" height="20" fill="url(#u1)" rx="2"/>
+                        <rect x="27" y="76" width="26" height="7" fill="url(#u1)" rx="3"/>
+                        <rect x="22" y="83" width="36" height="9" fill="url(#u1)" rx="3"/>
+                        <!-- Crown -->
+                        <polygon points="29,22 34,14 40,20 46,14 51,22" fill="url(#u2)" stroke="#ffd700" stroke-width="1"/>
+                        <rect x="29" y="22" width="22" height="8" fill="url(#u2)" rx="1"/>
+                        <path d="M28 34 Q32 30 36 34" stroke="rgba(255,255,255,0.5)" stroke-width="2" fill="none" stroke-linecap="round"/>
                     </svg>
                 </div>
-                <h3 class="text-sm font-semibold mt-2">Ultimate</h3>
-                <p class="text-xs text-gray-500">20 Certifications</p>
+                <div class="t-name">Ultimate</div>
+                <div class="t-req">20 Certifications</div>
             </div>
+
         </div>
     </div>
-    
-    <style>
-        .trophy-card {
-            background: rgba(10, 14, 39, 0.4);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(107, 114, 128, 0.2);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .trophy-card.locked {
-            opacity: 0.5;
-            filter: grayscale(100%);
-        }
-        
-        .trophy-card.unlocked {
-            border-color: rgba(0, 240, 255, 0.3);
-            background: linear-gradient(to bottom, rgba(10, 14, 39, 0.6), rgba(10, 14, 39, 0.4));
-            box-shadow: 0 4px 20px rgba(0, 240, 255, 0.1);
-        }
-        
-        .trophy-card.unlocked:hover {
-            border-color: rgba(0, 240, 255, 0.5);
-            box-shadow: 0 8px 30px rgba(0, 240, 255, 0.2);
-            transform: translateY(-4px) scale(1.05);
-        }
-        
-        .trophy-card.locked:hover {
-            opacity: 0.7;
-        }
-        
-        .trophy-icon {
-            margin-bottom: 0.5rem;
-        }
-        
-        .trophy-card.unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.3));
-        }
-        
-        .trophy-card[data-tier="bronze"].unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 8px rgba(205, 127, 50, 0.4));
-        }
-        
-        .trophy-card[data-tier="silver"].unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 8px rgba(192, 192, 192, 0.4));
-        }
-        
-        .trophy-card[data-tier="gold"].unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
-        }
-        
-        .trophy-card[data-tier="platinum"].unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 10px rgba(229, 228, 226, 0.4));
-        }
-        
-        .trophy-card[data-tier="diamond"].unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 12px rgba(185, 242, 255, 0.6));
-        }
-        
-        .trophy-card[data-tier="ultimate"].unlocked .trophy-icon svg {
-            filter: drop-shadow(0 0 15px rgba(147, 51, 234, 0.6)) drop-shadow(0 0 8px rgba(255, 215, 0, 0.4));
-        }
-    </style>
 
-    <!-- Certifications List -->
+    <!-- ── CERT CARDS ── -->
     {% if certifications %}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="certs-grid">
         {% for cert in certifications %}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 hover:border-cyan-electric/30 transition-all">
-            <div class="flex items-start justify-between mb-4">
-                <div class="flex-1">
-                    <div class="flex items-center gap-3 mb-3">
-                        <div class="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 border border-yellow-500/30 flex items-center justify-center">
-                            <i class="fas fa-certificate text-yellow-400 text-2xl"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-bold">{{ cert.course.name }}</h3>
-                            <p class="text-sm text-gray-400">{{ cert.course.course_type|title }} Course</p>
-                        </div>
-                    </div>
-                    
-                    <div class="space-y-2 mb-4">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-gray-400">Status</span>
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold
-                                {% if cert.status == 'passed' %}bg-yellow-500/20 text-yellow-300 border border-yellow-500/30
-                                {% elif cert.status == 'failed' %}bg-red-500/20 text-red-400 border border-red-500/30
-                                {% elif cert.status == 'eligible' %}bg-cyan-electric/20 text-cyan-electric border border-cyan-electric/30
-                                {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
-                                {{ cert.get_status_display }}
-                            </span>
-                        </div>
-                        {% if cert.issued_at %}
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-gray-400">Issued Date</span>
-                            <span class="text-sm font-medium">{{ cert.issued_at|date:"F d, Y" }}</span>
-                        </div>
-                        {% endif %}
-                        {% if cert.accredible_certificate_id %}
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-gray-400">Certificate ID</span>
-                            <span class="text-xs font-mono text-gray-500">{{ cert.accredible_certificate_id|truncatechars:20 }}</span>
-                        </div>
-                        {% endif %}
-                    </div>
+        <div class="cert-card status-{{ cert.status }} reveal" style="transition-delay:{{ forloop.counter0 }}00ms">
+            <div class="cert-top">
+                <div class="cert-icon-wrap">
+                    <i class="fas fa-certificate"></i>
+                </div>
+                <div>
+                    <div class="cert-name">{{ cert.course.name }}</div>
+                    <div class="cert-type">{{ cert.course.course_type|title }} Course</div>
                 </div>
             </div>
-            
+
+            <div class="cert-meta">
+                <div class="cert-meta-row">
+                    <span class="cert-meta-key">Status</span>
+                    <span class="status-pill
+                        {% if cert.status == 'passed' %}sp-passed
+                        {% elif cert.status == 'failed' %}sp-failed
+                        {% elif cert.status == 'eligible' %}sp-eligible
+                        {% else %}sp-other{% endif %}">
+                        <i class="fas fa-circle" style="font-size:6px;"></i>
+                        {{ cert.get_status_display }}
+                    </span>
+                </div>
+                {% if cert.issued_at %}
+                <div class="cert-meta-row">
+                    <span class="cert-meta-key">Issued</span>
+                    <span class="cert-meta-val">{{ cert.issued_at|date:"F d, Y" }}</span>
+                </div>
+                {% endif %}
+                {% if cert.accredible_certificate_id %}
+                <div class="cert-meta-row">
+                    <span class="cert-meta-key">Certificate ID</span>
+                    <span class="cert-meta-val mono">{{ cert.accredible_certificate_id|truncatechars:22 }}</span>
+                </div>
+                {% endif %}
+            </div>
+
             {% if cert.accredible_certificate_url %}
-            <a href="{{ cert.accredible_certificate_url }}" target="_blank" class="block w-full px-4 py-3 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-500/90 hover:to-yellow-600/90 text-white font-semibold rounded-lg transition-all text-center">
-                <i class="fas fa-external-link-alt mr-2"></i>View Certificate on Accredible
+            <a href="{{ cert.accredible_certificate_url }}" target="_blank" class="btn-cert-view">
+                <i class="fas fa-arrow-up-right-from-square"></i>
+                View on Accredible
             </a>
             {% elif cert.status == 'passed' %}
-            <div class="text-center py-2 text-sm text-gray-400">
-                Certificate processing...
+            <div class="btn-processing">
+                <i class="fas fa-spinner fa-spin" style="font-size:12px;"></i>
+                Certificate processing…
             </div>
             {% elif cert.status == 'eligible' %}
-            <a href="{% url 'student_course_progress' cert.course.slug %}" class="block w-full px-4 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-semibold rounded-lg transition-all text-center">
+            <a href="{% url 'student_course_progress' cert.course.slug %}" class="btn-take-exam">
+                <i class="fas fa-pen-to-square"></i>
                 Take Final Exam
             </a>
             {% endif %}
         </div>
         {% endfor %}
     </div>
+
     {% else %}
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-12 text-center">
-        <i class="fas fa-certificate text-6xl text-gray-600 mb-4"></i>
-        <h3 class="text-xl font-semibold mb-2">No Certifications Yet</h3>
-        <p class="text-gray-400 mb-6">Complete courses and pass exams to earn certifications</p>
-        <a href="{% url 'student_dashboard' %}" class="inline-block px-6 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-semibold rounded-xl transition-all">
-            View My Courses
+    <div class="empty-block reveal" style="transition-delay:.1s">
+        <div class="empty-ico"><i class="fas fa-certificate"></i></div>
+        <div class="empty-title">No Certifications Yet</div>
+        <p class="empty-text">Complete courses and pass their final exams to earn official certifications and unlock achievement trophies.</p>
+        <a href="{% url 'student_dashboard' %}" class="btn-empty">
+            <i class="fas fa-layer-group"></i> View My Courses
         </a>
     </div>
     {% endif %}
 
-    <!-- Eligible Courses -->
+    <!-- ── ELIGIBLE FOR CERTIFICATION ── -->
     {% if eligible_courses %}
-    <div class="mt-8">
-        <h2 class="text-2xl font-bold mb-4">Eligible for Certification</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="eligible-section reveal">
+        <div class="section-hd2">
+            <span class="section-hd2-title">Eligible for Certification</span>
+            <span class="section-hd2-badge">{{ eligible_courses|length }} ready</span>
+        </div>
+        <div class="eligible-grid">
             {% for course in eligible_courses %}
-            <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-                <h3 class="text-lg font-bold mb-2">{{ course.name }}</h3>
-                <p class="text-sm text-gray-400 mb-4">You've completed all lessons. Take the final exam to earn your certification!</p>
-                <a href="{% url 'student_course_progress' course.slug %}" class="inline-block px-4 py-2 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-semibold rounded-lg transition-all">
-                    View Course & Exam
+            <div class="eligible-card">
+                <div>
+                    <div class="eligible-name">{{ course.name }}</div>
+                    <div class="eligible-hint">All lessons complete — pass the final exam to earn your certificate.</div>
+                </div>
+                <a href="{% url 'student_course_progress' course.slug %}" class="btn-eligible">
+                    <i class="fas fa-pen-to-square" style="font-size:12px;"></i> Take Exam
                 </a>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
-</div>
+
+</div><!-- .cert-page -->
+
+<script>
+// ── Scroll reveal ──
+const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.06 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// ── Trophy progress bar ──
+(function() {
+    const tiers = [1, 3, 5, 8, 12, 20];
+    const count = parseInt("{{ certifications|length }}", 10) || 0;
+
+    // Find the next locked tier
+    let nextTier = null;
+    let prevTier = 0;
+    for (let i = 0; i < tiers.length; i++) {
+        if (count < tiers[i]) {
+            nextTier = tiers[i];
+            prevTier = i > 0 ? tiers[i - 1] : 0;
+            break;
+        }
+    }
+
+    const bar = document.getElementById('trophyProgressBar');
+    const hint = document.getElementById('trophyProgressHint');
+
+    if (nextTier) {
+        const pct = Math.round(((count - prevTier) / (nextTier - prevTier)) * 100);
+        setTimeout(() => { bar.style.width = pct + '%'; }, 400);
+        hint.innerHTML = `<span>${count}</span> / ${nextTier} certs to next trophy`;
+    } else {
+        // All unlocked
+        setTimeout(() => { bar.style.width = '100%'; }, 400);
+        hint.innerHTML = `<span>All trophies unlocked!</span> 🏆`;
+    }
+})();
+</script>
+
 {% endblock %}
-
-
-
