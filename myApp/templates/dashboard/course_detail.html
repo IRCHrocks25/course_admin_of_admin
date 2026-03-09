@@ -96,5 +96,82 @@
         </div>
     </div>
 </div>
+
+<!-- Course Resources Section -->
+<div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mt-6">
+    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+        <i class="fas fa-download text-cyan-electric"></i>
+        Course Resources
+    </h2>
+    <p class="text-sm text-gray-400 mb-4">Add downloadable resources (SOP templates, checklists, PDFs) for students. Upload a file or provide an external link (e.g. Google Drive).</p>
+
+    <!-- Add Resource Form -->
+    <form method="POST" enctype="multipart/form-data" class="mb-6 p-4 bg-[#1a1f3a]/50 rounded-lg border border-cyan-electric/10">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_resource">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-semibold mb-2">Title *</label>
+                <input type="text" name="resource_title" required placeholder="e.g., SOP Template" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-2">Type</label>
+                <select name="resource_type" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+                    <option value="template">Template</option>
+                    <option value="checklist">Checklist</option>
+                    <option value="pdf">PDF Document</option>
+                    <option value="workbook">Workbook</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+        <div class="mt-4">
+            <label class="block text-sm font-semibold mb-2">Description (optional)</label>
+            <input type="text" name="resource_description" placeholder="Brief description" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+                <label class="block text-sm font-semibold mb-2">Upload File</label>
+                <input type="file" name="resource_file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.zip" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-cyan-electric/20 file:text-cyan-electric">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-2">Or External URL (Google Drive, etc.)</label>
+                <input type="url" name="resource_file_url" placeholder="https://..." class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">Provide either an uploaded file or a URL. URLs open in a new tab.</p>
+        <button type="submit" class="mt-4 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-lg font-semibold hover:bg-cyan-electric/90 transition-all">
+            <i class="fas fa-plus mr-2"></i>Add Resource
+        </button>
+    </form>
+
+    <!-- Resources List -->
+    {% if course_resources %}
+    <div class="space-y-2">
+        {% for resource in course_resources %}
+        <div class="flex items-center justify-between p-4 bg-[#1a1f3a]/50 rounded-lg border border-cyan-electric/10">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-file text-cyan-electric"></i>
+                <div>
+                    <div class="font-semibold">{{ resource.title }}</div>
+                    <div class="text-xs text-gray-500">{{ resource.get_resource_type_display }}{% if resource.description %} · {{ resource.description|truncatechars:50 }}{% endif %}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ resource.get_download_url }}" target="_blank" class="px-3 py-1 text-sm bg-cyan-electric/10 border border-cyan-electric/30 rounded hover:bg-cyan-electric/20">View</a>
+                <form method="POST" class="inline" onsubmit="return confirm('Delete this resource?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_resource">
+                    <input type="hidden" name="resource_id" value="{{ resource.id }}">
+                    <button type="submit" class="px-3 py-1 text-sm bg-red-500/10 border border-red-500/30 rounded hover:bg-red-500/20 text-red-400">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm italic">No resources yet. Add your first resource above.</p>
+    {% endif %}
+</div>
 {% endblock %}
 

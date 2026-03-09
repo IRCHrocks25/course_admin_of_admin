@@ -37,6 +37,33 @@
         </div>
     </div>
 
+    <!-- Course Resources Section -->
+    {% if course_resources %}
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+        <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="fas fa-download text-cyan-electric"></i>
+            Course Resources
+        </h3>
+        <p class="text-sm text-gray-400 mb-4">Download SOP templates, checklists, and materials for this course.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for resource in course_resources %}
+            <a href="{{ resource.get_download_url }}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 p-4 bg-[#1a1f3a]/50 hover:bg-cyan-electric/10 border border-cyan-electric/10 hover:border-cyan-electric/30 rounded-lg transition-all group">
+                <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 flex items-center justify-center flex-shrink-0 group-hover:bg-cyan-electric/30">
+                    <i class="fas fa-file-{% if resource.resource_type == 'pdf' %}pdf{% elif resource.resource_type == 'template' %}code{% elif resource.resource_type == 'checklist' %}list-check{% else %}download{% endif %} text-cyan-electric"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="font-semibold text-sm truncate">{{ resource.title }}</div>
+                    {% if resource.description %}
+                    <div class="text-xs text-gray-500 truncate">{{ resource.description }}</div>
+                    {% endif %}
+                    <span class="text-xs text-cyan-electric">Download →</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Exam & Certification Section -->
     {% if exam or certification %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

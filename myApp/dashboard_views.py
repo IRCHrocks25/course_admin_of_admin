@@ -26,11 +26,13 @@ except ImportError:
     OPENAI_AVAILABLE = False
 from .models import (
     Course,
+    CourseResource,
     Lesson,
     Module,
     UserProgress,
     CourseEnrollment,
     Exam,
+    ExamQuestion,
     CourseAccess,
     ExamAttempt,
     Certification,
@@ -425,21 +427,55 @@ def dashboard_courses(request):
 
 @staff_member_required
 def dashboard_course_detail(request, course_slug):
-    """Edit course details"""
+    """Edit course details and manage resources"""
     course = get_object_or_404(Course, slug=course_slug)
-    
+
     if request.method == 'POST':
-        course.name = request.POST.get('name', course.name)
-        course.short_description = request.POST.get('short_description', course.short_description)
-        course.description = request.POST.get('description', course.description)
-        course.status = request.POST.get('status', course.status)
-        course.course_type = request.POST.get('course_type', course.course_type)
-        course.coach_name = request.POST.get('coach_name', course.coach_name)
-        course.save()
-        return redirect('dashboard_course_detail', course_slug=course.slug)
-    
+        action = request.POST.get('action', '')
+        if action == 'add_resource':
+            title = request.POST.get('resource_title', '').strip()
+            file_url = request.POST.get('resource_file_url', '').strip()
+            uploaded_file = request.FILES.get('resource_file')
+            if title and (uploaded_file or file_url):
+                resource_type = request.POST.get('resource_type', 'other')
+                description = request.POST.get('resource_description', '').strip()
+                max_order = course.resources.aggregate(models.Max('order'))['order__max'] or 0
+                CourseResource.objects.create(
+                    course=course,
+                    title=title,
+                    description=description,
+                    resource_type=resource_type,
+                    file=uploaded_file if uploaded_file else None,
+                    file_url=file_url or '',
+                    order=max_order + 1,
+                )
+                messages.success(request, f'Resource "{title}" added successfully.')
+            elif title and not (uploaded_file or file_url):
+                messages.error(request, 'Please provide either an uploaded file or an external URL.')
+            return redirect('dashboard_course_detail', course_slug=course.slug)
+        elif action == 'delete_resource':
+            rid = request.POST.get('resource_id')
+            if rid:
+                try:
+                    r = CourseResource.objects.get(id=rid, course=course)
+                    r.delete()
+                    messages.success(request, 'Resource deleted.')
+                except CourseResource.DoesNotExist:
+                    pass
+            return redirect('dashboard_course_detail', course_slug=course.slug)
+        else:
+            course.name = request.POST.get('name', course.name)
+            course.short_description = request.POST.get('short_description', course.short_description)
+            course.description = request.POST.get('description', course.description)
+            course.status = request.POST.get('status', course.status)
+            course.course_type = request.POST.get('course_type', course.course_type)
+            course.coach_name = request.POST.get('coach_name', course.coach_name)
+            course.save()
+            return redirect('dashboard_course_detail', course_slug=course.slug)
+
     return render(request, 'dashboard/course_detail.html', {
         'course': course,
+        'course_resources': course.resources.all(),
     })
 
 
@@ -916,6 +952,72 @@ Only return valid JSON, no additional text."""
         raise Exception(f'AI generation failed: {str(e)}')
 
 
+TRAINING_WEBHOOK_URL = 'https://katalyst-crm2.fly.dev/webhook/425e8e67-2aa6-4c50-b67f-0162e2496b51'
+
+
+def _extract_lesson_text_for_chatbot(lesson):
+    """Extract text content from lesson for chatbot training (transcript replacement for AI-generated lessons)"""
+    parts = []
+    if lesson.ai_full_description:
+        parts.append(lesson.ai_full_description)
+    elif lesson.description:
+        parts.append(lesson.description)
+    if lesson.ai_short_summary:
+        parts.append(lesson.ai_short_summary)
+    # Extract text from Editor.js content blocks
+    content = lesson.content if isinstance(lesson.content, dict) else {}
+    for block in content.get('blocks', []):
+        data = block.get('data', {})
+        if block.get('type') == 'paragraph' and data.get('text'):
+            parts.append(data['text'])
+        elif block.get('type') == 'header' and data.get('text'):
+            parts.append(data['text'])
+        elif block.get('type') == 'list':
+            for item in data.get('items', []):
+                if item:
+                    parts.append(f"• {item}")
+        elif block.get('type') == 'quote' and data.get('text'):
+            parts.append(data['text'])
+    return '\n\n'.join(p.strip() for p in parts if p and p.strip()) or lesson.title
+
+
+def _send_lesson_to_chatbot_webhook(lesson):
+    """Send lesson content to training webhook for AI chatbot. Returns True on success, False on failure."""
+    transcript = _extract_lesson_text_for_chatbot(lesson)
+    if not transcript:
+        return False
+    payload = {
+        'transcript': transcript,
+        'lesson_id': lesson.id,
+        'lesson_title': lesson.title,
+        'course_name': lesson.course.name,
+        'lesson_slug': lesson.slug,
+    }
+    try:
+        response = requests.post(TRAINING_WEBHOOK_URL, json=payload, timeout=30, headers={'Content-Type': 'application/json'})
+        if response.status_code == 200:
+            data = response.json()
+            webhook_id = data.get('chatbot_webhook_id') or data.get('webhook_id') or data.get('id')
+            if webhook_id:
+                lesson.ai_chatbot_webhook_id = str(webhook_id)
+            lesson.ai_chatbot_training_status = 'trained'
+            lesson.ai_chatbot_trained_at = timezone.now()
+            lesson.ai_chatbot_enabled = True
+            lesson.ai_chatbot_training_error = ''
+            lesson.save()
+            return True
+        else:
+            lesson.ai_chatbot_training_status = 'failed'
+            lesson.ai_chatbot_training_error = f"Webhook returned {response.status_code}: {response.text[:200]}"
+            lesson.save()
+            return False
+    except Exception as e:
+        lesson.ai_chatbot_training_status = 'failed'
+        lesson.ai_chatbot_training_error = str(e)
+        lesson.save()
+        return False
+
+
 def _get_ai_gen_cache_key(course_id):
     return f'ai_gen_{course_id}'
 
@@ -1011,7 +1113,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 # Convert content sections to Editor.js format
                 lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
                 
-                Lesson.objects.create(
+                lesson = Lesson.objects.create(
                     course=course,
                     module=module,
                     title=lesson_title,
@@ -1030,9 +1132,45 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     ai_generation_status='generated'
                 )
                 lessons_created += 1
+                # Auto-generate quiz for this lesson
+                try:
+                    quiz, _ = LessonQuiz.objects.get_or_create(
+                        lesson=lesson,
+                        defaults={'title': f'{lesson_title} Quiz', 'passing_score': 70, 'is_required': True},
+                    )
+                    qc = generate_ai_quiz(lesson, quiz, num_questions=5)
+                    if qc > 0:
+                        print(f'[Background] Quiz created for lesson: {lesson_title[:50]} ({qc} questions)')
+                except Exception as eq:
+                    print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
+                # Auto-send to chatbot training webhook so AI learns from each lesson
+                if _send_lesson_to_chatbot_webhook(lesson):
+                    print(f'[Background] Chatbot trained for lesson: {lesson_title[:50]}')
+                else:
+                    print(f'[Background] Chatbot training failed for lesson: {lesson_title[:50]}')
                 items_done += 1
-                pct = min(95, 15 + int(80 * items_done / total_items))
+                pct = min(90, 15 + int(75 * items_done / total_items))
                 _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=pct, total=total_items, current=f'Lesson: {lesson_title[:50]}')
+        
+        # Create final exam with AI-generated questions
+        _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=92, total=total_items, current='Creating final exam...')
+        try:
+            exam, created = Exam.objects.get_or_create(
+                course=course,
+                defaults={
+                    'title': f'Final Exam - {course_name}',
+                    'description': f'Comprehensive exam covering all concepts from {course_name}. Complete all lessons before attempting.',
+                    'passing_score': 70,
+                    'max_attempts': 3,
+                    'time_limit_minutes': 60,
+                },
+            )
+            num_exam_q = min(25, max(15, lessons_created * 2))
+            exam_qc = generate_ai_exam(course, exam, num_questions=num_exam_q)
+            if exam_qc > 0:
+                print(f'[Background] Final exam created for "{course_name}": {exam_qc} questions')
+        except Exception as ex:
+            print(f'[Background] Exam generation failed for "{course_name}": {ex}')
         
         _update_ai_gen_progress(course_id, course_name, 'completed', progress=100, total=total_items, current='Complete!')
         print(f'[Background] Successfully generated AI content for course "{course_name}": {modules_created} modules, {lessons_created} lessons')
@@ -1044,19 +1182,28 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         traceback.print_exc()
 
 
+def _remove_course_from_session(request, course_id):
+    """Remove a single course from the ai_generating_courses list"""
+    courses_list = request.session.get('ai_generating_courses', [])
+    if not isinstance(courses_list, list):
+        request.session['ai_generating_courses'] = []
+    else:
+        request.session['ai_generating_courses'] = [
+            c for c in courses_list
+            if isinstance(c, dict) and c.get('id') != course_id
+        ]
+    request.session.modified = True
+
+
 @staff_member_required
 def api_ai_generation_status(request, course_id):
     """JSON endpoint for polling AI course generation progress"""
     data = cache.get(_get_ai_gen_cache_key(course_id))
     if data is None:
-        # Cache expired or job never started - clear session so widget hides
-        request.session.pop('ai_generating_course_id', None)
-        request.session.pop('ai_generating_course_name', None)
+        _remove_course_from_session(request, course_id)
         return JsonResponse({'status': 'unknown', 'progress': 0})
-    # Clear session when done so widget stops showing on next page load
     if data.get('status') in ('completed', 'failed'):
-        request.session.pop('ai_generating_course_id', None)
-        request.session.pop('ai_generating_course_name', None)
+        _remove_course_from_session(request, course_id)
     return JsonResponse(data)
 
 
@@ -1095,9 +1242,12 @@ def dashboard_add_course(request):
         
         # Generate course structure with AI if requested (in background)
         if use_ai and description:
-            # Store in session so floating widget can poll (no success message - widget shows progress)
-            request.session['ai_generating_course_id'] = course.id
-            request.session['ai_generating_course_name'] = course.name
+            # Append to list so floating widget can show stacked progress for multiple courses
+            courses_list = request.session.get('ai_generating_courses', [])
+            if not isinstance(courses_list, list):
+                courses_list = []
+            courses_list.append({'id': course.id, 'name': course.name})
+            request.session['ai_generating_courses'] = courses_list
             request.session.modified = True
             # Initial progress before thread starts
             _update_ai_gen_progress(course.id, course.name, 'starting', progress=0, current='Starting...')
@@ -1419,6 +1569,84 @@ Only return valid JSON, no additional text."""
     
     except Exception as e:
         raise Exception(f'AI generation failed: {str(e)}')
+
+
+def generate_ai_exam(course, exam, num_questions=20):
+    """Generate final exam questions using AI based on full course content."""
+    if not OPENAI_AVAILABLE:
+        raise Exception('OpenAI is not available.')
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        raise Exception('OPENAI_API_KEY not found.')
+    lessons = course.lessons.select_related('module').order_by('module__order', 'order')
+    lesson_content = []
+    lesson_content.append(f"Course: {course.name}")
+    lesson_content.append(f"Description: {course.description[:1500]}")
+    for lesson in lessons:
+        block = [f"Lesson: {lesson.title}"]
+        if lesson.ai_full_description:
+            block.append(lesson.ai_full_description[:800])
+        elif lesson.description:
+            block.append(lesson.description[:800])
+        content = lesson.content if isinstance(lesson.content, dict) else {}
+        for b in content.get('blocks', [])[:5]:
+            d = b.get('data', {})
+            if b.get('type') == 'paragraph' and d.get('text'):
+                block.append(d['text'][:300])
+        lesson_content.append('\n'.join(block))
+    content_text = '\n\n---\n\n'.join(lesson_content)
+    prompt = f"""Based on this entire course content, generate {num_questions} multiple-choice final exam questions.
+
+Course Content:
+{content_text}
+
+Generate {num_questions} questions that test understanding across the whole course. Each question should have 4 options (A, B, C, D), one correct answer. Return JSON only:
+{{
+  "questions": [
+    {{"question": "...", "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...", "correct_answer": "A"}}
+  ]
+}}"""
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You create educational exam questions. Return valid JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=4000,
+        )
+        text = response.choices[0].message.content.strip()
+        if text.startswith('```'):
+            text = text.split('```')[1]
+            if text.startswith('json'):
+                text = text[4:]
+            text = text.strip()
+        data = json.loads(text)
+        created = 0
+        for idx, q in enumerate(data.get('questions', []), 1):
+            qt = q.get('question', '').strip()
+            a, b = q.get('option_a', '').strip(), q.get('option_b', '').strip()
+            if not qt or not a or not b:
+                continue
+            corr = (q.get('correct_answer', 'A') or 'A').strip().upper()
+            if corr not in ('A', 'B', 'C', 'D'):
+                corr = 'A'
+            ExamQuestion.objects.create(
+                exam=exam,
+                text=qt,
+                option_a=a,
+                option_b=b,
+                option_c=q.get('option_c', '').strip() or '',
+                option_d=q.get('option_d', '').strip() or '',
+                correct_option=corr,
+                order=idx,
+            )
+            created += 1
+        return created
+    except Exception as e:
+        raise Exception(f'AI exam generation failed: {str(e)}')
 
 
 def parse_pdf_quiz(uploaded_file, quiz):

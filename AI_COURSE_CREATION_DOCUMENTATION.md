@@ -54,12 +54,28 @@ Runs in a daemon thread. Steps:
 |------|-----------|-------------|
 | 1 | 1 | Generate course structure (modules + lessons) via OpenAI |
 | 2 | 2 per lesson | For each lesson: metadata (title, summary, outcomes, etc.) + content (Editor.js blocks) |
+| 3 | 1 per lesson | Send lesson content to chatbot training webhook (auto-trains AI for Q&A) |
+| 4 | 1 per lesson | Generate lesson quiz (5 questions each) |
+| 5 | 1 | Create final exam with 15–25 AI-generated questions |
 
-**Total:** For a 20-lesson course: 1 + 40 ≈ 41 OpenAI API calls. Typical duration: 2–5 minutes.
+**Total:** For a 20-lesson course: 1 + 40 OpenAI + 20 webhook + 20 quiz + 1 exam ≈ 82 calls. Typical duration: 3–8 minutes.
 
 **Progress updates:** After each module and lesson, the function updates the shared cache with current status and percentage.
 
-### 3. AI Generation Functions
+### 3. Auto-Chatbot Training
+
+After each lesson is created, the lesson content is automatically sent to the chatbot training webhook (`https://katalyst-crm2.fly.dev/webhook/425e8e67-2aa6-4c50-b67f-0162e2496b51`). This trains the AI chatbot on the lesson so students can ask questions without manual training per lesson.
+
+**Helper functions:**
+- `_extract_lesson_text_for_chatbot(lesson)` – Builds transcript text from `ai_full_description`, `ai_short_summary`, and Editor.js content blocks
+- `_send_lesson_to_chatbot_webhook(lesson)` – POSTs to the webhook, updates `ai_chatbot_training_status`, `ai_chatbot_webhook_id`, `ai_chatbot_enabled` on success
+
+### 4. Auto-Quiz and Exam Generation
+
+- **Lesson quizzes:** After each lesson, a `LessonQuiz` is created with 5 AI-generated multiple-choice questions via `generate_ai_quiz(lesson, quiz, 5)`. Quizzes are required by default.
+- **Final exam:** After all lessons, an `Exam` is created with 15–25 questions (scaled by lesson count) via `generate_ai_exam(course, exam, num_questions)`. Uses full course content to generate comprehensive exam questions. The `ExamQuestion` model stores each question.
+
+### 5. AI Generation Functions
 
 | Function | Purpose | Model |
 |----------|---------|-------|
@@ -67,8 +83,10 @@ Runs in a daemon thread. Steps:
 | `generate_ai_lesson_metadata()` | Polished title, short summary, full description, outcomes, coach actions | gpt-4o-mini |
 | `generate_ai_lesson_content()` | Lesson body as Editor.js blocks (headers, paragraphs, lists, quotes) | gpt-4o-mini |
 | `create_editorjs_content()` | Turns AI output into Editor.js JSON used by the lesson editor | — |
+| `generate_ai_quiz()` | Creates 5 multiple-choice questions per lesson | gpt-4o-mini |
+| `generate_ai_exam()` | Creates 15–25 questions for the course final exam | gpt-4o-mini |
 
-### 4. Progress Storage (Cache)
+### 6. Progress Storage (Cache)
 
 **Key:** `ai_gen_{course_id}`  
 **Backend:** Django `DatabaseCache` (shared across all Gunicorn workers)
@@ -92,7 +110,7 @@ Runs in a daemon thread. Steps:
 
 **TTL:** 15 minutes (900 seconds)
 
-### 5. Progress API Endpoint
+### 7. Progress API Endpoint
 
 **URL:** `/dashboard/api/ai-generation-status/<course_id>/`  
 **View:** `api_ai_generation_status`  
@@ -102,7 +120,7 @@ Runs in a daemon thread. Steps:
 - Returns JSON for the widget
 - Clears session when status is `completed`, `failed`, or `unknown` so the widget stops on future page loads
 
-### 6. Context Processor
+### 8. Context Processor
 
 **File:** `myApp/context_processors.py`  
 **Function:** `ai_generation_context`
@@ -110,7 +128,7 @@ Runs in a daemon thread. Steps:
 - Adds `ai_generating_course_id` and `ai_generating_course_name` to the template context on dashboard pages
 - Used to decide whether to render the floating widget and what to show
 
-### 7. Floating Progress Widget
+### 9. Floating Progress Widget
 
 **File:** `myApp/templates/dashboard/base.html`
 

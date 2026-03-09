@@ -561,7 +561,10 @@
                         {% endif %}
                     {% else %}
                         {% if data.course.lessons.first %}
-                        <a href="{% url 'lesson_detail' data.course.slug data.course.lessons.first.slug %}" class="btn-solid-full">
+                        <a href="{% url 'student_course_progress' data.course.slug %}" class="btn-ghost">
+                            View Details
+                        </a>
+                        <a href="{% url 'lesson_detail' data.course.slug data.course.lessons.first.slug %}" class="btn-solid">
                             <i class="fas fa-play" style="margin-right:6px;font-size:11px;"></i>Start Course
                         </a>
                         {% else %}

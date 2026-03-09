@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Course, Module, Lesson, UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
+    Course, CourseResource, Module, Lesson, UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
     Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse
 )
 
@@ -52,6 +52,14 @@ class UserProgressAdmin(admin.ModelAdmin):
     list_filter = ['status', 'completed', 'last_accessed']
     search_fields = ['user__username', 'lesson__title']
     readonly_fields = ['last_accessed', 'started_at', 'completed_at']
+
+
+@admin.register(CourseResource)
+class CourseResourceAdmin(admin.ModelAdmin):
+    list_display = ['title', 'course', 'resource_type', 'created_at']
+    list_filter = ['resource_type', 'course']
+    search_fields = ['title', 'description', 'course__name']
+    ordering = ['course', 'order', 'id']
 
 
 @admin.register(CourseEnrollment)

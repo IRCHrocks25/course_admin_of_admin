@@ -13,6 +13,21 @@
             <div class="text-xs text-gray-400">{{ progress_percentage }}% Complete</div>
         </div>
         
+        <!-- Course Resources -->
+        {% if course.resources.all %}
+        <div class="mb-6">
+            <div class="text-xs uppercase tracking-widest text-cyan-electric/70 font-semibold mb-2">Resources</div>
+            <div class="space-y-1.5">
+                {% for resource in course.resources.all %}
+                <a href="{{ resource.get_download_url }}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-cyan-electric/10 transition-all group">
+                    <i class="fas fa-file-{% if resource.resource_type == 'pdf' %}pdf{% else %}download{% endif %} text-cyan-electric/80 text-xs flex-shrink-0"></i>
+                    <span class="text-sm text-gray-300 group-hover:text-cyan-electric truncate">{{ resource.title }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
         <!-- Modules -->
         <div class="space-y-4">
             {% for module in course.modules.all %}

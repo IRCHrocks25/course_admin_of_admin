@@ -45,6 +45,36 @@ def has_course_access(user, course):
     return False, None, "No access found"
 
 
+def batch_has_course_access(user, course_ids):
+    """
+    Batch check course access for multiple courses. Returns dict: course_id -> (has_access, access_record, reason)
+    Use this to avoid N+1 when checking access for many courses.
+    """
+    if not user.is_authenticated or not course_ids:
+        return {cid: (False, None, "Not authenticated") for cid in course_ids}
+    
+    now = timezone.now()
+    accesses = CourseAccess.objects.filter(
+        user=user,
+        course_id__in=course_ids,
+    ).select_related('course')
+    
+    result = {cid: (False, None, "No access found") for cid in course_ids}
+    for acc in accesses:
+        if acc.status == 'expired':
+            result[acc.course_id] = (False, acc, "Access has expired")
+        elif acc.status == 'revoked':
+            result[acc.course_id] = (False, acc, f"Access revoked: {acc.revocation_reason or 'No reason'}")
+        elif acc.expires_at and now > acc.expires_at:
+            acc.status = 'expired'
+            acc.save()
+            result[acc.course_id] = (False, acc, "Access has expired")
+        elif acc.status == 'unlocked' and (not acc.expires_at or acc.expires_at > now):
+            result[acc.course_id] = (True, acc, f"Access granted via {acc.get_source_display()}")
+    
+    return result
+
+
 def grant_course_access(user, course, access_type, granted_by=None, bundle_purchase=None, 
                        cohort=None, purchase_id=None, expires_at=None, notes=""):
     """

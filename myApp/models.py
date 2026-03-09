@@ -85,6 +85,38 @@ class Course(models.Model):
         return int((completed / total) * 100)
 
 
+class CourseResource(models.Model):
+    """Downloadable resources for a course (SOP templates, checklists, PDFs, etc.)"""
+    RESOURCE_TYPES = [
+        ('template', 'Template'),
+        ('checklist', 'Checklist'),
+        ('pdf', 'PDF Document'),
+        ('workbook', 'Workbook'),
+        ('other', 'Other'),
+    ]
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='resources')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPES, default='other')
+    # Either upload a file OR provide a URL (e.g. Google Drive, Dropbox)
+    file = models.FileField(upload_to='course_resources/', blank=True, null=True)
+    file_url = models.URLField(blank=True, help_text="External link if file is hosted elsewhere (Google Drive, etc.)")
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f"{self.title} - {self.course.name}"
+
+    def get_download_url(self):
+        """Return the URL to download this resource (file or external link)"""
+        if self.file:
+            return self.file.url
+        return self.file_url
+
+
 class Module(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     name = models.CharField(max_length=200)
@@ -396,6 +428,30 @@ class Exam(models.Model):
     
     def __str__(self):
         return f"{self.course.name} - {self.title}"
+
+
+class ExamQuestion(models.Model):
+    """Multiple-choice question for a course final exam."""
+    OPTION_CHOICES = [
+        ('A', 'Option A'),
+        ('B', 'Option B'),
+        ('C', 'Option C'),
+        ('D', 'Option D'),
+    ]
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='questions')
+    text = models.TextField()
+    option_a = models.CharField(max_length=300)
+    option_b = models.CharField(max_length=300)
+    option_c = models.CharField(max_length=300, blank=True)
+    option_d = models.CharField(max_length=300, blank=True)
+    correct_option = models.CharField(max_length=1, choices=OPTION_CHOICES)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f"Q{self.order} for {self.exam.course.name}"
 
 
 class ExamAttempt(models.Model):

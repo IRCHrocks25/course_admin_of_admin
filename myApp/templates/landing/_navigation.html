@@ -21,10 +21,16 @@
                 <a href="#pillars" class="text-sm font-medium hover:text-cyan-electric transition-colors">Join</a>
             </div>
             
-            <!-- Right: Login Button -->
+            <!-- Right: Dashboard (if logged in) or Login -->
+            {% if user.is_authenticated %}
+            <a href="{% url 'student_dashboard' %}" class="px-6 py-2.5 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-semibold rounded-lg transition-all shadow-lg shadow-cyan-electric/20">
+                Dashboard
+            </a>
+            {% else %}
             <a href="{% url 'login' %}" class="px-6 py-2.5 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-semibold rounded-lg transition-all shadow-lg shadow-cyan-electric/20">
                 Login or Enter
             </a>
+            {% endif %}
         </div>
     </div>
 </nav>
