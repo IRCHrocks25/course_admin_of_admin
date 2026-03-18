@@ -4,11 +4,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 from myApp import views
 from myApp import dashboard_views
+from myApp import superadmin_views
 
 urlpatterns = [
     # Public-facing URLs
     path('', views.home, name='home'),
+    path('start-academy/', views.start_academy, name='start_academy'),
     path('login/', views.login_view, name='login'),
+    path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
     path('courses/', views.courses, name='courses'),
     path('courses/<slug:course_slug>/', views.course_detail, name='course_detail'),
@@ -59,6 +62,10 @@ urlpatterns = [
     path('dashboard/students/<int:user_id>/revoke-access/', dashboard_views.revoke_course_access_view, name='dashboard_revoke_access'),
     path('dashboard/students/<int:user_id>/grant-bundle/', dashboard_views.grant_bundle_access_view, name='dashboard_grant_bundle'),
     path('dashboard/students/<int:user_id>/add-cohort/', dashboard_views.add_to_cohort_view, name='dashboard_add_cohort'),
+    path('dashboard/domain-settings/', dashboard_views.dashboard_domain_settings, name='dashboard_domain_settings'),
+    path('dashboard/branding-settings/', dashboard_views.dashboard_branding_settings, name='dashboard_branding_settings'),
+    path('dashboard/domain-settings/<int:domain_id>/verify/', dashboard_views.dashboard_verify_domain, name='dashboard_verify_domain'),
+    path('dashboard/domain-settings/<int:domain_id>/make-primary/', dashboard_views.dashboard_make_primary_domain, name='dashboard_make_primary_domain'),
     
     # Creator/Lesson Upload Flow (kept for lesson creation)
     path('creator/', views.creator_dashboard, name='creator_dashboard'),
@@ -82,6 +89,18 @@ urlpatterns = [
     
     # Favorite course endpoint
     path('api/courses/<int:course_id>/favorite/', views.toggle_favorite_course, name='toggle_favorite_course'),
+
+    # Super Admin routes (platform-wide, cross-tenant)
+    path('superadmin/', superadmin_views.superadmin_home, name='superadmin_home'),
+    path('superadmin/tenants/', superadmin_views.superadmin_tenants, name='superadmin_tenants'),
+    path('superadmin/tenants/<int:tenant_id>/', superadmin_views.superadmin_tenant_detail, name='superadmin_tenant_detail'),
+    path('superadmin/tenants/<int:tenant_id>/analytics/', superadmin_views.superadmin_tenant_analytics, name='superadmin_tenant_analytics'),
+    path('superadmin/analytics/', superadmin_views.superadmin_analytics, name='superadmin_analytics'),
+    path('superadmin/tenants/<int:tenant_id>/suspend/', superadmin_views.superadmin_tenant_suspend, name='superadmin_tenant_suspend'),
+    path('superadmin/tenants/<int:tenant_id>/admins/create/', superadmin_views.superadmin_create_tenant_admin, name='superadmin_create_tenant_admin'),
+    path('superadmin/tenants/<int:tenant_id>/domains/add/', superadmin_views.superadmin_add_tenant_domain, name='superadmin_add_tenant_domain'),
+    path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/verify/', superadmin_views.superadmin_verify_tenant_domain, name='superadmin_verify_tenant_domain'),
+    path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/set-primary/', superadmin_views.superadmin_set_primary_tenant_domain, name='superadmin_set_primary_tenant_domain'),
     
     # Admin (optional - can be removed if not needed)
     path('admin/', admin.site.urls),

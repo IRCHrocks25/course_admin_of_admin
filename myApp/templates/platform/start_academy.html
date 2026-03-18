@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Launch Your Platform — CourseForge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+        --bg:        #04060d;
+        --bg1:       #080d1a;
+        --bg2:       #0c1120;
+        --panel:     #111929;
+        --border:    rgba(255,255,255,0.06);
+        --border2:   rgba(255,255,255,0.1);
+        --blue:      #2563ff;
+        --blue-hi:   #4d84ff;
+        --blue-glow: rgba(37,99,255,0.15);
+        --blue-rim:  rgba(37,99,255,0.25);
+        --ice:       #e8f0ff;
+        --text:      #d4dcf0;
+        --muted:     rgba(212,220,240,0.5);
+        --dim:       rgba(212,220,240,0.25);
+        --font:      'Geist', system-ui, sans-serif;
+        --mono:      'Geist Mono', monospace;
+    }
+
+    html { height: 100%; }
+
+    body {
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 15px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    /* ── NOISE ── */
+    body::after {
+        content: '';
+        position: fixed; inset: 0;
+        pointer-events: none; z-index: 100;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+        opacity: .5;
+    }
+
+    /* ── LEFT PANEL ── */
+    .left-panel {
+        position: sticky; top: 0;
+        height: 100vh;
+        background: var(--bg1);
+        border-right: 1px solid var(--border);
+        padding: 56px 64px;
+        display: flex; flex-direction: column; justify-content: space-between;
+        overflow: hidden;
+    }
+
+    .left-glow {
+        position: absolute;
+        width: 600px; height: 600px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(37,99,255,.08) 0%, transparent 65%);
+        bottom: -200px; left: -100px;
+        pointer-events: none;
+        animation: breathe 10s ease-in-out infinite alternate;
+    }
+    @keyframes breathe { from{opacity:.6;transform:scale(1);} to{opacity:1;transform:scale(1.1);} }
+
+    .left-grid {
+        position: absolute; inset: 0;
+        background-image:
+            linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: radial-gradient(ellipse 80% 80% at 20% 80%, black 0%, transparent 100%);
+        pointer-events: none;
+    }
+
+    .left-top { position: relative; z-index: 1; }
+
+    .brand {
+        display: flex; align-items: center; gap: 8px;
+        font-size: .9rem; font-weight: 500; letter-spacing: -.02em;
+        color: var(--ice); text-decoration: none; margin-bottom: 64px;
+    }
+    .brand-mark {
+        width: 22px; height: 22px; border-radius: 6px; background: var(--blue);
+        display: flex; align-items: center; justify-content: center;
+        font-size: .6rem; font-weight: 600; color: #fff;
+    }
+
+    .left-eyebrow {
+        font-family: var(--mono); font-size: .68rem;
+        letter-spacing: .12em; text-transform: uppercase;
+        color: var(--blue-hi); margin-bottom: 20px;
+    }
+
+    .left-h1 {
+        font-size: clamp(1.9rem, 2.8vw, 2.6rem);
+        font-weight: 300; letter-spacing: -.04em; line-height: 1.1;
+        color: var(--ice); margin-bottom: 20px;
+    }
+    .left-h1 strong {
+        font-weight: 500;
+        background: linear-gradient(135deg, var(--blue-hi), #7eb8ff);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    .left-sub {
+        font-size: .88rem; color: var(--muted);
+        font-weight: 300; line-height: 1.8; max-width: 340px;
+        margin-bottom: 48px;
+    }
+
+    /* Progress steps */
+    .progress-steps { display: flex; flex-direction: column; gap: 0; }
+    .prog-step {
+        display: flex; align-items: flex-start; gap: 16px;
+        padding: 16px 0;
+        position: relative;
+    }
+    .prog-step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 11px; top: 40px;
+        width: 1px; height: calc(100% - 8px);
+        background: var(--border2);
+    }
+    .prog-dot {
+        width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--mono); font-size: .62rem;
+        margin-top: 1px;
+    }
+    .prog-dot.active {
+        background: var(--blue); color: #fff;
+        box-shadow: 0 0 12px rgba(37,99,255,.4);
+    }
+    .prog-dot.done {
+        background: rgba(37,99,255,.15);
+        border: 1px solid var(--blue-rim);
+        color: var(--blue-hi);
+    }
+    .prog-dot.pending {
+        background: transparent;
+        border: 1px solid var(--border2);
+        color: var(--dim);
+    }
+    .prog-label { font-size: .82rem; font-weight: 400; color: var(--muted); padding-top: 2px; }
+    .prog-label.active { color: var(--ice); font-weight: 500; }
+    .prog-desc { font-size: .75rem; color: var(--dim); font-weight: 300; margin-top: 2px; }
+
+    /* Left bottom */
+    .left-bottom { position: relative; z-index: 1; }
+    .left-note {
+        font-family: var(--mono); font-size: .65rem;
+        color: var(--dim); letter-spacing: .06em; text-transform: uppercase;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .left-note::before {
+        content: '';
+        width: 5px; height: 5px; border-radius: 50%;
+        background: var(--blue-hi); flex-shrink: 0;
+        animation: ping 2.5s ease infinite;
+    }
+    @keyframes ping { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+    /* ── RIGHT PANEL / FORM ── */
+    .right-panel {
+        padding: 56px 64px;
+        display: flex; flex-direction: column;
+        min-height: 100vh;
+    }
+
+    .back-link {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: var(--mono); font-size: .72rem;
+        color: var(--dim); text-decoration: none; letter-spacing: .04em;
+        transition: color .2s; margin-bottom: 48px;
+        text-transform: uppercase;
+    }
+    .back-link:hover { color: var(--muted); }
+    .back-link svg { flex-shrink: 0; }
+
+    .form-header { margin-bottom: 40px; }
+    .form-eyebrow {
+        font-family: var(--mono); font-size: .68rem;
+        letter-spacing: .12em; text-transform: uppercase;
+        color: var(--blue-hi); margin-bottom: 12px;
+    }
+    .form-title {
+        font-size: 1.6rem; font-weight: 300;
+        letter-spacing: -.035em; color: var(--ice);
+        line-height: 1.2; margin-bottom: 8px;
+    }
+    .form-sub {
+        font-size: .85rem; color: var(--muted);
+        font-weight: 300; line-height: 1.7;
+    }
+
+    /* Messages */
+    .messages { margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
+    .msg {
+        font-size: .82rem; padding: 10px 14px; border-radius: 7px;
+        font-family: var(--mono); letter-spacing: .02em;
+    }
+    .msg.error {
+        border: 1px solid rgba(255,80,80,.25);
+        background: rgba(255,80,80,.06);
+        color: #ff9999;
+    }
+    .msg.success {
+        border: 1px solid var(--blue-rim);
+        background: var(--blue-glow);
+        color: var(--blue-hi);
+    }
+
+    /* Form */
+    form { display: flex; flex-direction: column; gap: 0; }
+
+    .form-section {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 16px;
+        background: var(--bg1);
+    }
+
+    .form-section-label {
+        padding: 14px 20px;
+        background: rgba(255,255,255,.02);
+        border-bottom: 1px solid var(--border);
+        font-family: var(--mono); font-size: .65rem;
+        letter-spacing: .1em; text-transform: uppercase;
+        color: var(--dim);
+    }
+
+    .form-fields { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+        font-size: .78rem; font-weight: 400; color: var(--muted);
+        letter-spacing: .01em;
+    }
+    label .label-hint {
+        font-family: var(--mono); font-size: .65rem;
+        color: var(--dim); font-weight: 300; margin-left: 6px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+        width: 100%;
+        background: var(--bg2);
+        border: 1px solid var(--border2);
+        border-radius: 7px;
+        padding: 10px 14px;
+        color: var(--ice);
+        font-family: var(--font);
+        font-size: .88rem;
+        font-weight: 300;
+        transition: border-color .2s, box-shadow .2s;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    input::placeholder { color: var(--dim); }
+    input:focus {
+        border-color: var(--blue-hi);
+        box-shadow: 0 0 0 3px rgba(37,99,255,.12);
+    }
+    input:disabled {
+        opacity: .4; cursor: not-allowed;
+        background: var(--bg);
+    }
+
+    .field-hint {
+        font-family: var(--mono); font-size: .65rem;
+        color: var(--dim); letter-spacing: .02em; line-height: 1.5;
+    }
+    .field-hint span { color: var(--blue-hi); }
+
+    /* Password visibility toggle */
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 40px; }
+    .pw-toggle {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 24px;
+        border: none;
+        background: transparent;
+        color: var(--dim);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        line-height: 1;
+    }
+    .pw-toggle:hover { color: var(--muted); }
+
+    .divider {
+        height: 1px; background: var(--border);
+        margin: 4px 0;
+    }
+
+    .submit-btn {
+        width: 100%; padding: 13px;
+        background: var(--blue); color: #fff;
+        border: none; border-radius: 8px;
+        font-family: var(--font); font-size: .9rem;
+        font-weight: 500; cursor: pointer;
+        letter-spacing: .01em;
+        transition: background .2s, transform .15s, box-shadow .2s;
+        margin-top: 8px;
+        position: relative; overflow: hidden;
+    }
+    .submit-btn::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.08), transparent);
+        opacity: 0; transition: opacity .2s;
+    }
+    .submit-btn:hover {
+        background: var(--blue-hi);
+        transform: translateY(-1px);
+        box-shadow: 0 10px 36px rgba(37,99,255,.35);
+    }
+    .submit-btn:hover::before { opacity: 1; }
+
+    .form-footer-note {
+        font-family: var(--mono); font-size: .65rem;
+        color: var(--dim); text-align: center;
+        letter-spacing: .06em; text-transform: uppercase;
+        margin-top: 16px;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+        body { grid-template-columns: 1fr; }
+        .left-panel { position: relative; height: auto; min-height: auto; padding: 40px 28px; }
+        .left-glow { display: none; }
+        .right-panel { padding: 40px 28px; }
+        .progress-steps { display: none; }
+        .left-h1 { font-size: 1.7rem; }
+        .left-sub { margin-bottom: 24px; }
+        .form-row { grid-template-columns: 1fr; }
+    }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT PANEL -->
+    <aside class="left-panel">
+        <div class="left-grid"></div>
+        <div class="left-glow"></div>
+
+        <div class="left-top">
+            <a href="{% url 'home' %}" class="brand">
+                <span class="brand-mark">CF</span>
+                CourseForge
+            </a>
+
+            <p class="left-eyebrow">You're 2 minutes away</p>
+            <h1 class="left-h1">Launch your<br><strong>platform.</strong></h1>
+            <p class="left-sub">
+                This is where your programs live, your clients learn, and your revenue runs. Set it up once — it works for you from here.
+            </p>
+
+            <div class="progress-steps">
+                <div class="prog-step">
+                    <div class="prog-dot active">1</div>
+                    <div>
+                        <div class="prog-label active">Platform setup</div>
+                        <div class="prog-desc">Name, URL, and your owner account</div>
+                    </div>
+                </div>
+                <div class="prog-step">
+                    <div class="prog-dot pending">2</div>
+                    <div>
+                        <div class="prog-label">Build your first program</div>
+                        <div class="prog-desc">AI structures it from your expertise</div>
+                    </div>
+                </div>
+                <div class="prog-step">
+                    <div class="prog-dot pending">3</div>
+                    <div>
+                        <div class="prog-label">Set pricing & publish</div>
+                        <div class="prog-desc">Connect Stripe, go live</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="left-bottom">
+            <p class="left-note">No credit card required on Starter</p>
+        </div>
+    </aside>
+
+    <!-- RIGHT PANEL -->
+    <main class="right-panel">
+        <a href="{% url 'home' %}" class="back-link">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to platform home
+        </a>
+
+        <div class="form-header">
+            <p class="form-eyebrow">Step 1 of 3</p>
+            <h2 class="form-title">Launch your platform.</h2>
+            <p class="form-sub">We'll create your platform and your owner account in one step.</p>
+        </div>
+
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="msg {% if 'error' in message.tags %}error{% else %}success{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <!-- Platform identity -->
+            <div class="form-section">
+                <div class="form-section-label">Your platform</div>
+                <div class="form-fields">
+                    <div class="field">
+                        <label for="platform_name">
+                            Platform name
+                            <span class="label-hint">What your clients will see</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="platform_name"
+                            name="academy_name"
+                            required
+                            placeholder="e.g. Acme Strategy Hub"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="field">
+                        <label>
+                            Your platform link
+                            <span class="label-hint">Auto-generated — change it later</span>
+                        </label>
+                        <input
+                            type="text"
+                            disabled
+                            placeholder="Generated from your platform name"
+                        >
+                        {% if platform_base_domain %}
+                        <p class="field-hint">Will look like: <span>&lt;your-name&gt;.{{ platform_base_domain }}</span></p>
+                        {% else %}
+                        <p class="field-hint">We'll generate this from your platform name automatically.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personalization intake -->
+            <div class="form-section">
+                <div class="form-section-label">Tell us about your academy</div>
+                <div class="form-fields">
+                    <div class="field">
+                        <label for="teach_topic">
+                            What do you teach?
+                            <span class="label-hint">Used to draft your landing copy</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="teach_topic"
+                            name="teach_topic"
+                            placeholder="e.g. SOP systems for service businesses"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="field">
+                        <label for="target_audience">
+                            Who is it for?
+                            <span class="label-hint">Who your ideal learner is</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="target_audience"
+                            name="target_audience"
+                            placeholder="e.g. operations managers and team leads"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="field">
+                        <label for="outcome_promise">
+                            Main outcome promise
+                            <span class="label-hint">What result they get</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="outcome_promise"
+                            name="outcome_promise"
+                            placeholder="e.g. faster onboarding and higher team consistency"
+                            autocomplete="off"
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- Owner account -->
+            <div class="form-section">
+                <div class="form-section-label">Your owner account</div>
+                <div class="form-fields">
+                    <div class="field">
+                        <label for="admin_username">Username</label>
+                        <input
+                            type="text"
+                            id="admin_username"
+                            name="admin_username"
+                            required
+                            placeholder="admin"
+                            autocomplete="username"
+                        >
+                    </div>
+                    <div class="field">
+                        <label for="admin_email">Email</label>
+                        <input
+                            type="email"
+                            id="admin_email"
+                            name="admin_email"
+                            placeholder="you@yourcompany.com"
+                            autocomplete="email"
+                        >
+                    </div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label for="password">Password</label>
+                            <div class="pw-wrap">
+                                <input
+                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    required
+                                    placeholder="••••••••"
+                                    autocomplete="new-password"
+                                >
+                                <button type="button" class="pw-toggle" data-target="password" aria-label="Show password">👁</button>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="confirm_password">Confirm password</label>
+                            <div class="pw-wrap">
+                                <input
+                                    type="password"
+                                    id="confirm_password"
+                                    name="confirm_password"
+                                    required
+                                    placeholder="••••••••"
+                                    autocomplete="new-password"
+                                >
+                                <button type="button" class="pw-toggle" data-target="confirm_password" aria-label="Show password">👁</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn">
+                Launch my platform →
+            </button>
+            <p class="form-footer-note">Takes less than 2 minutes · No card required</p>
+        </form>
+    </main>
+
+    <script>
+    document.querySelectorAll('.pw-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const targetId = btn.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            const showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            btn.textContent = showing ? '👁' : '🙈';
+            btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        });
+    });
+    </script>
+
+</body>
+</html>

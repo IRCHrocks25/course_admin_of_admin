@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academy Created</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-black text-white">
+    <main class="max-w-3xl mx-auto px-6 py-14">
+        <div class="rounded-2xl border border-green-400/30 bg-green-500/10 p-4 mb-6">
+            <div class="font-semibold text-green-300">Academy created successfully</div>
+            <p class="text-sm text-green-200 mt-1">{{ tenant.name }} is now live and ready to onboard students.</p>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h1 class="text-3xl font-black">Your academy URLs</h1>
+            <p class="text-gray-300 mt-2">
+                Share these links with your team and students.
+            </p>
+            {% if using_fallback_urls %}
+            <div class="mt-4 rounded-lg border border-yellow-400/30 bg-yellow-500/10 px-3 py-2 text-yellow-200 text-sm">
+                Temporary production domain is not configured yet. These are local preview URLs with tenant mapping.
+                {% if platform_base_domain %}
+                Once DNS is active, your tenant will use <span class="font-semibold">{{ tenant.slug }}.{{ platform_base_domain }}</span>.
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="mt-6 space-y-3">
+                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider">Portal URL</div>
+                    <div class="text-cyan-300 break-all">{{ tenant_base_url }}</div>
+                </div>
+                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider">Student Registration URL</div>
+                    <div class="text-cyan-300 break-all">{{ tenant_register_url }}</div>
+                </div>
+                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider">Login URL</div>
+                    <div class="text-cyan-300 break-all">{{ tenant_login_url }}</div>
+                </div>
+                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider">Courses URL</div>
+                    <div class="text-cyan-300 break-all">{{ tenant_courses_url }}</div>
+                </div>
+            </div>
+
+            <div class="mt-8 flex flex-wrap gap-3">
+                <a href="{% url 'dashboard_home' %}" class="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-300/40 text-cyan-200 hover:bg-cyan-500/30 transition">
+                    Go to Admin Dashboard
+                </a>
+                <a href="{% url 'dashboard_domain_settings' %}" class="px-4 py-2 rounded-lg border border-white/30 hover:bg-white/10 transition">
+                    Connect Custom Domain
+                </a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
+

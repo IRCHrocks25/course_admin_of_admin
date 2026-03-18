@@ -1,0 +1,49 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Tenant Analytics{% endblock %}
+{% block page_title %}Tenant Analytics: {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex gap-3">
+    <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="px-4 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition">Back to Tenant</a>
+    <a href="{% url 'superadmin_analytics' %}" class="px-4 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition">All Tenant Analytics</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Courses</div><div class="text-2xl font-bold">{{ course_count }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Lessons</div><div class="text-2xl font-bold">{{ lesson_count }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Enrollments</div><div class="text-2xl font-bold">{{ enrollment_count }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Active Accesses</div><div class="text-2xl font-bold">{{ access_count }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Certifications</div><div class="text-2xl font-bold">{{ certification_count }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Completed Progress Rows</div><div class="text-2xl font-bold">{{ completion_count }}</div></div>
+</div>
+
+<div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+    <div class="px-4 py-3 border-b border-white/10 font-semibold">Top Courses (Tenant)</div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-white/5 text-gray-300">
+                <tr>
+                    <th class="text-left px-4 py-3">Course</th>
+                    <th class="text-left px-4 py-3">Enrollments</th>
+                    <th class="text-left px-4 py-3">Active Accesses</th>
+                    <th class="text-left px-4 py-3">Lessons</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for course in top_courses %}
+                <tr class="border-t border-white/10">
+                    <td class="px-4 py-3">{{ course.name }}</td>
+                    <td class="px-4 py-3">{{ course.enrollments }}</td>
+                    <td class="px-4 py-3">{{ course.accesses }}</td>
+                    <td class="px-4 py-3">{{ course.lessons }}</td>
+                </tr>
+                {% empty %}
+                <tr><td class="px-4 py-6 text-gray-400" colspan="4">No courses available for this tenant.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

@@ -5,6 +5,63 @@ import json
 import re
 
 
+class Tenant(models.Model):
+    """White-label tenant/account boundary."""
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(unique=True)
+    custom_domain = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True)
+    primary_color = models.CharField(max_length=7, default='#3B82F6')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class TenantConfig(models.Model):
+    """Tenant-level integration and feature configuration."""
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='config')
+    chatbot_webhook = models.URLField(blank=True)
+    vimeo_team_id = models.CharField(max_length=255, blank=True)
+    accredible_issuer_id = models.CharField(max_length=255, blank=True)
+    features = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Tenant Config"
+        verbose_name_plural = "Tenant Configs"
+
+    def __str__(self):
+        return f"Config for {self.tenant.name}"
+
+
+class TenantDomain(models.Model):
+    """Domain records for tenant routing (temporary + custom domains)."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='domains')
+    domain = models.CharField(max_length=255, unique=True)
+    is_temporary = models.BooleanField(default=False, help_text="System-provided temporary subdomain")
+    is_primary = models.BooleanField(default=False, help_text="Primary public domain for this tenant")
+    is_verified = models.BooleanField(default=False, help_text="Whether DNS/ownership is verified")
+    verification_notes = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_primary', 'domain']
+        unique_together = ['tenant', 'domain']
+        indexes = [
+            models.Index(fields=['tenant', 'is_primary', 'is_verified']),
+        ]
+
+    def __str__(self):
+        return f"{self.domain} ({self.tenant.slug})"
+
 class Course(models.Model):
     COURSE_TYPES = [
         ('sprint', 'Sprint'),
@@ -20,7 +77,8 @@ class Course(models.Model):
     ]
     
     name = models.CharField(max_length=200)
-    slug = models.SlugField(unique=True, max_length=200)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
+    slug = models.SlugField(max_length=200)
     course_type = models.CharField(max_length=20, choices=COURSE_TYPES, default='sprint')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     description = models.TextField()
@@ -69,6 +127,9 @@ class Course(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='uniq_course_tenant_slug')
+        ]
     
     def __str__(self):
         return self.name
@@ -95,6 +156,7 @@ class CourseResource(models.Model):
         ('workbook', 'Workbook'),
         ('other', 'Other'),
     ]
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='course_resources', null=True, blank=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='resources')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -119,6 +181,7 @@ class CourseResource(models.Model):
 
 
 class Module(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='modules', null=True, blank=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -132,6 +195,7 @@ class Module(models.Model):
 
 
 class Lesson(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='lessons', null=True, blank=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lessons')
     module = models.ForeignKey(Module, on_delete=models.SET_NULL, null=True, blank=True, related_name='lessons')
     title = models.CharField(max_length=200)
@@ -208,7 +272,12 @@ class Lesson(models.Model):
     
     class Meta:
         ordering = ['order', 'id']
-        unique_together = ['course', 'slug']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'course', 'slug'],
+                name='uniq_lesson_tenant_course_slug'
+            )
+        ]
     
     def __str__(self):
         return f"{self.course.name} - {self.title}"
@@ -266,6 +335,7 @@ class Lesson(models.Model):
 
 class LessonQuiz(models.Model):
     """Optional quiz that can be attached to a lesson."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='lesson_quizzes', null=True, blank=True)
     lesson = models.OneToOneField(Lesson, on_delete=models.CASCADE, related_name='quiz')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -290,6 +360,7 @@ class LessonQuizQuestion(models.Model):
         ('D', 'Option D'),
     ]
 
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='lesson_quiz_questions', null=True, blank=True)
     quiz = models.ForeignKey(LessonQuiz, on_delete=models.CASCADE, related_name='questions')
     text = models.TextField()
     option_a = models.CharField(max_length=300)
@@ -308,6 +379,7 @@ class LessonQuizQuestion(models.Model):
 
 class LessonQuizAttempt(models.Model):
     """Track a student's attempts for a lesson quiz."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='lesson_quiz_attempts', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='lesson_quiz_attempts')
     quiz = models.ForeignKey(LessonQuiz, on_delete=models.CASCADE, related_name='attempts')
     score = models.FloatField(null=True, blank=True, help_text="Score percentage (0–100)")
@@ -328,6 +400,7 @@ class UserProgress(models.Model):
         ('completed', 'Completed'),
     ]
     
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='user_progress_records', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='progress')
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='user_progress')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='not_started')
@@ -344,7 +417,7 @@ class UserProgress(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        unique_together = ['user', 'lesson']
+        unique_together = ['tenant', 'user', 'lesson']
         ordering = ['-last_accessed']
     
     def __str__(self):
@@ -367,6 +440,7 @@ class UserProgress(models.Model):
 
 
 class CourseEnrollment(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='course_enrollments', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='enrollments')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments')
     enrolled_at = models.DateTimeField(auto_now_add=True)
@@ -376,7 +450,7 @@ class CourseEnrollment(models.Model):
     ], default='full')
     
     class Meta:
-        unique_together = ['user', 'course']
+        unique_together = ['tenant', 'user', 'course']
     
     def __str__(self):
         return f"{self.user.username} - {self.course.name}"
@@ -415,12 +489,13 @@ class CourseEnrollment(models.Model):
 
 class FavoriteCourse(models.Model):
     """Track user's favorite courses"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='favorite_courses', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_courses')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='favorited_by')
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        unique_together = ['user', 'course']
+        unique_together = ['tenant', 'user', 'course']
         ordering = ['-created_at']
     
     def __str__(self):
@@ -429,6 +504,7 @@ class FavoriteCourse(models.Model):
 
 class Exam(models.Model):
     """Final exam for a course"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='exams', null=True, blank=True)
     course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='exam')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -451,6 +527,7 @@ class ExamQuestion(models.Model):
         ('C', 'Option C'),
         ('D', 'Option D'),
     ]
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='exam_questions', null=True, blank=True)
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='questions')
     text = models.TextField()
     option_a = models.CharField(max_length=300)
@@ -469,6 +546,7 @@ class ExamQuestion(models.Model):
 
 class ExamAttempt(models.Model):
     """Track individual exam attempts"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='exam_attempts', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='exam_attempts')
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='attempts')
     score = models.FloatField(null=True, blank=True, help_text="Score percentage (0-100)")
@@ -504,6 +582,7 @@ class Certification(models.Model):
         ('failed', 'Failed - Retry Allowed'),
     ]
     
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='certifications', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='certifications')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='certifications')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='not_eligible')
@@ -526,7 +605,7 @@ class Certification(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        unique_together = ['user', 'course']
+        unique_together = ['tenant', 'user', 'course']
         ordering = ['-issued_at', '-created_at']
     
     def __str__(self):
@@ -536,7 +615,8 @@ class Certification(models.Model):
 
 class Cohort(models.Model):
     """Groups of students (e.g., 'Black Friday 2025 Buyers', 'VIP Mastermind')"""
-    name = models.CharField(max_length=200, unique=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='cohorts', null=True, blank=True)
+    name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -544,24 +624,9 @@ class Cohort(models.Model):
     
     class Meta:
         ordering = ['-created_at']
-    
-    def __str__(self):
-        return self.name
-    
-    def get_member_count(self):
-        return self.members.count()
-# ========== ACCESS CONTROL SYSTEM ==========
-
-class Cohort(models.Model):
-    """Groups of students (e.g., 'Black Friday 2025 Buyers', 'VIP Mastermind')"""
-    name = models.CharField(max_length=200, unique=True)
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='uniq_cohort_tenant_name')
+        ]
     
     def __str__(self):
         return self.name
@@ -578,8 +643,9 @@ class Bundle(models.Model):
         ('tiered', 'Tiered (Bronze/Silver/Gold)'),
     ]
     
-    name = models.CharField(max_length=200, unique=True)
-    slug = models.SlugField(unique=True, max_length=200)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='bundles', null=True, blank=True)
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
     description = models.TextField(blank=True)
     bundle_type = models.CharField(max_length=20, choices=BUNDLE_TYPES, default='fixed')
     courses = models.ManyToManyField(Course, related_name='bundles', blank=True)
@@ -591,6 +657,10 @@ class Bundle(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='uniq_bundle_tenant_slug'),
+            models.UniqueConstraint(fields=['tenant', 'name'], name='uniq_bundle_tenant_name'),
+        ]
     
     def __str__(self):
         return self.name
@@ -598,6 +668,7 @@ class Bundle(models.Model):
 
 class BundlePurchase(models.Model):
     """Track bundle purchases"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='bundle_purchases', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bundle_purchases')
     bundle = models.ForeignKey(Bundle, on_delete=models.CASCADE, related_name='purchases')
     purchase_id = models.CharField(max_length=200, blank=True, help_text="External purchase/order ID")
@@ -630,6 +701,7 @@ class CourseAccess(models.Model):
         ('pending', 'Pending'),
     ]
     
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='course_accesses', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='course_accesses')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='accesses')
     access_type = models.CharField(max_length=20, choices=ACCESS_TYPES)
@@ -708,6 +780,7 @@ class CourseAccess(models.Model):
 
 class CohortMember(models.Model):
     """Link users to cohorts"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='cohort_memberships', null=True, blank=True)
     cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='members')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cohorts')
     joined_at = models.DateTimeField(auto_now_add=True)
@@ -726,6 +799,7 @@ class CohortMember(models.Model):
 
 class LearningPath(models.Model):
     """Curated learning journeys (e.g., '7-Figure Launch Path')"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='learning_paths', null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     courses = models.ManyToManyField(Course, through='LearningPathCourse', related_name='learning_paths')
@@ -741,6 +815,7 @@ class LearningPath(models.Model):
 
 class LearningPathCourse(models.Model):
     """Ordered courses in a learning path"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='learning_path_courses', null=True, blank=True)
     learning_path = models.ForeignKey(LearningPath, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     order = models.IntegerField(default=0)
@@ -752,4 +827,30 @@ class LearningPathCourse(models.Model):
     
     def __str__(self):
         return f"{self.learning_path.name} - {self.course.name} (#{self.order})"
+
+
+class TenantMembership(models.Model):
+    """Links Django users to tenants with a role."""
+    ROLE_CHOICES = [
+        ('tenant_admin', 'Tenant Admin'),
+        ('student', 'Student'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tenant_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['tenant', 'user']
+        ordering = ['tenant__name', 'user__username']
+        indexes = [
+            models.Index(fields=['tenant', 'role', 'is_active']),
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.tenant.slug} ({self.role})"
 

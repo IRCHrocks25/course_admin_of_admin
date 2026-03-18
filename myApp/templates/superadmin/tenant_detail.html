@@ -1,0 +1,217 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Tenant Detail{% endblock %}
+{% block page_title %}Tenant: {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap gap-3">
+    <a href="{% url 'superadmin_tenants' %}" class="px-4 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition">Back to Tenants</a>
+    <a href="{% url 'superadmin_tenant_analytics' tenant.id %}" class="px-4 py-2 rounded-lg bg-purple-accent/20 border border-purple-accent/40 text-purple-accent hover:bg-purple-accent/30 transition">Tenant Analytics</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Courses</div><div class="text-2xl font-bold">{{ stats.courses }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Lessons</div><div class="text-2xl font-bold">{{ stats.lessons }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Enrollments</div><div class="text-2xl font-bold">{{ stats.enrollments }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Active Accesses</div><div class="text-2xl font-bold">{{ stats.active_accesses }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Certifications</div><div class="text-2xl font-bold">{{ stats.certifications }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Bundles</div><div class="text-2xl font-bold">{{ stats.bundles }}</div></div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 rounded-xl bg-white/5 border border-white/10 p-5">
+        <h2 class="font-semibold text-lg mb-4">Tenant Settings</h2>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Name</label>
+                    <input name="name" value="{{ tenant.name }}" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Slug</label>
+                    <input name="slug" value="{{ tenant.slug }}" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Custom Domain</label>
+                <input name="custom_domain" value="{{ tenant.custom_domain|default:'' }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Primary Color</label>
+                <input name="primary_color" value="{{ tenant.primary_color }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+                <input type="checkbox" name="is_active" {% if tenant.is_active %}checked{% endif %}>
+                <span>Active</span>
+            </label>
+            <button class="px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+                Save Tenant Settings
+            </button>
+        </form>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+        <h2 class="font-semibold text-lg mb-4">Tenant Config</h2>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="name" value="{{ tenant.name }}">
+            <input type="hidden" name="slug" value="{{ tenant.slug }}">
+            <input type="hidden" name="custom_domain" value="{{ tenant.custom_domain|default:'' }}">
+            <input type="hidden" name="primary_color" value="{{ tenant.primary_color }}">
+            {% if tenant.is_active %}<input type="hidden" name="is_active" value="on">{% endif %}
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Chatbot Webhook</label>
+                <input name="chatbot_webhook" value="{{ config.chatbot_webhook }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Vimeo Team ID</label>
+                <input name="vimeo_team_id" value="{{ config.vimeo_team_id }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Accredible Issuer ID</label>
+                <input name="accredible_issuer_id" value="{{ config.accredible_issuer_id }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <button class="px-4 py-2 rounded-lg bg-purple-accent/20 border border-purple-accent/40 text-purple-accent hover:bg-purple-accent/30 transition">
+                Save Config
+            </button>
+        </form>
+
+        <div class="mt-6 pt-6 border-t border-white/10">
+            <h3 class="font-semibold mb-2">Tenant Status</h3>
+            <form method="post" action="{% url 'superadmin_tenant_suspend' tenant.id %}">
+                {% csrf_token %}
+                {% if tenant.is_active %}
+                <input type="hidden" name="action" value="suspend">
+                <button class="w-full px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 transition">
+                    Suspend Tenant
+                </button>
+                {% else %}
+                <input type="hidden" name="action" value="activate">
+                <button class="w-full px-4 py-2 rounded-lg bg-green-500/20 border border-green-500/40 text-green-400 hover:bg-green-500/30 transition">
+                    Reactivate Tenant
+                </button>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+    <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+        <h2 class="font-semibold text-lg mb-4">Create Tenant Admin</h2>
+        <form method="post" action="{% url 'superadmin_create_tenant_admin' tenant.id %}" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Username</label>
+                <input name="username" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Email</label>
+                <input name="email" type="email" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Password</label>
+                <input name="password" type="password" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <button class="px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+                Create / Update Tenant Admin
+            </button>
+        </form>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+        <h2 class="font-semibold text-lg mb-4">Current Tenant Admins</h2>
+        <div class="space-y-2">
+            {% for membership in tenant_admins %}
+            <div class="rounded-lg bg-[#0a0e27]/70 border border-white/10 px-3 py-2">
+                <div class="font-medium">{{ membership.user.username }}</div>
+                <div class="text-xs text-gray-400">{{ membership.user.email|default:"No email" }}</div>
+            </div>
+            {% empty %}
+            <p class="text-sm text-gray-400">No tenant admins assigned yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-6">
+    <div class="xl:col-span-2 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+        <div class="px-4 py-3 border-b border-white/10 font-semibold">Tenant Domains</div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-white/5 text-gray-300">
+                    <tr>
+                        <th class="text-left px-4 py-3">Domain</th>
+                        <th class="text-left px-4 py-3">Type</th>
+                        <th class="text-left px-4 py-3">Verified</th>
+                        <th class="text-left px-4 py-3">Primary</th>
+                        <th class="text-left px-4 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in tenant_domains %}
+                    <tr class="border-t border-white/10">
+                        <td class="px-4 py-3">{{ d.domain }}</td>
+                        <td class="px-4 py-3">
+                            {% if d.is_temporary %}
+                            <span class="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300">Temporary</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded bg-purple-accent/20 text-purple-accent">Custom</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if d.is_verified %}
+                            <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Yes</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300">No</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if d.is_primary %}
+                            <span class="px-2 py-1 rounded bg-cyan-electric/20 text-cyan-electric">Primary</span>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex gap-2">
+                                {% if not d.is_verified %}
+                                <form method="post" action="{% url 'superadmin_verify_tenant_domain' tenant.id d.id %}">
+                                    {% csrf_token %}
+                                    <button class="px-2 py-1 rounded border border-yellow-400/40 text-yellow-300 hover:bg-yellow-500/20 transition">Verify</button>
+                                </form>
+                                {% endif %}
+                                {% if d.is_verified and not d.is_primary %}
+                                <form method="post" action="{% url 'superadmin_set_primary_tenant_domain' tenant.id d.id %}">
+                                    {% csrf_token %}
+                                    <button class="px-2 py-1 rounded border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/20 transition">Make Primary</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td class="px-4 py-6 text-gray-400" colspan="5">No domains connected.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+        <h2 class="font-semibold text-lg mb-4">Add Domain</h2>
+        <form method="post" action="{% url 'superadmin_add_tenant_domain' tenant.id %}" class="space-y-3">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Custom Domain</label>
+                <input name="domain" placeholder="learn.client.com" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <button class="w-full py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+                Add Domain
+            </button>
+        </form>
+        <p class="text-xs text-gray-400 mt-3">
+            After client DNS is pointed to your platform, click Verify and then Make Primary.
+        </p>
+    </div>
+</div>
+{% endblock %}
+

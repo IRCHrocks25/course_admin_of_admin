@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SOP Master — Train Smarter. Scale Faster.</title>
+  <title>{{ tenant_branding.brand_name|default:'SOP Master' }} — {{ tenant_branding.headline_line1|default:'Train Smarter.' }} {{ tenant_branding.headline_line2|default:'Scale Faster.' }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,600;0,700;0,800;0,900;1,800&family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
@@ -459,7 +459,7 @@
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">SOP<span>Master</span></div>
+  <div class="nav-logo">{{ tenant_branding.brand_short_name|default:'SOPMaster' }}</div>
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#how">How It Works</a>
@@ -485,15 +485,15 @@
     <div class="hero-content">
       <div class="hero-badge">
         <span class="dot"></span>
-        The #1 Employee Training Platform
+        {{ tenant_branding.hero_badge|default:'The #1 Employee Training Platform' }}
       </div>
       <h1>
-        Train Smarter.<br/>
-        <span class="line-accent">Scale Faster.</span>
-        <span style="color:rgba(255,255,255,0.9);">Deliver</span> <span class="line-yellow">Results.</span>
+        {{ tenant_branding.headline_line1|default:'Train Smarter.' }}<br/>
+        <span class="line-accent">{{ tenant_branding.headline_line2|default:'Scale Faster.' }}</span>
+        <span style="color:rgba(255,255,255,0.9);">{{ tenant_branding.headline_line3|default:'Win Bigger.' }}</span>
       </h1>
       <p class="hero-sub">
-        SOP Master transforms your company's standard operating procedures into powerful, trackable learning experiences — so every employee is aligned, certified, and performing at the highest level.
+        {{ tenant_branding.hero_description|default:"SOP Master transforms your company's standard operating procedures into powerful, trackable learning experiences — so every employee is aligned, certified, and performing at the highest level." }}
       </p>
       <div class="hero-ctas">
         <a href="{% if user.is_authenticated %}{% url 'student_dashboard' %}{% else %}{% url 'login' %}{% endif %}" class="btn-primary">
@@ -568,8 +568,8 @@
 <section id="features">
   <div class="max-w">
     <span class="section-label">Everything You Need</span>
-    <h2 class="section-title">11 Features Built to <span class="highlight">Elevate</span><br/>Every Employee.</h2>
-    <p class="section-sub">From onboarding to advanced certification — SOP Master gives your team one unified learning hub that runs itself.</p>
+    <h2 class="section-title">{{ tenant_branding.section_features_title|default:'11 Features Built to Elevate Every Employee.' }}</h2>
+    <p class="section-sub">{{ tenant_branding.section_features_sub|default:'From onboarding to advanced certification — SOP Master gives your team one unified learning hub that runs itself.' }}</p>
 
     <div class="features-grid fade-up">
 
@@ -716,7 +716,7 @@
   <div class="max-w">
     <span class="section-label">The Process</span>
     <h2 class="section-title">From Zero to <span class="highlight">Certified</span><br/>in 4 Simple Steps.</h2>
-    <p class="section-sub">SOP Master is designed to be plug-and-play. Get your training system live faster than you think.</p>
+    <p class="section-sub">{{ tenant_branding.section_process_sub|default:'SOP Master is designed to be plug-and-play. Get your training system live faster than you think.' }}</p>
 
     <div class="steps-row fade-up">
       <div class="step-item">
@@ -747,7 +747,7 @@
 <section id="testimonials">
   <div class="max-w">
     <span class="section-label">Social Proof</span>
-    <h2 class="section-title">Teams That <span class="highlight">Trust</span><br/>SOP Master.</h2>
+    <h2 class="section-title">{{ tenant_branding.section_testimonials_title|default:'Teams that trust SOP Master.' }}</h2>
 
     <div class="testi-grid fade-up">
       <div class="testi-card">
@@ -798,7 +798,7 @@
       Stop Losing Money<br/>
       to <span class="highlight">Undertrained</span> Teams.
     </h2>
-    <p class="cta-sub">Every day without a structured training system is money left on the table. SOP Master fixes that — fast.</p>
+    <p class="cta-sub">{{ tenant_branding.cta_sub|default:'Every day without a structured training system is money left on the table. SOP Master fixes that — fast.' }}</p>
     <div class="cta-buttons">
       <a href="{% if user.is_authenticated %}{% url 'student_dashboard' %}{% else %}{% url 'login' %}{% endif %}" class="btn-primary" style="font-size:17px; padding:18px 44px; box-shadow:0 0 50px rgba(228,23,126,0.5);">
         <i class="fas fa-rocket"></i> {% if user.is_authenticated %}Dashboard{% else %}Login{% endif %}
@@ -816,8 +816,8 @@
 <footer>
   <div class="footer-inner">
     <div>
-      <div class="footer-logo">SOP<span>Master</span></div>
-      <div class="footer-tagline">Train Smarter. Scale Faster. Deliver Results.</div>
+      <div class="footer-logo">{{ tenant_branding.brand_short_name|default:'SOPMaster' }}</div>
+      <div class="footer-tagline">{{ tenant_branding.footer_tagline|default:'Train Smarter. Scale Faster. Deliver Results.' }}</div>
     </div>
     <div class="footer-links">
       <a href="#">Features</a>
@@ -827,7 +827,7 @@
       <a href="#">Terms of Service</a>
     </div>
   </div>
-  <div class="footer-copy">© 2025 SOP Master. All rights reserved. Built to elevate teams everywhere.</div>
+  <div class="footer-copy">{{ tenant_branding.footer_copy|default:'© 2026 SOP Master. All rights reserved.' }}</div>
 </footer>
 
 <script>

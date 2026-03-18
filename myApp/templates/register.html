@@ -1,0 +1,740 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ tenant_branding.register_title|default:"Create Account" }} — {{ tenant_branding.brand_name|default:"CourseForge" }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --ink:         #0a0b0e;
+            --ink-2:       #13151a;
+            --ink-3:       #1e2028;
+            --ink-4:       #2a2d38;
+            --surface:     #f4f5f7;
+            --surface-2:   #ecedf1;
+            --surface-3:   #e0e2e8;
+            --text-1:      #0a0b0e;
+            --text-2:      #3d4050;
+            --text-3:      #7f8494;
+            --text-4:      #a8adb8;
+            --blue:        #1d6cff;
+            --blue-light:  #4d8fff;
+            --blue-dark:   #1452cc;
+            --blue-bg:     rgba(29,108,255,0.07);
+            --blue-border: rgba(29,108,255,0.22);
+            --danger:      #d63b3b;
+            --danger-bg:   rgba(214,59,59,0.06);
+            --danger-border: rgba(214,59,59,0.18);
+            --r: 12px;
+            --r-sm: 8px;
+        }
+
+        html, body {
+            min-height: 100%;
+            background: var(--surface);
+            color: var(--text-1);
+            font-family: 'Inter', system-ui, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .page {
+            min-height: 100svh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            animation: up 0.45s ease both;
+        }
+
+        @keyframes up {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Brand Panel ── */
+        .brand-panel {
+            position: relative;
+            background: var(--ink);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 52px 56px 48px;
+            overflow: hidden;
+        }
+
+        .brand-panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse 70% 45% at 0% 0%, rgba(29,108,255,0.10) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 100% 100%, rgba(29,108,255,0.07) 0%, transparent 60%);
+        }
+
+        .brand-panel::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--blue) 0%, transparent 70%);
+        }
+
+        .brand-top {
+            position: relative;
+            z-index: 1;
+        }
+
+        .wordmark {
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.45);
+            margin-bottom: 52px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wordmark-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--blue);
+            box-shadow: 0 0 10px rgba(29,108,255,0.8);
+        }
+
+        .brand-heading {
+            font-size: clamp(2.6rem, 4.2vw, 4.2rem);
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            color: #ffffff;
+        }
+
+        .brand-heading .accent {
+            color: var(--blue-light);
+        }
+
+        .brand-copy {
+            margin-top: 20px;
+            font-size: 0.93rem;
+            line-height: 1.75;
+            color: rgba(180,184,200,0.55);
+            font-weight: 300;
+            max-width: 38ch;
+        }
+
+        .feature-list {
+            margin-top: 52px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 18px 0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .feature-item:last-child {
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .feature-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--blue);
+            padding-top: 3px;
+            min-width: 22px;
+            font-weight: 400;
+        }
+
+        .feature-text strong {
+            display: block;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: rgba(235,237,245,0.88);
+            margin-bottom: 3px;
+            letter-spacing: -0.01em;
+        }
+
+        .feature-text span {
+            font-size: 0.79rem;
+            color: rgba(160,165,185,0.5);
+            font-weight: 300;
+            line-height: 1.55;
+        }
+
+        .brand-bottom {
+            position: relative;
+            z-index: 1;
+            padding-top: 28px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .trust-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.07);
+            background: rgba(255,255,255,0.03);
+            font-size: 0.73rem;
+            color: rgba(180,185,205,0.55);
+            font-weight: 400;
+        }
+
+        .trust-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--blue);
+            opacity: 0.7;
+        }
+
+        /* ── Form Panel ── */
+        .form-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 52px 56px;
+            background: var(--surface);
+        }
+
+        .form-wrap {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .form-header {
+            margin-bottom: 32px;
+        }
+
+        .form-eyebrow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--blue);
+            margin-bottom: 12px;
+            font-weight: 400;
+        }
+
+        .form-title {
+            font-size: clamp(1.9rem, 3vw, 2.5rem);
+            font-weight: 700;
+            line-height: 1.06;
+            letter-spacing: -0.04em;
+            color: var(--text-1);
+            margin-bottom: 9px;
+        }
+
+        .form-subtitle {
+            font-size: 0.9rem;
+            line-height: 1.65;
+            color: var(--text-3);
+            font-weight: 400;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--surface-3);
+            margin: 26px 0;
+        }
+
+        .alert-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 11px 14px;
+            border-radius: var(--r);
+            border: 1px solid var(--danger-border);
+            background: var(--danger-bg);
+            color: var(--danger);
+            font-size: 0.83rem;
+            line-height: 1.5;
+        }
+
+        .alert-icon {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            border: 1px solid var(--danger-border);
+            border-radius: 50%;
+            width: 17px;
+            height: 17px;
+            min-width: 17px;
+            display: grid;
+            place-items: center;
+            margin-top: 1px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.74rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--text-2);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .label-hint {
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            color: var(--text-4);
+            font-size: 0.71rem;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        input {
+            width: 100%;
+            height: 48px;
+            border-radius: var(--r);
+            border: 1px solid var(--surface-3);
+            background: #fff;
+            color: var(--text-1);
+            padding: 0 15px;
+            font-size: 0.92rem;
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            -webkit-appearance: none;
+        }
+
+        input::placeholder {
+            color: var(--text-4);
+            font-weight: 300;
+        }
+
+        input:hover { border-color: #cacdd8; }
+
+        input:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(29,108,255,0.10);
+        }
+
+        input[type="password"],
+        input.pw-visible {
+            padding-right: 46px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.08em;
+            font-size: 0.88rem;
+        }
+
+        input:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 1000px #fff inset;
+            -webkit-text-fill-color: var(--text-1);
+        }
+
+        .pw-toggle {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-50%);
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--text-4);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            transition: color 0.15s ease;
+            border-radius: var(--r-sm);
+        }
+
+        .pw-toggle:hover { color: var(--text-2); }
+        .pw-toggle svg { width: 14px; height: 14px; }
+
+        .strength-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .strength-row.visible { opacity: 1; }
+
+        .strength-segs {
+            flex: 1;
+            display: flex;
+            gap: 3px;
+        }
+
+        .seg {
+            flex: 1;
+            height: 3px;
+            border-radius: 999px;
+            background: var(--surface-3);
+            transition: background 0.2s ease;
+        }
+
+        .strength-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.68rem;
+            color: var(--text-4);
+            min-width: 52px;
+            text-align: right;
+        }
+
+        .btn-submit {
+            margin-top: 4px;
+            width: 100%;
+            height: 50px;
+            border-radius: var(--r);
+            border: none;
+            background: var(--blue);
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: -0.01em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 4px 16px rgba(29,108,255,0.28);
+        }
+
+        .btn-submit:hover {
+            background: var(--blue-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(29,108,255,0.36);
+        }
+
+        .btn-submit:active { transform: translateY(0); }
+
+        .btn-arrow {
+            width: 14px;
+            height: 14px;
+            opacity: 0.75;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+
+        .btn-submit:hover .btn-arrow {
+            transform: translateX(3px);
+            opacity: 1;
+        }
+
+        .form-footer {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .terms-copy {
+            font-size: 0.75rem;
+            line-height: 1.6;
+            color: var(--text-4);
+        }
+
+        .terms-copy a {
+            color: var(--text-3);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .signin-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-top: 14px;
+            border-top: 1px solid var(--surface-3);
+            font-size: 0.83rem;
+            color: var(--text-3);
+        }
+
+        .signin-link {
+            color: var(--blue);
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: gap 0.15s ease;
+        }
+
+        .signin-link:hover { gap: 6px; }
+
+        @media (max-width: 1024px) {
+            .page { grid-template-columns: 1fr; }
+            .brand-panel { padding: 40px 36px 32px; }
+            .brand-heading { font-size: clamp(2.2rem, 7vw, 3.2rem); }
+            .feature-list { display: none; }
+            .form-panel { padding: 40px 36px; }
+        }
+
+        @media (max-width: 600px) {
+            .brand-panel { padding: 28px 22px 24px; }
+            .form-panel  { padding: 28px 22px; }
+            .field-row   { grid-template-columns: 1fr; }
+            .form-title  { font-size: 1.9rem; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+
+        <aside class="brand-panel">
+            <div class="brand-top">
+                <div class="wordmark">
+                    <span class="wordmark-dot"></span>
+                    {% if tenant %}{{ tenant_branding.brand_name|default:tenant.name }}{% else %}CourseForge{% endif %}
+                </div>
+
+                <h2 class="brand-heading">
+                    The learning<br>
+                    platform <span class="accent">built</span><br>
+                    for results.
+                </h2>
+
+                <p class="brand-copy">
+                    A modern learning environment built for serious programs, deliberate delivery, and brands that care about every detail.
+                </p>
+
+                <ul class="feature-list" role="list">
+                    <li class="feature-item">
+                        <span class="feature-num">01</span>
+                        <div class="feature-text">
+                            <strong>Private environment</strong>
+                            <span>Your portal, your brand, your learners — fully isolated.</span>
+                        </div>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-num">02</span>
+                        <div class="feature-text">
+                            <strong>Secure by design</strong>
+                            <span>Deliberate account flows that protect what matters.</span>
+                        </div>
+                    </li>
+                    <li class="feature-item">
+                        <span class="feature-num">03</span>
+                        <div class="feature-text">
+                            <strong>Built for trust</strong>
+                            <span>A polished first impression sets the tone for everything after.</span>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="brand-bottom">
+                <span class="trust-badge"><span class="trust-dot"></span>Private portal</span>
+                <span class="trust-badge"><span class="trust-dot"></span>Secure onboarding</span>
+                <span class="trust-badge"><span class="trust-dot"></span>SSL encrypted</span>
+            </div>
+        </aside>
+
+        <section class="form-panel">
+            <div class="form-wrap">
+                <div class="form-header">
+                    <p class="form-eyebrow">
+                        {% if tenant %}{{ tenant_branding.brand_name|default:tenant.name }}{% else %}CourseForge{% endif %}
+                    </p>
+                    <h1 class="form-title">
+                        {{ tenant_branding.register_title|default:"Create your account" }}
+                    </h1>
+                    <p class="form-subtitle">
+                        {% if tenant %}
+                            {{ tenant_branding.register_subtitle|default:"Set up your access and step into your academy." }}
+                        {% else %}
+                            Register to access your learning portal.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div class="divider"></div>
+
+                {% if messages %}
+                <div class="alert-stack" role="alert" aria-live="polite">
+                    {% for message in messages %}
+                    <div class="alert">
+                        <div class="alert-icon">!</div>
+                        <div>{{ message }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="id_username">Username</label>
+                            <div class="input-wrap">
+                                <input type="text" id="id_username" name="username" required
+                                    autocomplete="username" autocapitalize="none"
+                                    spellcheck="false" placeholder="alex_smith">
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="id_email">Email</label>
+                            <div class="input-wrap">
+                                <input type="email" id="id_email" name="email"
+                                    autocomplete="email" placeholder="you@example.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="id_password">
+                            Password
+                            <span class="label-hint">— min. 8 characters</span>
+                        </label>
+                        <div class="input-wrap">
+                            <input type="password" id="id_password" name="password" required
+                                autocomplete="new-password" placeholder="••••••••"
+                                oninput="checkStrength(this.value)">
+                            <button type="button" class="pw-toggle" aria-label="Toggle password visibility"
+                                onclick="togglePw('id_password', this)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="strength-row" id="strength-row">
+                            <div class="strength-segs">
+                                <div class="seg" id="s1"></div>
+                                <div class="seg" id="s2"></div>
+                                <div class="seg" id="s3"></div>
+                                <div class="seg" id="s4"></div>
+                                <div class="seg" id="s5"></div>
+                            </div>
+                            <div class="strength-label" id="strength-label"></div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="id_confirm_password">Confirm password</label>
+                        <div class="input-wrap">
+                            <input type="password" id="id_confirm_password" name="confirm_password"
+                                required autocomplete="new-password" placeholder="••••••••">
+                            <button type="button" class="pw-toggle" aria-label="Toggle password visibility"
+                                onclick="togglePw('id_confirm_password', this)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        Create account
+                        <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 8h10M9 4l4 4-4 4"/>
+                        </svg>
+                    </button>
+                </form>
+
+                <div class="form-footer">
+                    <p class="terms-copy">
+                        By creating an account you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+                    </p>
+                    <div class="signin-row">
+                        <span>Already have an account?</span>
+                        <a href="{% url 'login' %}" class="signin-link">
+                            Sign in
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 6h8M7 3l3 3-3 3"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function togglePw(id, btn) {
+            const input = document.getElementById(id);
+            const hide = input.type === 'password';
+            input.type = hide ? 'text' : 'password';
+            input.classList.toggle('pw-visible', hide);
+            btn.querySelector('svg').innerHTML = hide
+                ? '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a19.16 19.16 0 0 1 5.06-5.94"></path><path d="M9.88 4.24A9.8 9.8 0 0 1 12 4c7 0 11 8 11 8a18.8 18.8 0 0 1-2.16 3.19"></path><line x1="1" y1="1" x2="23" y2="23"></line>'
+                : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path><circle cx="12" cy="12" r="3"></circle>';
+        }
+
+        function checkStrength(val) {
+            const row   = document.getElementById('strength-row');
+            const label = document.getElementById('strength-label');
+            const segs  = [1,2,3,4,5].map(i => document.getElementById('s'+i));
+
+            if (!val) {
+                row.classList.remove('visible');
+                segs.forEach(s => s.style.background = '');
+                label.textContent = '';
+                return;
+            }
+
+            row.classList.add('visible');
+
+            let score = 0;
+            if (val.length >= 8)  score++;
+            if (val.length >= 12) score++;
+            if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
+            if (/\d/.test(val))   score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            const colors = ['#e05c5c','#e08a3c','#d4b83c','#3cb87a','#1d6cff'];
+            const labels = ['Weak','Fair','Good','Strong','Excellent'];
+
+            segs.forEach((s, i) => {
+                s.style.background = i < score ? colors[score - 1] : '';
+            });
+            label.textContent = labels[score - 1] || '';
+        }
+    </script>
+</body>
+</html>

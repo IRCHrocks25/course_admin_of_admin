@@ -1,8 +1,36 @@
 from django.contrib import admin
 from .models import (
+    Tenant, TenantConfig, TenantMembership, TenantDomain,
     Course, CourseResource, Module, Lesson, UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
     Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse
 )
+
+
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ['name', 'slug', 'custom_domain', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['name', 'slug', 'custom_domain']
+
+
+@admin.register(TenantConfig)
+class TenantConfigAdmin(admin.ModelAdmin):
+    list_display = ['tenant', 'chatbot_webhook', 'vimeo_team_id', 'accredible_issuer_id', 'updated_at']
+    search_fields = ['tenant__name', 'tenant__slug', 'chatbot_webhook']
+
+
+@admin.register(TenantMembership)
+class TenantMembershipAdmin(admin.ModelAdmin):
+    list_display = ['tenant', 'user', 'role', 'is_active', 'updated_at']
+    list_filter = ['tenant', 'role', 'is_active']
+    search_fields = ['tenant__name', 'tenant__slug', 'user__username', 'user__email']
+
+
+@admin.register(TenantDomain)
+class TenantDomainAdmin(admin.ModelAdmin):
+    list_display = ['domain', 'tenant', 'is_temporary', 'is_primary', 'is_verified', 'updated_at']
+    list_filter = ['is_temporary', 'is_primary', 'is_verified', 'tenant']
+    search_fields = ['domain', 'tenant__name', 'tenant__slug']
 
 
 @admin.register(Course)

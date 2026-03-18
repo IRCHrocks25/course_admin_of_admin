@@ -1,0 +1,225 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Branding Settings{% endblock %}
+{% block page_title %}Branding Settings{% endblock %}
+
+{% block content %}
+<div class="mb-6 rounded-xl border border-pink-400/20 bg-pink-500/5 p-4">
+    <div class="font-semibold text-pink-300 mb-1">Customize your portal voice</div>
+    <p class="text-sm text-gray-300">
+        Configure brand copy, logo, and page content from one place.
+    </p>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    {% csrf_token %}
+    <div class="xl:col-span-2 space-y-6">
+        <div class="rounded-xl border border-white/10 bg-white/5 p-2">
+            <div class="flex flex-wrap gap-2">
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric" data-tab="identity">Brand</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="landing">Landing Page</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="signup">Sign Up</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="login">Login</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="logo">Logo</button>
+            </div>
+        </div>
+
+        <div id="tab-identity" class="tab-pane rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Brand Identity</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Brand Name</label>
+                    <input name="brand_name" value="{{ branding.brand_name }}" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Short Name</label>
+                    <input name="brand_short_name" value="{{ branding.brand_short_name }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-landing" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Landing Page</h2>
+            <div class="space-y-4">
+                <div class="rounded-lg border border-white/10 bg-[#0a0e27] p-3 text-sm text-gray-300">
+                    Current mode:
+                    <span class="font-semibold text-cyan-300">{% if landing_mode == 'custom' %}Custom HTML{% else %}Default template{% endif %}</span>
+                    · Stored HTML:
+                    <span class="font-semibold text-cyan-300">{{ landing_html|length }}</span> chars
+                    {% if tenant_site_url %}
+                    · <a href="{{ tenant_site_url }}" target="_blank" rel="noopener noreferrer" class="text-cyan-300 hover:underline">Preview landing</a>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Landing Mode</label>
+                    <select name="landing_mode" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="default" {% if landing_mode != 'custom' %}selected{% endif %}>Use platform template</option>
+                        <option value="custom" {% if landing_mode == 'custom' %}selected{% endif %}>Use custom HTML</option>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Custom HTML replaces the default landing page for your tenant domain.</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Upload HTML file</label>
+                    <input type="file" name="landing_html_file" accept=".html,.htm,text/html" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Or paste landing HTML</label>
+                    <textarea name="landing_html" rows="10" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ landing_html }}</textarea>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="clear_landing_html" value="1" class="rounded">
+                    Clear stored custom HTML
+                </label>
+            </div>
+        </div>
+
+        <div id="tab-signup" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Sign Up Page</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Register Title</label>
+                    <input name="register_title" value="{{ branding.register_title }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Register Subtitle</label>
+                    <textarea name="register_subtitle" rows="2" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.register_subtitle }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-login" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Login Page</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Login Welcome Text</label>
+                    <input name="login_welcome" value="{{ branding.login_welcome }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Login Tagline</label>
+                    <textarea name="login_form_tagline" rows="2" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.login_form_tagline }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-logo" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Logo</h2>
+            <div class="space-y-4">
+                {% if tenant.logo %}
+                <div class="rounded-lg border border-white/10 bg-[#0a0e27] p-3 inline-block">
+                    <img src="{{ tenant.logo.url }}" alt="{{ branding.brand_name }} logo" class="h-14 w-auto">
+                </div>
+                {% endif %}
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Upload Logo</label>
+                    <input type="file" name="logo_file" accept="image/*" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="remove_logo" value="1" class="rounded">
+                    Remove current logo
+                </label>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Hero Headlines</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Headline Line 1</label>
+                    <input name="headline_line1" value="{{ branding.headline_line1 }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Headline Line 2</label>
+                    <input name="headline_line2" value="{{ branding.headline_line2 }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Headline Line 3</label>
+                    <input name="headline_line3" value="{{ branding.headline_line3 }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Hero Description</label>
+                    <textarea name="hero_description" rows="3" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.hero_description }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Feature Bullets</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Feature 1 Title</label>
+                    <input name="feature_1_title" value="{{ branding.feature_1_title }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Feature 1 Subtitle</label>
+                    <input name="feature_1_sub" value="{{ branding.feature_1_sub }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Feature 2 Title</label>
+                    <input name="feature_2_title" value="{{ branding.feature_2_title }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Feature 2 Subtitle</label>
+                    <input name="feature_2_sub" value="{{ branding.feature_2_sub }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Feature 3 Title</label>
+                    <input name="feature_3_title" value="{{ branding.feature_3_title }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Feature 3 Subtitle</label>
+                    <input name="feature_3_sub" value="{{ branding.feature_3_sub }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm text-gray-300 mb-1">Footer Copy</label>
+                <input name="footer_copy" value="{{ branding.footer_copy }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        <div class="rounded-xl border border-white/10 bg-white/5 p-5">
+            <h3 class="font-semibold mb-3">Live Preview</h3>
+            <div class="rounded-lg border border-white/10 bg-[#0a0e27] p-4">
+                <div class="text-xl font-bold mb-2">{{ branding.brand_name }}</div>
+                <div class="text-sm text-cyan-300">{{ branding.headline_line1 }}</div>
+                <div class="text-sm text-cyan-300">{{ branding.headline_line2 }}</div>
+                <div class="text-sm text-cyan-300">{{ branding.headline_line3 }}</div>
+                <p class="text-sm text-gray-300 mt-3">{{ branding.hero_description }}</p>
+                <ul class="mt-3 text-xs text-gray-400 space-y-1">
+                    <li>{{ branding.feature_1_title }} — {{ branding.feature_1_sub }}</li>
+                    <li>{{ branding.feature_2_title }} — {{ branding.feature_2_sub }}</li>
+                    <li>{{ branding.feature_3_title }} — {{ branding.feature_3_sub }}</li>
+                </ul>
+                <div class="text-[11px] text-gray-500 mt-4">{{ branding.footer_copy }}</div>
+            </div>
+        </div>
+
+        <button class="w-full py-2.5 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+            Save Branding
+        </button>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const buttons = document.querySelectorAll('.tab-btn');
+    const panes = document.querySelectorAll('.tab-pane');
+    buttons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-tab');
+            buttons.forEach((b) => {
+                b.classList.remove('bg-cyan-electric/20', 'border-cyan-electric/40', 'text-cyan-electric');
+                b.classList.add('border-white/20', 'text-gray-300');
+            });
+            panes.forEach((pane) => pane.classList.add('hidden'));
+            btn.classList.add('bg-cyan-electric/20', 'border-cyan-electric/40', 'text-cyan-electric');
+            btn.classList.remove('border-white/20', 'text-gray-300');
+            const pane = document.getElementById(`tab-${target}`);
+            if (pane) pane.classList.remove('hidden');
+        });
+    });
+});
+</script>
+{% endblock %}
+

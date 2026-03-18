@@ -82,6 +82,7 @@ def grant_course_access(user, course, access_type, granted_by=None, bundle_purch
     Returns the created CourseAccess object.
     """
     access = CourseAccess.objects.create(
+        tenant=course.tenant,
         user=user,
         course=course,
         access_type=access_type,
@@ -119,7 +120,7 @@ def revoke_course_access(user, course, revoked_by, reason="", notes=""):
     return None
 
 
-def get_user_accessible_courses(user):
+def get_user_accessible_courses(user, tenant=None):
     """
     Get all courses the user has active access to.
     Returns QuerySet of Course objects.
@@ -128,17 +129,24 @@ def get_user_accessible_courses(user):
         return Course.objects.none()
     
     now = timezone.now()
-    access_ids = CourseAccess.objects.filter(
+    access_qs = CourseAccess.objects.filter(
         user=user,
         status='unlocked'
-    ).exclude(
+    )
+    if tenant is not None:
+        access_qs = access_qs.filter(tenant=tenant)
+
+    access_ids = access_qs.exclude(
         Q(expires_at__isnull=False) & Q(expires_at__lt=now)
     ).values_list('course_id', flat=True)
     
-    return Course.objects.filter(id__in=access_ids)
+    course_qs = Course.objects.filter(id__in=access_ids)
+    if tenant is not None:
+        course_qs = course_qs.filter(tenant=tenant)
+    return course_qs
 
 
-def get_courses_by_visibility(user):
+def get_courses_by_visibility(user, tenant=None):
     """
     Get courses organized by visibility rules.
     Returns dict with keys: 'my_courses', 'available_to_unlock', 'not_available'
@@ -146,6 +154,8 @@ def get_courses_by_visibility(user):
     if not user.is_authenticated:
         # For non-authenticated users, only show public courses
         public_courses = Course.objects.filter(visibility='public', status='active')
+        if tenant is not None:
+            public_courses = public_courses.filter(tenant=tenant)
         return {
             'my_courses': Course.objects.none(),
             'available_to_unlock': public_courses,
@@ -153,7 +163,7 @@ def get_courses_by_visibility(user):
         }
     
     # Get courses user has access to
-    my_courses = get_user_accessible_courses(user)
+    my_courses = get_user_accessible_courses(user, tenant=tenant)
     
     # Get all visible courses
     visible_courses = Course.objects.filter(
@@ -161,6 +171,8 @@ def get_courses_by_visibility(user):
         Q(visibility='members_only') |
         Q(visibility='hidden')  # Hidden courses can still be accessed if user has access
     ).filter(status='active')
+    if tenant is not None:
+        visible_courses = visible_courses.filter(tenant=tenant)
     
     # Available to unlock = visible courses user doesn't have access to yet
     available_to_unlock = visible_courses.exclude(id__in=my_courses.values_list('id', flat=True))
@@ -170,6 +182,8 @@ def get_courses_by_visibility(user):
         visibility='private',
         status='active'
     )
+    if tenant is not None:
+        not_available = not_available.filter(tenant=tenant)
     
     return {
         'my_courses': my_courses,
@@ -256,7 +270,8 @@ def grant_cohort_access(user, cohort):
     from ..models import CohortMember
     member, created = CohortMember.objects.get_or_create(
         user=user,
-        cohort=cohort
+        cohort=cohort,
+        defaults={'tenant': cohort.tenant}
     )
     
     # TODO: Add cohort.courses relationship if needed

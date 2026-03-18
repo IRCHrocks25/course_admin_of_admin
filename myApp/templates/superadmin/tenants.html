@@ -1,0 +1,81 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Super Admin Tenants{% endblock %}
+{% block page_title %}Tenant Management{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+        <div class="px-4 py-3 border-b border-white/10 font-semibold">All Tenants</div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-white/5 text-gray-300">
+                    <tr>
+                        <th class="text-left px-4 py-3">Name</th>
+                        <th class="text-left px-4 py-3">Slug</th>
+                        <th class="text-left px-4 py-3">Domain</th>
+                        <th class="text-left px-4 py-3">Courses</th>
+                        <th class="text-left px-4 py-3">Lessons</th>
+                        <th class="text-left px-4 py-3">Status</th>
+                        <th class="text-left px-4 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tenant in tenants %}
+                    <tr class="border-t border-white/10">
+                        <td class="px-4 py-3">{{ tenant.name }}</td>
+                        <td class="px-4 py-3">{{ tenant.slug }}</td>
+                        <td class="px-4 py-3">{{ tenant.custom_domain|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ tenant.course_count }}</td>
+                        <td class="px-4 py-3">{{ tenant.lesson_count }}</td>
+                        <td class="px-4 py-3">
+                            {% if tenant.is_active %}
+                            <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Active</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded bg-red-500/20 text-red-400">Suspended</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="text-cyan-electric hover:underline">Edit</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td class="px-4 py-6 text-gray-400" colspan="7">No tenants yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+        <h2 class="font-semibold text-lg mb-4">Create Tenant</h2>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Name</label>
+                <input name="name" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white" placeholder="Acme Academy">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Slug</label>
+                <input name="slug" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white" placeholder="acme">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Custom Domain (optional)</label>
+                <input name="custom_domain" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white" placeholder="learn.acme.com">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Primary Color</label>
+                <input name="primary_color" value="#3B82F6" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+                <input type="checkbox" name="is_active" checked>
+                <span>Active</span>
+            </label>
+            <button class="w-full py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+                Create Tenant
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

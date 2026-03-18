@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{% if request.user.is_authenticated %}My Dashboard{% else %}Courses{% endif %} — SOP Master{% endblock %}
+{% block title %}{% if request.user.is_authenticated %}My Dashboard{% else %}Courses{% endif %} — {{ tenant_branding.brand_name|default:"CourseForge" }}{% endblock %}
 
 {% block content %}
 
@@ -482,8 +482,8 @@
     <div class="page-hd reveal">
         <div>
             <div class="page-eyebrow"><i class="fas fa-layer-group" style="font-size:10px;"></i> Course Catalog</div>
-            <h1 class="page-title">Your AI-Assisted<br/>Growth Track</h1>
-            <p class="page-subtitle">Every program is wired into its own AI coach. Choose your sprint — we'll handle the momentum.</p>
+            <h1 class="page-title">{{ tenant_branding.hub_guest_title|default:"Your AI-Assisted Growth Track" }}</h1>
+            <p class="page-subtitle">{{ tenant_branding.hub_guest_subtitle|default:"Every program is wired into its own AI coach. Choose your sprint — we'll handle the momentum." }}</p>
         </div>
         <form method="get" class="controls-row" style="align-self:flex-end;">
             <div class="search-wrap">
@@ -568,7 +568,7 @@
                 Learning Dashboard
             </div>
             <h1 class="page-title">My Dashboard</h1>
-            <p class="page-subtitle">Track your learning progress and achievements</p>
+            <p class="page-subtitle">{{ tenant_branding.hub_dashboard_subtitle|default:"Track your learning progress and achievements" }}</p>
         </div>
         <a href="{% url 'student_certifications' %}" class="btn-certs">
             <i class="fas fa-certificate"></i>

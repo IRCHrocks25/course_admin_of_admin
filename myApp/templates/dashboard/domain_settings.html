@@ -1,0 +1,109 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Domain Settings{% endblock %}
+{% block page_title %}Domain Settings{% endblock %}
+
+{% block content %}
+<div class="mb-6 rounded-xl border border-cyan-electric/20 bg-cyan-electric/5 p-4">
+    <div class="font-semibold text-cyan-electric mb-1">How this works</div>
+    <p class="text-sm text-gray-300">
+        You already have a temporary domain for immediate launch.
+        Add your custom domain below, point DNS to our platform, then verify and set it as primary.
+    </p>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+        <div class="px-4 py-3 border-b border-white/10 font-semibold">Connected Domains for {{ tenant.name }}</div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-white/5 text-gray-300">
+                    <tr>
+                        <th class="text-left px-4 py-3">Domain</th>
+                        <th class="text-left px-4 py-3">Type</th>
+                        <th class="text-left px-4 py-3">Status</th>
+                        <th class="text-left px-4 py-3">Primary</th>
+                        <th class="text-left px-4 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for domain in domains %}
+                    <tr class="border-t border-white/10">
+                        <td class="px-4 py-3 font-medium">{{ domain.domain }}</td>
+                        <td class="px-4 py-3">
+                            {% if domain.is_temporary %}
+                            <span class="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300">Temporary</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded bg-purple-accent/20 text-purple-accent">Custom</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if domain.is_verified %}
+                            <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Verified</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if domain.is_primary %}
+                            <span class="px-2 py-1 rounded bg-cyan-electric/20 text-cyan-electric">Primary</span>
+                            {% else %}
+                            <span class="text-gray-500">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap gap-2">
+                                {% if not domain.is_verified %}
+                                <form method="post" action="{% url 'dashboard_verify_domain' domain.id %}">
+                                    {% csrf_token %}
+                                    <button class="px-2 py-1 rounded border border-yellow-400/40 text-yellow-300 hover:bg-yellow-500/20 transition">Verify</button>
+                                </form>
+                                {% endif %}
+                                {% if domain.is_verified and not domain.is_primary %}
+                                <form method="post" action="{% url 'dashboard_make_primary_domain' domain.id %}">
+                                    {% csrf_token %}
+                                    <button class="px-2 py-1 rounded border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/20 transition">Make Primary</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td class="px-4 py-6 text-gray-400" colspan="5">No domains connected yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-white/10 bg-white/5 p-5">
+        <h2 class="font-semibold text-lg mb-4">Add Custom Domain</h2>
+        <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Domain</label>
+                <input name="domain" placeholder="learn.yourbrand.com" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+            </div>
+            <button class="w-full py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+                Add Domain
+            </button>
+        </form>
+
+        <div class="mt-5 pt-5 border-t border-white/10">
+            <h3 class="font-semibold mb-2">DNS Setup Guide</h3>
+            <ol class="list-decimal list-inside text-sm text-gray-300 space-y-1">
+                <li>Create a CNAME record for your domain.</li>
+                <li>Point it to <span class="text-cyan-electric">{{ platform_base_domain|default:"your platform host" }}</span>.</li>
+                <li>Wait for DNS propagation.</li>
+                <li>Click Verify, then Make Primary.</li>
+            </ol>
+            {% if temporary_domain %}
+            <p class="text-xs text-gray-400 mt-3">
+                Temporary domain: <span class="text-indigo-300 font-medium">{{ temporary_domain.domain }}</span>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

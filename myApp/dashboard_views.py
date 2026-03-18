@@ -43,6 +43,9 @@ from .models import (
     BundlePurchase,
     Cohort,
     CohortMember,
+    TenantConfig,
+    TenantMembership,
+    TenantDomain,
 )
 from django.contrib import messages
 from django.core.cache import cache
@@ -50,6 +53,25 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
+from .utils.tenancy import get_default_tenant
+from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain
+from .utils.branding import get_tenant_branding, ensure_tenant_branding
+
+
+def _sanitize_uploaded_html(raw_html):
+    """
+    Keep tenant custom landing HTML safe enough for admin-uploaded content.
+    Removes scripts/iframes/object/embed and strips Django template delimiters.
+    """
+    if not raw_html:
+        return ''
+    html = str(raw_html)
+    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<iframe[\s\S]*?</iframe>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<object[\s\S]*?</object>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<embed[\s\S]*?>', '', html, flags=re.IGNORECASE)
+    html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
+    return html.strip()
 
 
 @staff_member_required
@@ -197,7 +219,7 @@ def dashboard_students(request):
             CourseEnrollment.objects.get_or_create(
                 user=admin_user,
                 course=course,
-                defaults={'payment_type': 'full'}
+                defaults={'tenant': course.tenant, 'payment_type': 'full'}
             )
     
     # Apply search filter
@@ -441,6 +463,7 @@ def dashboard_course_detail(request, course_slug):
                 description = request.POST.get('resource_description', '').strip()
                 max_order = course.resources.aggregate(models.Max('order'))['order__max'] or 0
                 CourseResource.objects.create(
+                    tenant=course.tenant,
                     course=course,
                     title=title,
                     description=description,
@@ -502,6 +525,7 @@ def dashboard_lesson_quiz(request, lesson_id):
     quiz, created = LessonQuiz.objects.get_or_create(
         lesson=lesson,
         defaults={
+            'tenant': lesson.tenant,
             'title': f'{lesson.title} Quiz',
             'passing_score': 80,
         },
@@ -1069,6 +1093,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         
         for module_data in modules_data:
             module = Module.objects.create(
+                tenant=course.tenant,
                 course=course,
                 name=module_data.get('name', 'Untitled Module'),
                 description=module_data.get('description', ''),
@@ -1114,6 +1139,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
                 
                 lesson = Lesson.objects.create(
+                    tenant=course.tenant,
                     course=course,
                     module=module,
                     title=lesson_title,
@@ -1136,7 +1162,12 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 try:
                     quiz, _ = LessonQuiz.objects.get_or_create(
                         lesson=lesson,
-                        defaults={'title': f'{lesson_title} Quiz', 'passing_score': 70, 'is_required': True},
+                        defaults={
+                            'tenant': lesson.tenant,
+                            'title': f'{lesson_title} Quiz',
+                            'passing_score': 70,
+                            'is_required': True
+                        },
                     )
                     qc = generate_ai_quiz(lesson, quiz, num_questions=5)
                     if qc > 0:
@@ -1158,6 +1189,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             exam, created = Exam.objects.get_or_create(
                 course=course,
                 defaults={
+                    'tenant': course.tenant,
                     'title': f'Final Exam - {course_name}',
                     'description': f'Comprehensive exam covering all concepts from {course_name}. Complete all lessons before attempting.',
                     'passing_score': 70,
@@ -1210,6 +1242,11 @@ def api_ai_generation_status(request, course_id):
 @staff_member_required
 def dashboard_add_course(request):
     """Add new course with optional AI generation"""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required to create courses.')
+        return redirect('dashboard_home')
+
     if request.method == 'POST':
         name = request.POST.get('name')
         slug = generate_slug(name)
@@ -1225,12 +1262,13 @@ def dashboard_add_course(request):
         # Ensure slug is unique
         base_slug = slug
         counter = 1
-        while Course.objects.filter(slug=slug).exists():
+        while Course.objects.filter(tenant=tenant, slug=slug).exists():
             slug = f"{base_slug}-{counter}"
             counter += 1
         
         # Create course
         course = Course.objects.create(
+            tenant=tenant,
             name=name,
             slug=slug,
             short_description=short_description,
@@ -1334,6 +1372,7 @@ def dashboard_upload_quiz(request):
             quiz, created = LessonQuiz.objects.get_or_create(
                 lesson=lesson,
                 defaults={
+                    'tenant': lesson.tenant,
                     'title': f'{lesson.title} Quiz',
                     'passing_score': 70,
                 },
@@ -2079,7 +2118,8 @@ def add_to_cohort_view(request, user_id):
     # Add to cohort
     member, created = CohortMember.objects.get_or_create(
         user=user,
-        cohort=cohort
+        cohort=cohort,
+        defaults={'tenant': cohort.tenant}
     )
     
     if created:
@@ -2541,15 +2581,17 @@ def dashboard_add_bundle(request):
             return redirect('dashboard_add_bundle')
         
         # Generate slug from name
+        default_tenant = get_default_tenant()
         slug = generate_slug(name)
         # Ensure slug is unique
         base_slug = slug
         counter = 1
-        while Bundle.objects.filter(slug=slug).exists():
+        while Bundle.objects.filter(tenant=default_tenant, slug=slug).exists():
             slug = f"{base_slug}-{counter}"
             counter += 1
         
         bundle = Bundle.objects.create(
+            tenant=default_tenant,
             name=name,
             slug=slug,
             description=description,
@@ -2641,4 +2683,196 @@ def dashboard_delete_bundle(request, bundle_id):
     bundle.delete()
     messages.success(request, f'Bundle "{bundle_name}" deleted successfully!')
     return redirect('dashboard_bundles')
+
+
+def _get_dashboard_tenant(request):
+    """Resolve active tenant for tenant-admin dashboard context."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is not None:
+        return tenant
+    # Legacy fallback for old host-based access.
+    membership = TenantMembership.objects.filter(
+        user=request.user,
+        role='tenant_admin',
+        is_active=True
+    ).select_related('tenant').first()
+    return membership.tenant if membership else None
+
+
+@staff_member_required
+def dashboard_domain_settings(request):
+    """Tenant admin domain management page."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required to manage domains.')
+        return redirect('dashboard_home')
+
+    ensure_temporary_domain(tenant)
+
+    if request.method == 'POST':
+        domain = normalize_domain(request.POST.get('domain'))
+        if not domain:
+            messages.error(request, 'Please enter a valid domain.')
+            return redirect('dashboard_domain_settings')
+        if TenantDomain.objects.filter(domain=domain).exists():
+            messages.error(request, f'Domain "{domain}" is already connected.')
+            return redirect('dashboard_domain_settings')
+
+        TenantDomain.objects.create(
+            tenant=tenant,
+            domain=domain,
+            is_temporary=False,
+            is_primary=False,
+            is_verified=False,
+            verification_notes='Pending DNS verification',
+        )
+        messages.success(request, f'Domain "{domain}" added. Complete DNS setup and verify.')
+        return redirect('dashboard_domain_settings')
+
+    domains = TenantDomain.objects.filter(tenant=tenant).order_by('-is_primary', 'domain')
+    primary_domain = domains.filter(is_primary=True).first()
+    temporary_domain = domains.filter(is_temporary=True).first()
+    return render(request, 'dashboard/domain_settings.html', {
+        'tenant': tenant,
+        'domains': domains,
+        'primary_domain': primary_domain,
+        'temporary_domain': temporary_domain,
+        'platform_base_domain': get_platform_base_domain(),
+    })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_verify_domain(request, domain_id):
+    """Mark a tenant domain as verified (manual verify for now)."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_home')
+    domain = get_object_or_404(TenantDomain, id=domain_id, tenant=tenant)
+    domain.is_verified = True
+    domain.verification_notes = 'Verified by tenant admin'
+    domain.save(update_fields=['is_verified', 'verification_notes', 'updated_at'])
+    messages.success(request, f'Domain "{domain.domain}" verified.')
+    return redirect('dashboard_domain_settings')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_make_primary_domain(request, domain_id):
+    """Set a verified domain as primary."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_home')
+    domain = get_object_or_404(TenantDomain, id=domain_id, tenant=tenant)
+    if not domain.is_verified:
+        messages.error(request, 'Domain must be verified before setting as primary.')
+        return redirect('dashboard_domain_settings')
+    TenantDomain.objects.filter(tenant=tenant).update(is_primary=False)
+    domain.is_primary = True
+    domain.save(update_fields=['is_primary', 'updated_at'])
+    if not domain.is_temporary:
+        tenant.custom_domain = domain.domain
+        tenant.save(update_fields=['custom_domain'])
+    messages.success(request, f'"{domain.domain}" is now your primary domain.')
+    return redirect('dashboard_domain_settings')
+
+
+@staff_member_required
+def dashboard_branding_settings(request):
+    """Tenant admin branding editor for copy shown across portal pages."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required to manage branding.')
+        return redirect('dashboard_home')
+
+    ensure_tenant_branding(tenant)
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+    current_branding = get_tenant_branding(tenant)
+    features = config.features or {}
+    custom_pages = features.get('custom_pages') or {}
+
+    if request.method == 'POST':
+        updated = dict(current_branding)
+        updated.update({
+            'brand_name': (request.POST.get('brand_name') or current_branding.get('brand_name', '')).strip(),
+            'brand_short_name': (request.POST.get('brand_short_name') or current_branding.get('brand_short_name', '')).strip(),
+            'headline_line1': (request.POST.get('headline_line1') or current_branding.get('headline_line1', '')).strip(),
+            'headline_line2': (request.POST.get('headline_line2') or current_branding.get('headline_line2', '')).strip(),
+            'headline_line3': (request.POST.get('headline_line3') or current_branding.get('headline_line3', '')).strip(),
+            'hero_description': (request.POST.get('hero_description') or current_branding.get('hero_description', '')).strip(),
+            'feature_1_title': (request.POST.get('feature_1_title') or current_branding.get('feature_1_title', '')).strip(),
+            'feature_1_sub': (request.POST.get('feature_1_sub') or current_branding.get('feature_1_sub', '')).strip(),
+            'feature_2_title': (request.POST.get('feature_2_title') or current_branding.get('feature_2_title', '')).strip(),
+            'feature_2_sub': (request.POST.get('feature_2_sub') or current_branding.get('feature_2_sub', '')).strip(),
+            'feature_3_title': (request.POST.get('feature_3_title') or current_branding.get('feature_3_title', '')).strip(),
+            'feature_3_sub': (request.POST.get('feature_3_sub') or current_branding.get('feature_3_sub', '')).strip(),
+            'register_title': (request.POST.get('register_title') or current_branding.get('register_title', '')).strip(),
+            'register_subtitle': (request.POST.get('register_subtitle') or current_branding.get('register_subtitle', '')).strip(),
+            'login_welcome': (request.POST.get('login_welcome') or current_branding.get('login_welcome', '')).strip(),
+            'login_form_tagline': (request.POST.get('login_form_tagline') or current_branding.get('login_form_tagline', '')).strip(),
+            'footer_copy': (request.POST.get('footer_copy') or current_branding.get('footer_copy', '')).strip(),
+        })
+
+        if not updated['brand_name']:
+            messages.error(request, 'Brand name is required.')
+            return redirect('dashboard_branding_settings')
+
+        landing_mode = (request.POST.get('landing_mode') or custom_pages.get('landing_mode') or 'default').strip()
+        custom_pages['landing_mode'] = 'custom' if landing_mode == 'custom' else 'default'
+
+        uploaded_html = request.FILES.get('landing_html_file')
+        html_text = (request.POST.get('landing_html') or '').strip()
+        if uploaded_html:
+            try:
+                html_text = uploaded_html.read().decode('utf-8', errors='ignore')
+            except Exception:
+                html_text = ''
+
+        existing_html = (custom_pages.get('landing_html') or '').strip()
+        clear_html = request.POST.get('clear_landing_html') == '1'
+        if landing_mode == 'custom' and not html_text and not existing_html and not clear_html:
+            messages.error(
+                request,
+                'Custom landing is enabled but no HTML is provided yet. Upload/paste HTML or switch to default mode.'
+            )
+            return redirect('dashboard_branding_settings')
+
+        if html_text:
+            custom_pages['landing_html'] = _sanitize_uploaded_html(html_text)
+            # If admin provided HTML, auto-enable custom mode to avoid confusion.
+            custom_pages['landing_mode'] = 'custom'
+        if clear_html:
+            custom_pages.pop('landing_html', None)
+            if landing_mode == 'custom':
+                custom_pages['landing_mode'] = 'default'
+                messages.info(request, 'Custom HTML was cleared, so landing mode was switched back to default.')
+
+        if request.POST.get('remove_logo') == '1' and tenant.logo:
+            tenant.logo.delete(save=False)
+            tenant.logo = None
+            tenant.save(update_fields=['logo', 'updated_at'])
+
+        logo_file = request.FILES.get('logo_file')
+        if logo_file:
+            tenant.logo = logo_file
+            tenant.save(update_fields=['logo', 'updated_at'])
+
+        features['branding'] = updated
+        features['custom_pages'] = custom_pages
+        config.features = features
+        config.save(update_fields=['features', 'updated_at'])
+        mode_message = 'custom HTML' if custom_pages.get('landing_mode') == 'custom' else 'default template'
+        html_len = len((custom_pages.get('landing_html') or '').strip())
+        messages.success(request, f'Branding updated successfully. Landing mode: {mode_message}. HTML size: {html_len} chars.')
+        return redirect('dashboard_branding_settings')
+
+    return render(request, 'dashboard/branding_settings.html', {
+        'tenant': tenant,
+        'branding': current_branding,
+        'custom_pages': custom_pages,
+        'landing_mode': custom_pages.get('landing_mode', 'default'),
+        'landing_html': custom_pages.get('landing_html', ''),
+    })
 

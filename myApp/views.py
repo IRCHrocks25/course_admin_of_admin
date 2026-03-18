@@ -2,10 +2,12 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import authenticate, login, logout
-from django.http import JsonResponse
+from django.contrib.auth.models import User
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.conf import settings
+from django.utils.text import slugify
 from datetime import datetime
 import json
 import re
@@ -16,6 +18,9 @@ from .models import (
     Course,
     Lesson,
     Module,
+    Tenant,
+    TenantConfig,
+    TenantMembership,
     UserProgress,
     CourseEnrollment,
     Exam,
@@ -24,17 +29,222 @@ from .models import (
     LessonQuiz,
     LessonQuizQuestion,
     LessonQuizAttempt,
+    CourseAccess,
 )
 from django.db.models import Avg, Count, Q
 from django.db import models
 from django.utils import timezone
+from urllib.parse import urlencode
 from .utils.transcription import transcribe_video
 from .utils.access import has_course_access
+from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
+from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
 
 
 def home(request):
-    """Home page view - shows landing page"""
-    return render(request, 'landing.html')
+    """
+    Platform host shows creator-acquisition landing.
+    Tenant hosts show tenant-branded landing.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        return render(request, 'platform/home.html', {
+            'tenant_count': Tenant.objects.filter(is_active=True).count(),
+            'course_count': Course.objects.count(),
+            'platform_base_domain': get_platform_base_domain(),
+        })
+
+    custom_pages = {}
+    try:
+        tenant_config = tenant.config
+    except TenantConfig.DoesNotExist:
+        tenant_config = None
+    if tenant_config and isinstance(tenant_config.features, dict):
+        custom_pages = tenant_config.features.get('custom_pages') or {}
+    if custom_pages.get('landing_mode') == 'custom' and custom_pages.get('landing_html'):
+        custom_html = (custom_pages.get('landing_html') or '').strip()
+
+        # Safety sanitizer strips scripts; many custom templates rely on JS-driven reveal effects.
+        # Provide a fallback so hidden sections still render.
+        fallback_style = (
+            '<style id="tenant-custom-fallback">'
+            '.reveal{opacity:1 !important;transform:none !important;}'
+            '#cur,#cur-ring{display:none !important;}'
+            'body{cursor:auto !important;}'
+            '</style>'
+        )
+        fallback_script = (
+            '<script>'
+            "document.addEventListener('DOMContentLoaded',function(){"
+            "document.querySelectorAll('.reveal').forEach(function(el){"
+            "el.classList.add('in');el.classList.add('visible');"
+            "});"
+            "var routeMap={signup:'/register/',register:'/register/',login:'/login/',signin:'/login/',dashboard:'/courses/',courses:'/courses/'};"
+            "function resolveTarget(el){"
+            "var explicit=(el.getAttribute('data-link')||'').trim();"
+            "if(explicit){return explicit;}"
+            "var action=((el.getAttribute('data-action')||'').toLowerCase().replace(/\\s+/g,''));"
+            "if(action && routeMap[action]){return routeMap[action];}"
+            "var txt=((el.textContent||'').toLowerCase());"
+            "if(txt.includes('enroll')||txt.includes('join now')||txt.includes('create account')||txt.includes('sign up')){return '/register/';}"
+            "if(txt.includes('login')||txt.includes('log in')||txt.includes('sign in')){return '/login/';}"
+            "if(txt.includes('dashboard')||txt.includes('courses')||txt.includes('curriculum')){return '/courses/';}"
+            "return '';"
+            "}"
+            "document.querySelectorAll('button,a').forEach(function(el){"
+            "var tag=(el.tagName||'').toLowerCase();"
+            "var href=(el.getAttribute('href')||'').trim();"
+            "var isCta=(tag==='button')||(tag==='a'&&(href===''||href==='#'||href.toLowerCase().startsWith('javascript:')));"
+            "if(!isCta){return;}"
+            "var target=resolveTarget(el);"
+            "if(!target){return;}"
+            "el.addEventListener('click',function(ev){ev.preventDefault();window.location.href=target;});"
+            "});"
+            "});"
+            '</script>'
+        )
+
+        lower_html = custom_html.lower()
+        if '</head>' in lower_html:
+            idx = lower_html.rfind('</head>')
+            custom_html = custom_html[:idx] + fallback_style + custom_html[idx:]
+        else:
+            custom_html = fallback_style + custom_html
+
+        lower_html = custom_html.lower()
+        if '</body>' in lower_html:
+            idx = lower_html.rfind('</body>')
+            custom_html = custom_html[:idx] + fallback_script + custom_html[idx:]
+        else:
+            custom_html = custom_html + fallback_script
+
+        if '<html' in custom_html.lower():
+            return HttpResponse(custom_html)
+        return render(request, 'tenant/custom_landing_fragment.html', {
+            'tenant': tenant,
+            'custom_landing_html': custom_html,
+        })
+
+    return render(request, 'landing.html', {
+        'tenant': tenant,
+        'course_count': Course.objects.filter(tenant=tenant, status='active').count(),
+    })
+
+
+def start_academy(request):
+    """
+    SaaS onboarding entrypoint:
+    Creates tenant + tenant admin account.
+    """
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('dashboard_home')
+        return redirect('courses')
+
+    if getattr(request, 'tenant', None) is not None:
+        messages.info(request, 'You are already on a tenant portal. Please sign in or register here.')
+        return redirect('login')
+
+    if request.method == 'POST':
+        academy_name = (request.POST.get('academy_name') or '').strip()
+        admin_username = (request.POST.get('admin_username') or '').strip()
+        admin_email = (request.POST.get('admin_email') or '').strip().lower()
+        teach_topic = (request.POST.get('teach_topic') or '').strip()
+        target_audience = (request.POST.get('target_audience') or '').strip()
+        outcome_promise = (request.POST.get('outcome_promise') or '').strip()
+        password = request.POST.get('password') or ''
+        confirm_password = request.POST.get('confirm_password') or ''
+        template_ctx = {'platform_base_domain': get_platform_base_domain()}
+
+        if not academy_name or not admin_username or not password:
+            messages.error(request, 'Academy name, admin username, and password are required.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+        if password != confirm_password:
+            messages.error(request, 'Passwords do not match.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+
+        # Slug is intentionally auto-generated for simpler onboarding UX.
+        base_slug = slugify(academy_name)
+        if not base_slug:
+            messages.error(request, 'Please provide a valid academy name/slug.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+
+        tenant_slug = base_slug
+        counter = 1
+        while Tenant.objects.filter(slug=tenant_slug).exists():
+            tenant_slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        if User.objects.filter(username=admin_username).exists():
+            messages.error(request, 'That admin username already exists.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+        if admin_email and User.objects.filter(email=admin_email).exists():
+            messages.error(request, 'That admin email is already in use.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+
+        tenant = Tenant.objects.create(
+            name=academy_name,
+            slug=tenant_slug,
+            is_active=True,
+        )
+        config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+        features = config.features or {}
+        profile = {
+            'teach_topic': teach_topic,
+            'target_audience': target_audience,
+            'outcome_promise': outcome_promise,
+        }
+        features['brand_profile'] = profile
+        features['branding'] = build_default_branding(tenant, profile=profile)
+        config.features = features
+        config.save(update_fields=['features', 'updated_at'])
+        ensure_tenant_branding(tenant)
+        temp_domain = ensure_temporary_domain(tenant)
+
+        admin_user = User.objects.create_user(
+            username=admin_username,
+            email=admin_email,
+            password=password
+        )
+        admin_user.is_staff = True
+        admin_user.save(update_fields=['is_staff'])
+
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=admin_user,
+            role='tenant_admin',
+            is_active=True
+        )
+
+        login(request, admin_user)
+        tenant_host = temp_domain.domain if temp_domain else ''
+        using_fallback_urls = not bool(tenant_host)
+        tenant_base_url = (get_tenant_public_home_url(request, tenant) or '').rstrip('/')
+        if tenant_base_url and '?' not in tenant_base_url:
+            tenant_register_url = f"{tenant_base_url}/register/"
+            tenant_login_url = f"{tenant_base_url}/login/"
+            tenant_courses_url = f"{tenant_base_url}/courses/"
+        else:
+            # Fallback for non-subdomain local routing if needed.
+            base = f"{request.scheme}://{request.get_host()}"
+            tenant_qs = urlencode({'tenant': tenant.slug})
+            tenant_base_url = f"{base}/?{tenant_qs}"
+            tenant_register_url = f"{base}/register/?{tenant_qs}"
+            tenant_login_url = f"{base}/login/?{tenant_qs}"
+            tenant_courses_url = f"{base}/courses/?{tenant_qs}"
+
+        return render(request, 'platform/academy_created.html', {
+            'tenant': tenant,
+            'tenant_host': tenant_host,
+            'tenant_base_url': tenant_base_url,
+            'tenant_register_url': tenant_register_url,
+            'tenant_login_url': tenant_login_url,
+            'tenant_courses_url': tenant_courses_url,
+            'using_fallback_urls': using_fallback_urls,
+            'platform_base_domain': get_platform_base_domain(),
+        })
+
+    return render(request, 'platform/start_academy.html', {'platform_base_domain': get_platform_base_domain()})
 
 
 def login_view(request):
@@ -42,21 +252,89 @@ def login_view(request):
     # Allow access to login page even when logged in if ?force=true (for testing)
     force = request.GET.get('force', '').lower() == 'true'
     if request.user.is_authenticated and not force:
+        if getattr(request, 'tenant', None) is None and request.user.is_staff:
+            return redirect('dashboard_home')
         return redirect('courses')
     
+    tenant = getattr(request, 'tenant', None)
+    tenant_branding = get_tenant_branding(tenant)
+
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
         
         user = authenticate(request, username=username, password=password)
         if user is not None:
+            if tenant and not user.is_superuser:
+                membership = TenantMembership.objects.filter(
+                    tenant=tenant,
+                    user=user,
+                    is_active=True
+                ).first()
+                if not membership:
+                    messages.error(request, 'This account does not have access to this tenant portal.')
+                    return render(request, 'login.html', {'tenant_branding': tenant_branding})
             login(request, user)
-            next_url = request.GET.get('next', 'courses')
+            default_next = 'dashboard_home' if (getattr(request, 'tenant', None) is None and user.is_staff) else 'courses'
+            next_url = request.POST.get('next') or request.GET.get('next', default_next)
             return redirect(next_url)
         else:
             messages.error(request, 'Invalid username or password.')
     
-    return render(request, 'login.html')
+    return render(request, 'login.html', {'tenant_branding': tenant_branding})
+
+
+def register_view(request):
+    """
+    Tenant-aware self-registration.
+    New users are attached to the tenant resolved from the request domain.
+    """
+    if request.user.is_authenticated:
+        return redirect('courses')
+
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.info(request, 'Create your academy first, then students can register on that tenant domain.')
+        return redirect('start_academy')
+    if tenant and not tenant.is_active:
+        messages.error(request, 'This tenant portal is currently inactive.')
+        return redirect('login')
+
+    if request.method == 'POST':
+        username = (request.POST.get('username') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        password = request.POST.get('password') or ''
+        confirm_password = request.POST.get('confirm_password') or ''
+
+        if not username or not password:
+            messages.error(request, 'Username and password are required.')
+            return render(request, 'register.html')
+        if password != confirm_password:
+            messages.error(request, 'Passwords do not match.')
+            return render(request, 'register.html')
+        if User.objects.filter(username=username).exists():
+            messages.error(request, 'That username is already in use.')
+            return render(request, 'register.html')
+        if email and User.objects.filter(email=email).exists():
+            messages.error(request, 'That email is already in use.')
+            return render(request, 'register.html')
+
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+        )
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=user,
+            role='student',
+            is_active=True
+        )
+        login(request, user)
+        messages.success(request, f'Welcome to {tenant.name}. Your account has been created.')
+        return redirect('courses')
+
+    return render(request, 'register.html')
 
 
 def logout_view(request):
@@ -71,6 +349,11 @@ def courses(request):
     Unified learning hub: dashboard for logged-in users, catalog for guests.
     Replaces the separate courses + student_dashboard pages.
     """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.info(request, 'Use your tenant portal URL to access courses.')
+        return redirect('home')
+
     if request.user.is_authenticated:
         return _courses_authenticated(request)
     return _courses_guest(request)
@@ -78,8 +361,11 @@ def courses(request):
 
 def _courses_guest(request):
     """Catalog view for logged-out users"""
+    tenant = getattr(request, 'tenant', None)
     search_query = request.GET.get('search', '')
     courses_qs = Course.objects.prefetch_related('lessons').filter(status='active')
+    if tenant is not None:
+        courses_qs = courses_qs.filter(tenant=tenant)
     if search_query:
         courses_qs = courses_qs.filter(name__icontains=search_query)
     courses_list = list(courses_qs)
@@ -113,16 +399,40 @@ def _courses_authenticated(request):
     search_query = request.GET.get('search', '')
 
     # Dashboard data (access-based)
-    courses_by_visibility = get_courses_by_visibility(user)
+    tenant = getattr(request, 'tenant', None)
+
+    # Tenant admins should always see/manage their tenant courses without
+    # manually granting themselves access for each new course.
+    if tenant is not None:
+        is_tenant_admin = user.is_superuser or TenantMembership.objects.filter(
+            tenant=tenant,
+            user=user,
+            role='tenant_admin',
+            is_active=True
+        ).exists()
+        if is_tenant_admin:
+            for course in Course.objects.filter(status='active', tenant=tenant):
+                CourseAccess.objects.get_or_create(
+                    tenant=tenant,
+                    user=user,
+                    course=course,
+                    defaults={
+                        'access_type': 'manual',
+                        'status': 'unlocked',
+                        'notes': 'Auto-granted for tenant admin',
+                    }
+                )
+
+    courses_by_visibility = get_courses_by_visibility(user, tenant=tenant)
     my_courses = list(courses_by_visibility['my_courses'])
     available_to_unlock = list(courses_by_visibility['available_to_unlock'])
 
     # Legacy enrollments
-    enrollments = CourseEnrollment.objects.filter(user=user).select_related('course')
+    enrollments = CourseEnrollment.objects.filter(user=user, course__tenant=tenant).select_related('course')
     if not enrollments.exists() and user.is_staff:
-        for course in Course.objects.filter(status='active'):
-            CourseEnrollment.objects.get_or_create(user=user, course=course)
-        enrollments = CourseEnrollment.objects.filter(user=user).select_related('course')
+        for course in Course.objects.filter(status='active', tenant=tenant):
+            CourseEnrollment.objects.get_or_create(user=user, course=course, defaults={'tenant': course.tenant})
+        enrollments = CourseEnrollment.objects.filter(user=user, course__tenant=tenant).select_related('course')
 
     my_course_ids = [c.id for c in my_courses]
     enrollments_dict = {e.course_id: e for e in CourseEnrollment.objects.filter(user=user, course_id__in=my_course_ids).select_related('course')}
@@ -298,7 +608,11 @@ def enroll_course(request, course_slug):
             access_type='manual',
             notes='Self-enrolled via Start Course',
         )
-        CourseEnrollment.objects.get_or_create(user=user, course=course)
+        CourseEnrollment.objects.get_or_create(
+            user=user,
+            course=course,
+            defaults={'tenant': course.tenant}
+        )
         messages.success(request, f'You have been enrolled in {course.name}.')
         return redirect('course_detail', course_slug=course_slug)
 
@@ -699,6 +1013,7 @@ def add_lesson(request, course_slug):
         
         # Create lesson draft
         lesson = Lesson.objects.create(
+            tenant=course.tenant,
             course=course,
             working_title=working_title,
             rough_notes=rough_notes,
@@ -1192,7 +1507,8 @@ def toggle_favorite_course(request, course_id):
     
     favorite, created = FavoriteCourse.objects.get_or_create(
         user=user,
-        course=course
+        course=course,
+        defaults={'tenant': course.tenant}
     )
     
     if not created:

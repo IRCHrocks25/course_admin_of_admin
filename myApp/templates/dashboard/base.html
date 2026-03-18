@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard - S.O.P Master{% endblock %}</title>
+    <title>{% block title %}Dashboard - {{ tenant_branding.brand_name|default:"CourseForge" }}{% endblock %}</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -57,7 +57,7 @@
                     </div>
                     <div>
                         <div class="text-[10px] uppercase tracking-widest text-cyan-electric/70 font-semibold">Dashboard</div>
-                        <div class="text-sm font-bold">AI Academy</div>
+                        <div class="text-sm font-bold">{{ tenant_branding.brand_short_name|default:tenant_branding.brand_name|default:"CourseForge" }}</div>
                     </div>
                 </div>
                 <button id="close-sidebar" class="md:hidden p-2 text-gray-400 hover:text-white">
@@ -95,7 +95,21 @@
                     <i class="fas fa-gift w-5"></i>
                     <span>Bundles</span>
                 </a>
-                <a href="{% url 'home' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
+                <a href="{% url 'dashboard_domain_settings' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'domain' in request.resolver_match.url_name %}bg-indigo-500/20 text-indigo-300 border-l-2 border-indigo-300{% else %}text-gray-300 hover:bg-indigo-500/10 hover:text-indigo-300{% endif %}">
+                    <i class="fas fa-globe w-5"></i>
+                    <span>Domains</span>
+                </a>
+                <a href="{% url 'dashboard_branding_settings' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'branding' in request.resolver_match.url_name %}bg-pink-500/20 text-pink-300 border-l-2 border-pink-300{% else %}text-gray-300 hover:bg-pink-500/10 hover:text-pink-300{% endif %}">
+                    <i class="fas fa-palette w-5"></i>
+                    <span>Branding</span>
+                </a>
+                {% if user.is_superuser %}
+                <a href="{% url 'superadmin_home' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'superadmin' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
+                    <i class="fas fa-shield-halved w-5"></i>
+                    <span>Super Admin</span>
+                </a>
+                {% endif %}
+                <a href="{% if tenant_site_url %}{{ tenant_site_url }}{% else %}{% url 'home' %}{% endif %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
                     <i class="fas fa-external-link-alt w-5"></i>
                     <span>View Site</span>
                 </a>
@@ -119,7 +133,7 @@
                         <i class="fas fa-user-circle mr-2"></i>
                         {{ user.get_full_name|default:user.username }}
                     </div>
-                    <a href="{% url 'home' %}" class="px-3 sm:px-4 py-2 rounded-full border border-cyan-electric/30 text-xs sm:text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/50 transition-all">
+                    <a href="{% url 'logout' %}" class="px-3 sm:px-4 py-2 rounded-full border border-cyan-electric/30 text-xs sm:text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/50 transition-all">
                         <span class="hidden sm:inline">Log Out</span>
                         <i class="fas fa-sign-out-alt sm:hidden"></i>
                     </a>

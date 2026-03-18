@@ -1,0 +1,66 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Global Analytics{% endblock %}
+{% block page_title %}Super Admin Global Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex gap-3">
+    <a href="{% url 'superadmin_home' %}" class="px-4 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition">Back to Overview</a>
+    <a href="{% url 'superadmin_tenants' %}" class="px-4 py-2 rounded-lg border border-white/20 hover:bg-white/10 transition">Manage Tenants</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Tenants</div><div class="text-2xl font-bold">{{ totals.tenants }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Active Tenants</div><div class="text-2xl font-bold">{{ totals.active_tenants }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Courses</div><div class="text-2xl font-bold">{{ totals.courses }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Lessons</div><div class="text-2xl font-bold">{{ totals.lessons }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Enrollments</div><div class="text-2xl font-bold">{{ totals.enrollments }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Active Accesses</div><div class="text-2xl font-bold">{{ totals.active_accesses }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Certifications</div><div class="text-2xl font-bold">{{ totals.certifications }}</div></div>
+</div>
+
+<div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+    <div class="px-4 py-3 border-b border-white/10 font-semibold">Tenant Breakdown</div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-white/5 text-gray-300">
+                <tr>
+                    <th class="text-left px-4 py-3">Tenant</th>
+                    <th class="text-left px-4 py-3">Status</th>
+                    <th class="text-left px-4 py-3">Courses</th>
+                    <th class="text-left px-4 py-3">Lessons</th>
+                    <th class="text-left px-4 py-3">Enrollments</th>
+                    <th class="text-left px-4 py-3">Active Accesses</th>
+                    <th class="text-left px-4 py-3">Certifications</th>
+                    <th class="text-left px-4 py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tenant in tenants %}
+                <tr class="border-t border-white/10">
+                    <td class="px-4 py-3">{{ tenant.name }}</td>
+                    <td class="px-4 py-3">
+                        {% if tenant.is_active %}
+                        <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Active</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded bg-red-500/20 text-red-400">Suspended</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">{{ tenant.courses }}</td>
+                    <td class="px-4 py-3">{{ tenant.lessons }}</td>
+                    <td class="px-4 py-3">{{ tenant.enrollments }}</td>
+                    <td class="px-4 py-3">{{ tenant.active_accesses }}</td>
+                    <td class="px-4 py-3">{{ tenant.certifications }}</td>
+                    <td class="px-4 py-3">
+                        <a class="text-cyan-electric hover:underline" href="{% url 'superadmin_tenant_analytics' tenant.id %}">View</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td class="px-4 py-6 text-gray-400" colspan="8">No tenant data available.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

@@ -19,15 +19,54 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-7-9br=zyg7m$!ewa^nlsg+&#e+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'kane-sproject-production.up.railway.app', 'danielwoodcourses-production.up.railway.app', 'sop-master-production.up.railway.app']
+def _split_csv(value):
+    return [item.strip() for item in (value or '').split(',') if item.strip()]
+
+
+ALLOWED_HOSTS = set(
+    _split_csv(os.getenv(
+        'ALLOWED_HOSTS',
+        'localhost,127.0.0.1,kane-sproject-production.up.railway.app,danielwoodcourses-production.up.railway.app,sop-master-production.up.railway.app'
+    ))
+)
+
+# Keep platform hosts explicit.
+PLATFORM_HOSTS = set(_split_csv(os.getenv('PLATFORM_HOSTS', 'localhost,127.0.0.1')))
+ALLOWED_HOSTS.update(PLATFORM_HOSTS)
+
+# Allow tenant subdomains for configured base domain (e.g. *.courseforge.app).
+platform_base_domain = (os.getenv('PLATFORM_BASE_DOMAIN') or '').strip().lower()
+if platform_base_domain:
+    ALLOWED_HOSTS.add(platform_base_domain)
+    ALLOWED_HOSTS.add(f'.{platform_base_domain}')
+
+# Local dev subdomain routing (e.g. acme.lvh.me:8000).
+if DEBUG:
+    ALLOWED_HOSTS.add('lvh.me')
+    ALLOWED_HOSTS.add('.lvh.me')
+
+# Optional escape hatch for highly dynamic host setups.
+# Use ONLY behind a trusted proxy / load balancer.
+if (os.getenv('ALLOW_ALL_HOSTS') or '').strip().lower() in {'1', 'true', 'yes', 'on'}:
+    ALLOWED_HOSTS = {'*'}
+
+ALLOWED_HOSTS = sorted(ALLOWED_HOSTS)
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost',
     'https://localhost',
+    'http://*.lvh.me:8000',
+    'https://*.lvh.me',
     'https://kane-sproject-production.up.railway.app',
     'https://danielwoodcourses-production.up.railway.app',
     'https://sop-master-production.up.railway.app',
 ]
+
+if platform_base_domain:
+    CSRF_TRUSTED_ORIGINS.extend([
+        f'https://{platform_base_domain}',
+        f'https://*.{platform_base_domain}',
+    ])
 
 # Application definition
 
@@ -45,6 +84,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Must be after SecurityMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'myApp.middleware.TenantMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -66,6 +106,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'myApp.context_processors.ai_generation_context',
+                'myApp.context_processors.tenant_context',
             ],
         },
     },
@@ -159,10 +200,23 @@ LOGIN_REDIRECT_URL = '/my-dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'django_cache',
-        'OPTIONS': {'MAX_ENTRIES': 1000},
+cache_backend = (os.getenv('CACHE_BACKEND') or '').strip().lower()
+if not cache_backend:
+    cache_backend = 'locmem' if DEBUG else 'db'
+
+if cache_backend == 'db':
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache',
+            'OPTIONS': {'MAX_ENTRIES': 1000},
+        }
     }
-}
+else:
+    # Safe default for local/dev and ephemeral environments.
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'courseforge-local-cache',
+        }
+    }

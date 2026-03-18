@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}S.O.P Master - Member Hub{% endblock %}</title>
+    <title>{% block title %}{{ tenant_branding.brand_name|default:"CourseForge" }} - Member Hub{% endblock %}</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -86,11 +86,11 @@
             <a href="{% url 'home' %}" class="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity">
                 <img 
                     src="https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png"
-                    alt="S.O.P Master Logo"
+                    alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
                     class="h-12 sm:h-16 w-auto"
                     loading="eager"
                 >
-                <div class="text-sm sm:text-lg font-bold text-white hidden sm:block">S.O.P Master</div>
+                <div class="text-sm sm:text-lg font-bold text-white hidden sm:block">{{ tenant_branding.brand_name|default:"CourseForge" }}</div>
             </a>
             
             <!-- Mobile Menu Button -->
@@ -107,6 +107,9 @@
                 {% if user.is_staff %}
                 <a href="{% url 'dashboard_home' %}" class="text-sm font-medium text-white hover:text-cyan-electric transition-colors">Admin</a>
                 {% endif %}
+                {% if user.is_superuser %}
+                <a href="{% url 'superadmin_home' %}" class="text-sm font-medium text-white hover:text-cyan-electric transition-colors">Super Admin</a>
+                {% endif %}
                 <a href="{% url 'logout' %}" class="px-4 py-2 rounded-lg border border-cyan-electric text-white text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/70 transition-all bg-[#0a0e27]">Log Out</a>
             </div>
         </div>
@@ -120,6 +123,9 @@
                 {% endif %}
                 {% if user.is_staff %}
                 <a href="{% url 'dashboard_home' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors">Admin</a>
+                {% endif %}
+                {% if user.is_superuser %}
+                <a href="{% url 'superadmin_home' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors">Super Admin</a>
                 {% endif %}
                 <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors border border-cyan-electric/30">Log Out</a>
             </div>

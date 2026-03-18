@@ -4,6 +4,14 @@
 {% block page_title %}Dashboard Overview{% endblock %}
 
 {% block content %}
+<div class="mb-6 rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-4 flex items-center justify-between gap-3">
+    <div>
+        <div class="font-semibold text-indigo-300">Need to connect your own domain?</div>
+        <div class="text-sm text-gray-300">Use Domain Settings to add a custom domain, verify DNS, and make it primary.</div>
+    </div>
+    <a href="{% url 'dashboard_domain_settings' %}" class="px-3 py-2 rounded-lg border border-indigo-300/40 text-indigo-300 hover:bg-indigo-500/20 transition whitespace-nowrap">Open Domain Settings</a>
+</div>
+
 <!-- Analytics Overview Stats Cards -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <!-- Students -->

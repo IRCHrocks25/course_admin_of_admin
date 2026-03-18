@@ -1,0 +1,81 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Super Admin Overview{% endblock %}
+{% block page_title %}Super Admin Overview{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap gap-3">
+    <a href="{% url 'superadmin_tenants' %}" class="px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">Manage Tenants</a>
+    <a href="{% url 'superadmin_analytics' %}" class="px-4 py-2 rounded-lg bg-purple-accent/20 border border-purple-accent/40 text-purple-accent hover:bg-purple-accent/30 transition">Global Analytics</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Total Tenants</div>
+        <div class="text-3xl font-bold mt-1">{{ total_tenants }}</div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Active Tenants</div>
+        <div class="text-3xl font-bold mt-1">{{ active_tenants }}</div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Courses</div>
+        <div class="text-3xl font-bold mt-1">{{ total_courses }}</div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Lessons</div>
+        <div class="text-3xl font-bold mt-1">{{ total_lessons }}</div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Enrollments</div>
+        <div class="text-3xl font-bold mt-1">{{ total_enrollments }}</div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Active Accesses</div>
+        <div class="text-3xl font-bold mt-1">{{ total_accesses }}</div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-sm text-gray-400">Certifications</div>
+        <div class="text-3xl font-bold mt-1">{{ total_certifications }}</div>
+    </div>
+</div>
+
+<div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+    <div class="px-4 py-3 border-b border-white/10 font-semibold">Recent Tenants</div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-white/5 text-gray-300">
+                <tr>
+                    <th class="text-left px-4 py-3">Name</th>
+                    <th class="text-left px-4 py-3">Slug</th>
+                    <th class="text-left px-4 py-3">Domain</th>
+                    <th class="text-left px-4 py-3">Status</th>
+                    <th class="text-left px-4 py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tenant in recent_tenants %}
+                <tr class="border-t border-white/10">
+                    <td class="px-4 py-3">{{ tenant.name }}</td>
+                    <td class="px-4 py-3">{{ tenant.slug }}</td>
+                    <td class="px-4 py-3">{{ tenant.custom_domain|default:"-" }}</td>
+                    <td class="px-4 py-3">
+                        {% if tenant.is_active %}
+                        <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Active</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded bg-red-500/20 text-red-400">Suspended</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="text-cyan-electric hover:underline">Open</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td class="px-4 py-6 text-gray-400" colspan="5">No tenants found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+

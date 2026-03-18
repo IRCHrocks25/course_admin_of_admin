@@ -34,7 +34,7 @@
                 
                 <div class="bg-gradient-to-r from-cyan-electric/10 to-purple-500/10 border border-cyan-electric/30 rounded-lg p-4">
                     <div class="flex items-start gap-3">
-                        <input type="checkbox" name="use_ai" id="use_ai" class="mt-1 w-5 h-5 text-cyan-electric bg-[#0a0e27]/40 border-cyan-electric/30 rounded focus:ring-cyan-electric focus:ring-2">
+                        <input type="checkbox" name="use_ai" id="use_ai" checked class="mt-1 w-5 h-5 text-cyan-electric bg-[#0a0e27]/40 border-cyan-electric/30 rounded focus:ring-cyan-electric focus:ring-2">
                         <div class="flex-1">
                             <label for="use_ai" class="block text-sm font-semibold mb-1 cursor-pointer">
                                 <i class="fas fa-robot mr-2 text-cyan-electric"></i>
@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (form) {
         form.addEventListener('submit', function(e) {
+            e.preventDefault();
             const useAI = aiCheckbox && aiCheckbox.checked;
             
             // Disable submit button and show loading state
@@ -156,6 +157,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.body.style.overflow = 'hidden';
                 }
             }
+
+            // Give the loader one paint frame so users always see it.
+            requestAnimationFrame(() => {
+                setTimeout(() => form.submit(), 120);
+            });
         });
     }
 });

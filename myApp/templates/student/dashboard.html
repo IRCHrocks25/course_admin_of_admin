@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}My Dashboard — SOP Master{% endblock %}
+{% block title %}My Dashboard — {{ tenant_branding.brand_name|default:"CourseForge" }}{% endblock %}
 
 {% block content %}
 
@@ -408,7 +408,7 @@
                 Learning Dashboard
             </div>
             <h1 class="dash-title">My Dashboard</h1>
-            <p class="dash-subtitle">Track your learning progress and achievements</p>
+            <p class="dash-subtitle">{{ tenant_branding.hub_dashboard_subtitle|default:"Track your learning progress and achievements" }}</p>
         </div>
         <a href="{% url 'student_certifications' %}" class="btn-certs">
             <i class="fas fa-certificate"></i>
@@ -582,7 +582,7 @@
         <div class="empty-state">
             <div class="empty-icon"><i class="fas fa-layer-group"></i></div>
             <div class="empty-title">No Courses Yet</div>
-            <p class="empty-text">You don't have access to any courses yet. Check available courses below or contact your administrator.</p>
+            <p class="empty-text">You don't have access to any courses in {{ tenant_branding.brand_name|default:"this academy" }} yet. Check available courses below or contact your administrator.</p>
         </div>
         {% endif %}
     </div>
