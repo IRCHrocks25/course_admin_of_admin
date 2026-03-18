@@ -26,7 +26,7 @@ def _split_csv(value):
 ALLOWED_HOSTS = set(
     _split_csv(os.getenv(
         'ALLOWED_HOSTS',
-        'localhost,127.0.0.1,kane-sproject-production.up.railway.app,danielwoodcourses-production.up.railway.app,sop-master-production.up.railway.app,courseadminofadmin-production.up.railway.app'
+        'localhost,127.0.0.1,kane-sproject-production.up.railway.app,danielwoodcourses-production.up.railway.app,sop-master-production.up.railway.app,courseadminofadmin-production.up.railway.app,courseforge.katek-ai.com'
     ))
 )
 
@@ -61,6 +61,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://danielwoodcourses-production.up.railway.app',
     'https://sop-master-production.up.railway.app',
     'https://courseadminofadmin-production.up.railway.app',
+    'https://courseforge.katek-ai.com',
 ]
 
 if platform_base_domain:
