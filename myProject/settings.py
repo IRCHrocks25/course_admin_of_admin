@@ -203,9 +203,7 @@ LOGIN_REDIRECT_URL = '/my-dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 
-cache_backend = (os.getenv('CACHE_BACKEND') or '').strip().lower()
-if not cache_backend:
-    cache_backend = 'locmem' if DEBUG else 'db'
+cache_backend = (os.getenv('CACHE_BACKEND', 'locmem') or 'locmem').strip().lower()
 
 if cache_backend == 'db':
     CACHES = {

@@ -64,14 +64,20 @@ class ProtectiveThrottleMiddleware:
         return request.META.get('REMOTE_ADDR', 'unknown')
 
     def _increment_counter(self, key, ttl_seconds):
-        if cache.add(key, 1, timeout=ttl_seconds):
-            return 1
         try:
+            if cache.add(key, 1, timeout=ttl_seconds):
+                return 1
             return cache.incr(key)
         except ValueError:
             # Cache entry vanished between calls; start fresh.
-            cache.set(key, 1, timeout=ttl_seconds)
-            return 1
+            try:
+                cache.set(key, 1, timeout=ttl_seconds)
+                return 1
+            except Exception:
+                return None
+        except Exception:
+            # Fail open if cache backend is unavailable/misconfigured.
+            return None
 
     def __call__(self, request):
         if not self.enabled or request.method not in {'POST', 'PUT', 'PATCH', 'DELETE'}:
@@ -90,6 +96,8 @@ class ProtectiveThrottleMiddleware:
 
             per_ip_key = f"throttle:{rule['name']}:ip:{client_ip}:{current_slot}"
             ip_count = self._increment_counter(per_ip_key, ttl)
+            if ip_count is None:
+                return self.get_response(request)
             if ip_count > rule['per_ip_limit']:
                 return JsonResponse(
                     {
@@ -101,6 +109,8 @@ class ProtectiveThrottleMiddleware:
 
             global_key = f"throttle:{rule['name']}:global:{current_slot}"
             global_count = self._increment_counter(global_key, ttl)
+            if global_count is None:
+                return self.get_response(request)
             if global_count > rule['global_limit']:
                 return JsonResponse(
                     {
