@@ -3,10 +3,15 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from myApp import views
+from myApp import health_views
 from myApp import dashboard_views
 from myApp import superadmin_views
 
 urlpatterns = [
+    # Platform health checks
+    path('healthz/', health_views.healthz, name='healthz'),
+    path('readyz/', health_views.readyz, name='readyz'),
+
     # Public-facing URLs
     path('', views.home, name='home'),
     path('start-academy/', views.start_academy, name='start_academy'),

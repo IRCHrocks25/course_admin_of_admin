@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-7-9br=zyg7m$!ewa^nlsg+&#e+ux^s00ffn2nh13xl-cvuui@u')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = (os.getenv('DEBUG', 'False').strip().lower() in {'1', 'true', 'yes', 'on'})
 
 def _split_csv(value):
     return [item.strip() for item in (value or '').split(',') if item.strip()]
@@ -86,6 +86,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Must be after SecurityMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'myApp.middleware.ProtectiveThrottleMiddleware',
     'myApp.middleware.TenantMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

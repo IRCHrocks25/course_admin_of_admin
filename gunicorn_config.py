@@ -7,11 +7,19 @@ bind = "0.0.0.0:8080"
 backlog = 2048
 
 # Worker processes
-workers = int(os.getenv('WEB_CONCURRENCY', multiprocessing.cpu_count() * 2 + 1))
-worker_class = "sync"
-worker_connections = 1000
-timeout = 300  # 5 minutes - increased for AI course generation
-keepalive = 5
+# Railway costs are typically memory-driven, so keep default concurrency conservative.
+# You can override these safely per environment.
+workers = int(os.getenv('WEB_CONCURRENCY', '2'))
+worker_class = os.getenv('GUNICORN_WORKER_CLASS', 'gthread')
+threads = int(os.getenv('GUNICORN_THREADS', '2'))
+worker_connections = int(os.getenv('GUNICORN_WORKER_CONNECTIONS', '1000'))
+timeout = int(os.getenv('GUNICORN_TIMEOUT', '120'))
+graceful_timeout = int(os.getenv('GUNICORN_GRACEFUL_TIMEOUT', '30'))
+keepalive = int(os.getenv('GUNICORN_KEEPALIVE', '2'))
+
+# Recycle workers periodically to reduce risk of memory growth over long uptime.
+max_requests = int(os.getenv('GUNICORN_MAX_REQUESTS', '1000'))
+max_requests_jitter = int(os.getenv('GUNICORN_MAX_REQUESTS_JITTER', '100'))
 
 # Logging
 accesslog = "-"
