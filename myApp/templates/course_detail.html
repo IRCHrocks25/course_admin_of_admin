@@ -47,7 +47,18 @@
                 {% for bundle in bundles %}
                 <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                     <span class="text-white font-medium">{{ bundle.name }}</span>
-                    {% if bundle.price %}<span class="text-cyan-electric">${{ bundle.price }}</span>{% endif %}
+                    <div class="flex items-center gap-3">
+                        {% if bundle.price %}<span class="text-cyan-electric">${{ bundle.price }}</span>{% endif %}
+                        {% if user.is_authenticated %}
+                        <button
+                            type="button"
+                            class="px-3 py-1.5 text-xs border border-cyan-electric text-cyan-electric rounded-full hover:bg-cyan-electric/10 transition-all"
+                            onclick="startBundleCheckout({{ bundle.id }})"
+                        >
+                            Buy
+                        </button>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -69,4 +80,27 @@
         </div>
     {% endif %}
 </div>
+{% if user.is_authenticated %}
+<script>
+async function startBundleCheckout(bundleId) {
+    try {
+        const res = await fetch(`/bundles/${bundleId}/checkout/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert(data.error || 'Unable to start checkout.');
+            return;
+        }
+        window.location.href = data.checkout_url;
+    } catch (e) {
+        alert('Unable to start checkout.');
+    }
+}
+</script>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,64 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Billing{% endblock %}
+{% block page_title %}Billing{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 rounded-xl border border-white/10 bg-white/5 p-6">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h2 class="text-xl font-semibold">Platform Subscription</h2>
+                <p class="text-sm text-gray-300 mt-1">Manage your CourseForge plan and invoices.</p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs
+                {% if tenant.billing_status == 'active' %}bg-green-500/20 text-green-400
+                {% elif tenant.billing_status == 'past_due' %}bg-yellow-500/20 text-yellow-300
+                {% elif tenant.billing_status == 'canceled' %}bg-red-500/20 text-red-400
+                {% else %}bg-gray-500/20 text-gray-300{% endif %}">
+                {{ tenant.billing_status|default:"pending"|upper }}
+            </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="rounded-lg border border-white/10 bg-black/20 p-4">
+                <div class="text-xs text-gray-400">Current plan</div>
+                <div class="text-2xl font-bold">{{ plan_label }}</div>
+            </div>
+            <div class="rounded-lg border border-white/10 bg-black/20 p-4">
+                <div class="text-xs text-gray-400">Stripe customer ID</div>
+                <div class="text-sm font-mono break-all text-cyan-electric mt-1">{{ tenant.stripe_customer_id|default:"Not created yet" }}</div>
+            </div>
+        </div>
+
+        <form method="post" action="{% url 'dashboard_billing_portal' %}">
+            {% csrf_token %}
+            <button class="px-4 py-2 rounded-lg border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/20 transition">
+                Open Stripe Billing Portal
+            </button>
+        </form>
+    </div>
+
+    <div class="rounded-xl border border-white/10 bg-white/5 p-6">
+        <h3 class="font-semibold mb-3">Student Payments</h3>
+        {% if tenant_config.stripe_connect_account_id %}
+            <p class="text-sm text-gray-300 mb-2">
+                Connected account:
+                <span class="text-cyan-electric font-mono break-all">{{ tenant_config.stripe_connect_account_id }}</span>
+            </p>
+            <p class="text-sm">
+                {% if tenant_config.stripe_connect_charges_enabled %}
+                    <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Charges enabled</span>
+                {% else %}
+                    <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 text-xs">Finish onboarding in Stripe</span>
+                {% endif %}
+            </p>
+        {% else %}
+            <p class="text-sm text-gray-300 mb-4">Connect Stripe to accept student payments for bundles/courses.</p>
+        {% endif %}
+        <a href="{% url 'dashboard_connect_stripe' %}" class="inline-block mt-4 px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/20 transition">
+            {% if tenant_config.stripe_connect_account_id %}Reconnect Stripe{% else %}Connect Stripe{% endif %}
+        </a>
+    </div>
+</div>
+{% endblock %}

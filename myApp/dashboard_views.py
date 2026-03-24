@@ -13,6 +13,8 @@ import io
 import os
 import uuid
 import threading
+from decimal import Decimal
+import stripe
 from django.utils import timezone
 try:
     import fitz  # PyMuPDF
@@ -46,6 +48,7 @@ from .models import (
     TenantConfig,
     TenantMembership,
     TenantDomain,
+    AIUsageLog,
 )
 from django.contrib import messages
 from django.core.cache import cache
@@ -56,6 +59,190 @@ from django.utils import timezone
 from .utils.tenancy import get_default_tenant
 from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain
 from .utils.branding import get_tenant_branding, ensure_tenant_branding
+
+OPENAI_DEFAULT_RATES_PER_MILLION = {
+    'gpt-4o-mini': (Decimal('0.15'), Decimal('0.60')),
+}
+
+
+def _resolve_openai_rates(model_name):
+    """Resolve input/output rate per million tokens for a model."""
+    normalized = (model_name or 'gpt-4o-mini').upper().replace('-', '_').replace('.', '_')
+    env_in = os.getenv(f'OPENAI_RATE_{normalized}_INPUT_PER_MILLION')
+    env_out = os.getenv(f'OPENAI_RATE_{normalized}_OUTPUT_PER_MILLION')
+    if env_in and env_out:
+        try:
+            return Decimal(env_in), Decimal(env_out)
+        except Exception:
+            pass
+    return OPENAI_DEFAULT_RATES_PER_MILLION.get(model_name, OPENAI_DEFAULT_RATES_PER_MILLION['gpt-4o-mini'])
+
+
+def _log_openai_usage(feature, response, tenant=None, course=None, lesson=None, model_name=''):
+    """
+    Persist per-call OpenAI token usage for exact spend reporting.
+    Safe no-op when usage metadata is missing.
+    """
+    usage = getattr(response, 'usage', None)
+    if usage is None:
+        return
+
+    prompt_tokens = int(getattr(usage, 'prompt_tokens', 0) or 0)
+    completion_tokens = int(getattr(usage, 'completion_tokens', 0) or 0)
+    total_tokens = int(getattr(usage, 'total_tokens', prompt_tokens + completion_tokens) or 0)
+    if total_tokens <= 0:
+        return
+
+    input_rate, output_rate = _resolve_openai_rates(model_name or 'gpt-4o-mini')
+    cost_usd = (
+        (Decimal(prompt_tokens) / Decimal(1_000_000)) * input_rate
+        + (Decimal(completion_tokens) / Decimal(1_000_000)) * output_rate
+    )
+
+    AIUsageLog.objects.create(
+        tenant=tenant,
+        course=course,
+        lesson=lesson,
+        provider='openai',
+        feature=feature,
+        model_name=model_name or '',
+        request_id=str(getattr(response, 'id', '') or ''),
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        input_rate_per_million=input_rate,
+        output_rate_per_million=output_rate,
+        cost_usd=cost_usd,
+    )
+
+
+def _configure_stripe():
+    key = os.getenv('STRIPE_SECRET_KEY', '').strip()
+    if not key:
+        return False
+    stripe.api_key = key
+    return True
+
+
+@login_required(login_url='login')
+def dashboard_connect_stripe(request):
+    if not request.user.is_staff:
+        messages.error(request, 'Only tenant admins can connect Stripe.')
+        return redirect('courses')
+    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+    if tenant is None:
+        messages.error(request, 'No tenant context available.')
+        return redirect('dashboard_home')
+    if not _configure_stripe():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_domain_settings')
+    client_id = os.getenv('STRIPE_CONNECT_CLIENT_ID', '').strip()
+    if not client_id:
+        messages.error(request, 'Stripe Connect is not configured (missing client ID).')
+        return redirect('dashboard_domain_settings')
+    redirect_uri = f"{request.scheme}://{request.get_host()}/dashboard/payments/stripe/callback/"
+    state = f"tenant:{tenant.id}"
+    connect_url = (
+        "https://connect.stripe.com/oauth/authorize"
+        f"?response_type=code&client_id={client_id}"
+        f"&scope=read_write&state={state}&redirect_uri={redirect_uri}"
+    )
+    return redirect(connect_url)
+
+
+@login_required(login_url='login')
+def dashboard_stripe_connect_callback(request):
+    if not request.user.is_staff:
+        messages.error(request, 'Only tenant admins can complete Stripe connection.')
+        return redirect('courses')
+    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+    if tenant is None:
+        messages.error(request, 'No tenant context available.')
+        return redirect('dashboard_home')
+    if not _configure_stripe():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_domain_settings')
+    code = (request.GET.get('code') or '').strip()
+    if not code:
+        messages.error(request, 'Stripe connection failed or was canceled.')
+        return redirect('dashboard_domain_settings')
+    try:
+        response = stripe.OAuth.token(grant_type='authorization_code', code=code)
+        account_id = response.get('stripe_user_id')
+        if not account_id:
+            raise ValueError('Missing connected account id.')
+        account = stripe.Account.retrieve(account_id)
+        charges_enabled = bool(account.get('charges_enabled'))
+        details_submitted = bool(account.get('details_submitted'))
+
+        config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+        config.stripe_connect_account_id = account_id
+        config.stripe_connect_onboarding_complete = details_submitted
+        config.stripe_connect_charges_enabled = charges_enabled
+        config.save(update_fields=[
+            'stripe_connect_account_id',
+            'stripe_connect_onboarding_complete',
+            'stripe_connect_charges_enabled',
+            'updated_at'
+        ])
+        if charges_enabled:
+            messages.success(request, 'Stripe connected successfully. You can now accept student payments.')
+        else:
+            messages.warning(request, 'Stripe connected, but payouts/charges are not fully enabled yet. Complete onboarding in Stripe.')
+    except Exception as exc:
+        messages.error(request, f'Unable to complete Stripe connection: {str(exc)}')
+    return redirect('dashboard_domain_settings')
+
+
+@login_required(login_url='login')
+def dashboard_billing(request):
+    if not request.user.is_staff:
+        messages.error(request, 'Only tenant admins can view billing.')
+        return redirect('courses')
+    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+    if tenant is None:
+        messages.error(request, 'No tenant context available.')
+        return redirect('dashboard_home')
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+    plan_labels = {
+        'lean': 'Lean',
+        'baseline': 'Baseline',
+        'growth': 'Growth',
+        'starter': 'Starter',
+    }
+    return render(request, 'dashboard/billing.html', {
+        'tenant': tenant,
+        'tenant_config': config,
+        'plan_label': plan_labels.get((tenant.plan_code or '').lower(), (tenant.plan_code or 'Starter').title()),
+    })
+
+
+@login_required(login_url='login')
+@require_http_methods(["POST"])
+def dashboard_billing_portal(request):
+    if not request.user.is_staff:
+        messages.error(request, 'Only tenant admins can manage billing.')
+        return redirect('courses')
+    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+    if tenant is None:
+        messages.error(request, 'No tenant context available.')
+        return redirect('dashboard_home')
+    if not _configure_stripe():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_billing')
+    if not tenant.stripe_customer_id:
+        messages.error(request, 'No Stripe customer record found for this tenant yet.')
+        return redirect('dashboard_billing')
+    try:
+        return_url = f"{request.scheme}://{request.get_host()}/dashboard/billing/"
+        session = stripe.billing_portal.Session.create(
+            customer=tenant.stripe_customer_id,
+            return_url=return_url,
+        )
+        return redirect(session.url)
+    except Exception as exc:
+        messages.error(request, f'Unable to open billing portal: {str(exc)}')
+        return redirect('dashboard_billing')
 
 
 def _sanitize_uploaded_html(raw_html):
@@ -711,7 +898,7 @@ def create_editorjs_content(content_sections):
     }
 
 
-def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type):
+def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None):
     """Generate all AI lesson metadata fields (title, summary, description, outcomes, coach actions)"""
     prompt = f"""You are an expert course creator. Generate comprehensive lesson metadata for the following lesson:
 
@@ -755,6 +942,14 @@ Only return valid JSON, no additional text."""
             ],
             temperature=0.7,
             max_tokens=1500
+        )
+        _log_openai_usage(
+            feature='lesson_metadata',
+            response=response,
+            tenant=tenant,
+            course=course,
+            lesson=lesson,
+            model_name='gpt-4o-mini',
         )
         
         response_text = response.choices[0].message.content.strip()
@@ -808,7 +1003,7 @@ Only return valid JSON, no additional text."""
         }
 
 
-def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type):
+def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None):
     """Generate detailed lesson content using AI (Editor.js blocks)"""
     prompt = f"""You are an expert course creator. Create comprehensive lesson content for the following lesson:
 
@@ -862,6 +1057,14 @@ Only return valid JSON, no additional text."""
             temperature=0.7,
             max_tokens=2000
         )
+        _log_openai_usage(
+            feature='lesson_content',
+            response=response,
+            tenant=tenant,
+            course=course,
+            lesson=lesson,
+            model_name='gpt-4o-mini',
+        )
         
         response_text = response.choices[0].message.content.strip()
         
@@ -889,7 +1092,7 @@ Only return valid JSON, no additional text."""
         return []
 
 
-def generate_ai_course_structure(course_name, description, course_type='sprint', coach_name='Sprint Coach'):
+def generate_ai_course_structure(course_name, description, course_type='sprint', coach_name='Sprint Coach', tenant=None, course=None):
     """Generate complete course structure (modules and lessons) using AI"""
     if not OPENAI_AVAILABLE:
         raise Exception('OpenAI is not available. Please install the openai package.')
@@ -945,6 +1148,13 @@ Only return valid JSON, no additional text."""
             ],
             temperature=0.8,
             max_tokens=4000
+        )
+        _log_openai_usage(
+            feature='course_structure',
+            response=response,
+            tenant=tenant,
+            course=course,
+            model_name='gpt-4o-mini',
         )
         
         # Parse response
@@ -1076,7 +1286,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             course_name=course_name,
             description=description,
             course_type=course_type,
-            coach_name=coach_name
+            coach_name=coach_name,
+            tenant=course.tenant,
+            course=course,
         )
         
         modules_data = course_structure.get('modules', [])
@@ -1123,7 +1335,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     lesson_title=lesson_title,
                     lesson_description=lesson_description,
                     course_name=course_name,
-                    course_type=course_type
+                    course_type=course_type,
+                    tenant=course.tenant,
+                    course=course,
                 )
                 
                 # Generate lesson content blocks using AI (Editor.js format)
@@ -1132,7 +1346,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     lesson_title=lesson_title,
                     lesson_description=lesson_description,
                     course_name=course_name,
-                    course_type=course_type
+                    course_type=course_type,
+                    tenant=course.tenant,
+                    course=course,
                 )
                 
                 # Convert content sections to Editor.js format
@@ -1547,6 +1763,14 @@ Only return valid JSON, no additional text."""
             temperature=0.7,
             max_tokens=2000
         )
+        _log_openai_usage(
+            feature='lesson_quiz',
+            response=response,
+            tenant=lesson.tenant,
+            course=lesson.course,
+            lesson=lesson,
+            model_name='gpt-4o-mini',
+        )
         
         # Parse response
         response_text = response.choices[0].message.content.strip()
@@ -1655,6 +1879,13 @@ Generate {num_questions} questions that test understanding across the whole cour
             ],
             temperature=0.7,
             max_tokens=4000,
+        )
+        _log_openai_usage(
+            feature='course_exam',
+            response=response,
+            tenant=course.tenant,
+            course=course,
+            model_name='gpt-4o-mini',
         )
         text = response.choices[0].message.content.strip()
         if text.startswith('```'):
@@ -2730,10 +2961,12 @@ def dashboard_domain_settings(request):
         return redirect('dashboard_domain_settings')
 
     domains = TenantDomain.objects.filter(tenant=tenant).order_by('-is_primary', 'domain')
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
     primary_domain = domains.filter(is_primary=True).first()
     temporary_domain = domains.filter(is_temporary=True).first()
     return render(request, 'dashboard/domain_settings.html', {
         'tenant': tenant,
+        'tenant_config': config,
         'domains': domains,
         'primary_domain': primary_domain,
         'temporary_domain': temporary_domain,

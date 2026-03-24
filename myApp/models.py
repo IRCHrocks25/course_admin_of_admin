@@ -7,12 +7,23 @@ import re
 
 class Tenant(models.Model):
     """White-label tenant/account boundary."""
+    BILLING_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('active', 'Active'),
+        ('past_due', 'Past Due'),
+        ('canceled', 'Canceled'),
+    ]
+
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True)
     custom_domain = models.CharField(max_length=255, unique=True, null=True, blank=True)
     logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True)
     primary_color = models.CharField(max_length=7, default='#3B82F6')
     is_active = models.BooleanField(default=True)
+    plan_code = models.CharField(max_length=50, blank=True, default='starter')
+    billing_status = models.CharField(max_length=20, choices=BILLING_STATUS_CHOICES, default='active')
+    stripe_customer_id = models.CharField(max_length=120, blank=True, default='')
+    stripe_subscription_id = models.CharField(max_length=120, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -29,6 +40,9 @@ class TenantConfig(models.Model):
     chatbot_webhook = models.URLField(blank=True)
     vimeo_team_id = models.CharField(max_length=255, blank=True)
     accredible_issuer_id = models.CharField(max_length=255, blank=True)
+    stripe_connect_account_id = models.CharField(max_length=120, blank=True)
+    stripe_connect_onboarding_complete = models.BooleanField(default=False)
+    stripe_connect_charges_enabled = models.BooleanField(default=False)
     features = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -853,4 +867,80 @@ class TenantMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} @ {self.tenant.slug} ({self.role})"
+
+
+class AIUsageLog(models.Model):
+    """Per-call OpenAI usage log for tenant/course cost analytics."""
+    PROVIDER_CHOICES = [
+        ('openai', 'OpenAI'),
+    ]
+
+    FEATURE_CHOICES = [
+        ('course_structure', 'Course Structure'),
+        ('lesson_metadata', 'Lesson Metadata'),
+        ('lesson_content', 'Lesson Content'),
+        ('lesson_quiz', 'Lesson Quiz'),
+        ('course_exam', 'Course Exam'),
+    ]
+
+    tenant = models.ForeignKey(
+        Tenant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ai_usage_logs',
+    )
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ai_usage_logs',
+    )
+    lesson = models.ForeignKey(
+        Lesson,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ai_usage_logs',
+    )
+
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='openai')
+    feature = models.CharField(max_length=40, choices=FEATURE_CHOICES)
+    model_name = models.CharField(max_length=80, blank=True)
+    request_id = models.CharField(max_length=120, blank=True)
+
+    prompt_tokens = models.IntegerField(default=0)
+    completion_tokens = models.IntegerField(default=0)
+    total_tokens = models.IntegerField(default=0)
+
+    input_rate_per_million = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    output_rate_per_million = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    cost_usd = models.DecimalField(max_digits=12, decimal_places=6, default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'created_at']),
+            models.Index(fields=['course', 'created_at']),
+            models.Index(fields=['feature', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.provider}:{self.feature}:{self.model_name} ({self.total_tokens} tokens)"
+
+
+class StripeEventLog(models.Model):
+    """Idempotency ledger for Stripe webhook events."""
+    event_id = models.CharField(max_length=120, unique=True)
+    event_type = models.CharField(max_length=120, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.event_type or 'event'}:{self.event_id}"
 

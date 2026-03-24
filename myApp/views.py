@@ -5,6 +5,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
 from django.conf import settings
 from django.utils.text import slugify
@@ -14,6 +15,7 @@ import re
 import requests
 import os
 import threading
+import stripe
 from .models import (
     Course,
     Lesson,
@@ -30,15 +32,43 @@ from .models import (
     LessonQuizQuestion,
     LessonQuizAttempt,
     CourseAccess,
+    Bundle,
+    BundlePurchase,
+    StripeEventLog,
 )
 from django.db.models import Avg, Count, Q
 from django.db import models
+from django.db import transaction
 from django.utils import timezone
 from urllib.parse import urlencode
 from .utils.transcription import transcribe_video
 from .utils.access import has_course_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
+
+PLATFORM_PLANS = {
+    'lean': {'name': 'Lean', 'amount_env': 'STRIPE_PLAN_AMOUNT_LEAN_USD', 'default_amount_cents': 2900},
+    'baseline': {'name': 'Baseline', 'amount_env': 'STRIPE_PLAN_AMOUNT_BASELINE_USD', 'default_amount_cents': 7900},
+    'growth': {'name': 'Growth', 'amount_env': 'STRIPE_PLAN_AMOUNT_GROWTH_USD', 'default_amount_cents': 14900},
+}
+
+
+def _stripe_client_configured():
+    key = os.getenv('STRIPE_SECRET_KEY', '').strip()
+    if not key:
+        return False
+    stripe.api_key = key
+    return True
+
+
+def _get_plan_amount_cents(plan_def):
+    raw = os.getenv(plan_def['amount_env'], '').strip()
+    if raw:
+        try:
+            return max(50, int(raw))  # Stripe minimum and guardrail
+        except ValueError:
+            return None
+    return int(plan_def.get('default_amount_cents', 0) or 0)
 
 
 def home(request):
@@ -131,6 +161,11 @@ def home(request):
     })
 
 
+def railway_cost_calculator_light(request):
+    """Render the lightweight Railway/CourseForge cost calculator."""
+    return render(request, 'calculator/railway_courseforge_cost_calculator_light.html')
+
+
 def start_academy(request):
     """
     SaaS onboarding entrypoint:
@@ -152,15 +187,22 @@ def start_academy(request):
         teach_topic = (request.POST.get('teach_topic') or '').strip()
         target_audience = (request.POST.get('target_audience') or '').strip()
         outcome_promise = (request.POST.get('outcome_promise') or '').strip()
+        selected_plan = (request.POST.get('selected_plan') or 'baseline').strip().lower()
         password = request.POST.get('password') or ''
         confirm_password = request.POST.get('confirm_password') or ''
-        template_ctx = {'platform_base_domain': get_platform_base_domain()}
+        template_ctx = {'platform_base_domain': get_platform_base_domain(), 'selected_plan': selected_plan}
 
         if not academy_name or not admin_username or not password:
             messages.error(request, 'Academy name, admin username, and password are required.')
             return render(request, 'platform/start_academy.html', template_ctx)
         if password != confirm_password:
             messages.error(request, 'Passwords do not match.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+        if selected_plan not in PLATFORM_PLANS:
+            messages.error(request, 'Please choose a valid plan.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+        if not _stripe_client_configured():
+            messages.error(request, 'Payments are not configured yet. Please contact support.')
             return render(request, 'platform/start_academy.html', template_ctx)
 
         # Slug is intentionally auto-generated for simpler onboarding UX.
@@ -182,10 +224,18 @@ def start_academy(request):
             messages.error(request, 'That admin email is already in use.')
             return render(request, 'platform/start_academy.html', template_ctx)
 
+        plan_def = PLATFORM_PLANS[selected_plan]
+        plan_amount_cents = _get_plan_amount_cents(plan_def)
+        if not plan_amount_cents:
+            messages.error(request, f'{plan_def["name"]} amount is not configured correctly.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+
         tenant = Tenant.objects.create(
             name=academy_name,
             slug=tenant_slug,
-            is_active=True,
+            is_active=False,
+            plan_code=selected_plan,
+            billing_status='pending',
         )
         config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
         features = config.features or {}
@@ -198,53 +248,240 @@ def start_academy(request):
         features['branding'] = build_default_branding(tenant, profile=profile)
         config.features = features
         config.save(update_fields=['features', 'updated_at'])
-        ensure_tenant_branding(tenant)
-        temp_domain = ensure_temporary_domain(tenant)
 
         admin_user = User.objects.create_user(
             username=admin_username,
             email=admin_email,
             password=password
         )
-        admin_user.is_staff = True
-        admin_user.save(update_fields=['is_staff'])
+        admin_user.is_active = False
+        admin_user.save(update_fields=['is_active'])
 
-        TenantMembership.objects.create(
-            tenant=tenant,
-            user=admin_user,
-            role='tenant_admin',
-            is_active=True
-        )
+        success_url = f"{request.scheme}://{request.get_host()}/start-academy/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{request.scheme}://{request.get_host()}/start-academy/"
+        try:
+            session = stripe.checkout.Session.create(
+                mode='subscription',
+                line_items=[{
+                    'price_data': {
+                        'currency': 'usd',
+                        'unit_amount': plan_amount_cents,
+                        'recurring': {'interval': 'month'},
+                        'product_data': {'name': f'CourseForge {plan_def["name"]} Plan'},
+                    },
+                    'quantity': 1,
+                }],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                customer_email=admin_email or None,
+                metadata={
+                    'tenant_id': str(tenant.id),
+                    'admin_user_id': str(admin_user.id),
+                    'plan_code': selected_plan,
+                }
+            )
+            return redirect(session.url, permanent=False)
+        except Exception as exc:
+            tenant.delete()
+            admin_user.delete()
+            messages.error(request, f'Unable to create checkout session: {str(exc)}')
+            return render(request, 'platform/start_academy.html', template_ctx)
 
-        login(request, admin_user)
-        tenant_host = temp_domain.domain if temp_domain else ''
-        using_fallback_urls = not bool(tenant_host)
-        tenant_base_url = (get_tenant_public_home_url(request, tenant) or '').rstrip('/')
-        if tenant_base_url and '?' not in tenant_base_url:
-            tenant_register_url = f"{tenant_base_url}/register/"
-            tenant_login_url = f"{tenant_base_url}/login/"
-            tenant_courses_url = f"{tenant_base_url}/courses/"
+    return render(request, 'platform/start_academy.html', {'platform_base_domain': get_platform_base_domain(), 'selected_plan': 'baseline'})
+
+
+def _render_academy_created_from_tenant(request, tenant):
+    temp_domain = ensure_temporary_domain(tenant)
+    tenant_host = temp_domain.domain if temp_domain else ''
+    using_fallback_urls = not bool(tenant_host)
+    tenant_base_url = (get_tenant_public_home_url(request, tenant) or '').rstrip('/')
+    if tenant_base_url and '?' not in tenant_base_url:
+        tenant_register_url = f"{tenant_base_url}/register/"
+        tenant_login_url = f"{tenant_base_url}/login/"
+        tenant_courses_url = f"{tenant_base_url}/courses/"
+    else:
+        base = f"{request.scheme}://{request.get_host()}"
+        tenant_qs = urlencode({'tenant': tenant.slug})
+        tenant_base_url = f"{base}/?{tenant_qs}"
+        tenant_register_url = f"{base}/register/?{tenant_qs}"
+        tenant_login_url = f"{base}/login/?{tenant_qs}"
+        tenant_courses_url = f"{base}/courses/?{tenant_qs}"
+
+    return render(request, 'platform/academy_created.html', {
+        'tenant': tenant,
+        'tenant_host': tenant_host,
+        'tenant_base_url': tenant_base_url,
+        'tenant_register_url': tenant_register_url,
+        'tenant_login_url': tenant_login_url,
+        'tenant_courses_url': tenant_courses_url,
+        'using_fallback_urls': using_fallback_urls,
+        'platform_base_domain': get_platform_base_domain(),
+    })
+
+
+def start_academy_checkout_success(request):
+    if not _stripe_client_configured():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('start_academy')
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing checkout session.')
+        return redirect('start_academy')
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as exc:
+        messages.error(request, f'Unable to verify checkout: {str(exc)}')
+        return redirect('start_academy')
+
+    tenant_id = (session.metadata or {}).get('tenant_id')
+    tenant = Tenant.objects.filter(id=tenant_id).first()
+    if not tenant:
+        messages.error(request, 'Unable to find your academy signup.')
+        return redirect('start_academy')
+
+    if tenant.is_active and tenant.billing_status == 'active':
+        admin_membership = TenantMembership.objects.filter(tenant=tenant, role='tenant_admin', is_active=True).select_related('user').first()
+        if admin_membership and admin_membership.user.is_active:
+            login(request, admin_membership.user)
+        return _render_academy_created_from_tenant(request, tenant)
+
+    messages.info(request, 'Payment received. We are finalizing your academy setup. Refresh in a few seconds.')
+    return redirect('start_academy')
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stripe_webhook(request):
+    secret = os.getenv('STRIPE_WEBHOOK_SECRET', '').strip()
+    if not _stripe_client_configured() or not secret:
+        return HttpResponse(status=500)
+
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, secret)
+    except Exception:
+        return HttpResponse(status=400)
+
+    event_id = event.get('id')
+    event_type = event.get('type', '')
+    if not event_id:
+        return HttpResponse(status=200)
+    if StripeEventLog.objects.filter(event_id=event_id).exists():
+        return HttpResponse(status=200)
+
+    with transaction.atomic():
+        StripeEventLog.objects.create(event_id=event_id, event_type=event_type)
+
+        if event_type == 'checkout.session.completed':
+            session = event['data']['object']
+            mode = session.get('mode')
+            metadata = session.get('metadata') or {}
+            payment_flow = metadata.get('flow')
+            tenant_id = metadata.get('tenant_id')
+            tenant = Tenant.objects.filter(id=tenant_id).first() if tenant_id else None
+
+            if mode == 'subscription' and tenant and payment_flow != 'bundle_checkout':
+                admin_user = User.objects.filter(id=metadata.get('admin_user_id')).first()
+                subscription_id = session.get('subscription') or ''
+                customer_id = session.get('customer') or ''
+                tenant.billing_status = 'active'
+                tenant.is_active = True
+                tenant.stripe_customer_id = customer_id
+                tenant.stripe_subscription_id = subscription_id
+                tenant.save(update_fields=['billing_status', 'is_active', 'stripe_customer_id', 'stripe_subscription_id', 'updated_at'])
+                ensure_tenant_branding(tenant)
+                ensure_temporary_domain(tenant)
+
+                if admin_user:
+                    admin_user.is_active = True
+                    admin_user.is_staff = True
+                    admin_user.save(update_fields=['is_active', 'is_staff'])
+                    TenantMembership.objects.get_or_create(
+                        tenant=tenant,
+                        user=admin_user,
+                        defaults={'role': 'tenant_admin', 'is_active': True}
+                    )
+
+            if payment_flow == 'bundle_checkout':
+                user = User.objects.filter(id=metadata.get('user_id')).first()
+                bundle = Bundle.objects.filter(id=metadata.get('bundle_id')).first()
+                if tenant and user and bundle:
+                    purchase_id = session.get('payment_intent') or session.get('id')
+                    if not BundlePurchase.objects.filter(tenant=tenant, bundle=bundle, user=user, purchase_id=purchase_id).exists():
+                        bundle_purchase = BundlePurchase.objects.create(
+                            tenant=tenant,
+                            user=user,
+                            bundle=bundle,
+                            purchase_id=purchase_id,
+                            notes='Auto-created from Stripe checkout',
+                        )
+                        from .utils.access import grant_bundle_access
+                        grant_bundle_access(user, bundle_purchase)
+
+        elif event_type in ('customer.subscription.deleted', 'invoice.payment_failed'):
+            obj = event['data']['object']
+            customer_id = obj.get('customer')
+            if customer_id:
+                tenant = Tenant.objects.filter(stripe_customer_id=customer_id).first()
+                if tenant:
+                    tenant.billing_status = 'canceled' if event_type == 'customer.subscription.deleted' else 'past_due'
+                    if event_type == 'customer.subscription.deleted':
+                        tenant.is_active = False
+                        tenant.save(update_fields=['billing_status', 'is_active', 'updated_at'])
+                    else:
+                        tenant.save(update_fields=['billing_status', 'updated_at'])
+
+    return HttpResponse(status=200)
+
+
+@login_required
+@require_http_methods(["POST"])
+def create_bundle_checkout_session(request, bundle_id):
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        return JsonResponse({'success': False, 'error': 'Tenant context missing.'}, status=400)
+    bundle = get_object_or_404(Bundle, id=bundle_id, tenant=tenant, is_active=True)
+    if not bundle.price:
+        return JsonResponse({'success': False, 'error': 'Bundle price is not configured.'}, status=400)
+    config = getattr(tenant, 'config', None)
+    if not config or not config.stripe_connect_account_id or not config.stripe_connect_charges_enabled:
+        return JsonResponse({'success': False, 'error': 'Tenant Stripe account is not connected for charges.'}, status=400)
+    if not _stripe_client_configured():
+        return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
+
+    try:
+        amount_cents = int(bundle.price * 100)
+        first_course = bundle.courses.first()
+        if first_course:
+            success_url = f"{request.scheme}://{request.get_host()}/courses/{first_course.slug}/?checkout=success"
         else:
-            # Fallback for non-subdomain local routing if needed.
-            base = f"{request.scheme}://{request.get_host()}"
-            tenant_qs = urlencode({'tenant': tenant.slug})
-            tenant_base_url = f"{base}/?{tenant_qs}"
-            tenant_register_url = f"{base}/register/?{tenant_qs}"
-            tenant_login_url = f"{base}/login/?{tenant_qs}"
-            tenant_courses_url = f"{base}/courses/?{tenant_qs}"
-
-        return render(request, 'platform/academy_created.html', {
-            'tenant': tenant,
-            'tenant_host': tenant_host,
-            'tenant_base_url': tenant_base_url,
-            'tenant_register_url': tenant_register_url,
-            'tenant_login_url': tenant_login_url,
-            'tenant_courses_url': tenant_courses_url,
-            'using_fallback_urls': using_fallback_urls,
-            'platform_base_domain': get_platform_base_domain(),
-        })
-
-    return render(request, 'platform/start_academy.html', {'platform_base_domain': get_platform_base_domain()})
+            success_url = f"{request.scheme}://{request.get_host()}/courses/?checkout=success"
+        cancel_url = f"{request.scheme}://{request.get_host()}/courses/"
+        session = stripe.checkout.Session.create(
+            mode='payment',
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {'name': bundle.name, 'description': bundle.description or 'Course bundle purchase'},
+                    'unit_amount': amount_cents,
+                },
+                'quantity': 1,
+            }],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            client_reference_id=f"tenant:{tenant.id}:bundle:{bundle.id}:user:{request.user.id}",
+            metadata={
+                'flow': 'bundle_checkout',
+                'tenant_id': str(tenant.id),
+                'bundle_id': str(bundle.id),
+                'user_id': str(request.user.id),
+            },
+            stripe_account=config.stripe_connect_account_id,
+        )
+        return JsonResponse({'success': True, 'checkout_url': session.url})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
 def login_view(request):

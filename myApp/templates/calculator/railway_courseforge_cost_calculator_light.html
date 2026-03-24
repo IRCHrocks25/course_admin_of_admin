@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Railway Cost Calculator</title>
+  <style>
+  :root {
+    --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --color-text-primary: #111827;
+    --color-text-secondary: #4b5563;
+    --color-text-tertiary: #6b7280;
+    --color-text-warning: #92400e;
+    --color-text-success: #065f46;
+    --color-border-primary: #d1d5db;
+    --color-border-secondary: #e5e7eb;
+    --color-border-tertiary: #f3f4f6;
+    --color-background-primary: #ffffff;
+    --color-background-secondary: #f9fafb;
+    --color-background-warning: #fffbeb;
+    --color-background-success: #ecfdf5;
+    --border-radius-md: 10px;
+    --border-radius-lg: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-background-primary);
+    color: var(--color-text-primary);
+    padding: 0 1rem;
+  }
+  .wrap { padding: 1.5rem 0; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .tab { padding: 6px 16px; font-size: 13px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; background: transparent; color: var(--color-text-secondary); transition: all 0.15s; }
+  .tab.active { background: var(--color-background-secondary); color: var(--color-text-primary); border-color: var(--color-border-primary); font-weight: 500; }
+  .section { margin-bottom: 1.5rem; }
+  .section-title { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 600px) { .grid2, .grid3, .grid4 { grid-template-columns: 1fr 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--color-text-secondary); }
+  .field input[type=number] { padding: 6px 8px; font-size: 13px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-primary); color: var(--color-text-primary); width: 100%; }
+  .field input[type=number]:focus { outline: none; border-color: var(--color-border-primary); }
+  .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  @media (max-width: 600px) { .metric-row { grid-template-columns: 1fr 1fr; } }
+  .metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
+  .metric .mlabel { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .metric .mval { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .metric .msub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+  .divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 1.5rem 0; }
+  .chart-wrap { position: relative; width: 100%; height: 260px; margin-bottom: 1.5rem; }
+  .scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  @media (max-width: 600px) { .scenario-grid { grid-template-columns: 1fr; } }
+  .sc-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px 16px; background: var(--color-background-primary); }
+  .sc-card.active { border-color: var(--color-border-primary); }
+  .sc-name { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 2px; font-weight: 500; }
+  .sc-price { font-size: 26px; font-weight: 500; color: var(--color-text-primary); }
+  .sc-price span { font-size: 13px; font-weight: 400; color: var(--color-text-secondary); }
+  .sc-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--color-text-secondary); margin-top: 6px; border-top: 0.5px solid var(--color-border-tertiary); padding-top: 6px; }
+  .sc-row b { color: var(--color-text-primary); font-weight: 500; }
+  .breakdown-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .breakdown-table th { text-align: left; font-size: 11px; color: var(--color-text-tertiary); font-weight: 500; padding: 0 0 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .breakdown-table td { padding: 6px 0; border-top: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+  .breakdown-table td:last-child { text-align: right; color: var(--color-text-secondary); }
+  .bar-wrap { background: var(--color-border-tertiary); border-radius: 2px; height: 6px; width: 100%; margin-top: 3px; }
+  .bar-fill { height: 6px; border-radius: 2px; transition: width 0.3s; }
+  .flag { font-size: 12px; padding: 8px 12px; border-radius: var(--border-radius-md); margin-top: 8px; }
+  .flag.warn { background: var(--color-background-warning); color: var(--color-text-warning); }
+  .flag.ok { background: var(--color-background-success); color: var(--color-text-success); }
+  </style>
+</head>
+<body>
+  
+  <div class="wrap">
+  
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('calculator')">Calculator</button>
+    <button class="tab" onclick="switchTab('scenarios')">Scenarios</button>
+    <button class="tab" onclick="switchTab('breakdown')">Cost Breakdown</button>
+    <button class="tab" onclick="switchTab('chart')">Chart</button>
+  </div>
+  
+  <!-- CALCULATOR TAB -->
+  <div id="tab-calculator">
+    <div class="section">
+      <div class="section-title">Usage inputs</div>
+      <div class="grid3">
+        <div class="field"><label>Members</label><input type="number" id="members" value="500" oninput="calc()"></div>
+        <div class="field"><label>DAU %</label><input type="number" id="dauPct" value="20" oninput="calc()"></div>
+        <div class="field"><label>Session minutes</label><input type="number" id="sessionMinutes" value="30" oninput="calc()"></div>
+        <div class="field"><label>Workers</label><input type="number" id="workers" value="2" oninput="calc()"></div>
+        <div class="field"><label>RAM per worker (MB)</label><input type="number" id="ramMB" value="512" oninput="calc()"></div>
+        <div class="field"><label>Media MB / active user / day</label><input type="number" id="mediaMB" value="50" oninput="calc()"></div>
+      </div>
+    </div>
+  
+    <div class="section">
+      <div class="section-title">Infrastructure</div>
+      <div class="grid3">
+        <div class="field"><label>Volume GB</label><input type="number" id="volumeGB" value="10" oninput="calc()"></div>
+        <div class="field"><label>Uptime hrs/day</label><input type="number" id="uptimeHrs" value="20" oninput="calc()"></div>
+        <div class="field"><label>Cloud share %</label><input type="number" id="cloudSharePct" value="60" oninput="calc()"></div>
+        <div class="field"><label>Cloud rate $/GB</label><input type="number" id="cloudRate" value="0.12" step="0.01" oninput="calc()"></div>
+        <div class="field"><label>Cloud fixed $/mo</label><input type="number" id="cloudFixed" value="25" oninput="calc()"></div>
+      </div>
+    </div>
+  
+    <div class="section">
+      <div class="section-title">AI usage</div>
+      <div class="grid3">
+        <div class="field"><label>AI courses/mo</label><input type="number" id="aiCourses" value="5" oninput="calc()"></div>
+        <div class="field"><label>Lessons/course</label><input type="number" id="aiLessons" value="8" oninput="calc()"></div>
+        <div class="field"><label>Quizzes/lesson</label><input type="number" id="aiQuizzes" value="3" oninput="calc()"></div>
+        <div class="field"><label>Thread runs / DAU / mo</label><input type="number" id="aiThreads" value="5" oninput="calc()"></div>
+        <div class="field"><label>In tokens / run</label><input type="number" id="aiInTokens" value="800" oninput="calc()"></div>
+        <div class="field"><label>Out tokens / run</label><input type="number" id="aiOutTokens" value="400" oninput="calc()"></div>
+        <div class="field"><label>In rate $ / 1M tokens</label><input type="number" id="aiInRate" value="3" step="0.1" oninput="calc()"></div>
+        <div class="field"><label>Out rate $ / 1M tokens</label><input type="number" id="aiOutRate" value="15" step="0.1" oninput="calc()"></div>
+      </div>
+    </div>
+  
+    <div class="section">
+      <div class="section-title">Business overhead & margin</div>
+      <div class="grid3">
+        <div class="field"><label>Monthly overhead $</label><input type="number" id="overhead" value="1200" oninput="calc()"></div>
+        <div class="field"><label>Target margin %</label><input type="number" id="margin" value="40" oninput="calc()"></div>
+      </div>
+    </div>
+  
+    <hr class="divider">
+  
+    <div class="metric-row">
+      <div class="metric"><div class="mlabel">Platform cost</div><div class="mval" id="m-platform">—</div><div class="msub">variable / mo</div></div>
+      <div class="metric"><div class="mlabel">Required revenue</div><div class="mval" id="m-revenue">—</div><div class="msub">incl. overhead + margin</div></div>
+      <div class="metric"><div class="mlabel">Charge / member</div><div class="mval" id="m-charge">—</div><div class="msub">suggested monthly</div></div>
+      <div class="metric"><div class="mlabel">Price floor</div><div class="mval" id="m-floor">—</div><div class="msub">min safe price</div></div>
+    </div>
+  
+    <div id="flag-box"></div>
+  </div>
+  
+  <!-- SCENARIOS TAB -->
+  <div id="tab-scenarios" style="display:none">
+    <div class="scenario-grid" id="sc-grid"></div>
+  </div>
+  
+  <!-- BREAKDOWN TAB -->
+  <div id="tab-breakdown" style="display:none">
+    <table class="breakdown-table">
+      <thead><tr><th>Component</th><th></th><th style="text-align:right">Cost / mo</th></tr></thead>
+      <tbody id="breakdown-body"></tbody>
+    </table>
+  </div>
+  
+  <!-- CHART TAB -->
+  <div id="tab-chart" style="display:none">
+    <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+    <div class="chart-wrap" style="height:200px"><canvas id="scChart"></canvas></div>
+  </div>
+  
+  </div>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script>
+  const memRate = 0.000231, cpuRate = 0.000463, egressRate = 0.05, volumeRate = 0.00000347, minMonth = 43200;
+  
+  function v(id) { return parseFloat(document.getElementById(id).value) || 0; }
+  function fmt(n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+  function fmtShort(n) { return '$' + n.toFixed(2); }
+  
+  function compute(cfg) {
+    const { members, dauPct, sessionMinutes, workers, ramMB, mediaMB, volumeGB, uptimeHrs, cloudSharePct, cloudRate, cloudFixed, aiCourses, aiLessons, aiQuizzes, aiThreads, aiInTokens, aiOutTokens, aiInRate, aiOutRate, overhead, margin } = cfg;
+  
+    const concurrent = members * (dauPct/100) * (sessionMinutes / (uptimeHrs*60));
+    const baseRamGB = (workers * ramMB) / 1024;
+    const userRamGB = concurrent * 0.005;
+    const memoryCost = (baseRamGB + userRamGB) * (uptimeHrs*60*30) * memRate;
+    const cpuTotal = 0.02 + (concurrent * 0.002);
+    const cpuCost = cpuTotal * (uptimeHrs*60*30) * cpuRate;
+    const dauCount = members * (dauPct/100);
+    const egressGB = (dauCount * mediaMB * 30) / 1024;
+    const railEgress = egressGB * (1 - cloudSharePct/100);
+    const cloudGB = egressGB * (cloudSharePct/100);
+    const egressCost = railEgress * egressRate;
+    const cloudMediaCost = (cloudGB * cloudRate) + cloudFixed;
+    const lessonRuns = aiCourses * aiLessons;
+    const quizRuns = lessonRuns * aiQuizzes;
+    const threadRuns = dauCount * aiThreads;
+    const totalRuns = lessonRuns + quizRuns + threadRuns;
+    const aiInputTokens = totalRuns * aiInTokens;
+    const aiOutputTokens = totalRuns * aiOutTokens;
+    const aiCost = (aiInputTokens/1e6)*aiInRate + (aiOutputTokens/1e6)*aiOutRate;
+    const volumeCost = volumeGB * minMonth * volumeRate;
+    const platformCost = memoryCost + cpuCost + egressCost + cloudMediaCost + aiCost + volumeCost;
+    const targetRevenue = (platformCost + overhead) / (1 - margin/100);
+    const chargePerMember = targetRevenue / members;
+    const priceFloor = Math.max(platformCost/members + overhead/members, 1);
+  
+    return { memoryCost, cpuCost, egressCost, cloudMediaCost, aiCost, volumeCost, platformCost, targetRevenue, chargePerMember, priceFloor, dauCount, concurrent };
+  }
+  
+  function currentCfg() {
+    return { members: v('members'), dauPct: v('dauPct'), sessionMinutes: v('sessionMinutes'), workers: v('workers'), ramMB: v('ramMB'), mediaMB: v('mediaMB'), volumeGB: v('volumeGB'), uptimeHrs: v('uptimeHrs'), cloudSharePct: v('cloudSharePct'), cloudRate: v('cloudRate'), cloudFixed: v('cloudFixed'), aiCourses: v('aiCourses'), aiLessons: v('aiLessons'), aiQuizzes: v('aiQuizzes'), aiThreads: v('aiThreads'), aiInTokens: v('aiInTokens'), aiOutTokens: v('aiOutTokens'), aiInRate: v('aiInRate'), aiOutRate: v('aiOutRate'), overhead: v('overhead'), margin: v('margin') };
+  }
+  
+  const scenarios = [
+    { name: 'Lean', members: 100, dauPct: 15, sessionMinutes: 20, workers: 1, ramMB: 512, mediaMB: 30, volumeGB: 5, uptimeHrs: 18, cloudSharePct: 50, cloudRate: 0.12, cloudFixed: 15, aiCourses: 2, aiLessons: 6, aiQuizzes: 2, aiThreads: 3, aiInTokens: 600, aiOutTokens: 300, aiInRate: 3, aiOutRate: 15, overhead: 450, margin: 35 },
+    { name: 'Baseline', members: 500, dauPct: 20, sessionMinutes: 30, workers: 2, ramMB: 512, mediaMB: 50, volumeGB: 10, uptimeHrs: 20, cloudSharePct: 60, cloudRate: 0.12, cloudFixed: 25, aiCourses: 5, aiLessons: 8, aiQuizzes: 3, aiThreads: 5, aiInTokens: 800, aiOutTokens: 400, aiInRate: 3, aiOutRate: 15, overhead: 1200, margin: 40 },
+    { name: 'Growth', members: 1000, dauPct: 25, sessionMinutes: 40, workers: 3, ramMB: 512, mediaMB: 80, volumeGB: 20, uptimeHrs: 22, cloudSharePct: 70, cloudRate: 0.12, cloudFixed: 49, aiCourses: 10, aiLessons: 10, aiQuizzes: 4, aiThreads: 8, aiInTokens: 1000, aiOutTokens: 500, aiInRate: 3, aiOutRate: 15, overhead: 2800, margin: 45 },
+  ];
+  
+  let mainChart = null, scChart = null;
+  
+  function calc() {
+    const cfg = currentCfg();
+    const r = compute(cfg);
+  
+    document.getElementById('m-platform').textContent = fmtShort(r.platformCost);
+    document.getElementById('m-revenue').textContent = fmt(r.targetRevenue);
+    document.getElementById('m-charge').textContent = fmtShort(r.chargePerMember);
+    document.getElementById('m-floor').textContent = fmtShort(r.priceFloor);
+  
+    const flagBox = document.getElementById('flag-box');
+    if (r.aiCost / r.platformCost > 0.35) {
+      flagBox.innerHTML = '<div class="flag warn">AI costs are >35% of platform spend — consider usage-based add-on pricing for high-generation tenants.</div>';
+    } else if (r.chargePerMember < r.priceFloor) {
+      flagBox.innerHTML = '<div class="flag warn">Suggested charge is below price floor — increase margin target or reduce overhead.</div>';
+    } else {
+      flagBox.innerHTML = '<div class="flag ok">Pricing looks healthy. Monitor AI + cloud media as primary cost drivers.</div>';
+    }
+  
+    updateBreakdown(r);
+    updateCharts(r, cfg);
+  }
+  
+  function updateBreakdown(r) {
+    const items = [
+      { name: 'Memory', val: r.memoryCost, color: '#378ADD' },
+      { name: 'CPU', val: r.cpuCost, color: '#1D9E75' },
+      { name: 'Railway egress', val: r.egressCost, color: '#639922' },
+      { name: 'Cloud media', val: r.cloudMediaCost, color: '#D4537E' },
+      { name: 'AI tokens', val: r.aiCost, color: '#D85A30' },
+      { name: 'Volume storage', val: r.volumeCost, color: '#888780' },
+    ];
+    const total = r.platformCost;
+    const tbody = document.getElementById('breakdown-body');
+    tbody.innerHTML = items.map(i => {
+      const pct = total > 0 ? (i.val/total*100) : 0;
+      return `<tr><td><div>${i.name}</div><div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${i.color}"></div></div></td><td style="color:var(--color-text-tertiary);font-size:11px;padding-top:10px">${pct.toFixed(0)}%</td><td>${fmtShort(i.val)}</td></tr>`;
+    }).join('') + `<tr><td style="font-weight:500;padding-top:10px">Total platform cost</td><td></td><td style="font-weight:500">${fmtShort(total)}</td></tr>`;
+  }
+  
+  function updateScenarios() {
+    const grid = document.getElementById('sc-grid');
+    grid.innerHTML = scenarios.map(sc => {
+      const r = compute(sc);
+      return `<div class="sc-card">
+        <div class="sc-name">${sc.name}</div>
+        <div class="sc-price">${fmtShort(r.chargePerMember)}<span> / member / mo</span></div>
+        <div class="sc-row"><span>Members</span><b>${sc.members.toLocaleString()}</b></div>
+        <div class="sc-row"><span>Platform cost</span><b>${fmtShort(r.platformCost)}</b></div>
+        <div class="sc-row"><span>Overhead</span><b>${fmtShort(sc.overhead)}</b></div>
+        <div class="sc-row"><span>Target revenue</span><b>${fmt(r.targetRevenue)}</b></div>
+        <div class="sc-row"><span>Cloud media</span><b>${fmtShort(r.cloudMediaCost)}</b></div>
+        <div class="sc-row"><span>AI cost</span><b>${fmtShort(r.aiCost)}</b></div>
+      </div>`;
+    }).join('');
+  }
+  
+  function updateCharts(r, cfg) {
+    const labels = ['Memory','CPU','Egress','Cloud media','AI','Volume'];
+    const vals = [r.memoryCost, r.cpuCost, r.egressCost, r.cloudMediaCost, r.aiCost, r.volumeCost];
+    const colors = ['#378ADD','#1D9E75','#639922','#D4537E','#D85A30','#888780'];
+  
+    if (mainChart) mainChart.destroy();
+    mainChart = new Chart(document.getElementById('mainChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Cost $', data: vals, backgroundColor: colors, borderRadius: 4, borderSkipped: false }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { ticks: { callback: v => '$' + v.toFixed(2), font: { size: 12 } }, grid: { color: 'rgba(128,128,128,0.12)' } },
+          x: { ticks: { font: { size: 11 } }, grid: { display: false } }
+        }
+      }
+    });
+  
+    const scData = scenarios.map(sc => compute(sc));
+    if (scChart) scChart.destroy();
+    scChart = new Chart(document.getElementById('scChart'), {
+      type: 'bar',
+      data: {
+        labels: ['Lean', 'Baseline', 'Growth'],
+        datasets: [
+          { label: 'Charge/member', data: scData.map(r => r.chargePerMember), backgroundColor: '#378ADD', borderRadius: 4 },
+          { label: 'Platform cost/member', data: scData.map(r => r.platformCost / [100,500,1000][scData.indexOf(r)]), backgroundColor: '#D4537E', borderRadius: 4 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 11 } } } },
+        scales: {
+          y: { ticks: { callback: v => '$' + v.toFixed(2), font: { size: 11 } }, grid: { color: 'rgba(128,128,128,0.12)' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+  
+  function switchTab(tab) {
+    ['calculator','scenarios','breakdown','chart'].forEach(t => {
+      document.getElementById('tab-'+t).style.display = t === tab ? '' : 'none';
+    });
+    document.querySelectorAll('.tab').forEach((el, i) => {
+      el.classList.toggle('active', ['calculator','scenarios','breakdown','chart'][i] === tab);
+    });
+    if (tab === 'scenarios') updateScenarios();
+    if (tab === 'chart') { const r = compute(currentCfg()); updateCharts(r, currentCfg()); }
+  }
+  
+  calc();
+  </script>
+</body>
+</html>
+  

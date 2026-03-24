@@ -1,8 +1,11 @@
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import user_passes_test
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from .models import (
@@ -12,6 +15,7 @@ from .models import (
     CourseAccess,
     CourseEnrollment,
     Lesson,
+    AIUsageLog,
     Tenant,
     TenantConfig,
     TenantDomain,
@@ -193,6 +197,8 @@ def superadmin_tenant_analytics(request, tenant_id):
 
 @superadmin_required
 def superadmin_analytics(request):
+    cutoff_30d = timezone.now() - timedelta(days=30)
+
     tenants = Tenant.objects.annotate(
         courses=Count('courses', distinct=True),
         lessons=Count('lessons', distinct=True),
@@ -201,8 +207,40 @@ def superadmin_analytics(request):
         certifications=Count('certifications', distinct=True),
     ).order_by('name')
 
+    usage_rows = AIUsageLog.objects.filter(created_at__gte=cutoff_30d).values('tenant_id').annotate(
+        ai_calls_30d=Count('id'),
+        ai_tokens_30d=Sum('total_tokens'),
+        ai_spend_30d=Sum('cost_usd'),
+        ai_courses_30d=Count('course_id', distinct=True),
+        ai_lessons_30d=Count('lesson_id', distinct=True),
+    )
+    usage_map = {row['tenant_id']: row for row in usage_rows}
+
+    for tenant in tenants:
+        row = usage_map.get(tenant.id, {})
+        tenant.ai_calls_30d = row.get('ai_calls_30d') or 0
+        tenant.ai_tokens_30d = row.get('ai_tokens_30d') or 0
+        tenant.ai_spend_30d = row.get('ai_spend_30d') or 0
+        tenant.ai_courses_30d = row.get('ai_courses_30d') or 0
+        tenant.ai_lessons_30d = row.get('ai_lessons_30d') or 0
+        tenant.ai_cost_per_course_30d = (
+            tenant.ai_spend_30d / tenant.ai_courses_30d if tenant.ai_courses_30d else 0.0
+        )
+
+    ai_totals = AIUsageLog.objects.filter(created_at__gte=cutoff_30d).aggregate(
+        ai_calls_30d=Count('id'),
+        ai_tokens_30d=Sum('total_tokens'),
+        ai_spend_30d=Sum('cost_usd'),
+        ai_courses_30d=Count('course_id', distinct=True),
+        ai_lessons_30d=Count('lesson_id', distinct=True),
+    )
+    total_ai_spend_30d = ai_totals.get('ai_spend_30d') or 0
+    total_ai_courses_30d = ai_totals.get('ai_courses_30d') or 0
+    total_ai_cost_per_course_30d = total_ai_spend_30d / total_ai_courses_30d if total_ai_courses_30d else 0
+
     return render(request, 'superadmin/analytics.html', {
         'tenants': tenants,
+        'usage_window_days': 30,
         'totals': {
             'tenants': Tenant.objects.count(),
             'active_tenants': Tenant.objects.filter(is_active=True).count(),
@@ -211,6 +249,12 @@ def superadmin_analytics(request):
             'enrollments': CourseEnrollment.objects.count(),
             'active_accesses': CourseAccess.objects.filter(status='unlocked').count(),
             'certifications': Certification.objects.count(),
+            'ai_calls_30d': ai_totals.get('ai_calls_30d') or 0,
+            'ai_tokens_30d': ai_totals.get('ai_tokens_30d') or 0,
+            'ai_courses_30d': total_ai_courses_30d,
+            'ai_lessons_30d': ai_totals.get('ai_lessons_30d') or 0,
+            'ai_spend_30d': total_ai_spend_30d,
+            'ai_cost_per_course_30d': total_ai_cost_per_course_30d,
         }
     })
 

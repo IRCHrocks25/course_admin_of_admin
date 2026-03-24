@@ -17,6 +17,12 @@
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Enrollments</div><div class="text-2xl font-bold">{{ totals.enrollments }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Active Accesses</div><div class="text-2xl font-bold">{{ totals.active_accesses }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Certifications</div><div class="text-2xl font-bold">{{ totals.certifications }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">AI Calls (30d)</div><div class="text-2xl font-bold">{{ totals.ai_calls_30d }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">AI Tokens (30d)</div><div class="text-2xl font-bold">{{ totals.ai_tokens_30d }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">AI Courses (30d)</div><div class="text-2xl font-bold">{{ totals.ai_courses_30d }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">AI Lessons (30d)</div><div class="text-2xl font-bold">{{ totals.ai_lessons_30d }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">AI Spend (30d)</div><div class="text-2xl font-bold">${{ totals.ai_spend_30d|floatformat:2 }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">AI Cost / Course (30d)</div><div class="text-2xl font-bold">${{ totals.ai_cost_per_course_30d|floatformat:2 }}</div></div>
 </div>
 
 <div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
@@ -32,6 +38,12 @@
                     <th class="text-left px-4 py-3">Enrollments</th>
                     <th class="text-left px-4 py-3">Active Accesses</th>
                     <th class="text-left px-4 py-3">Certifications</th>
+                    <th class="text-left px-4 py-3">AI Calls (30d)</th>
+                    <th class="text-left px-4 py-3">AI Tokens (30d)</th>
+                    <th class="text-left px-4 py-3">AI Courses (30d)</th>
+                    <th class="text-left px-4 py-3">AI Lessons (30d)</th>
+                    <th class="text-left px-4 py-3">AI Spend (30d)</th>
+                    <th class="text-left px-4 py-3">AI Cost / Course</th>
                     <th class="text-left px-4 py-3">Actions</th>
                 </tr>
             </thead>
@@ -51,16 +63,25 @@
                     <td class="px-4 py-3">{{ tenant.enrollments }}</td>
                     <td class="px-4 py-3">{{ tenant.active_accesses }}</td>
                     <td class="px-4 py-3">{{ tenant.certifications }}</td>
+                    <td class="px-4 py-3">{{ tenant.ai_calls_30d }}</td>
+                    <td class="px-4 py-3">{{ tenant.ai_tokens_30d }}</td>
+                    <td class="px-4 py-3">{{ tenant.ai_courses_30d }}</td>
+                    <td class="px-4 py-3">{{ tenant.ai_lessons_30d }}</td>
+                    <td class="px-4 py-3">${{ tenant.ai_spend_30d|floatformat:2 }}</td>
+                    <td class="px-4 py-3">${{ tenant.ai_cost_per_course_30d|floatformat:2 }}</td>
                     <td class="px-4 py-3">
                         <a class="text-cyan-electric hover:underline" href="{% url 'superadmin_tenant_analytics' tenant.id %}">View</a>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td class="px-4 py-6 text-gray-400" colspan="8">No tenant data available.</td></tr>
+                <tr><td class="px-4 py-6 text-gray-400" colspan="14">No tenant data available.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+</div>
+<div class="mt-4 text-xs text-gray-400">
+    Values are based on exact logged OpenAI usage for the last {{ usage_window_days }} days (prompt/completion tokens and computed call cost at time of request).
 </div>
 {% endblock %}
 

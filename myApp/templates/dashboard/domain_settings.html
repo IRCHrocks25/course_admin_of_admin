@@ -12,6 +12,29 @@
     </p>
 </div>
 
+<div class="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <div class="font-semibold mb-1">Student Payments (Stripe Connect)</div>
+            {% if tenant_config.stripe_connect_account_id %}
+            <p class="text-sm text-gray-300">
+                Connected account: <span class="text-cyan-electric">{{ tenant_config.stripe_connect_account_id }}</span>
+                {% if tenant_config.stripe_connect_charges_enabled %}
+                <span class="ml-2 px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs">Charges enabled</span>
+                {% else %}
+                <span class="ml-2 px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 text-xs">Complete onboarding</span>
+                {% endif %}
+            </p>
+            {% else %}
+            <p class="text-sm text-gray-300">Connect Stripe to let students pay for your bundles/courses directly.</p>
+            {% endif %}
+        </div>
+        <a href="{% url 'dashboard_connect_stripe' %}" class="px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/20 transition">
+            {% if tenant_config.stripe_connect_account_id %}Reconnect Stripe{% else %}Connect Stripe{% endif %}
+        </a>
+    </div>
+</div>
+
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <div class="xl:col-span-2 rounded-xl border border-white/10 bg-white/5 overflow-hidden">
         <div class="px-4 py-3 border-b border-white/10 font-semibold">Connected Domains for {{ tenant.name }}</div>
