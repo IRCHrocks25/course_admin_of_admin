@@ -100,33 +100,165 @@
     </div>
 
     <div class="rounded-xl border border-white/10 bg-white/5 p-5">
-        <h2 class="font-semibold text-lg mb-4">Add Custom Domain</h2>
-        <form method="post" class="space-y-3">
-            {% csrf_token %}
-            <div>
-                <label class="block text-sm text-gray-300 mb-1">Domain</label>
-                <input name="domain" placeholder="learn.yourbrand.com" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
-            </div>
-            <button class="w-full py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
-                Add Domain
-            </button>
-        </form>
+        <h2 class="font-semibold text-lg mb-2">Custom Domain Setup</h2>
+        <p class="text-sm text-gray-300 mb-4">Use the guided wizard to avoid DNS mistakes.</p>
+        <button id="open-domain-wizard" type="button" class="w-full py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+            Open Setup Wizard
+        </button>
+        {% if temporary_domain %}
+        <p class="text-xs text-gray-400 mt-4">
+            Current temporary domain: <span class="text-indigo-300 font-medium">{{ temporary_domain.domain }}</span>
+        </p>
+        {% endif %}
+    </div>
+</div>
 
-        <div class="mt-5 pt-5 border-t border-white/10">
-            <h3 class="font-semibold mb-2">DNS Setup Guide</h3>
-            <ol class="list-decimal list-inside text-sm text-gray-300 space-y-1">
-                <li>Create a CNAME record for your domain.</li>
-                <li>Point it to <span class="text-cyan-electric">{{ platform_base_domain|default:"your platform host" }}</span>.</li>
-                <li>Wait for DNS propagation.</li>
-                <li>Click Verify, then Make Primary.</li>
-            </ol>
-            {% if temporary_domain %}
-            <p class="text-xs text-gray-400 mt-3">
-                Temporary domain: <span class="text-indigo-300 font-medium">{{ temporary_domain.domain }}</span>
-            </p>
-            {% endif %}
+<div id="domain-wizard-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/70" id="domain-wizard-backdrop"></div>
+    <div class="relative mx-auto mt-10 w-[92%] max-w-2xl rounded-xl border border-white/15 bg-[#0b1030] shadow-2xl">
+        <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <h3 class="text-lg font-semibold">Connect Your Custom Domain</h3>
+            <button id="close-domain-wizard" type="button" class="rounded-md border border-white/20 px-2 py-1 text-xs text-gray-300 hover:bg-white/10">Close</button>
+        </div>
+        <div class="px-5 py-4">
+            <div class="mb-5 flex items-center gap-2 text-xs">
+                <span id="domain-step-pill-1" class="rounded-full bg-cyan-electric/20 px-2 py-1 text-cyan-electric">1. Domain</span>
+                <span class="text-gray-500">-></span>
+                <span id="domain-step-pill-2" class="rounded-full bg-white/10 px-2 py-1 text-gray-300">2. DNS</span>
+                <span class="text-gray-500">-></span>
+                <span id="domain-step-pill-3" class="rounded-full bg-white/10 px-2 py-1 text-gray-300">3. Verify</span>
+            </div>
+
+            <form method="post" id="domain-wizard-form" class="space-y-4">
+                {% csrf_token %}
+
+                <div id="domain-step-1" class="space-y-3">
+                    <label class="block text-sm text-gray-300">Domain to connect</label>
+                    <input id="domain-input" name="domain" placeholder="learn.yourbrand.com" required class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="text-xs text-gray-400">Use a subdomain like <span class="text-indigo-300">learn.yourbrand.com</span> (recommended).</p>
+                </div>
+
+                <div id="domain-step-2" class="hidden space-y-3 text-sm text-gray-300">
+                    <p>Add this DNS record in your domain provider:</p>
+                    <div class="rounded-lg border border-white/10 bg-black/20 p-3 space-y-1 font-mono text-xs">
+                        <div>Type: CNAME</div>
+                        <div>Host/Name: <span id="dns-host-preview" class="text-cyan-electric">learn</span></div>
+                        <div>Target/Value: <span class="text-cyan-electric">{{ platform_base_domain|default:"your platform host" }}</span></div>
+                    </div>
+                    <p class="text-xs text-gray-400">If your DNS panel asks for full host, use the full domain you entered.</p>
+                    <p class="text-xs text-gray-400">Wait a few minutes for propagation, then continue.</p>
+                </div>
+
+                <div id="domain-step-3" class="hidden space-y-3 text-sm text-gray-300">
+                    <p>Click submit to add your domain as <span class="text-yellow-300">Pending</span>.</p>
+                    <p>Then in the domain table:</p>
+                    <ol class="list-decimal list-inside space-y-1 text-xs text-gray-400">
+                        <li>Click <span class="text-yellow-300">Verify</span> once DNS is pointed.</li>
+                        <li>Click <span class="text-cyan-electric">Make Primary</span>.</li>
+                    </ol>
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <button id="domain-step-prev" type="button" class="rounded-lg border border-white/20 px-3 py-2 text-sm text-gray-300 hover:bg-white/10">Back</button>
+                    <div class="flex items-center gap-2">
+                        <button id="domain-step-next" type="button" class="rounded-lg border border-cyan-electric/40 bg-cyan-electric/20 px-3 py-2 text-sm text-cyan-electric hover:bg-cyan-electric/30">Next</button>
+                        <button id="domain-submit-btn" type="submit" class="hidden rounded-lg border border-green-400/40 bg-green-500/20 px-3 py-2 text-sm text-green-300 hover:bg-green-500/30">Add Domain</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const modal = document.getElementById('domain-wizard-modal');
+    const openBtn = document.getElementById('open-domain-wizard');
+    const closeBtn = document.getElementById('close-domain-wizard');
+    const backdrop = document.getElementById('domain-wizard-backdrop');
+    const domainInput = document.getElementById('domain-input');
+    const dnsHostPreview = document.getElementById('dns-host-preview');
+    const prevBtn = document.getElementById('domain-step-prev');
+    const nextBtn = document.getElementById('domain-step-next');
+    const submitBtn = document.getElementById('domain-submit-btn');
+
+    if (!modal || !openBtn || !closeBtn || !backdrop) return;
+
+    const steps = [
+        document.getElementById('domain-step-1'),
+        document.getElementById('domain-step-2'),
+        document.getElementById('domain-step-3')
+    ];
+    const pills = [
+        document.getElementById('domain-step-pill-1'),
+        document.getElementById('domain-step-pill-2'),
+        document.getElementById('domain-step-pill-3')
+    ];
+
+    let idx = 0;
+
+    function updateHostPreview() {
+        if (!domainInput || !dnsHostPreview) return;
+        const value = (domainInput.value || '').trim().toLowerCase();
+        if (!value) {
+            dnsHostPreview.textContent = 'learn';
+            return;
+        }
+        const first = value.split('.')[0];
+        dnsHostPreview.textContent = first || value;
+    }
+
+    function renderStep() {
+        steps.forEach((el, i) => {
+            if (!el) return;
+            el.classList.toggle('hidden', i !== idx);
+        });
+        pills.forEach((el, i) => {
+            if (!el) return;
+            el.classList.toggle('bg-cyan-electric/20', i === idx);
+            el.classList.toggle('text-cyan-electric', i === idx);
+            el.classList.toggle('bg-white/10', i !== idx);
+            el.classList.toggle('text-gray-300', i !== idx);
+        });
+        if (prevBtn) prevBtn.disabled = idx === 0;
+        if (nextBtn) nextBtn.classList.toggle('hidden', idx === 2);
+        if (submitBtn) submitBtn.classList.toggle('hidden', idx !== 2);
+        updateHostPreview();
+    }
+
+    function openModal() {
+        modal.classList.remove('hidden');
+        idx = 0;
+        renderStep();
+        if (domainInput) domainInput.focus();
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+    }
+
+    openBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+    });
+    if (domainInput) domainInput.addEventListener('input', updateHostPreview);
+    if (prevBtn) prevBtn.addEventListener('click', function() {
+        idx = Math.max(0, idx - 1);
+        renderStep();
+    });
+    if (nextBtn) nextBtn.addEventListener('click', function() {
+        if (idx === 0 && domainInput && !domainInput.value.trim()) {
+            domainInput.focus();
+            return;
+        }
+        idx = Math.min(2, idx + 1);
+        renderStep();
+    });
+})();
+</script>
 {% endblock %}
 

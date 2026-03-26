@@ -47,10 +47,10 @@
             </div>
 
             <div class="mt-8 flex flex-wrap gap-3">
-                <a href="{% url 'dashboard_home' %}" class="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-300/40 text-cyan-200 hover:bg-cyan-500/30 transition">
+                <a href="{{ tenant_dashboard_url }}" class="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-300/40 text-cyan-200 hover:bg-cyan-500/30 transition">
                     Go to Admin Dashboard
                 </a>
-                <a href="{% url 'dashboard_domain_settings' %}" class="px-4 py-2 rounded-lg border border-white/30 hover:bg-white/10 transition">
+                <a href="{{ tenant_domain_settings_url }}" class="px-4 py-2 rounded-lg border border-white/30 hover:bg-white/10 transition">
                     Connect Custom Domain
                 </a>
             </div>

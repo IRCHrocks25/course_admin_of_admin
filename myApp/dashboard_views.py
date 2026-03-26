@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
@@ -59,6 +60,12 @@ from django.utils import timezone
 from .utils.tenancy import get_default_tenant
 from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain
 from .utils.branding import get_tenant_branding, ensure_tenant_branding
+
+# Tenant admins should use app login, not Django admin login.
+staff_member_required = user_passes_test(
+    lambda u: u.is_authenticated and u.is_staff,
+    login_url='login'
+)
 
 OPENAI_DEFAULT_RATES_PER_MILLION = {
     'gpt-4o-mini': (Decimal('0.15'), Decimal('0.60')),
@@ -265,64 +272,83 @@ def _sanitize_uploaded_html(raw_html):
 def dashboard_home(request):
     """Main dashboard overview with analytics"""
     from datetime import timedelta
-    
+
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if not is_superadmin and tenant is None:
+        messages.error(request, 'Tenant context is required for dashboard access.')
+        return redirect('courses')
+
+    scoped_courses_qs = Course.objects.all()
+    if not is_superadmin:
+        scoped_courses_qs = scoped_courses_qs.filter(tenant=tenant)
+    scoped_course_ids = scoped_courses_qs.values_list('id', flat=True)
+    scoped_lessons_qs = Lesson.objects.filter(course_id__in=scoped_course_ids)
+    scoped_enrollments_qs = CourseEnrollment.objects.filter(course_id__in=scoped_course_ids)
+    scoped_access_qs = CourseAccess.objects.filter(course_id__in=scoped_course_ids)
+    scoped_progress_qs = UserProgress.objects.filter(lesson__course_id__in=scoped_course_ids)
+    scoped_certs_qs = Certification.objects.filter(course_id__in=scoped_course_ids)
+
     # Basic stats
-    total_courses = Course.objects.count()
-    total_lessons = Lesson.objects.count()
-    approved_lessons = Lesson.objects.filter(ai_generation_status='approved').count()
-    pending_lessons = Lesson.objects.filter(ai_generation_status='pending').count()
-    recent_lessons = Lesson.objects.select_related('course').order_by('-created_at')[:10]
-    courses = Course.objects.annotate(lesson_count=Count('lessons')).order_by('-created_at')
+    total_courses = scoped_courses_qs.count()
+    total_lessons = scoped_lessons_qs.count()
+    approved_lessons = scoped_lessons_qs.filter(ai_generation_status='approved').count()
+    pending_lessons = scoped_lessons_qs.filter(ai_generation_status='pending').count()
+    recent_lessons = scoped_lessons_qs.select_related('course').order_by('-created_at')[:10]
+    courses = scoped_courses_qs.annotate(lesson_count=Count('lessons')).order_by('-created_at')
     
     # Student Analytics
-    total_students = User.objects.filter(is_staff=False, is_superuser=False).count()
-    active_students = User.objects.filter(
+    scoped_student_ids = set(scoped_enrollments_qs.values_list('user_id', flat=True))
+    scoped_student_ids.update(scoped_access_qs.values_list('user_id', flat=True))
+    scoped_students_qs = User.objects.filter(id__in=scoped_student_ids)
+    total_students = scoped_students_qs.filter(is_staff=False, is_superuser=False).count()
+    active_students = scoped_students_qs.filter(
         is_staff=False, 
         is_superuser=False,
         last_login__gte=timezone.now() - timedelta(days=30)
     ).count()
-    new_students_30d = User.objects.filter(
+    new_students_30d = scoped_students_qs.filter(
         is_staff=False,
         is_superuser=False,
         date_joined__gte=timezone.now() - timedelta(days=30)
     ).count()
     
     # Enrollment Analytics
-    total_enrollments = CourseEnrollment.objects.count()
-    active_enrollments = CourseEnrollment.objects.filter(
+    total_enrollments = scoped_enrollments_qs.count()
+    active_enrollments = scoped_enrollments_qs.filter(
         enrolled_at__gte=timezone.now() - timedelta(days=30)
     ).count()
     
     # Course Access Analytics
-    total_accesses = CourseAccess.objects.filter(status='unlocked').count()
-    expired_accesses = CourseAccess.objects.filter(status='expired').count()
+    total_accesses = scoped_access_qs.filter(status='unlocked').count()
+    expired_accesses = scoped_access_qs.filter(status='expired').count()
     
     # Progress Analytics
-    total_progress = UserProgress.objects.count()
-    completed_lessons = UserProgress.objects.filter(completed=True).count()
+    total_progress = scoped_progress_qs.count()
+    completed_lessons = scoped_progress_qs.filter(completed=True).count()
     completion_rate = (completed_lessons / total_progress * 100) if total_progress > 0 else 0
     
     # Certification Analytics
-    total_certifications = Certification.objects.count()
-    certifications_30d = Certification.objects.filter(
+    total_certifications = scoped_certs_qs.count()
+    certifications_30d = scoped_certs_qs.filter(
         issued_at__gte=timezone.now() - timedelta(days=30)
-    ).count() if Certification.objects.filter(issued_at__isnull=False).exists() else 0
+    ).count() if scoped_certs_qs.filter(issued_at__isnull=False).exists() else 0
     
     # Course Performance Analytics
     course_performance = []
-    for course in Course.objects.all()[:10]:
-        enrollments = CourseEnrollment.objects.filter(course=course).count()
-        accesses = CourseAccess.objects.filter(course=course, status='unlocked').count()
+    for course in scoped_courses_qs[:10]:
+        enrollments = scoped_enrollments_qs.filter(course=course).count()
+        accesses = scoped_access_qs.filter(course=course, status='unlocked').count()
         total_students_course = enrollments + accesses
         
         total_lessons_course = course.lessons.count()
-        completed = UserProgress.objects.filter(
+        completed = scoped_progress_qs.filter(
             lesson__course=course,
             completed=True
         ).count()
         course_completion_rate = (completed / (total_lessons_course * total_students_course * 100)) if total_students_course > 0 and total_lessons_course > 0 else 0
         
-        certifications_course = Certification.objects.filter(course=course, status='passed').count()
+        certifications_course = scoped_certs_qs.filter(course=course, status='passed').count()
         
         course_performance.append({
             'course': course,
@@ -334,21 +360,21 @@ def dashboard_home(request):
     
     # Recent Activity (last 7 days)
     seven_days_ago = timezone.now() - timedelta(days=7)
-    recent_progress = UserProgress.objects.filter(
+    recent_progress = scoped_progress_qs.filter(
         last_accessed__gte=seven_days_ago
     ).count()
-    recent_certifications = Certification.objects.filter(
+    recent_certifications = scoped_certs_qs.filter(
         issued_at__gte=seven_days_ago
-    ).count() if Certification.objects.filter(issued_at__isnull=False).exists() else 0
+    ).count() if scoped_certs_qs.filter(issued_at__isnull=False).exists() else 0
     
     # Get student activity feed
-    student_activities = get_student_activity_feed(limit=10)
+    student_activities = get_student_activity_feed(limit=10, course_ids_qs=scoped_course_ids)
     
     # Enrollment trend (last 30 days)
     enrollment_trend = []
     for i in range(30, 0, -1):
         date = timezone.now() - timedelta(days=i)
-        count = CourseEnrollment.objects.filter(
+        count = scoped_enrollments_qs.filter(
             enrolled_at__date=date.date()
         ).count()
         enrollment_trend.append({
@@ -544,14 +570,18 @@ def dashboard_students(request):
     })
 
 
-def get_student_activity_feed(limit=20):
+def get_student_activity_feed(limit=20, course_ids_qs=None):
     """Get a comprehensive activity feed of all student activities"""
     activities = []
+    filter_kwargs = {}
+    if course_ids_qs is not None:
+        filter_kwargs = {'lesson__course_id__in': course_ids_qs}
     
     # Recent lesson completions
     recent_completions = UserProgress.objects.filter(
         completed=True,
-        completed_at__isnull=False
+        completed_at__isnull=False,
+        **filter_kwargs
     ).select_related('user', 'lesson', 'lesson__course').order_by('-completed_at')[:limit]
     
     for progress in recent_completions:
@@ -567,7 +597,10 @@ def get_student_activity_feed(limit=20):
         })
     
     # Recent exam attempts
-    recent_exams = ExamAttempt.objects.select_related('user', 'exam', 'exam__course').order_by('-started_at')[:limit]
+    recent_exams = ExamAttempt.objects.select_related('user', 'exam', 'exam__course')
+    if course_ids_qs is not None:
+        recent_exams = recent_exams.filter(exam__course_id__in=course_ids_qs)
+    recent_exams = recent_exams.order_by('-started_at')[:limit]
     
     for attempt in recent_exams:
         activities.append({
@@ -583,9 +616,10 @@ def get_student_activity_feed(limit=20):
         })
     
     # Recent certifications
-    recent_certs = Certification.objects.filter(
-        issued_at__isnull=False
-    ).select_related('user', 'course').order_by('-issued_at')[:limit]
+    recent_certs = Certification.objects.filter(issued_at__isnull=False)
+    if course_ids_qs is not None:
+        recent_certs = recent_certs.filter(course_id__in=course_ids_qs)
+    recent_certs = recent_certs.select_related('user', 'course').order_by('-issued_at')[:limit]
     
     for cert in recent_certs:
         activities.append({
@@ -601,7 +635,8 @@ def get_student_activity_feed(limit=20):
     # Recent progress updates (video watch)
     recent_progress = UserProgress.objects.filter(
         video_watch_percentage__gt=0,
-        last_accessed__isnull=False
+        last_accessed__isnull=False,
+        **filter_kwargs
     ).select_related('user', 'lesson', 'lesson__course').order_by('-last_accessed')[:limit]
     
     for progress in recent_progress:
@@ -628,7 +663,14 @@ def get_student_activity_feed(limit=20):
 @staff_member_required
 def dashboard_courses(request):
     """List all courses"""
-    courses = Course.objects.annotate(lesson_count=Count('lessons')).order_by('-created_at')
+    tenant = _get_dashboard_tenant(request)
+    courses_qs = Course.objects.all()
+    if not request.user.is_superuser:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required to view courses.')
+            return redirect('courses')
+        courses_qs = courses_qs.filter(tenant=tenant)
+    courses = courses_qs.annotate(lesson_count=Count('lessons')).order_by('-created_at')
     return render(request, 'dashboard/courses.html', {
         'courses': courses,
     })
@@ -637,7 +679,14 @@ def dashboard_courses(request):
 @staff_member_required
 def dashboard_course_detail(request, course_slug):
     """Edit course details and manage resources"""
-    course = get_object_or_404(Course, slug=course_slug)
+    tenant = _get_dashboard_tenant(request)
+    if request.user.is_superuser:
+        course = get_object_or_404(Course, slug=course_slug)
+    else:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required.')
+            return redirect('dashboard_courses')
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
 
     if request.method == 'POST':
         action = request.POST.get('action', '')
@@ -693,7 +742,14 @@ def dashboard_course_detail(request, course_slug):
 @require_http_methods(["POST"])
 def dashboard_delete_course(request, course_slug):
     """Delete a course"""
-    course = get_object_or_404(Course, slug=course_slug)
+    tenant = _get_dashboard_tenant(request)
+    if request.user.is_superuser:
+        course = get_object_or_404(Course, slug=course_slug)
+    else:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required.')
+            return redirect('dashboard_courses')
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
     course_name = course.name
     
     try:
@@ -849,7 +905,14 @@ def dashboard_quizzes(request):
 @staff_member_required
 def dashboard_course_lessons(request, course_slug):
     """View all lessons for a course"""
-    course = get_object_or_404(Course, slug=course_slug)
+    tenant = _get_dashboard_tenant(request)
+    if request.user.is_superuser:
+        course = get_object_or_404(Course, slug=course_slug)
+    else:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required.')
+            return redirect('dashboard_courses')
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
     lessons = course.lessons.all()
     modules = course.modules.all()
     

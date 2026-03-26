@@ -1,11 +1,13 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.conf import settings
 from django.utils.text import slugify
@@ -13,9 +15,11 @@ from datetime import datetime
 import json
 import re
 import requests
+import uuid
 import os
 import threading
 import stripe
+import time
 from .models import (
     Course,
     Lesson,
@@ -46,6 +50,12 @@ from .utils.access import has_course_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
 
+# Tenant/admin-protected views should route unauthenticated users to app login.
+staff_member_required = user_passes_test(
+    lambda u: u.is_authenticated and u.is_staff,
+    login_url='login'
+)
+
 PLATFORM_PLANS = {
     'lean': {'name': 'Lean', 'amount_env': 'STRIPE_PLAN_AMOUNT_LEAN_USD', 'default_amount_cents': 2900},
     'baseline': {'name': 'Baseline', 'amount_env': 'STRIPE_PLAN_AMOUNT_BASELINE_USD', 'default_amount_cents': 7900},
@@ -61,6 +71,14 @@ def _stripe_client_configured():
     return True
 
 
+def _using_live_stripe_key():
+    return os.getenv('STRIPE_SECRET_KEY', '').strip().startswith('sk_live_')
+
+
+def _env_truthy(name):
+    return os.getenv(name, '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
 def _get_plan_amount_cents(plan_def):
     raw = os.getenv(plan_def['amount_env'], '').strip()
     if raw:
@@ -69,6 +87,23 @@ def _get_plan_amount_cents(plan_def):
         except ValueError:
             return None
     return int(plan_def.get('default_amount_cents', 0) or 0)
+
+
+def _get_start_academy_checkout_mode():
+    raw = (os.getenv('START_ACADEMY_CHECKOUT_MODE') or 'subscription').strip().lower()
+    return 'payment' if raw == 'payment' else 'subscription'
+
+
+def _is_abandoned_signup_user(user):
+    """
+    Identify placeholder users created during signup before payment completion.
+    These can be safely removed to let users retry checkout.
+    """
+    if not user:
+        return False
+    if user.is_active or user.is_staff or user.is_superuser:
+        return False
+    return not TenantMembership.objects.filter(user=user).exists()
 
 
 def home(request):
@@ -166,6 +201,7 @@ def railway_cost_calculator_light(request):
     return render(request, 'calculator/railway_courseforge_cost_calculator_light.html')
 
 
+@never_cache
 def start_academy(request):
     """
     SaaS onboarding entrypoint:
@@ -190,7 +226,10 @@ def start_academy(request):
         selected_plan = (request.POST.get('selected_plan') or 'baseline').strip().lower()
         password = request.POST.get('password') or ''
         confirm_password = request.POST.get('confirm_password') or ''
-        template_ctx = {'platform_base_domain': get_platform_base_domain(), 'selected_plan': selected_plan}
+        # Always generate server-side idempotency for each POST attempt.
+        # Client-provided keys can be stale when pages are restored from cache.
+        idempotency_key = f"start-academy:{uuid.uuid4()}"
+        template_ctx = {'platform_base_domain': get_platform_base_domain(), 'selected_plan': selected_plan, 'idempotency_key': str(uuid.uuid4())}
 
         if not academy_name or not admin_username or not password:
             messages.error(request, 'Academy name, admin username, and password are required.')
@@ -217,6 +256,17 @@ def start_academy(request):
             tenant_slug = f"{base_slug}-{counter}"
             counter += 1
 
+        existing_username_user = User.objects.filter(username=admin_username).first()
+        existing_email_user = User.objects.filter(email=admin_email).first() if admin_email else None
+
+        # Retry-safe behavior: remove abandoned placeholder users from unpaid attempts.
+        users_to_cleanup = []
+        for candidate in [existing_username_user, existing_email_user]:
+            if candidate and candidate not in users_to_cleanup and _is_abandoned_signup_user(candidate):
+                users_to_cleanup.append(candidate)
+        for stale_user in users_to_cleanup:
+            stale_user.delete()
+
         if User.objects.filter(username=admin_username).exists():
             messages.error(request, 'That admin username already exists.')
             return render(request, 'platform/start_academy.html', template_ctx)
@@ -228,6 +278,14 @@ def start_academy(request):
         plan_amount_cents = _get_plan_amount_cents(plan_def)
         if not plan_amount_cents:
             messages.error(request, f'{plan_def["name"]} amount is not configured correctly.')
+            return render(request, 'platform/start_academy.html', template_ctx)
+        if _using_live_stripe_key() and plan_amount_cents <= 50 and not _env_truthy('ALLOW_LIVE_TEST_PRICING'):
+            messages.error(
+                request,
+                f'{plan_def["name"]} is set to a test-level amount in live mode. '
+                'Please update STRIPE_PLAN_AMOUNT_* values before checkout, '
+                'or set ALLOW_LIVE_TEST_PRICING=true temporarily.'
+            )
             return render(request, 'platform/start_academy.html', template_ctx)
 
         tenant = Tenant.objects.create(
@@ -259,35 +317,54 @@ def start_academy(request):
 
         success_url = f"{request.scheme}://{request.get_host()}/start-academy/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{request.scheme}://{request.get_host()}/start-academy/"
+        checkout_mode = _get_start_academy_checkout_mode()
+        price_data = {
+            'currency': 'usd',
+            'unit_amount': plan_amount_cents,
+            'product_data': {'name': f'CourseForge {plan_def["name"]} Plan'},
+        }
+        if checkout_mode == 'subscription':
+            price_data['recurring'] = {'interval': 'month'}
         try:
             session = stripe.checkout.Session.create(
-                mode='subscription',
+                mode=checkout_mode,
+                idempotency_key=idempotency_key,
+                payment_method_types=['card'],
+                # Keep the checkout session valid long enough for real users
+                # to complete payment without hitting premature expiry.
+                expires_at=int(time.time()) + (23 * 60 * 60),
                 line_items=[{
-                    'price_data': {
-                        'currency': 'usd',
-                        'unit_amount': plan_amount_cents,
-                        'recurring': {'interval': 'month'},
-                        'product_data': {'name': f'CourseForge {plan_def["name"]} Plan'},
-                    },
+                    'price_data': price_data,
                     'quantity': 1,
                 }],
                 success_url=success_url,
                 cancel_url=cancel_url,
+                after_expiration={
+                    'recovery': {
+                        'enabled': True,
+                    }
+                },
                 customer_email=admin_email or None,
                 metadata={
                     'tenant_id': str(tenant.id),
                     'admin_user_id': str(admin_user.id),
                     'plan_code': selected_plan,
+                    'signup_checkout_mode': checkout_mode,
                 }
             )
-            return redirect(session.url, permanent=False)
+            response = redirect(session.url, permanent=False)
+            # Prevent browser/proxy from caching the redirect to a specific Checkout Session URL.
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response['Pragma'] = 'no-cache'
+            response['Expires'] = '0'
+            return response
         except Exception as exc:
             tenant.delete()
             admin_user.delete()
             messages.error(request, f'Unable to create checkout session: {str(exc)}')
             return render(request, 'platform/start_academy.html', template_ctx)
 
-    return render(request, 'platform/start_academy.html', {'platform_base_domain': get_platform_base_domain(), 'selected_plan': 'baseline'})
+    return render(request, 'platform/start_academy.html', {'platform_base_domain': get_platform_base_domain(), 'selected_plan': 'baseline', 'idempotency_key': str(uuid.uuid4())})
 
 
 def _render_academy_created_from_tenant(request, tenant):
@@ -299,6 +376,8 @@ def _render_academy_created_from_tenant(request, tenant):
         tenant_register_url = f"{tenant_base_url}/register/"
         tenant_login_url = f"{tenant_base_url}/login/"
         tenant_courses_url = f"{tenant_base_url}/courses/"
+        tenant_dashboard_url = f"{tenant_base_url}/dashboard/"
+        tenant_domain_settings_url = f"{tenant_base_url}/dashboard/domains/"
     else:
         base = f"{request.scheme}://{request.get_host()}"
         tenant_qs = urlencode({'tenant': tenant.slug})
@@ -306,6 +385,8 @@ def _render_academy_created_from_tenant(request, tenant):
         tenant_register_url = f"{base}/register/?{tenant_qs}"
         tenant_login_url = f"{base}/login/?{tenant_qs}"
         tenant_courses_url = f"{base}/courses/?{tenant_qs}"
+        tenant_dashboard_url = f"{base}/dashboard/?{tenant_qs}"
+        tenant_domain_settings_url = f"{base}/dashboard/domains/?{tenant_qs}"
 
     return render(request, 'platform/academy_created.html', {
         'tenant': tenant,
@@ -314,11 +395,59 @@ def _render_academy_created_from_tenant(request, tenant):
         'tenant_register_url': tenant_register_url,
         'tenant_login_url': tenant_login_url,
         'tenant_courses_url': tenant_courses_url,
+        'tenant_dashboard_url': tenant_dashboard_url,
+        'tenant_domain_settings_url': tenant_domain_settings_url,
         'using_fallback_urls': using_fallback_urls,
         'platform_base_domain': get_platform_base_domain(),
     })
 
 
+def _activate_signup_from_checkout_session(session):
+    """
+    Activate tenant + admin user for a successful start-academy checkout.
+    Returns the activated tenant, or None when session is not eligible.
+    """
+    mode = session.get('mode')
+    payment_status = session.get('payment_status')
+    metadata = session.get('metadata') or {}
+    if metadata.get('flow') == 'bundle_checkout':
+        return None
+    if mode not in ('subscription', 'payment'):
+        return None
+    if payment_status not in ('paid', 'no_payment_required'):
+        return None
+
+    tenant_id = metadata.get('tenant_id')
+    tenant = Tenant.objects.filter(id=tenant_id).first() if tenant_id else None
+    if not tenant:
+        return None
+
+    admin_user = User.objects.filter(id=metadata.get('admin_user_id')).first()
+    subscription_id = session.get('subscription') or ''
+    customer_id = session.get('customer') or ''
+
+    tenant.billing_status = 'active'
+    tenant.is_active = True
+    tenant.stripe_customer_id = customer_id
+    tenant.stripe_subscription_id = subscription_id
+    tenant.save(update_fields=['billing_status', 'is_active', 'stripe_customer_id', 'stripe_subscription_id', 'updated_at'])
+    ensure_tenant_branding(tenant)
+    ensure_temporary_domain(tenant)
+
+    if admin_user:
+        admin_user.is_active = True
+        admin_user.is_staff = True
+        admin_user.save(update_fields=['is_active', 'is_staff'])
+        TenantMembership.objects.update_or_create(
+            tenant=tenant,
+            user=admin_user,
+            defaults={'role': 'tenant_admin', 'is_active': True}
+        )
+
+    return tenant
+
+
+@never_cache
 def start_academy_checkout_success(request):
     if not _stripe_client_configured():
         messages.error(request, 'Stripe is not configured.')
@@ -338,6 +467,12 @@ def start_academy_checkout_success(request):
     if not tenant:
         messages.error(request, 'Unable to find your academy signup.')
         return redirect('start_academy')
+
+    # Fallback activation for cases where webhook delivery is delayed.
+    if not tenant.is_active and tenant.billing_status != 'active':
+        activated_tenant = _activate_signup_from_checkout_session(session)
+        if activated_tenant:
+            tenant = activated_tenant
 
     if tenant.is_active and tenant.billing_status == 'active':
         admin_membership = TenantMembership.objects.filter(tenant=tenant, role='tenant_admin', is_active=True).select_related('user').first()
@@ -381,27 +516,8 @@ def stripe_webhook(request):
             tenant_id = metadata.get('tenant_id')
             tenant = Tenant.objects.filter(id=tenant_id).first() if tenant_id else None
 
-            if mode == 'subscription' and tenant and payment_flow != 'bundle_checkout':
-                admin_user = User.objects.filter(id=metadata.get('admin_user_id')).first()
-                subscription_id = session.get('subscription') or ''
-                customer_id = session.get('customer') or ''
-                tenant.billing_status = 'active'
-                tenant.is_active = True
-                tenant.stripe_customer_id = customer_id
-                tenant.stripe_subscription_id = subscription_id
-                tenant.save(update_fields=['billing_status', 'is_active', 'stripe_customer_id', 'stripe_subscription_id', 'updated_at'])
-                ensure_tenant_branding(tenant)
-                ensure_temporary_domain(tenant)
-
-                if admin_user:
-                    admin_user.is_active = True
-                    admin_user.is_staff = True
-                    admin_user.save(update_fields=['is_active', 'is_staff'])
-                    TenantMembership.objects.get_or_create(
-                        tenant=tenant,
-                        user=admin_user,
-                        defaults={'role': 'tenant_admin', 'is_active': True}
-                    )
+            if mode in ('subscription', 'payment') and tenant and payment_flow != 'bundle_checkout':
+                _activate_signup_from_checkout_session(session)
 
             if payment_flow == 'bundle_checkout':
                 user = User.objects.filter(id=metadata.get('user_id')).first()
@@ -418,6 +534,30 @@ def stripe_webhook(request):
                         )
                         from .utils.access import grant_bundle_access
                         grant_bundle_access(user, bundle_purchase)
+
+        elif event_type == 'checkout.session.expired':
+            session = event['data']['object']
+            metadata = session.get('metadata') or {}
+            payment_flow = metadata.get('flow')
+            if payment_flow != 'bundle_checkout':
+                tenant_id = metadata.get('tenant_id')
+                admin_user_id = metadata.get('admin_user_id')
+                tenant = Tenant.objects.filter(
+                    id=tenant_id,
+                    billing_status='pending',
+                    is_active=False,
+                ).first() if tenant_id else None
+                admin_user = User.objects.filter(
+                    id=admin_user_id,
+                    is_active=False,
+                    is_staff=False,
+                ).first() if admin_user_id else None
+
+                # Clean up abandoned pending signups so retries can reuse the same username/email.
+                if tenant and not tenant.stripe_customer_id and not tenant.stripe_subscription_id:
+                    tenant.delete()
+                if admin_user and not TenantMembership.objects.filter(user=admin_user).exists():
+                    admin_user.delete()
 
         elif event_type in ('customer.subscription.deleted', 'invoice.payment_failed'):
             obj = event['data']['object']
