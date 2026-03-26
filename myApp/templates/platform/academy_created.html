@@ -3,59 +3,571 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Academy Created</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Academy Created — You did it.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400&family=Plus+Jakarta+Sans:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #03040d;
+            --cyan: #00e5ff;
+            --pink: #ff2d78;
+            --gold: #ffd166;
+            --green: #00f5a0;
+            --white: #f0f4ff;
+            --muted: rgba(240,244,255,0.45);
+            --glass: rgba(255,255,255,0.04);
+            --border: rgba(255,255,255,0.08);
+        }
+
+        html, body {
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--white);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* ── CANVAS ── */
+        #canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* ── GRID OVERLAY ── */
+        .grid-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(0,229,255,0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,255,0.035) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 40%, transparent 100%);
+        }
+
+        /* ── ORBS ── */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            animation: drift 18s ease-in-out infinite alternate;
+        }
+        .orb-1 { width: 600px; height: 600px; top: -200px; left: -150px; background: radial-gradient(circle, rgba(0,229,255,0.18), transparent 70%); animation-delay: 0s; }
+        .orb-2 { width: 500px; height: 500px; bottom: -100px; right: -100px; background: radial-gradient(circle, rgba(255,45,120,0.15), transparent 70%); animation-delay: -6s; }
+        .orb-3 { width: 350px; height: 350px; top: 40%; left: 55%; background: radial-gradient(circle, rgba(255,209,102,0.1), transparent 70%); animation-delay: -12s; }
+
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(40px, -40px) scale(1.08); }
+        }
+
+        /* ── BURST RING ── */
+        .burst {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+        .ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid var(--cyan);
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+        }
+        .ring:nth-child(1) { width: 300px; height: 300px; animation: expand 3s ease-out 0.2s forwards; }
+        .ring:nth-child(2) { width: 500px; height: 500px; border-color: var(--pink); animation: expand 3s ease-out 0.5s forwards; }
+        .ring:nth-child(3) { width: 700px; height: 700px; border-color: var(--gold); opacity: 0; animation: expand 3s ease-out 0.9s forwards; }
+        .ring:nth-child(4) { width: 1000px; height: 1000px; border-color: rgba(0,229,255,0.2); animation: expand 3.5s ease-out 1.1s forwards; }
+
+        @keyframes expand {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+        /* ── LAYOUT ── */
+        .page {
+            position: relative;
+            z-index: 10;
+            max-width: 740px;
+            margin: 0 auto;
+            padding: 60px 24px 80px;
+        }
+
+        /* ── STAMP ── */
+        .stamp-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 32px;
+            opacity: 0;
+            animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s forwards;
+        }
+        .stamp {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(0,245,160,0.15), rgba(0,229,255,0.1));
+            border: 1px solid rgba(0,245,160,0.4);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--green);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .stamp .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ── HEADLINE ── */
+        .headline-wrap {
+            text-align: center;
+            margin-bottom: 48px;
+            opacity: 0;
+            animation: riseUp 0.8s ease-out 0.6s forwards;
+        }
+        .headline-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+        h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(64px, 12vw, 110px);
+            line-height: 0.9;
+            letter-spacing: 0.02em;
+            background: linear-gradient(135deg, var(--white) 0%, var(--cyan) 40%, var(--pink) 80%, var(--gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+        .sub {
+            font-size: 17px;
+            font-weight: 300;
+            color: var(--muted);
+            max-width: 500px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        .sub strong {
+            color: var(--white);
+            font-weight: 600;
+        }
+
+        /* ── CARDS ── */
+        .section-card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px;
+            backdrop-filter: blur(12px);
+            margin-bottom: 16px;
+            opacity: 0;
+            animation: riseUp 0.7s ease-out forwards;
+        }
+        .section-card:nth-of-type(1) { animation-delay: 0.9s; }
+        .section-card:nth-of-type(2) { animation-delay: 1.1s; }
+
+        .card-title {
+            font-size: 11px;
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        /* ── URL ROWS ── */
+        .url-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            margin-bottom: 10px;
+            transition: border-color 0.2s, background 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .url-row::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            border-radius: 3px 0 0 3px;
+            opacity: 0.7;
+        }
+        .url-row.portal::before { background: var(--cyan); }
+        .url-row.register::before { background: var(--green); }
+        .url-row.login::before { background: var(--pink); }
+        .url-row.courses::before { background: var(--gold); }
+
+        .url-row:hover {
+            border-color: rgba(255,255,255,0.15);
+            background: rgba(0,0,0,0.45);
+        }
+        .url-left { flex: 1; min-width: 0; }
+        .url-label {
+            font-size: 10px;
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 3px;
+        }
+        .url-value {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            color: var(--cyan);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .url-row.register .url-value { color: var(--green); }
+        .url-row.login .url-value { color: #ff6fa8; }
+        .url-row.courses .url-value { color: var(--gold); }
+
+        .copy-btn {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 11px;
+            font-family: 'DM Mono', monospace;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.05em;
+        }
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.12);
+            color: var(--white);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .copy-btn.copied {
+            background: rgba(0,245,160,0.15);
+            border-color: rgba(0,245,160,0.4);
+            color: var(--green);
+        }
+
+        /* ── FALLBACK BANNER ── */
+        .fallback-banner {
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: rgba(255,209,102,0.08);
+            border: 1px solid rgba(255,209,102,0.25);
+            color: rgba(255,209,102,0.85);
+            font-size: 12.5px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .fallback-banner strong { color: var(--gold); }
+
+        /* ── ACTIONS ── */
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 13px 24px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--cyan), #0099bb);
+            color: #000;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.2s;
+            box-shadow: 0 0 24px rgba(0,229,255,0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 32px rgba(0,229,255,0.5);
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 13px 24px;
+            border-radius: 12px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-weight: 500;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.08);
+            color: var(--white);
+            border-color: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        /* ── KEYFRAMES ── */
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.6); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes riseUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── CONFETTI PARTICLES ── */
+        .particle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 5;
+            border-radius: 2px;
+            animation: fall linear forwards;
+        }
+        @keyframes fall {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* ── TICKER ── */
+        .ticker-wrap {
+            overflow: hidden;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 0;
+            margin: 32px 0;
+            opacity: 0;
+            animation: riseUp 0.6s ease-out 1.4s forwards;
+        }
+        .ticker {
+            display: flex;
+            gap: 0;
+            width: max-content;
+            animation: scroll 30s linear infinite;
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .ticker span { padding: 0 32px; }
+        .ticker span.hi { color: var(--cyan); }
+
+        @keyframes scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+        }
+
+    </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-black text-white">
-    <main class="max-w-3xl mx-auto px-6 py-14">
-        <div class="rounded-2xl border border-green-400/30 bg-green-500/10 p-4 mb-6">
-            <div class="font-semibold text-green-300">Academy created successfully</div>
-            <p class="text-sm text-green-200 mt-1">{{ tenant.name }} is now live and ready to onboard students.</p>
+<body>
+
+<canvas id="canvas"></canvas>
+<div class="grid-bg"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="burst">
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="ring"></div>
+</div>
+
+<main class="page">
+
+    <div class="stamp-wrap">
+        <div class="stamp">
+            <div class="dot"></div>
+            Academy Live
+        </div>
+    </div>
+
+    <div class="headline-wrap">
+        <div class="headline-label">CourseForge — Tenant Created</div>
+        <h1>You're live.</h1>
+        <p class="sub">
+            <strong>{{ tenant.name }}</strong> is live and ready to change lives.
+            Your academy is built. Your students are waiting.
+        </p>
+    </div>
+
+    <!-- TICKER -->
+    <div class="ticker-wrap">
+        <div class="ticker">
+            <span class="hi">✦ academy live</span><span>share your portal</span><span class="hi">✦ onboard students</span><span>build your empire</span><span class="hi">✦ you shipped it</span><span>custom domain ready</span><span class="hi">✦ academy live</span><span>share your portal</span><span class="hi">✦ onboard students</span><span>build your empire</span><span class="hi">✦ you shipped it</span><span>custom domain ready</span>
+        </div>
+    </div>
+
+    <!-- FALLBACK NOTICE (conditional — keep or remove via Django) -->
+    {% if using_fallback_urls %}
+    <div class="fallback-banner">
+        ⚠ Temporary production domain is not configured yet. These are local preview URLs with tenant mapping.
+        {% if platform_base_domain %}
+        Once DNS is active, your tenant will live at <strong>{{ tenant.slug }}.{{ platform_base_domain }}</strong>.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- URLS CARD -->
+    <div class="section-card">
+        <div class="card-title">Your Academy URLs</div>
+
+        <div class="url-row portal">
+            <div class="url-left">
+                <div class="url-label">Portal URL</div>
+                <div class="url-value">{{ tenant_base_url }}</div>
+            </div>
+            <button class="copy-btn" onclick="copyUrl(this, '{{ tenant_base_url }}')">Copy</button>
         </div>
 
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <h1 class="text-3xl font-black">Your academy URLs</h1>
-            <p class="text-gray-300 mt-2">
-                Share these links with your team and students.
-            </p>
-            {% if using_fallback_urls %}
-            <div class="mt-4 rounded-lg border border-yellow-400/30 bg-yellow-500/10 px-3 py-2 text-yellow-200 text-sm">
-                Temporary production domain is not configured yet. These are local preview URLs with tenant mapping.
-                {% if platform_base_domain %}
-                Once DNS is active, your tenant will use <span class="font-semibold">{{ tenant.slug }}.{{ platform_base_domain }}</span>.
-                {% endif %}
+        <div class="url-row register">
+            <div class="url-left">
+                <div class="url-label">Student Registration</div>
+                <div class="url-value">{{ tenant_register_url }}</div>
             </div>
-            {% endif %}
-
-            <div class="mt-6 space-y-3">
-                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
-                    <div class="text-xs text-gray-400 uppercase tracking-wider">Portal URL</div>
-                    <div class="text-cyan-300 break-all">{{ tenant_base_url }}</div>
-                </div>
-                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
-                    <div class="text-xs text-gray-400 uppercase tracking-wider">Student Registration URL</div>
-                    <div class="text-cyan-300 break-all">{{ tenant_register_url }}</div>
-                </div>
-                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
-                    <div class="text-xs text-gray-400 uppercase tracking-wider">Login URL</div>
-                    <div class="text-cyan-300 break-all">{{ tenant_login_url }}</div>
-                </div>
-                <div class="rounded-lg bg-[#0a0e27] border border-white/10 p-3">
-                    <div class="text-xs text-gray-400 uppercase tracking-wider">Courses URL</div>
-                    <div class="text-cyan-300 break-all">{{ tenant_courses_url }}</div>
-                </div>
-            </div>
-
-            <div class="mt-8 flex flex-wrap gap-3">
-                <a href="{{ tenant_dashboard_url }}" class="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-300/40 text-cyan-200 hover:bg-cyan-500/30 transition">
-                    Go to Admin Dashboard
-                </a>
-                <a href="{{ tenant_domain_settings_url }}" class="px-4 py-2 rounded-lg border border-white/30 hover:bg-white/10 transition">
-                    Connect Custom Domain
-                </a>
-            </div>
+            <button class="copy-btn" onclick="copyUrl(this, '{{ tenant_register_url }}')">Copy</button>
         </div>
-    </main>
+
+        <div class="url-row login">
+            <div class="url-left">
+                <div class="url-label">Login URL</div>
+                <div class="url-value">{{ tenant_login_url }}</div>
+            </div>
+            <button class="copy-btn" onclick="copyUrl(this, '{{ tenant_login_url }}')">Copy</button>
+        </div>
+
+        <div class="url-row courses">
+            <div class="url-left">
+                <div class="url-label">Courses Page</div>
+                <div class="url-value">{{ tenant_courses_url }}</div>
+            </div>
+            <button class="copy-btn" onclick="copyUrl(this, '{{ tenant_courses_url }}')">Copy</button>
+        </div>
+    </div>
+
+    <!-- ACTIONS CARD -->
+    <div class="section-card">
+        <div class="card-title">Next Steps</div>
+        <div class="actions">
+            <a href="{{ tenant_dashboard_url }}" class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Go to Admin Dashboard
+            </a>
+            <a href="{{ tenant_domain_settings_url }}" class="btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Connect Custom Domain
+            </a>
+        </div>
+    </div>
+
+</main>
+
+<script>
+    /* ── COPY BUTTONS ── */
+    function copyUrl(btn, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.classList.remove('copied');
+            }, 2000);
+        });
+    }
+
+    /* ── PARTICLE CONFETTI ── */
+    const colors = ['#00e5ff','#ff2d78','#ffd166','#00f5a0','#a78bfa','#ffffff'];
+    function burst() {
+        for (let i = 0; i < 60; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            const size = Math.random() * 8 + 4;
+            p.style.cssText = `
+                width:${size}px; height:${size * (Math.random() > 0.5 ? 1 : 2.5)}px;
+                left:${Math.random() * 100}vw;
+                top: -10px;
+                background:${colors[Math.floor(Math.random() * colors.length)]};
+                opacity:${Math.random() * 0.8 + 0.2};
+                animation-duration:${Math.random() * 2 + 2}s;
+                animation-delay:${Math.random() * 1.5}s;
+                border-radius:${Math.random() > 0.5 ? '50%' : '2px'};
+            `;
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 5000);
+        }
+    }
+    setTimeout(burst, 400);
+    setTimeout(burst, 1200);
+
+    /* ── STAR CANVAS ── */
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    for (let i = 0; i < 120; i++) {
+        stars.push({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight,
+            r: Math.random() * 1.2 + 0.2,
+            speed: Math.random() * 0.3 + 0.05,
+            opacity: Math.random() * 0.6 + 0.1,
+            pulse: Math.random() * Math.PI * 2
+        });
+    }
+
+    function drawStars(t) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        stars.forEach(s => {
+            s.pulse += 0.02;
+            const op = s.opacity * (0.5 + 0.5 * Math.sin(s.pulse));
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(200,230,255,${op})`;
+            ctx.fill();
+            s.y -= s.speed;
+            if (s.y < -2) { s.y = canvas.height + 2; s.x = Math.random() * canvas.width; }
+        });
+        requestAnimationFrame(drawStars);
+    }
+    requestAnimationFrame(drawStars);
+</script>
+
 </body>
 </html>
-

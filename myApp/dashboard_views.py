@@ -1511,6 +1511,20 @@ def api_ai_generation_status(request, course_id):
     """JSON endpoint for polling AI course generation progress"""
     data = cache.get(_get_ai_gen_cache_key(course_id))
     if data is None:
+        # In multi-worker deployments using local-memory cache, one worker might not
+        # see in-memory progress from another worker. If the course is still tracked
+        # in session, keep the widget alive and keep polling.
+        courses_list = request.session.get('ai_generating_courses', [])
+        in_session = any(
+            isinstance(item, dict) and int(item.get('id') or 0) == int(course_id)
+            for item in (courses_list or [])
+        )
+        if in_session:
+            return JsonResponse({
+                'status': 'starting',
+                'progress': 3,
+                'current': 'Queued... waiting for worker status',
+            })
         _remove_course_from_session(request, course_id)
         return JsonResponse({'status': 'unknown', 'progress': 0})
     if data.get('status') in ('completed', 'failed'):

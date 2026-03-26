@@ -324,6 +324,7 @@
             const errorEl = widget.querySelector('.ai-widget-error');
             const dismissBtn = widget.querySelector('.ai-widget-dismiss');
             const statusUrl = baseUrl + courseId + '/';
+            let unknownCount = 0;
 
             function hideWidget() {
                 widget.style.display = 'none';
@@ -334,9 +335,16 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.status === 'unknown') {
-                            hideWidget();
+                            unknownCount += 1;
+                            if (unknownCount >= 8) {
+                                hideWidget();
+                                return;
+                            }
+                            statusEl.textContent = 'Syncing generation status...';
+                            setTimeout(poll, 2500);
                             return;
                         }
+                        unknownCount = 0;
                         progressEl.style.width = (data.progress || 0) + '%';
                         statusEl.textContent = data.current || 'Processing...';
                         if (data.error) {
