@@ -108,6 +108,14 @@
             box-shadow: 0 0 10px rgba(29,108,255,0.8);
         }
 
+        .wordmark-logo {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(255,255,255,0.16);
+        }
+
         .brand-heading {
             font-size: clamp(2.6rem, 4.2vw, 4.2rem);
             font-weight: 700;
@@ -561,7 +569,11 @@
         <aside class="brand-panel">
             <div class="brand-top">
                 <div class="wordmark">
+                    {% if tenant_branding.logo_url %}
+                    <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="wordmark-logo">
+                    {% else %}
                     <span class="wordmark-dot"></span>
+                    {% endif %}
                     {% if tenant %}{{ tenant_branding.brand_name|default:tenant.name }}{% else %}CourseForge{% endif %}
                 </div>
 

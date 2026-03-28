@@ -44,7 +44,7 @@ from django.db.models import Avg, Count, Q
 from django.db import models
 from django.db import transaction
 from django.utils import timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qs, unquote
 from .utils.transcription import transcribe_video
 from .utils.access import has_course_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
@@ -106,6 +106,134 @@ def _is_abandoned_signup_user(user):
     return not TenantMembership.objects.filter(user=user).exists()
 
 
+def _get_tenant_custom_pages(tenant):
+    if tenant is None:
+        return {}
+    try:
+        tenant_config = tenant.config
+    except TenantConfig.DoesNotExist:
+        return {}
+    if tenant_config and isinstance(tenant_config.features, dict):
+        return tenant_config.features.get('custom_pages') or {}
+    return {}
+
+
+def _render_tenant_custom_html(request, tenant, custom_html):
+    custom_html = (custom_html or '').strip()
+    if not custom_html:
+        return None
+    branding = get_tenant_branding(tenant) if tenant else {}
+    tenant_logo_url = (branding.get('logo_url') or '').strip()
+    tenant_brand_name = (branding.get('brand_name') or getattr(tenant, 'name', '') or 'Your Brand').strip()
+    if not tenant_logo_url:
+        tenant_logo_url = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Crect width='160' height='160' rx='24' fill='%230a0f25'/%3E%3Crect x='18' y='18' width='124' height='124' rx='20' fill='%23101735' stroke='%2322d3ee' stroke-opacity='0.35'/%3E%3Ctext x='80' y='92' text-anchor='middle' font-family='Arial,sans-serif' font-size='30' font-weight='700' fill='%2322d3ee'%3ELOGO%3C/text%3E%3C/svg%3E"
+    custom_html = custom_html.replace('__TENANT_LOGO_URL__', tenant_logo_url)
+    custom_html = custom_html.replace('__TENANT_BRAND_NAME__', tenant_brand_name)
+
+    def _normalize_img_src(match):
+        src = (match.group(2) or '').strip()
+        if '/_next/image?' not in src:
+            return match.group(0)
+        try:
+            parsed = urlparse(src)
+            query = parse_qs(parsed.query or '')
+            raw_target = (query.get('url') or [''])[0]
+            if not raw_target:
+                return match.group(0)
+            decoded_target = unquote(raw_target)
+            if decoded_target.startswith('/'):
+                normalized = f"{parsed.scheme}://{parsed.netloc}{decoded_target}"
+            else:
+                normalized = decoded_target
+            return f"{match.group(1)}{normalized}{match.group(3)}"
+        except Exception:
+            return match.group(0)
+
+    # Make pasted Next.js optimized image URLs portable across domains.
+    custom_html = re.sub(r'(<img\b[^>]*\bsrc=["\'])([^"\']+)(["\'])', _normalize_img_src, custom_html, flags=re.IGNORECASE)
+    logo_fallback_js = tenant_logo_url.replace('\\', '\\\\').replace("'", "\\'")
+
+    fallback_style = (
+        '<style id="tenant-custom-fallback">'
+        '.reveal{opacity:1 !important;transform:none !important;}'
+        '#cur,#cur-ring{display:none !important;}'
+        'body{cursor:auto !important;}'
+        '</style>'
+    )
+    fallback_script = (
+        '<script>'
+        "document.addEventListener('DOMContentLoaded',function(){"
+        "document.querySelectorAll('.reveal').forEach(function(el){"
+        "el.classList.add('in');el.classList.add('visible');"
+        "});"
+        "function getCookie(name){"
+        "var v=document.cookie?document.cookie.split('; '):[];"
+        "for(var i=0;i<v.length;i++){var p=v[i].split('=');if(p[0]===name){return decodeURIComponent(p.slice(1).join('='));}}"
+        "return '';"
+        "}"
+        "var csrftoken=getCookie('csrftoken');"
+        "document.querySelectorAll('form').forEach(function(f){"
+        "var m=(f.getAttribute('method')||'get').toLowerCase();"
+        "if(m==='post'&&csrftoken&&!f.querySelector('input[name=\"csrfmiddlewaretoken\"]')){"
+        "var i=document.createElement('input');i.type='hidden';i.name='csrfmiddlewaretoken';i.value=csrftoken;f.appendChild(i);"
+        "}"
+        "if(!(f.getAttribute('action')||'').trim()){f.setAttribute('action',window.location.pathname);}"
+        "});"
+        f"var logoFallback='{logo_fallback_js}';"
+        "document.querySelectorAll('img').forEach(function(img){"
+        "img.addEventListener('error',function(){"
+        "if(this.dataset.logoFallbackApplied==='1'){return;}"
+        "this.dataset.logoFallbackApplied='1';"
+        "if(logoFallback){this.src=logoFallback;}"
+        "});"
+        "});"
+        "var routeMap={signup:'/register/',register:'/register/',login:'/login/',signin:'/login/',dashboard:'/courses/',courses:'/courses/'};"
+        "function resolveTarget(el){"
+        "var explicit=(el.getAttribute('data-link')||'').trim();"
+        "if(explicit){return explicit;}"
+        "var action=((el.getAttribute('data-action')||'').toLowerCase().replace(/\\s+/g,''));"
+        "if(action&&routeMap[action]){return routeMap[action];}"
+        "var txt=((el.textContent||'').toLowerCase());"
+        "if(txt.includes('enroll')||txt.includes('join now')||txt.includes('create account')||txt.includes('sign up')){return '/register/';}"
+        "if(txt.includes('login')||txt.includes('log in')||txt.includes('sign in')){return '/login/';}"
+        "if(txt.includes('dashboard')||txt.includes('courses')||txt.includes('curriculum')){return '/courses/';}"
+        "return '';"
+        "}"
+        "document.querySelectorAll('button,a').forEach(function(el){"
+        "var tag=(el.tagName||'').toLowerCase();"
+        "var href=(el.getAttribute('href')||'').trim();"
+        "var isCta=(tag==='button')||(tag==='a'&&(href===''||href==='#'||href.toLowerCase().startsWith('javascript:')));"
+        "if(!isCta){return;}"
+        "var target=resolveTarget(el);"
+        "if(!target){return;}"
+        "el.addEventListener('click',function(ev){ev.preventDefault();window.location.href=target;});"
+        "});"
+        "});"
+        '</script>'
+    )
+
+    lower_html = custom_html.lower()
+    if '</head>' in lower_html:
+        idx = lower_html.rfind('</head>')
+        custom_html = custom_html[:idx] + fallback_style + custom_html[idx:]
+    else:
+        custom_html = fallback_style + custom_html
+
+    lower_html = custom_html.lower()
+    if '</body>' in lower_html:
+        idx = lower_html.rfind('</body>')
+        custom_html = custom_html[:idx] + fallback_script + custom_html[idx:]
+    else:
+        custom_html = custom_html + fallback_script
+
+    if '<html' in custom_html.lower():
+        return HttpResponse(custom_html)
+    return render(request, 'tenant/custom_landing_fragment.html', {
+        'tenant': tenant,
+        'custom_landing_html': custom_html,
+    })
+
+
 def home(request):
     """
     Platform host shows creator-acquisition landing.
@@ -119,76 +247,11 @@ def home(request):
             'platform_base_domain': get_platform_base_domain(),
         })
 
-    custom_pages = {}
-    try:
-        tenant_config = tenant.config
-    except TenantConfig.DoesNotExist:
-        tenant_config = None
-    if tenant_config and isinstance(tenant_config.features, dict):
-        custom_pages = tenant_config.features.get('custom_pages') or {}
+    custom_pages = _get_tenant_custom_pages(tenant)
     if custom_pages.get('landing_mode') == 'custom' and custom_pages.get('landing_html'):
-        custom_html = (custom_pages.get('landing_html') or '').strip()
-
-        # Safety sanitizer strips scripts; many custom templates rely on JS-driven reveal effects.
-        # Provide a fallback so hidden sections still render.
-        fallback_style = (
-            '<style id="tenant-custom-fallback">'
-            '.reveal{opacity:1 !important;transform:none !important;}'
-            '#cur,#cur-ring{display:none !important;}'
-            'body{cursor:auto !important;}'
-            '</style>'
-        )
-        fallback_script = (
-            '<script>'
-            "document.addEventListener('DOMContentLoaded',function(){"
-            "document.querySelectorAll('.reveal').forEach(function(el){"
-            "el.classList.add('in');el.classList.add('visible');"
-            "});"
-            "var routeMap={signup:'/register/',register:'/register/',login:'/login/',signin:'/login/',dashboard:'/courses/',courses:'/courses/'};"
-            "function resolveTarget(el){"
-            "var explicit=(el.getAttribute('data-link')||'').trim();"
-            "if(explicit){return explicit;}"
-            "var action=((el.getAttribute('data-action')||'').toLowerCase().replace(/\\s+/g,''));"
-            "if(action && routeMap[action]){return routeMap[action];}"
-            "var txt=((el.textContent||'').toLowerCase());"
-            "if(txt.includes('enroll')||txt.includes('join now')||txt.includes('create account')||txt.includes('sign up')){return '/register/';}"
-            "if(txt.includes('login')||txt.includes('log in')||txt.includes('sign in')){return '/login/';}"
-            "if(txt.includes('dashboard')||txt.includes('courses')||txt.includes('curriculum')){return '/courses/';}"
-            "return '';"
-            "}"
-            "document.querySelectorAll('button,a').forEach(function(el){"
-            "var tag=(el.tagName||'').toLowerCase();"
-            "var href=(el.getAttribute('href')||'').trim();"
-            "var isCta=(tag==='button')||(tag==='a'&&(href===''||href==='#'||href.toLowerCase().startsWith('javascript:')));"
-            "if(!isCta){return;}"
-            "var target=resolveTarget(el);"
-            "if(!target){return;}"
-            "el.addEventListener('click',function(ev){ev.preventDefault();window.location.href=target;});"
-            "});"
-            "});"
-            '</script>'
-        )
-
-        lower_html = custom_html.lower()
-        if '</head>' in lower_html:
-            idx = lower_html.rfind('</head>')
-            custom_html = custom_html[:idx] + fallback_style + custom_html[idx:]
-        else:
-            custom_html = fallback_style + custom_html
-
-        lower_html = custom_html.lower()
-        if '</body>' in lower_html:
-            idx = lower_html.rfind('</body>')
-            custom_html = custom_html[:idx] + fallback_script + custom_html[idx:]
-        else:
-            custom_html = custom_html + fallback_script
-
-        if '<html' in custom_html.lower():
-            return HttpResponse(custom_html)
-        return render(request, 'tenant/custom_landing_fragment.html', {
-            'tenant': tenant,
-            'custom_landing_html': custom_html,
-        })
+        rendered = _render_tenant_custom_html(request, tenant, custom_pages.get('landing_html'))
+        if rendered is not None:
+            return rendered
 
     return render(request, 'landing.html', {
         'tenant': tenant,
@@ -640,6 +703,14 @@ def login_view(request):
     
     tenant = getattr(request, 'tenant', None)
     tenant_branding = get_tenant_branding(tenant)
+    custom_pages = _get_tenant_custom_pages(tenant)
+
+    def _render_login_page():
+        if custom_pages.get('login_mode') == 'custom' and custom_pages.get('login_html'):
+            rendered = _render_tenant_custom_html(request, tenant, custom_pages.get('login_html'))
+            if rendered is not None:
+                return rendered
+        return render(request, 'login.html', {'tenant_branding': tenant_branding})
 
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -655,7 +726,7 @@ def login_view(request):
                 ).first()
                 if not membership:
                     messages.error(request, 'This account does not have access to this tenant portal.')
-                    return render(request, 'login.html', {'tenant_branding': tenant_branding})
+                    return _render_login_page()
             login(request, user)
             default_next = _default_redirect_for_user(user)
             next_url = request.POST.get('next') or request.GET.get('next', default_next)
@@ -663,7 +734,7 @@ def login_view(request):
         else:
             messages.error(request, 'Invalid username or password.')
     
-    return render(request, 'login.html', {'tenant_branding': tenant_branding})
+    return _render_login_page()
 
 
 def register_view(request):
@@ -682,6 +753,15 @@ def register_view(request):
         messages.error(request, 'This tenant portal is currently inactive.')
         return redirect('login')
 
+    custom_pages = _get_tenant_custom_pages(tenant)
+
+    def _render_register_page():
+        if custom_pages.get('signup_mode') == 'custom' and custom_pages.get('signup_html'):
+            rendered = _render_tenant_custom_html(request, tenant, custom_pages.get('signup_html'))
+            if rendered is not None:
+                return rendered
+        return render(request, 'register.html')
+
     if request.method == 'POST':
         username = (request.POST.get('username') or '').strip()
         email = (request.POST.get('email') or '').strip().lower()
@@ -690,16 +770,16 @@ def register_view(request):
 
         if not username or not password:
             messages.error(request, 'Username and password are required.')
-            return render(request, 'register.html')
+            return _render_register_page()
         if password != confirm_password:
             messages.error(request, 'Passwords do not match.')
-            return render(request, 'register.html')
+            return _render_register_page()
         if User.objects.filter(username=username).exists():
             messages.error(request, 'That username is already in use.')
-            return render(request, 'register.html')
+            return _render_register_page()
         if email and User.objects.filter(email=email).exists():
             messages.error(request, 'That email is already in use.')
-            return render(request, 'register.html')
+            return _render_register_page()
 
         user = User.objects.create_user(
             username=username,
@@ -716,7 +796,7 @@ def register_view(request):
         messages.success(request, f'Welcome to {tenant.name}. Your account has been created.')
         return redirect('courses')
 
-    return render(request, 'register.html')
+    return _render_register_page()
 
 
 def logout_view(request):

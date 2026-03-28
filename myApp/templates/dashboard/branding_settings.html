@@ -66,6 +66,21 @@
                     <label class="block text-sm text-gray-300 mb-1">Or paste landing HTML</label>
                     <textarea name="landing_html" rows="10" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ landing_html }}</textarea>
                 </div>
+                <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-xs text-gray-300">
+                            Need a working starter? Use the sample template below.
+                            Scripts are sanitized for safety, so use normal links (for example <span class="text-cyan-300">/register/</span>, <span class="text-cyan-300">/login/</span>, <span class="text-cyan-300">/courses/</span>) instead of JS buttons.
+                        </p>
+                        <button id="use-landing-sample" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">
+                            Use Sample HTML
+                        </button>
+                    </div>
+                    <details class="mt-3">
+                        <summary class="cursor-pointer text-xs text-cyan-300">Preview sample HTML</summary>
+                        <textarea readonly rows="10" class="mt-2 w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-[11px]">{{ landing_html_sample }}</textarea>
+                    </details>
+                </div>
                 <label class="inline-flex items-center gap-2 text-sm text-gray-300">
                     <input type="checkbox" name="clear_landing_html" value="1" class="rounded">
                     Clear stored custom HTML
@@ -77,6 +92,13 @@
             <h2 class="font-semibold text-lg mb-4">Sign Up Page</h2>
             <div class="space-y-3">
                 <div>
+                    <label class="block text-sm text-gray-300 mb-1">Sign Up Mode</label>
+                    <select name="signup_mode" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="default" {% if signup_mode != 'custom' %}selected{% endif %}>Use platform template</option>
+                        <option value="custom" {% if signup_mode == 'custom' %}selected{% endif %}>Use custom HTML</option>
+                    </select>
+                </div>
+                <div>
                     <label class="block text-sm text-gray-300 mb-1">Register Title</label>
                     <input name="register_title" value="{{ branding.register_title }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
                 </div>
@@ -84,12 +106,37 @@
                     <label class="block text-sm text-gray-300 mb-1">Register Subtitle</label>
                     <textarea name="register_subtitle" rows="2" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.register_subtitle }}</textarea>
                 </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Custom Sign Up HTML (optional)</label>
+                    <textarea name="signup_html" rows="8" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ signup_html }}</textarea>
+                </div>
+                <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-xs text-gray-300">Use a safe starter with working links/forms.</p>
+                        <button id="use-signup-sample" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">Use Sign Up Sample</button>
+                    </div>
+                    <details class="mt-3">
+                        <summary class="cursor-pointer text-xs text-cyan-300">Preview sign-up sample HTML</summary>
+                        <textarea readonly rows="9" class="mt-2 w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-[11px]">{{ signup_html_sample }}</textarea>
+                    </details>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="clear_signup_html" value="1" class="rounded">
+                    Clear stored sign-up custom HTML
+                </label>
             </div>
         </div>
 
         <div id="tab-login" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
             <h2 class="font-semibold text-lg mb-4">Login Page</h2>
             <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Login Mode</label>
+                    <select name="login_mode" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="default" {% if login_mode != 'custom' %}selected{% endif %}>Use platform template</option>
+                        <option value="custom" {% if login_mode == 'custom' %}selected{% endif %}>Use custom HTML</option>
+                    </select>
+                </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">Login Welcome Text</label>
                     <input name="login_welcome" value="{{ branding.login_welcome }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
@@ -98,20 +145,44 @@
                     <label class="block text-sm text-gray-300 mb-1">Login Tagline</label>
                     <textarea name="login_form_tagline" rows="2" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.login_form_tagline }}</textarea>
                 </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Custom Login HTML (optional)</label>
+                    <textarea name="login_html" rows="8" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ login_html }}</textarea>
+                </div>
+                <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-xs text-gray-300">Use a safe starter with working links/forms.</p>
+                        <button id="use-login-sample" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">Use Login Sample</button>
+                    </div>
+                    <details class="mt-3">
+                        <summary class="cursor-pointer text-xs text-cyan-300">Preview login sample HTML</summary>
+                        <textarea readonly rows="9" class="mt-2 w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-[11px]">{{ login_html_sample }}</textarea>
+                    </details>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="clear_login_html" value="1" class="rounded">
+                    Clear stored login custom HTML
+                </label>
             </div>
         </div>
 
         <div id="tab-logo" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
             <h2 class="font-semibold text-lg mb-4">Logo</h2>
             <div class="space-y-4">
-                {% if tenant.logo %}
+                {% if branding.logo_url or tenant.logo %}
                 <div class="rounded-lg border border-white/10 bg-[#0a0e27] p-3 inline-block">
-                    <img src="{{ tenant.logo.url }}" alt="{{ branding.brand_name }} logo" class="h-14 w-auto">
+                    <img src="{% if branding.logo_url %}{{ branding.logo_url }}{% else %}{{ tenant.logo.url }}{% endif %}" alt="{{ branding.brand_name }} logo" class="h-14 w-auto">
                 </div>
                 {% endif %}
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">Upload Logo</label>
                     <input type="file" name="logo_file" accept="image/*" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="mt-2 text-xs text-gray-400">Upload flow: image -> WebP conversion -> Cloudinary upload -> save URL in tenant branding.</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Or paste logo URL</label>
+                    <input type="url" name="logo_url" value="{{ branding.logo_url|default:'' }}" placeholder="https://cdn.yourdomain.com/logo.webp" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="mt-2 text-xs text-gray-400">If both URL and file are provided, URL will be used.</p>
                 </div>
                 <label class="inline-flex items-center gap-2 text-sm text-gray-300">
                     <input type="checkbox" name="remove_logo" value="1" class="rounded">
@@ -205,6 +276,15 @@
 document.addEventListener('DOMContentLoaded', function () {
     const buttons = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.tab-pane');
+    const useSampleBtn = document.getElementById('use-landing-sample');
+    const landingTextarea = document.querySelector('textarea[name="landing_html"]');
+    const landingModeSelect = document.querySelector('select[name="landing_mode"]');
+    const useSignupSampleBtn = document.getElementById('use-signup-sample');
+    const signupTextarea = document.querySelector('textarea[name="signup_html"]');
+    const signupModeSelect = document.querySelector('select[name="signup_mode"]');
+    const useLoginSampleBtn = document.getElementById('use-login-sample');
+    const loginTextarea = document.querySelector('textarea[name="login_html"]');
+    const loginModeSelect = document.querySelector('select[name="login_mode"]');
     buttons.forEach((btn) => {
         btn.addEventListener('click', () => {
             const target = btn.getAttribute('data-tab');
@@ -219,6 +299,36 @@ document.addEventListener('DOMContentLoaded', function () {
             if (pane) pane.classList.remove('hidden');
         });
     });
+
+    if (useSampleBtn && landingTextarea) {
+        useSampleBtn.addEventListener('click', function() {
+            landingTextarea.value = `{{ landing_html_sample|escapejs }}`;
+            if (landingModeSelect) {
+                landingModeSelect.value = 'custom';
+            }
+            const landingTab = document.querySelector('.tab-btn[data-tab="landing"]');
+            if (landingTab) landingTab.click();
+            landingTextarea.focus();
+        });
+    }
+    if (useSignupSampleBtn && signupTextarea) {
+        useSignupSampleBtn.addEventListener('click', function() {
+            signupTextarea.value = `{{ signup_html_sample|escapejs }}`;
+            if (signupModeSelect) signupModeSelect.value = 'custom';
+            const signupTab = document.querySelector('.tab-btn[data-tab="signup"]');
+            if (signupTab) signupTab.click();
+            signupTextarea.focus();
+        });
+    }
+    if (useLoginSampleBtn && loginTextarea) {
+        useLoginSampleBtn.addEventListener('click', function() {
+            loginTextarea.value = `{{ login_html_sample|escapejs }}`;
+            if (loginModeSelect) loginModeSelect.value = 'custom';
+            const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
+            if (loginTab) loginTab.click();
+            loginTextarea.focus();
+        });
+    }
 });
 </script>
 {% endblock %}

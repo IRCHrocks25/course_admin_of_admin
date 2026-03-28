@@ -23,6 +23,7 @@ def build_default_branding(tenant, profile=None):
     return {
         'brand_name': name,
         'brand_short_name': short_name,
+        'logo_url': '',
         'headline_line1': 'Train Smarter.',
         'headline_line2': 'Scale Faster.',
         'headline_line3': 'Win Bigger.',
@@ -56,6 +57,7 @@ def get_tenant_branding(tenant):
         return {
             'brand_name': 'CourseForge',
             'brand_short_name': 'CourseForge',
+            'logo_url': '',
             'headline_line1': 'Build your academy.',
             'headline_line2': 'Launch with confidence.',
             'headline_line3': 'Grow with leverage.',
@@ -74,6 +76,11 @@ def get_tenant_branding(tenant):
     branding = features.get('branding') or {}
     defaults = build_default_branding(tenant)
     merged = {**defaults, **branding}
+    if not merged.get('logo_url') and getattr(tenant, 'logo', None):
+        try:
+            merged['logo_url'] = tenant.logo.url
+        except Exception:
+            merged['logo_url'] = ''
     return merged
 
 

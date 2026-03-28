@@ -14,9 +14,16 @@ import io
 import os
 import uuid
 import threading
+from urllib.parse import urlparse
 from decimal import Decimal
 import stripe
 from django.utils import timezone
+from PIL import Image
+try:
+    import cloudinary.uploader as cloudinary_uploader
+    CLOUDINARY_UPLOAD_AVAILABLE = True
+except ImportError:
+    CLOUDINARY_UPLOAD_AVAILABLE = False
 try:
     import fitz  # PyMuPDF
     PDF_AVAILABLE = True
@@ -66,6 +73,158 @@ staff_member_required = user_passes_test(
     lambda u: u.is_authenticated and u.is_staff,
     login_url='login'
 )
+
+LANDING_HTML_SAMPLE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Brand</title>
+  <style>
+    :root { --bg:#0b1028; --card:#101735; --text:#e8ecff; --muted:#a8b3d8; --accent:#22d3ee; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, Arial, sans-serif; background: linear-gradient(180deg,#0a0f25,#050814); color: var(--text); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 28px 18px 56px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; }
+    .brand-logo { width:38px; height:38px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,.14); background:#0a0f25; }
+    .brand-note { font-size:12px; color:#9aa8d8; margin-top:6px; }
+    .nav { display:flex; gap:10px; flex-wrap:wrap; }
+    .btn { display:inline-block; text-decoration:none; border:1px solid rgba(34,211,238,.45); color:var(--accent); padding:9px 13px; border-radius:10px; font-size:14px; }
+    .btn-solid { background: rgba(34,211,238,.14); }
+    .hero { margin-top: 42px; background: var(--card); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:28px; }
+    h1 { margin:0 0 12px; font-size:34px; line-height:1.15; }
+    p { margin:0; color: var(--muted); line-height:1.65; }
+    .cta-row { margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; }
+    .grid { margin-top:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+    .card { background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; }
+    .card h3 { margin:0 0 8px; font-size:16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="brand">
+          <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
+          <span>__TENANT_BRAND_NAME__ Academy</span>
+        </div>
+        <div class="brand-note">Set your tenant logo in Branding Settings. This sample auto-uses it.</div>
+      </div>
+      <div class="nav">
+        <a class="btn" href="/login/">Sign in</a>
+        <a class="btn btn-solid" href="/register/">Get started</a>
+      </div>
+    </div>
+    <section class="hero">
+      <h1>Turn your expertise into a premium learning experience.</h1>
+      <p>Launch your academy, onboard students, and sell your programs under your own brand.</p>
+      <div class="cta-row">
+        <a class="btn btn-solid" href="/register/">Create account</a>
+        <a class="btn" href="/courses/">Browse courses</a>
+      </div>
+      <div class="grid">
+        <div class="card"><h3>Structured Programs</h3><p>Organize modules, lessons, and progress in one place.</p></div>
+        <div class="card"><h3>Student Payments</h3><p>Accept payments directly with your connected Stripe account.</p></div>
+        <div class="card"><h3>Branded Experience</h3><p>Use your own domain and customize copy, logo, and visuals.</p></div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
+"""
+
+SIGNUP_HTML_SAMPLE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create your account</title>
+  <style>
+    body { margin:0; font-family: Inter, Arial, sans-serif; background:#0b1028; color:#e8ecff; }
+    .wrap { max-width:560px; margin:40px auto; padding:24px; background:#101735; border:1px solid rgba(255,255,255,.09); border-radius:14px; }
+    .brand { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .brand-logo { width:36px; height:36px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,.15); background:#0a0f25; }
+    .brand-note { margin:0 0 14px; color:#8fa0d8; font-size:12px; }
+    h1 { margin:0 0 8px; font-size:28px; }
+    p { margin:0 0 18px; color:#a8b3d8; }
+    .field { margin-bottom:12px; }
+    label { display:block; margin-bottom:6px; font-size:13px; color:#b9c3e4; }
+    input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0a0f25; color:#fff; }
+    button { width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1px solid rgba(34,211,238,.5); background:rgba(34,211,238,.14); color:#22d3ee; font-weight:600; cursor:pointer; }
+    .links { margin-top:14px; display:flex; justify-content:space-between; gap:10px; }
+    .links a { color:#22d3ee; text-decoration:none; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
+      <strong>__TENANT_BRAND_NAME__ Academy</strong>
+    </div>
+    <p class="brand-note">Set your tenant logo in Branding Settings. This sample auto-uses it.</p>
+    <h1>Create account</h1>
+    <p>Join and start learning right away.</p>
+    <form method="post" action="/register/">
+      <div class="field"><label>Username</label><input name="username" required /></div>
+      <div class="field"><label>Email</label><input type="email" name="email" /></div>
+      <div class="field"><label>Password</label><input type="password" name="password" required /></div>
+      <div class="field"><label>Confirm Password</label><input type="password" name="confirm_password" required /></div>
+      <button type="submit">Create account</button>
+    </form>
+    <div class="links">
+      <a href="/login/">Already have an account?</a>
+      <a href="/courses/">Browse courses</a>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+LOGIN_HTML_SAMPLE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in</title>
+  <style>
+    body { margin:0; font-family: Inter, Arial, sans-serif; background:#0b1028; color:#e8ecff; }
+    .wrap { max-width:520px; margin:48px auto; padding:24px; background:#101735; border:1px solid rgba(255,255,255,.09); border-radius:14px; }
+    .brand { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .brand-logo { width:36px; height:36px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,.15); background:#0a0f25; }
+    .brand-note { margin:0 0 14px; color:#8fa0d8; font-size:12px; }
+    h1 { margin:0 0 8px; font-size:28px; }
+    p { margin:0 0 18px; color:#a8b3d8; }
+    .field { margin-bottom:12px; }
+    label { display:block; margin-bottom:6px; font-size:13px; color:#b9c3e4; }
+    input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0a0f25; color:#fff; }
+    button { width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1px solid rgba(34,211,238,.5); background:rgba(34,211,238,.14); color:#22d3ee; font-weight:600; cursor:pointer; }
+    .links { margin-top:14px; display:flex; justify-content:space-between; gap:10px; }
+    .links a { color:#22d3ee; text-decoration:none; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
+      <strong>__TENANT_BRAND_NAME__ Academy</strong>
+    </div>
+    <p class="brand-note">Set your tenant logo in Branding Settings. This sample auto-uses it.</p>
+    <h1>Welcome back</h1>
+    <p>Sign in to continue.</p>
+    <form method="post" action="/login/">
+      <div class="field"><label>Username</label><input name="username" required /></div>
+      <div class="field"><label>Password</label><input type="password" name="password" required /></div>
+      <button type="submit">Sign in</button>
+    </form>
+    <div class="links">
+      <a href="/register/">Create account</a>
+      <a href="/courses/">Browse courses</a>
+    </div>
+  </div>
+</body>
+</html>
+"""
 
 OPENAI_DEFAULT_RATES_PER_MILLION = {
     'gpt-4o-mini': (Decimal('0.15'), Decimal('0.60')),
@@ -266,6 +425,56 @@ def _sanitize_uploaded_html(raw_html):
     html = re.sub(r'<embed[\s\S]*?>', '', html, flags=re.IGNORECASE)
     html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
     return html.strip()
+
+
+def _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file):
+    """
+    Convert uploaded logo to webp and upload to Cloudinary.
+    Returns secure URL on success, or empty string.
+    """
+    if not CLOUDINARY_UPLOAD_AVAILABLE:
+        return ''
+    if not (os.getenv('CLOUDINARY_CLOUD_NAME') and os.getenv('CLOUDINARY_API_KEY') and os.getenv('CLOUDINARY_API_SECRET')):
+        return ''
+    if not logo_file:
+        return ''
+    try:
+        image = Image.open(logo_file)
+        if image.mode not in ('RGB', 'RGBA'):
+            image = image.convert('RGBA')
+        if image.mode == 'RGBA':
+            # Keep transparency if present.
+            converted = image
+        else:
+            converted = image.convert('RGB')
+
+        out = io.BytesIO()
+        converted.save(out, format='WEBP', quality=88, method=6)
+        out.seek(0)
+        out.name = f"tenant_{tenant.id}_logo.webp"
+
+        result = cloudinary_uploader.upload(
+            out,
+            folder='courseforge/tenant_logos',
+            public_id=f"tenant_{tenant.id}_logo",
+            overwrite=True,
+            resource_type='image',
+            format='webp',
+        )
+        return (result.get('secure_url') or '').strip()
+    except Exception:
+        return ''
+
+
+def _is_valid_logo_url(raw_url):
+    url = (raw_url or '').strip()
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme in ('http', 'https') and bool(parsed.netloc)
+    except Exception:
+        return False
 
 
 @staff_member_required
@@ -3152,6 +3361,10 @@ def dashboard_branding_settings(request):
 
         landing_mode = (request.POST.get('landing_mode') or custom_pages.get('landing_mode') or 'default').strip()
         custom_pages['landing_mode'] = 'custom' if landing_mode == 'custom' else 'default'
+        signup_mode = (request.POST.get('signup_mode') or custom_pages.get('signup_mode') or 'default').strip()
+        custom_pages['signup_mode'] = 'custom' if signup_mode == 'custom' else 'default'
+        login_mode = (request.POST.get('login_mode') or custom_pages.get('login_mode') or 'default').strip()
+        custom_pages['login_mode'] = 'custom' if login_mode == 'custom' else 'default'
 
         uploaded_html = request.FILES.get('landing_html_file')
         html_text = (request.POST.get('landing_html') or '').strip()
@@ -3163,10 +3376,28 @@ def dashboard_branding_settings(request):
 
         existing_html = (custom_pages.get('landing_html') or '').strip()
         clear_html = request.POST.get('clear_landing_html') == '1'
+        signup_html_text = (request.POST.get('signup_html') or '').strip()
+        clear_signup_html = request.POST.get('clear_signup_html') == '1'
+        existing_signup_html = (custom_pages.get('signup_html') or '').strip()
+        login_html_text = (request.POST.get('login_html') or '').strip()
+        clear_login_html = request.POST.get('clear_login_html') == '1'
+        existing_login_html = (custom_pages.get('login_html') or '').strip()
         if landing_mode == 'custom' and not html_text and not existing_html and not clear_html:
             messages.error(
                 request,
                 'Custom landing is enabled but no HTML is provided yet. Upload/paste HTML or switch to default mode.'
+            )
+            return redirect('dashboard_branding_settings')
+        if signup_mode == 'custom' and not signup_html_text and not existing_signup_html and not clear_signup_html:
+            messages.error(
+                request,
+                'Custom sign-up page is enabled but no HTML is provided yet. Paste HTML or switch to default mode.'
+            )
+            return redirect('dashboard_branding_settings')
+        if login_mode == 'custom' and not login_html_text and not existing_login_html and not clear_login_html:
+            messages.error(
+                request,
+                'Custom login page is enabled but no HTML is provided yet. Paste HTML or switch to default mode.'
             )
             return redirect('dashboard_branding_settings')
 
@@ -3179,16 +3410,57 @@ def dashboard_branding_settings(request):
             if landing_mode == 'custom':
                 custom_pages['landing_mode'] = 'default'
                 messages.info(request, 'Custom HTML was cleared, so landing mode was switched back to default.')
+        if signup_html_text:
+            custom_pages['signup_html'] = _sanitize_uploaded_html(signup_html_text)
+            custom_pages['signup_mode'] = 'custom'
+        if clear_signup_html:
+            custom_pages.pop('signup_html', None)
+            if signup_mode == 'custom':
+                custom_pages['signup_mode'] = 'default'
+                messages.info(request, 'Sign-up custom HTML was cleared, so sign-up mode was switched to default.')
+        if login_html_text:
+            custom_pages['login_html'] = _sanitize_uploaded_html(login_html_text)
+            custom_pages['login_mode'] = 'custom'
+        if clear_login_html:
+            custom_pages.pop('login_html', None)
+            if login_mode == 'custom':
+                custom_pages['login_mode'] = 'default'
+                messages.info(request, 'Login custom HTML was cleared, so login mode was switched to default.')
 
-        if request.POST.get('remove_logo') == '1' and tenant.logo:
-            tenant.logo.delete(save=False)
-            tenant.logo = None
-            tenant.save(update_fields=['logo', 'updated_at'])
+        if request.POST.get('remove_logo') == '1':
+            if tenant.logo:
+                tenant.logo.delete(save=False)
+                tenant.logo = None
+                tenant.save(update_fields=['logo', 'updated_at'])
+            updated['logo_url'] = ''
+
+        logo_url_input = (request.POST.get('logo_url') or '').strip()
+        if logo_url_input:
+            if not _is_valid_logo_url(logo_url_input):
+                messages.error(request, 'Please enter a valid logo URL (http or https).')
+                return redirect('dashboard_branding_settings')
+            updated['logo_url'] = logo_url_input
+            if tenant.logo:
+                tenant.logo.delete(save=False)
+                tenant.logo = None
+                tenant.save(update_fields=['logo', 'updated_at'])
 
         logo_file = request.FILES.get('logo_file')
-        if logo_file:
-            tenant.logo = logo_file
-            tenant.save(update_fields=['logo', 'updated_at'])
+        if logo_file and logo_url_input:
+            messages.info(request, 'External logo URL was provided, so uploaded logo file was skipped.')
+        if logo_file and not logo_url_input:
+            logo_url = _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file)
+            if logo_url:
+                updated['logo_url'] = logo_url
+                # Clear local file pointer when cloud URL is now canonical.
+                if tenant.logo:
+                    tenant.logo.delete(save=False)
+                    tenant.logo = None
+                    tenant.save(update_fields=['logo', 'updated_at'])
+            else:
+                tenant.logo = logo_file
+                tenant.save(update_fields=['logo', 'updated_at'])
+                updated['logo_url'] = tenant.logo.url if tenant.logo else updated.get('logo_url', '')
 
         features['branding'] = updated
         features['custom_pages'] = custom_pages
@@ -3205,5 +3477,12 @@ def dashboard_branding_settings(request):
         'custom_pages': custom_pages,
         'landing_mode': custom_pages.get('landing_mode', 'default'),
         'landing_html': custom_pages.get('landing_html', ''),
+        'signup_mode': custom_pages.get('signup_mode', 'default'),
+        'signup_html': custom_pages.get('signup_html', ''),
+        'login_mode': custom_pages.get('login_mode', 'default'),
+        'login_html': custom_pages.get('login_html', ''),
+        'landing_html_sample': LANDING_HTML_SAMPLE,
+        'signup_html_sample': SIGNUP_HTML_SAMPLE,
+        'login_html_sample': LOGIN_HTML_SAMPLE,
     })
 
