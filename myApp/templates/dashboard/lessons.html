@@ -4,6 +4,36 @@
 {% block page_title %}All Lessons{% endblock %}
 
 {% block content %}
+<style>
+  .lesson-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 98px;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+    border: 1px solid;
+    transition: background 0.15s;
+    text-decoration: none;
+  }
+  .lesson-btn-icon {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 6px;
+  }
+  .lesson-cyan { color: #22d3ee; border-color: rgba(34,211,238,.35); }
+  .lesson-cyan:hover { background: rgba(34,211,238,.12); }
+  .lesson-purple { color: #c084fc; border-color: rgba(192,132,252,.35); }
+  .lesson-purple:hover { background: rgba(192,132,252,.12); }
+  .lesson-red { color: #f87171; border-color: rgba(248,113,113,.3); }
+  .lesson-red:hover { background: rgba(248,113,113,.12); }
+</style>
+
 <div class="flex items-center justify-between mb-6">
     <div>
         <h2 class="text-2xl font-bold mb-2">All Lessons</h2>
@@ -47,48 +77,45 @@
 <!-- Lessons List -->
 <div class="space-y-4">
     {% for lesson in lessons %}
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 hover:border-cyan-electric/30 transition-all">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4 flex-1">
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-5 hover:border-cyan-electric/25 transition-all">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div class="flex items-start gap-4 flex-1 min-w-0">
                 {% if lesson.vimeo_thumbnail %}
-                <img src="{{ lesson.vimeo_thumbnail }}" alt="{{ lesson.title }}" class="w-24 h-16 object-cover rounded">
+                <img src="{{ lesson.vimeo_thumbnail }}" alt="{{ lesson.title }}" class="w-24 h-16 object-cover rounded-lg flex-shrink-0">
                 {% else %}
-                <div class="w-24 h-16 bg-gradient-to-br from-cyan-electric/20 to-purple-accent/20 rounded flex items-center justify-center">
+                <div class="w-24 h-16 bg-gradient-to-br from-cyan-electric/20 to-purple-accent/20 rounded-lg flex items-center justify-center flex-shrink-0">
                     <i class="fas fa-video text-cyan-electric/50"></i>
                 </div>
                 {% endif %}
-                <div class="flex-1">
-                    <div class="font-bold text-lg mb-1">{{ lesson.title }}</div>
-                    <div class="text-sm text-gray-400 flex items-center gap-4">
-                        <span><i class="fas fa-book mr-1"></i> {{ lesson.course.name }}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-base leading-snug mb-1">{{ lesson.title }}</div>
+                    <div class="text-xs text-gray-400 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <span><i class="fas fa-book mr-1"></i>{{ lesson.course.name }}</span>
                         {% if lesson.module %}
-                        <span><i class="fas fa-folder mr-1"></i> {{ lesson.module.name }}</span>
+                        <span><i class="fas fa-folder mr-1"></i>{{ lesson.module.name }}</span>
                         {% endif %}
-                        <span><i class="fas fa-clock mr-1"></i> {{ lesson.get_formatted_duration }}</span>
+                        <span><i class="fas fa-clock mr-1"></i>{{ lesson.get_formatted_duration }}</span>
                     </div>
                 </div>
-                <span class="px-3 py-1 rounded-full text-xs font-semibold
-                    {% if lesson.ai_generation_status == 'approved' %}bg-green-500/20 text-green-400 border border-green-500/30
-                    {% elif lesson.ai_generation_status == 'generated' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
-                    {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
+            </div>
+
+            <div class="flex flex-col gap-2 lg:items-end">
+                <span class="px-2.5 py-1 rounded-full text-[11px] font-medium border w-fit
+                    {% if lesson.ai_generation_status == 'approved' %}bg-green-500/10 text-green-400 border-green-500/25
+                    {% elif lesson.ai_generation_status == 'generated' %}bg-yellow-500/10 text-yellow-400 border-yellow-500/25
+                    {% else %}bg-gray-500/10 text-gray-400 border-gray-500/25{% endif %}">
                     {{ lesson.get_ai_generation_status_display }}
                 </span>
-            </div>
-            <div class="ml-4 flex flex-col gap-2 items-end">
-                <div class="flex gap-2">
-                    <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg font-medium hover:bg-cyan-electric/20 transition-all text-sm">
-                        Edit
-                    </a>
-                    <form method="POST" action="{% url 'dashboard_delete_lesson' lesson.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete \"{{ lesson.title }}\"? This will also delete all related progress, quiz data, and other associated information. This action cannot be undone.');">
+                <div class="flex flex-wrap gap-2 lg:justify-end">
+                    <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="lesson-btn lesson-cyan">Edit</a>
+                    <a href="{% url 'dashboard_lesson_quiz' lesson.id %}" class="lesson-btn lesson-purple">Manage Quiz</a>
+                    <form method="POST" action="{% url 'dashboard_delete_lesson' lesson.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete this lesson? This will also delete related progress, quiz data, and other associated information. This action cannot be undone.');">
                         {% csrf_token %}
-                        <button type="submit" class="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg font-medium hover:bg-red-500/20 transition-all text-sm text-red-400">
+                        <button type="submit" class="lesson-btn lesson-red lesson-btn-icon">
                             <i class="fas fa-trash"></i>
                         </button>
                     </form>
                 </div>
-                <a href="{% url 'dashboard_lesson_quiz' lesson.id %}" class="px-4 py-2 bg-purple-accent/10 border border-purple-accent/30 rounded-lg font-medium hover:bg-purple-accent/20 transition-all text-xs text-purple-accent">
-                    Manage Quiz
-                </a>
             </div>
         </div>
     </div>

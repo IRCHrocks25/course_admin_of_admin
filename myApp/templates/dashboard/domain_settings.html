@@ -7,11 +7,69 @@
 <div class="mb-6 rounded-xl border border-cyan-electric/20 bg-cyan-electric/5 p-4">
     <div class="font-semibold text-cyan-electric mb-1">How this works</div>
     <p class="text-sm text-gray-300">
+        {% if tenant %}
         You already have a temporary domain for immediate launch.
         Add your custom domain below, point DNS to our platform, then verify and set it as primary.
+        {% else %}
+        Super admin view: review domains across all tenants. Open a tenant context to manage DNS actions.
+        {% endif %}
     </p>
 </div>
 
+{% if is_superadmin %}
+<div class="mb-6 rounded-xl border border-amber-300/20 bg-amber-400/5 overflow-hidden">
+    <div class="px-4 py-3 border-b border-amber-300/15 font-semibold text-amber-200">All Tenant Domains (Super Admin)</div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-white/5 text-gray-300">
+                <tr>
+                    <th class="text-left px-4 py-3">Tenant</th>
+                    <th class="text-left px-4 py-3">Domain</th>
+                    <th class="text-left px-4 py-3">Type</th>
+                    <th class="text-left px-4 py-3">Verified</th>
+                    <th class="text-left px-4 py-3">Primary</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in all_tenant_domains %}
+                <tr class="border-t border-white/10">
+                    <td class="px-4 py-3">
+                        <div class="font-medium">{{ d.tenant.name }}</div>
+                        <div class="text-xs text-gray-500">{{ d.tenant.slug }}</div>
+                    </td>
+                    <td class="px-4 py-3 font-medium">{{ d.domain }}</td>
+                    <td class="px-4 py-3">
+                        {% if d.is_temporary %}
+                        <span class="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300">Temporary</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded bg-purple-accent/20 text-purple-accent">Custom</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if d.is_verified %}
+                        <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Verified</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if d.is_primary %}
+                        <span class="px-2 py-1 rounded bg-cyan-electric/20 text-cyan-electric">Primary</span>
+                        {% else %}
+                        <span class="text-gray-500">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td class="px-4 py-6 text-gray-400" colspan="5">No tenant domains found yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if tenant %}
 <div class="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
     <div class="flex items-center justify-between gap-3">
         <div>
@@ -169,6 +227,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

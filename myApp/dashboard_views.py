@@ -58,7 +58,7 @@ from django.contrib.auth.models import User
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from .utils.tenancy import get_default_tenant
-from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain
+from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import get_tenant_branding, ensure_tenant_branding
 
 # Tenant admins should use app login, not Django admin login.
@@ -664,15 +664,23 @@ def get_student_activity_feed(limit=20, course_ids_qs=None):
 def dashboard_courses(request):
     """List all courses"""
     tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
     courses_qs = Course.objects.all()
-    if not request.user.is_superuser:
+    if not is_superadmin:
         if tenant is None:
             messages.error(request, 'Tenant context is required to view courses.')
             return redirect('courses')
         courses_qs = courses_qs.filter(tenant=tenant)
-    courses = courses_qs.annotate(lesson_count=Count('lessons')).order_by('-created_at')
+    courses = list(courses_qs.select_related('tenant').annotate(lesson_count=Count('lessons')).order_by('-created_at'))
+    if is_superadmin:
+        for course in courses:
+            owner_tenant = getattr(course, 'tenant', None)
+            course.owner_name = owner_tenant.name if owner_tenant else 'Unassigned'
+            course.owner_slug = owner_tenant.slug if owner_tenant else ''
+            course.owner_site_url = get_tenant_public_home_url(request, owner_tenant) if owner_tenant else ''
     return render(request, 'dashboard/courses.html', {
         'courses': courses,
+        'is_superadmin': is_superadmin,
     })
 
 
@@ -3010,14 +3018,19 @@ def _get_dashboard_tenant(request):
 @staff_member_required
 def dashboard_domain_settings(request):
     """Tenant admin domain management page."""
+    is_superadmin = bool(request.user.is_superuser)
     tenant = _get_dashboard_tenant(request)
-    if tenant is None:
+    if tenant is None and not is_superadmin:
         messages.error(request, 'Tenant context is required to manage domains.')
         return redirect('dashboard_home')
 
-    ensure_temporary_domain(tenant)
+    if tenant is not None:
+        ensure_temporary_domain(tenant)
 
     if request.method == 'POST':
+        if tenant is None:
+            messages.error(request, 'Select a tenant context before adding a custom domain.')
+            return redirect('dashboard_domain_settings')
         domain = normalize_domain(request.POST.get('domain'))
         if not domain:
             messages.error(request, 'Please enter a valid domain.')
@@ -3037,14 +3050,22 @@ def dashboard_domain_settings(request):
         messages.success(request, f'Domain "{domain}" added. Complete DNS setup and verify.')
         return redirect('dashboard_domain_settings')
 
-    domains = TenantDomain.objects.filter(tenant=tenant).order_by('-is_primary', 'domain')
-    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
-    primary_domain = domains.filter(is_primary=True).first()
-    temporary_domain = domains.filter(is_temporary=True).first()
+    domains = TenantDomain.objects.filter(tenant=tenant).order_by('-is_primary', 'domain') if tenant else TenantDomain.objects.none()
+    config = None
+    if tenant:
+        config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+    primary_domain = domains.filter(is_primary=True).first() if tenant else None
+    temporary_domain = domains.filter(is_temporary=True).first() if tenant else None
+    all_tenant_domains = (
+        TenantDomain.objects.select_related('tenant').order_by('tenant__name', '-is_primary', 'domain')
+        if is_superadmin else TenantDomain.objects.none()
+    )
     return render(request, 'dashboard/domain_settings.html', {
         'tenant': tenant,
+        'is_superadmin': is_superadmin,
         'tenant_config': config,
         'domains': domains,
+        'all_tenant_domains': all_tenant_domains,
         'primary_domain': primary_domain,
         'temporary_domain': temporary_domain,
         'platform_base_domain': get_platform_base_domain(),

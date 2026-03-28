@@ -626,12 +626,17 @@ def create_bundle_checkout_session(request, bundle_id):
 
 def login_view(request):
     """Premium login page"""
+    def _default_redirect_for_user(user):
+        if user.is_superuser:
+            return 'superadmin_home'
+        if user.is_staff:
+            return 'dashboard_home'
+        return 'courses'
+
     # Allow access to login page even when logged in if ?force=true (for testing)
     force = request.GET.get('force', '').lower() == 'true'
     if request.user.is_authenticated and not force:
-        if getattr(request, 'tenant', None) is None and request.user.is_staff:
-            return redirect('dashboard_home')
-        return redirect('courses')
+        return redirect(_default_redirect_for_user(request.user))
     
     tenant = getattr(request, 'tenant', None)
     tenant_branding = get_tenant_branding(tenant)
@@ -652,7 +657,7 @@ def login_view(request):
                     messages.error(request, 'This account does not have access to this tenant portal.')
                     return render(request, 'login.html', {'tenant_branding': tenant_branding})
             login(request, user)
-            default_next = 'dashboard_home' if (getattr(request, 'tenant', None) is None and user.is_staff) else 'courses'
+            default_next = _default_redirect_for_user(user)
             next_url = request.POST.get('next') or request.GET.get('next', default_next)
             return redirect(next_url)
         else:
