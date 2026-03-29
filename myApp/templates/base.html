@@ -99,7 +99,9 @@
                     loading="eager"
                 >
                 {% endif %}
+                {% if not tenant_branding.logo_url %}
                 <div class="text-sm sm:text-lg font-bold text-white hidden sm:block">{{ tenant_branding.brand_name|default:"CourseForge" }}</div>
+                {% endif %}
             </a>
             
             <!-- Mobile Menu Button -->

@@ -6,7 +6,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.middleware.csrf import get_token
 from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.conf import settings
@@ -122,6 +123,8 @@ def _render_tenant_custom_html(request, tenant, custom_html):
     custom_html = (custom_html or '').strip()
     if not custom_html:
         return None
+    # Ensure csrftoken cookie exists for custom HTML forms posted back to Django.
+    get_token(request)
     branding = get_tenant_branding(tenant) if tenant else {}
     tenant_logo_url = (branding.get('logo_url') or '').strip()
     tenant_brand_name = (branding.get('brand_name') or getattr(tenant, 'name', '') or 'Your Brand').strip()
@@ -201,6 +204,9 @@ def _render_tenant_custom_html(request, tenant, custom_html):
         "}"
         "document.querySelectorAll('button,a').forEach(function(el){"
         "var tag=(el.tagName||'').toLowerCase();"
+        "var btnType=((el.getAttribute('type')||'').toLowerCase());"
+        "var inForm=!!(el.closest&&el.closest('form'));"
+        "if(tag==='button'&&(inForm||btnType==='submit'||btnType==='reset')){return;}"
         "var href=(el.getAttribute('href')||'').trim();"
         "var isCta=(tag==='button')||(tag==='a'&&(href===''||href==='#'||href.toLowerCase().startsWith('javascript:')));"
         "if(!isCta){return;}"
@@ -687,6 +693,7 @@ def create_bundle_checkout_session(request, bundle_id):
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
 
 
+@ensure_csrf_cookie
 def login_view(request):
     """Premium login page"""
     def _default_redirect_for_user(user):
@@ -737,6 +744,7 @@ def login_view(request):
     return _render_login_page()
 
 
+@ensure_csrf_cookie
 def register_view(request):
     """
     Tenant-aware self-registration.
