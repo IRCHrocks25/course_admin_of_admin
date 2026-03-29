@@ -22,7 +22,7 @@ from .models import (
     TenantMembership,
     UserProgress,
 )
-from .utils.domains import ensure_temporary_domain, normalize_domain
+from .utils.domains import ensure_temporary_domain, normalize_domain, get_platform_base_domain
 from .utils.branding import ensure_tenant_branding
 
 
@@ -41,7 +41,44 @@ def superadmin_home(request):
     total_accesses = CourseAccess.objects.filter(status='unlocked').count()
     total_certifications = Certification.objects.count()
 
-    recent_tenants = tenants.order_by('-created_at')[:8]
+    platform_base_domain = (get_platform_base_domain() or '').strip()
+    raw_host = (request.get_host() or '').strip()
+    host_only, host_port = (raw_host.rsplit(':', 1) + [''])[:2] if ':' in raw_host else (raw_host, '')
+    is_local_host = host_only in {'localhost', '127.0.0.1'} or host_only.startswith('127.') or host_only.endswith('.local')
+    recent_tenants = list(
+        tenants.prefetch_related('domains').order_by('-created_at')[:8]
+    )
+    for tenant in recent_tenants:
+        fallback_domain_obj = (
+            tenant.domains.filter(is_primary=True).order_by('domain').first()
+            or tenant.domains.filter(is_temporary=True).order_by('domain').first()
+            or tenant.domains.order_by('domain').first()
+        )
+        if not fallback_domain_obj:
+            # Backfill missing temporary domain records for older tenants.
+            fallback_domain_obj = ensure_temporary_domain(tenant)
+
+        fallback_domain = fallback_domain_obj.domain if fallback_domain_obj else ''
+        inferred_platform_domain = f"{tenant.slug}.{platform_base_domain}" if platform_base_domain else ''
+        inferred_local_domain = f"{tenant.slug}.lvh.me{':' + host_port if host_port else ''}" if is_local_host else ''
+        tenant.display_domain = (
+            tenant.custom_domain
+            or fallback_domain
+            or inferred_platform_domain
+            or inferred_local_domain
+            or '-'
+        )
+        if tenant.display_domain != '-':
+            is_local_domain = (
+                tenant.display_domain.startswith('localhost')
+                or tenant.display_domain.startswith('127.')
+                or tenant.display_domain.endswith('.local')
+                or '.lvh.me' in tenant.display_domain
+            )
+            scheme = 'http' if is_local_domain else 'https'
+            tenant.display_domain_url = f"{scheme}://{tenant.display_domain}/"
+        else:
+            tenant.display_domain_url = ''
 
     return render(request, 'superadmin/home.html', {
         'total_tenants': total_tenants,
