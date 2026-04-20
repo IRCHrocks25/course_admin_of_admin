@@ -16,7 +16,9 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('start-academy/', views.start_academy, name='start_academy'),
     path('start-academy/checkout-success/', views.start_academy_checkout_success, name='start_academy_checkout_success'),
+    path('verify-certificate/<str:certificate_id>/', views.verify_certificate, name='verify_certificate'),
     path('webhooks/stripe/', views.stripe_webhook, name='stripe_webhook'),
+    path('webhooks/stripe/tenant/<slug:tenant_slug>/', views.stripe_tenant_webhook, name='stripe_tenant_webhook'),
     path('calculator/railway-cost/', views.railway_cost_calculator_light, name='railway_cost_calculator_light'),
     path('login/', views.login_view, name='login'),
     path('register/', views.register_view, name='register'),
@@ -25,6 +27,9 @@ urlpatterns = [
     path('courses/<slug:course_slug>/', views.course_detail, name='course_detail'),
     path('courses/<slug:course_slug>/enroll/', views.enroll_course, name='enroll_course'),
     path('bundles/<int:bundle_id>/checkout/', views.create_bundle_checkout_session, name='bundle_checkout_session'),
+    path('bundles/<int:bundle_id>/checkout-success/', views.bundle_checkout_success, name='bundle_checkout_success'),
+    path('courses/<slug:course_slug>/checkout/', views.create_course_checkout_session, name='course_checkout_session'),
+    path('courses/<slug:course_slug>/checkout-success/', views.course_checkout_success, name='course_checkout_success'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/', views.lesson_detail, name='lesson_detail'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/quiz/', views.lesson_quiz_view, name='lesson_quiz'),
     
@@ -76,6 +81,7 @@ urlpatterns = [
     path('dashboard/billing/portal/', dashboard_views.dashboard_billing_portal, name='dashboard_billing_portal'),
     path('dashboard/payments/stripe/connect/', dashboard_views.dashboard_connect_stripe, name='dashboard_connect_stripe'),
     path('dashboard/payments/stripe/callback/', dashboard_views.dashboard_stripe_connect_callback, name='dashboard_stripe_connect_callback'),
+    path('dashboard/payments/stripe/own-keys/', dashboard_views.dashboard_save_stripe_own_keys, name='dashboard_save_stripe_own_keys'),
     path('dashboard/branding-settings/', dashboard_views.dashboard_branding_settings, name='dashboard_branding_settings'),
     path('dashboard/domain-settings/<int:domain_id>/verify/', dashboard_views.dashboard_verify_domain, name='dashboard_verify_domain'),
     path('dashboard/domain-settings/<int:domain_id>/make-primary/', dashboard_views.dashboard_make_primary_domain, name='dashboard_make_primary_domain'),
@@ -114,6 +120,7 @@ urlpatterns = [
     path('superadmin/tenants/<int:tenant_id>/domains/add/', superadmin_views.superadmin_add_tenant_domain, name='superadmin_add_tenant_domain'),
     path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/verify/', superadmin_views.superadmin_verify_tenant_domain, name='superadmin_verify_tenant_domain'),
     path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/set-primary/', superadmin_views.superadmin_set_primary_tenant_domain, name='superadmin_set_primary_tenant_domain'),
+    path('superadmin/tenants/<int:tenant_id>/stripe-keys/', superadmin_views.superadmin_set_tenant_stripe_keys, name='superadmin_set_tenant_stripe_keys'),
     
     # Admin (optional - can be removed if not needed)
     path('admin/', admin.site.urls),

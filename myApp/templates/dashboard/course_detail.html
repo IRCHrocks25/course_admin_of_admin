@@ -52,6 +52,54 @@
                     <label class="block text-sm font-semibold mb-2">AI Coach Name</label>
                     <input type="text" name="coach_name" value="{{ course.coach_name }}" placeholder="e.g., Sprint Coach" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
                 </div>
+
+                <!-- Pricing -->
+                <div>
+                    <label class="block text-sm font-semibold mb-3">Pricing</label>
+                    <div class="flex gap-3 mb-3">
+                        <label class="flex-1 flex items-center gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-[#0a0e27]/40 cursor-pointer has-[:checked]:border-cyan-electric/60 has-[:checked]:bg-cyan-electric/5 transition">
+                            <input type="radio" name="pricing_type" value="free" id="cd-pricing-free" {% if not course.price %}checked{% endif %} class="text-cyan-electric">
+                            <div>
+                                <div class="text-sm font-medium">Free</div>
+                                <div class="text-xs text-gray-500">Open enrollment</div>
+                            </div>
+                        </label>
+                        <label class="flex-1 flex items-center gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-[#0a0e27]/40 cursor-pointer has-[:checked]:border-cyan-electric/60 has-[:checked]:bg-cyan-electric/5 transition">
+                            <input type="radio" name="pricing_type" value="paid" id="cd-pricing-paid" {% if course.price %}checked{% endif %} class="text-cyan-electric">
+                            <div>
+                                <div class="text-sm font-medium">Paid</div>
+                                <div class="text-xs text-gray-500">Students pay before access</div>
+                            </div>
+                        </label>
+                    </div>
+                    <div id="cd-price-row" class="{% if not course.price %}hidden{% endif %}">
+                        <label class="block text-xs text-gray-400 mb-1">Price (USD)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                            <input type="number" name="price" id="cd-price-input" min="0.50" step="0.01"
+                                value="{% if course.price %}{{ course.price }}{% endif %}"
+                                placeholder="e.g. 49.00"
+                                class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg pl-7 pr-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    (function(){
+                        const free = document.getElementById('cd-pricing-free');
+                        const paid = document.getElementById('cd-pricing-paid');
+                        const row  = document.getElementById('cd-price-row');
+                        const inp  = document.getElementById('cd-price-input');
+                        function toggle(){
+                            const isPaid = paid.checked;
+                            row.classList.toggle('hidden', !isPaid);
+                            inp.required = isPaid;
+                            if (!isPaid) inp.value = '';
+                        }
+                        free.addEventListener('change', toggle);
+                        paid.addEventListener('change', toggle);
+                    })();
+                </script>
+
                 <button type="submit" class="w-full px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
                     Save Changes
                 </button>
@@ -75,6 +123,14 @@
                         {% else %}bg-gray-500/20 text-gray-400{% endif %}">
                         {{ course.get_status_display }}
                     </span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Price</span>
+                    {% if course.price %}
+                    <span class="px-2 py-1 rounded text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-semibold">${{ course.price }}</span>
+                    {% else %}
+                    <span class="px-2 py-1 rounded text-xs bg-white/5 text-gray-500 border border-white/10">Free</span>
+                    {% endif %}
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-gray-400">Created</span>

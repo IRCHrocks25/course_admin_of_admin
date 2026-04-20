@@ -54,6 +54,7 @@ from .models import (
     Cohort,
     CohortMember,
     TenantConfig,
+    Tenant,
     TenantMembership,
     TenantDomain,
     AIUsageLog,
@@ -73,6 +74,195 @@ staff_member_required = user_passes_test(
     lambda u: u.is_authenticated and u.is_staff,
     login_url='login'
 )
+
+COURSEFORGE_FORMAT_CHOICES = (
+    ('mini_course', 'Mini Course (20–60 min total)'),
+    ('masterclass', 'Masterclass (2–24 hours)'),
+    ('challenge_3', 'Challenge — 3 days'),
+    ('challenge_5', 'Challenge — 5 days'),
+    ('challenge_7', 'Challenge — 7 days'),
+    ('summit', 'Summit (1–3 days)'),
+    ('certification_soon', 'Certification (coming soon)'),
+    ('retreat_soon', 'Retreat (coming soon)'),
+)
+
+COURSEFORGE_LEVEL_CHOICES = (
+    ('beginner', 'Beginner'),
+    ('intermediate', 'Intermediate'),
+    ('advanced', 'Advanced'),
+)
+
+
+def _parse_course_creation_blueprint(post):
+    """Build creation_blueprint dict from POST (CourseForge wizard)."""
+    raw_steps = (post.get('cf_framework_steps') or '').replace('\r\n', '\n')
+    framework_steps = [s.strip() for s in raw_steps.split('\n') if s.strip()]
+    raw_outcomes = (post.get('cf_outcomes') or '').replace('\r\n', '\n')
+    outcomes = [s.strip() for s in raw_outcomes.split('\n') if s.strip()]
+    fmt = (post.get('cf_course_format') or '').strip()
+    valid_formats = {c[0] for c in COURSEFORGE_FORMAT_CHOICES}
+    if fmt not in valid_formats:
+        fmt = 'masterclass'
+    level = (post.get('cf_knowledge_level') or '').strip()
+    valid_levels = {c[0] for c in COURSEFORGE_LEVEL_CHOICES}
+    if level not in valid_levels:
+        level = 'beginner'
+    total_raw = (post.get('cf_total_classes') or '').strip()
+    try:
+        total_classes = max(1, min(120, int(total_raw)))
+    except ValueError:
+        total_classes = 12
+    return {
+        'blueprint_version': 1,
+        'topic': (post.get('cf_topic') or '').strip(),
+        'target_audience': (post.get('cf_target_audience') or '').strip(),
+        'learning_goals': (post.get('cf_learning_goals') or '').strip(),
+        'required_knowledge': (post.get('cf_required_knowledge') or '').strip(),
+        'course_format': fmt,
+        'class_length': (post.get('cf_class_length') or '').strip(),
+        'total_classes': total_classes,
+        'knowledge_level': level,
+        'writing_sample': (post.get('cf_writing_sample') or '').strip(),
+        'reference_content': (post.get('cf_reference_content') or '').strip(),
+        'course_promise': (post.get('cf_course_promise') or '').strip(),
+        'framework_title': (post.get('cf_framework_title') or '').strip(),
+        'framework_steps': framework_steps,
+        'framework_generate_auto': post.get('cf_framework_auto') == 'on',
+        'outcomes': outcomes,
+    }
+
+
+def _validate_blueprint_for_ai(bp):
+    """Return list of user-facing error strings when AI generation is requested."""
+    errs = []
+    if not bp.get('topic'):
+        errs.append('Course topic is required for AI generation (Step 1).')
+    if not bp.get('target_audience'):
+        errs.append('Target audience is required (Step 1).')
+    if not bp.get('learning_goals'):
+        errs.append('High-level learning goals are required (Step 1).')
+    if not bp.get('required_knowledge'):
+        errs.append('Required prior knowledge is required (Step 1).')
+    if not bp.get('class_length'):
+        errs.append('Class length is required (Step 1).')
+    if not bp.get('course_promise'):
+        errs.append('Course promise is required (Step 3).')
+    if not bp.get('framework_title'):
+        errs.append('Framework title is required (Step 4).')
+    if not bp.get('framework_generate_auto') and len(bp.get('framework_steps') or []) < 2:
+        errs.append('Add at least two framework steps, or enable “Generate framework steps automatically”.')
+    if len(bp.get('outcomes') or []) < 2:
+        errs.append('Add at least two learning outcomes (Step 5), each on its own line.')
+    return errs
+
+
+def _compose_description_from_blueprint(bp):
+    """Rich text brief for storage + AI (when user leaves full description empty)."""
+    parts = []
+    if bp.get('topic'):
+        parts.append(f"## Subject / topic\n{bp['topic']}")
+    if bp.get('target_audience'):
+        parts.append(f"## Target audience\n{bp['target_audience']}")
+    if bp.get('learning_goals'):
+        parts.append(f"## High-level learning goals\n{bp['learning_goals']}")
+    if bp.get('required_knowledge'):
+        parts.append(f"## Required knowledge before starting\n{bp['required_knowledge']}")
+    fmt_labels = dict(COURSEFORGE_FORMAT_CHOICES)
+    parts.append(
+        f"## Format & pacing\n"
+        f"- Format: {fmt_labels.get(bp.get('course_format'), bp.get('course_format', ''))}\n"
+        f"- Typical class length: {bp.get('class_length', '')}\n"
+        f"- Target number of classes/lessons: {bp.get('total_classes', '')}\n"
+        f"- Knowledge level: {bp.get('knowledge_level', '')}"
+    )
+    if bp.get('writing_sample'):
+        parts.append(f"## Writing style reference (tone only)\n{bp['writing_sample'][:8000]}")
+    if bp.get('reference_content'):
+        parts.append(f"## Existing material to incorporate\n{bp['reference_content'][:12000]}")
+    if bp.get('course_promise'):
+        parts.append(f"## Course promise (transformation + timeframe)\n{bp['course_promise']}")
+    ft = bp.get('framework_title') or ''
+    if bp.get('framework_generate_auto'):
+        parts.append(f"## Teaching framework\nTitle: {ft}\n(Steps should be invented to match this system name.)")
+    elif bp.get('framework_steps'):
+        steps = '\n'.join(f"{i + 1}. {s}" for i, s in enumerate(bp['framework_steps']))
+        parts.append(f"## Teaching framework\n**{ft}**\n{steps}")
+    if bp.get('outcomes'):
+        ol = '\n'.join(f"- {o}" for o in bp['outcomes'])
+        parts.append(f"## Measurable learning outcomes\n{ol}")
+    return '\n\n'.join(parts)
+
+
+def _default_short_description_from_blueprint(bp):
+    promise = (bp.get('course_promise') or '')[:900]
+    if promise:
+        return promise
+    goals = (bp.get('learning_goals') or '')[:900]
+    return goals or (bp.get('topic') or 'New course')[:900]
+
+
+def _blueprint_lesson_context_block(bp):
+    """Short block appended to per-lesson AI prompts."""
+    if not bp or not isinstance(bp, dict) or not bp.get('topic'):
+        return ''
+    lines = [
+        'CourseForge brief (keep tone and difficulty consistent):',
+        f"- Topic: {bp.get('topic', '')}",
+        f"- Audience: {bp.get('target_audience', '')}",
+        f"- Level: {bp.get('knowledge_level', '')}",
+        f"- Promise: {bp.get('course_promise', '')}",
+        f"- Prerequisites: {bp.get('required_knowledge', '')}",
+    ]
+    ws = (bp.get('writing_sample') or '').strip()
+    if ws:
+        lines.append(f"- Match this voice (tone only, do not copy as lesson facts): {ws[:1200]}")
+    ref = (bp.get('reference_content') or '').strip()
+    if ref:
+        lines.append(f"- Incorporate themes from reference material where relevant: {ref[:2000]}")
+    if bp.get('outcomes'):
+        lines.append('- Course outcomes: ' + '; '.join(bp['outcomes'][:12]))
+    return '\n'.join(lines)
+
+
+def _blueprint_structure_prompt_section(bp):
+    """Extra instructions for module/lesson structure generation."""
+    if not bp or not isinstance(bp, dict) or not bp.get('topic'):
+        return ''
+    fmt_labels = dict(COURSEFORGE_FORMAT_CHOICES)
+    fmt = fmt_labels.get(bp.get('course_format'), bp.get('course_format', ''))
+    n = bp.get('total_classes') or 12
+    n = max(4, min(40, int(n)))
+    framework_lines = ''
+    if bp.get('framework_generate_auto'):
+        framework_lines = (
+            f"Teaching system name: \"{bp.get('framework_title', '')}\". "
+            "Invent clear, memorable steps for this methodology and align module names and lesson flow with those steps."
+        )
+    else:
+        steps = bp.get('framework_steps') or []
+        if steps:
+            framework_lines = (
+                f"Teaching system: \"{bp.get('framework_title', '')}\" with steps: "
+                + '; '.join(steps)
+                + ". Module boundaries should reflect this progression."
+            )
+        else:
+            framework_lines = f"Teaching system: \"{bp.get('framework_title', '')}\"."
+    return f"""
+Additional CourseForge requirements (follow closely):
+- Subject: {bp.get('topic', '')}
+- Audience: {bp.get('target_audience', '')}
+- Learning goals: {bp.get('learning_goals', '')}
+- Prior knowledge: {bp.get('required_knowledge', '')}
+- Difficulty: {bp.get('knowledge_level', '')}
+- Course format: {fmt} — match pacing and depth to this format (e.g. mini-course = tighter, fewer concepts per lesson).
+- Aim for approximately {n} lessons total across 3–6 modules (adjust counts to fit the format).
+- Typical session length context from author: {bp.get('class_length', '')}
+- Transformation promise: {bp.get('course_promise', '')}
+- {framework_lines}
+- Measurable outcomes (lessons should build toward these): {', '.join(bp.get('outcomes') or [])}
+"""
+
 
 LANDING_HTML_SAMPLE = """<!DOCTYPE html>
 <html lang="en">
@@ -306,7 +496,10 @@ def dashboard_connect_stripe(request):
     if not client_id:
         messages.error(request, 'Stripe Connect is not configured (missing client ID).')
         return redirect('dashboard_domain_settings')
-    redirect_uri = f"{request.scheme}://{request.get_host()}/dashboard/payments/stripe/callback/"
+    redirect_base = os.getenv('STRIPE_CONNECT_REDIRECT_BASE_URL', '').rstrip('/')
+    if not redirect_base:
+        redirect_base = f"{request.scheme}://{request.get_host()}"
+    redirect_uri = f"{redirect_base}/dashboard/payments/stripe/callback/"
     state = f"tenant:{tenant.id}"
     connect_url = (
         "https://connect.stripe.com/oauth/authorize"
@@ -321,17 +514,49 @@ def dashboard_stripe_connect_callback(request):
     if not request.user.is_staff:
         messages.error(request, 'Only tenant admins can complete Stripe connection.')
         return redirect('courses')
-    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+
+    # Resolve tenant from state param first (callback lands on platform domain,
+    # so request.tenant is None; state="tenant:<id>" carries the identity).
+    tenant = None
+    state = (request.GET.get('state') or '').strip()
+    if state.startswith('tenant:'):
+        try:
+            from myApp.models import Tenant as TenantModel
+            tenant_id = int(state.split(':', 1)[1])
+            tenant = TenantModel.objects.get(id=tenant_id)
+        except Exception:
+            tenant = None
+    if tenant is None:
+        tenant = getattr(request, 'tenant', None) or get_default_tenant()
     if tenant is None:
         messages.error(request, 'No tenant context available.')
         return redirect('dashboard_home')
+
+    # Build a URL to redirect back to the tenant's own domain after the flow.
+    from myApp.models import TenantDomain
+    tenant_domain_obj = TenantDomain.objects.filter(
+        tenant=tenant, is_primary=True, is_verified=True
+    ).first() or TenantDomain.objects.filter(
+        tenant=tenant, is_verified=True
+    ).first()
+    if tenant_domain_obj:
+        tenant_settings_url = f"https://{tenant_domain_obj.domain}/dashboard/payments/settings/"
+    else:
+        tenant_settings_url = None
+
     if not _configure_stripe():
         messages.error(request, 'Stripe is not configured.')
+        if tenant_settings_url:
+            return redirect(tenant_settings_url)
         return redirect('dashboard_domain_settings')
+
     code = (request.GET.get('code') or '').strip()
     if not code:
         messages.error(request, 'Stripe connection failed or was canceled.')
+        if tenant_settings_url:
+            return redirect(tenant_settings_url)
         return redirect('dashboard_domain_settings')
+
     try:
         response = stripe.OAuth.token(grant_type='authorization_code', code=code)
         account_id = response.get('stripe_user_id')
@@ -357,6 +582,57 @@ def dashboard_stripe_connect_callback(request):
             messages.warning(request, 'Stripe connected, but payouts/charges are not fully enabled yet. Complete onboarding in Stripe.')
     except Exception as exc:
         messages.error(request, f'Unable to complete Stripe connection: {str(exc)}')
+
+    if tenant_settings_url:
+        return redirect(tenant_settings_url)
+    return redirect('dashboard_domain_settings')
+
+
+@login_required(login_url='login')
+@require_http_methods(["POST"])
+def dashboard_save_stripe_own_keys(request):
+    """Save (or clear) tenant's own Stripe API keys for direct-charge mode."""
+    if not request.user.is_staff:
+        messages.error(request, 'Only tenant admins can configure Stripe.')
+        return redirect('courses')
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'No tenant context available.')
+        return redirect('dashboard_domain_settings')
+
+    secret_key = request.POST.get('stripe_own_secret_key', '').strip()
+    pub_key = request.POST.get('stripe_own_publishable_key', '').strip()
+    webhook_secret = request.POST.get('stripe_own_webhook_secret', '').strip()
+    clear = request.POST.get('clear_own_keys') == '1'
+
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+
+    if clear:
+        config.stripe_own_secret_key = ''
+        config.stripe_own_publishable_key = ''
+        config.stripe_own_webhook_secret = ''
+        config.save(update_fields=['stripe_own_secret_key', 'stripe_own_publishable_key', 'stripe_own_webhook_secret', 'updated_at'])
+        messages.success(request, 'Own Stripe keys cleared.')
+        return redirect('dashboard_domain_settings')
+
+    if not secret_key or not pub_key:
+        messages.error(request, 'Secret Key and Publishable Key are required.')
+        return redirect('dashboard_domain_settings')
+    if not secret_key.startswith('sk_'):
+        messages.error(request, 'Secret Key must start with sk_live_ or sk_test_.')
+        return redirect('dashboard_domain_settings')
+    if not pub_key.startswith('pk_'):
+        messages.error(request, 'Publishable Key must start with pk_live_ or pk_test_.')
+        return redirect('dashboard_domain_settings')
+    if webhook_secret and not webhook_secret.startswith('whsec_'):
+        messages.error(request, 'Webhook Secret must start with whsec_.')
+        return redirect('dashboard_domain_settings')
+
+    config.stripe_own_secret_key = secret_key
+    config.stripe_own_publishable_key = pub_key
+    config.stripe_own_webhook_secret = webhook_secret
+    config.save(update_fields=['stripe_own_secret_key', 'stripe_own_publishable_key', 'stripe_own_webhook_secret', 'updated_at'])
+    messages.success(request, 'Own Stripe keys saved. Students can now pay via your Stripe account.')
     return redirect('dashboard_domain_settings')
 
 
@@ -946,7 +1222,17 @@ def dashboard_course_detail(request, course_slug):
             course.status = request.POST.get('status', course.status)
             course.course_type = request.POST.get('course_type', course.course_type)
             course.coach_name = request.POST.get('coach_name', course.coach_name)
+            raw_price = request.POST.get('price', '').strip()
+            try:
+                price = round(float(raw_price), 2) if raw_price else None
+                if price is not None and price <= 0:
+                    price = None
+            except (ValueError, TypeError):
+                price = None
+            course.price = price
+            course.enrollment_method = 'purchase' if price else 'open'
             course.save()
+            messages.success(request, 'Course updated.')
             return redirect('dashboard_course_detail', course_slug=course.slug)
 
     return render(request, 'dashboard/course_detail.html', {
@@ -1178,15 +1464,16 @@ def create_editorjs_content(content_sections):
     }
 
 
-def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None):
+def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context=''):
     """Generate all AI lesson metadata fields (title, summary, description, outcomes, coach actions)"""
+    extra = f"\n{blueprint_context}\n" if blueprint_context else ''
     prompt = f"""You are an expert course creator. Generate comprehensive lesson metadata for the following lesson:
 
 Course: {course_name}
 Course Type: {course_type}
 Lesson Title: {lesson_title}
 Lesson Description: {lesson_description}
-
+{extra}
 Generate the following fields:
 1. clean_title: A polished, professional version of the lesson title (keep it concise and clear)
 2. short_summary: A 1-2 sentence summary for lesson cards/lists (max 150 characters)
@@ -1283,15 +1570,16 @@ Only return valid JSON, no additional text."""
         }
 
 
-def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None):
+def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context=''):
     """Generate detailed lesson content using AI (Editor.js blocks)"""
+    extra = f"\n{blueprint_context}\n" if blueprint_context else ''
     prompt = f"""You are an expert course creator. Create comprehensive lesson content for the following lesson:
 
 Course: {course_name}
 Course Type: {course_type}
 Lesson Title: {lesson_title}
 Lesson Description: {lesson_description}
-
+{extra}
 Generate detailed lesson content that includes:
 1. An engaging introduction paragraph
 2. Key learning objectives (as headers)
@@ -1372,7 +1660,7 @@ Only return valid JSON, no additional text."""
         return []
 
 
-def generate_ai_course_structure(course_name, description, course_type='sprint', coach_name='Sprint Coach', tenant=None, course=None):
+def generate_ai_course_structure(course_name, description, course_type='sprint', coach_name='Sprint Coach', tenant=None, course=None, blueprint=None):
     """Generate complete course structure (modules and lessons) using AI"""
     if not OPENAI_AVAILABLE:
         raise Exception('OpenAI is not available. Please install the openai package.')
@@ -1383,6 +1671,7 @@ def generate_ai_course_structure(course_name, description, course_type='sprint',
     
     try:
         client = OpenAI(api_key=api_key)
+        blueprint_extra = _blueprint_structure_prompt_section(blueprint) if blueprint else ''
         
         # Create prompt for AI
         prompt = f"""You are an expert course creator. Based on the following course information, generate a complete course structure with modules and lessons.
@@ -1391,7 +1680,7 @@ Course Name: {course_name}
 Course Type: {course_type}
 Coach Name: {coach_name}
 Description: {description}
-
+{blueprint_extra}
 Generate a comprehensive course structure with:
 1. 3-6 modules (logical groupings of lessons)
 2. 3-8 lessons per module (total 12-30 lessons)
@@ -1560,6 +1849,8 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         
         # Re-fetch course to ensure we have latest data
         course = Course.objects.get(id=course_id)
+        blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+        lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
         
         # Generate course structure with AI
         course_structure, ai_client = generate_ai_course_structure(
@@ -1569,6 +1860,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             coach_name=coach_name,
             tenant=course.tenant,
             course=course,
+            blueprint=blueprint,
         )
         
         modules_data = course_structure.get('modules', [])
@@ -1618,6 +1910,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     course_type=course_type,
                     tenant=course.tenant,
                     course=course,
+                    blueprint_context=lesson_blueprint_ctx,
                 )
                 
                 # Generate lesson content blocks using AI (Editor.js format)
@@ -1629,6 +1922,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     course_type=course_type,
                     tenant=course.tenant,
                     course=course,
+                    blueprint_context=lesson_blueprint_ctx,
                 )
                 
                 # Convert content sections to Editor.js format
@@ -1757,37 +2051,113 @@ def dashboard_add_course(request):
         messages.error(request, 'Tenant context is required to create courses.')
         return redirect('dashboard_home')
 
+    show_onboarding = False
+    if request.GET.get('onboarding') == '1':
+        show_onboarding = True
+    elif request.session.get('highlight_course_creation_wizard'):
+        show_onboarding = True
+        del request.session['highlight_course_creation_wizard']
+        request.session.modified = True
+
     if request.method == 'POST':
-        name = request.POST.get('name')
-        slug = generate_slug(name)
+        show_onboarding = True
+        blueprint = _parse_course_creation_blueprint(request.POST)
+        name = (request.POST.get('name') or '').strip()
+        if not name and blueprint.get('topic'):
+            name = blueprint['topic'][:200]
+        slug = generate_slug(name or 'course')
         if len(slug) > 200:
             slug = slug[:200].rstrip('-') or 'course'
-        short_description = request.POST.get('short_description', '')
-        description = request.POST.get('description', '')
+        short_description = (request.POST.get('short_description') or '').strip()
+        description = (request.POST.get('description') or '').strip()
         course_type = request.POST.get('course_type', 'sprint')
         status = request.POST.get('status', 'active')
         coach_name = request.POST.get('coach_name', 'Sprint Coach')
         use_ai = request.POST.get('use_ai') == 'on'
-        
+        raw_price = request.POST.get('price', '').strip()
+        try:
+            price = round(float(raw_price), 2) if raw_price else None
+            if price is not None and price <= 0:
+                price = None
+        except (ValueError, TypeError):
+            price = None
+        enrollment_method = 'purchase' if price else request.POST.get('enrollment_method', 'open')
+
+        ctx = {
+            'course_formats': COURSEFORGE_FORMAT_CHOICES,
+            'knowledge_levels': COURSEFORGE_LEVEL_CHOICES,
+            'show_onboarding': show_onboarding,
+        }
+
+        if use_ai:
+            quick_ai = request.POST.get('quick_ai') == '1'
+            bp_errors = _validate_blueprint_for_ai(blueprint)
+            forge_ok = not bool(bp_errors)
+            legacy_ok = bool(name and short_description and description)
+
+            if quick_ai:
+                if not legacy_ok:
+                    messages.error(
+                        request,
+                        'Quick AI requires course title, short description, and full description (step 2).',
+                    )
+                    return render(request, 'dashboard/add_course.html', ctx)
+                blueprint_to_save = {}
+            elif forge_ok:
+                if not name:
+                    messages.error(
+                        request,
+                        'Course title is required (step 2), or leave it blank to use your topic as the title.',
+                    )
+                    return render(request, 'dashboard/add_course.html', ctx)
+                if not short_description:
+                    short_description = _default_short_description_from_blueprint(blueprint)
+                structured = _compose_description_from_blueprint(blueprint)
+                if description:
+                    description = f"{description.strip()}\n\n---\n\n{structured}"
+                else:
+                    description = structured
+                blueprint_to_save = blueprint
+            elif legacy_ok:
+                # Classic three-field AI flow (same as pre-wizard): no blueprint, user description only
+                blueprint_to_save = {}
+            else:
+                for err in bp_errors:
+                    messages.error(request, err)
+                messages.info(
+                    request,
+                    'Tip: use Quick AI on step 1 for the classic flow (title + descriptions only), '
+                    'or fill the guided steps above.',
+                )
+                return render(request, 'dashboard/add_course.html', ctx)
+        else:
+            if not name or not short_description or not description:
+                messages.error(request, 'Course name, short description, and full description are required when AI generation is off.')
+                return render(request, 'dashboard/add_course.html', ctx)
+            blueprint_to_save = {}
+
         # Ensure slug is unique
         base_slug = slug
         counter = 1
         while Course.objects.filter(tenant=tenant, slug=slug).exists():
             slug = f"{base_slug}-{counter}"
             counter += 1
-        
+
         # Create course
         course = Course.objects.create(
             tenant=tenant,
             name=name,
             slug=slug,
-            short_description=short_description,
+            short_description=short_description[:1000],
             description=description,
             course_type=course_type,
             status=status,
             coach_name=coach_name,
+            creation_blueprint=blueprint_to_save,
+            price=price,
+            enrollment_method=enrollment_method,
         )
-        
+
         # Generate course structure with AI if requested (in background)
         if use_ai and description:
             # Append to list so floating widget can show stacked progress for multiple courses
@@ -1807,10 +2177,14 @@ def dashboard_add_course(request):
             thread.start()
         else:
             messages.success(request, f'Course "{course.name}" has been created successfully.')
-        
+
         return redirect('dashboard_courses')
-    
-    return render(request, 'dashboard/add_course.html')
+
+    return render(request, 'dashboard/add_course.html', {
+        'course_formats': COURSEFORGE_FORMAT_CHOICES,
+        'knowledge_levels': COURSEFORGE_LEVEL_CHOICES,
+        'show_onboarding': show_onboarding,
+    })
 
 
 @staff_member_required
@@ -3265,6 +3639,11 @@ def dashboard_domain_settings(request):
         config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
     primary_domain = domains.filter(is_primary=True).first() if tenant else None
     temporary_domain = domains.filter(is_temporary=True).first() if tenant else None
+    referral_signup_url = ''
+    referred_tenants = Tenant.objects.none()
+    if tenant and tenant.referral_code:
+        referral_signup_url = f"{request.scheme}://{request.get_host()}/start-academy/?ref={tenant.referral_code}"
+        referred_tenants = Tenant.objects.filter(referred_by=tenant).order_by('-created_at')
     all_tenant_domains = (
         TenantDomain.objects.select_related('tenant').order_by('tenant__name', '-is_primary', 'domain')
         if is_superadmin else TenantDomain.objects.none()
@@ -3278,6 +3657,8 @@ def dashboard_domain_settings(request):
         'primary_domain': primary_domain,
         'temporary_domain': temporary_domain,
         'platform_base_domain': get_platform_base_domain(),
+        'referral_signup_url': referral_signup_url,
+        'referred_tenants': referred_tenants,
     })
 
 

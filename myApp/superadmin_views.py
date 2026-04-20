@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
@@ -128,7 +129,17 @@ def superadmin_tenants(request):
 
     tenants = Tenant.objects.annotate(
         course_count=Count('courses', distinct=True),
-        lesson_count=Count('lessons', distinct=True),
+        # Count via courses to include legacy lessons with null tenant FK.
+        lesson_count=Count('courses__lessons', distinct=True),
+        # Show only real student enrollments (exclude staff/superusers).
+        enrollment_count=Count(
+            'courses__enrollments',
+            filter=Q(
+                courses__enrollments__user__is_staff=False,
+                courses__enrollments__user__is_superuser=False,
+            ),
+            distinct=True,
+        ),
     ).order_by('name')
 
     return render(request, 'superadmin/tenants.html', {
@@ -181,8 +192,15 @@ def superadmin_tenant_detail(request, tenant_id):
 
     stats = {
         'courses': Course.objects.filter(tenant=tenant).count(),
-        'lessons': Lesson.objects.filter(tenant=tenant).count(),
-        'enrollments': CourseEnrollment.objects.filter(tenant=tenant).count(),
+        'lessons': Lesson.objects.filter(
+            Q(tenant=tenant) | Q(course__tenant=tenant)
+        ).distinct().count(),
+        'enrollments': CourseEnrollment.objects.filter(
+            Q(tenant=tenant) | Q(course__tenant=tenant)
+        ).filter(
+            user__is_staff=False,
+            user__is_superuser=False,
+        ).distinct().count(),
         'active_accesses': CourseAccess.objects.filter(tenant=tenant, status='unlocked').count(),
         'certifications': Certification.objects.filter(tenant=tenant).count(),
         'bundles': Bundle.objects.filter(tenant=tenant).count(),
@@ -309,6 +327,13 @@ def superadmin_tenant_suspend(request, tenant_id):
         tenant.is_active = False
         tenant.save(update_fields=['is_active'])
         messages.success(request, f'Tenant "{tenant.name}" has been suspended.')
+    next_url = (request.POST.get('next') or '').strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
     return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
 
 
@@ -403,5 +428,45 @@ def superadmin_set_primary_tenant_domain(request, tenant_id, domain_id):
         tenant.custom_domain = tenant_domain.domain
         tenant.save(update_fields=['custom_domain'])
     messages.success(request, f'"{tenant_domain.domain}" is now the primary domain.')
+    return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+
+
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_set_tenant_stripe_keys(request, tenant_id):
+    """Super admin: set or clear a tenant's own Stripe keys on their behalf."""
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+
+    if request.POST.get('clear_own_keys') == '1':
+        config.stripe_own_secret_key = ''
+        config.stripe_own_publishable_key = ''
+        config.stripe_own_webhook_secret = ''
+        config.save(update_fields=['stripe_own_secret_key', 'stripe_own_publishable_key', 'stripe_own_webhook_secret', 'updated_at'])
+        messages.success(request, f'Stripe keys cleared for "{tenant.name}".')
+        return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+
+    secret_key = request.POST.get('stripe_own_secret_key', '').strip()
+    pub_key = request.POST.get('stripe_own_publishable_key', '').strip()
+    webhook_secret = request.POST.get('stripe_own_webhook_secret', '').strip()
+
+    if not secret_key or not pub_key:
+        messages.error(request, 'Secret Key and Publishable Key are required.')
+        return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+    if not secret_key.startswith('sk_'):
+        messages.error(request, 'Secret Key must start with sk_live_ or sk_test_.')
+        return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+    if not pub_key.startswith('pk_'):
+        messages.error(request, 'Publishable Key must start with pk_live_ or pk_test_.')
+        return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+    if webhook_secret and not webhook_secret.startswith('whsec_'):
+        messages.error(request, 'Webhook Secret must start with whsec_.')
+        return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+
+    config.stripe_own_secret_key = secret_key
+    config.stripe_own_publishable_key = pub_key
+    config.stripe_own_webhook_secret = webhook_secret
+    config.save(update_fields=['stripe_own_secret_key', 'stripe_own_publishable_key', 'stripe_own_webhook_secret', 'updated_at'])
+    messages.success(request, f'Stripe keys saved for "{tenant.name}". They can now accept payments.')
     return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
 

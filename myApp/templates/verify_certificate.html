@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Verification</title>
+    <style>
+        :root {
+            --bg: #070b1f;
+            --card: #111732;
+            --border: rgba(255,255,255,0.12);
+            --text: #e7ecff;
+            --muted: #98a4cc;
+            --ok: #22c55e;
+            --bad: #ef4444;
+            --accent: #22d3ee;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Inter, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top, #10183a 0%, var(--bg) 55%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            width: 100%;
+            max-width: 720px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.35);
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            padding: 8px 12px;
+            border-radius: 999px;
+            margin-bottom: 18px;
+        }
+        .status.ok { background: rgba(34,197,94,0.18); color: #86efac; border: 1px solid rgba(34,197,94,0.45); }
+        .status.bad { background: rgba(239,68,68,0.18); color: #fca5a5; border: 1px solid rgba(239,68,68,0.45); }
+        h1 {
+            margin: 0 0 10px;
+            font-size: 28px;
+            line-height: 1.2;
+        }
+        .meta {
+            color: var(--muted);
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 12px;
+            padding: 11px 0;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .row:first-of-type { border-top: none; }
+        .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .value { color: var(--text); font-weight: 600; word-break: break-word; }
+        .link {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .link:hover { text-decoration: underline; }
+        .note {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        {% if is_valid and certificate %}
+            <div class="status ok">Verified Certificate</div>
+            <h1>{{ certificate.course.name }}</h1>
+            <div class="meta">This certificate has been verified by CourseForge.</div>
+
+            <div class="row">
+                <div class="label">Learner</div>
+                <div class="value">{{ certificate.user.get_full_name|default:certificate.user.username }}</div>
+            </div>
+            <div class="row">
+                <div class="label">Course</div>
+                <div class="value">{{ certificate.course.name }}</div>
+            </div>
+            <div class="row">
+                <div class="label">Certificate ID</div>
+                <div class="value">{{ certificate.accredible_certificate_id }}</div>
+            </div>
+            <div class="row">
+                <div class="label">Issue Date</div>
+                <div class="value">{{ certificate.issued_at|date:"F d, Y" }}</div>
+            </div>
+            <div class="row">
+                <div class="label">Status</div>
+                <div class="value">{{ certificate.get_status_display }}</div>
+            </div>
+            {% if certificate.accredible_certificate_url %}
+            <div class="row">
+                <div class="label">Certificate File</div>
+                <div class="value">
+                    <a class="link" href="{{ certificate.accredible_certificate_url }}" target="_blank" rel="noopener noreferrer">
+                        Open Certificate PDF
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="status bad">Certificate Not Found</div>
+            <h1>Invalid or Unverified Certificate</h1>
+            <div class="meta">We could not verify this certificate ID.</div>
+            <div class="row">
+                <div class="label">Scanned ID</div>
+                <div class="value">{{ certificate_id }}</div>
+            </div>
+            <p class="note">If you believe this is an error, contact support and include the certificate ID above.</p>
+        {% endif %}
+    </main>
+</body>
+</html>

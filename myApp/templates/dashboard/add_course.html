@@ -11,43 +11,124 @@
         </a>
     </div>
 
+    {% if show_onboarding %}
+    <div class="mb-6 p-4 rounded-xl border border-cyan-electric/40 bg-cyan-electric/10 text-sm text-gray-200">
+        <strong class="text-cyan-electric">Welcome — let’s ship your first course.</strong>
+        Use the guided steps for a richer AI brief, or <strong class="text-cyan-electric">Quick AI (classic)</strong> on step 1 if you already have a title and full description.
+    </div>
+    {% endif %}
+
     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-8">
-        <h2 class="text-2xl font-bold mb-6">Course Information</h2>
-        <form method="POST" id="create-course-form">
+        <p id="manual-hint" class="hidden text-sm text-gray-400 mb-6">Manual mode: fill course name and descriptions only. Steps 1 and 3–5 are optional.</p>
+
+        <!-- Step indicator (AI mode) -->
+        <div id="wizard-progress" class="mb-8">
+            <div class="flex justify-between text-[10px] uppercase tracking-wider text-gray-500 mb-2">
+                <span>Foundation</span><span>About</span><span>Promise</span><span>Framework</span><span>Outcomes</span><span>Review</span>
+            </div>
+            <div class="h-1.5 bg-[#0a0e27] rounded-full overflow-hidden flex">
+                <div id="wizard-progress-bar" class="h-full bg-cyan-electric transition-all duration-300" style="width:16.66%"></div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2"><span id="wizard-step-label">Step 1 of 6</span> — <span id="wizard-step-title">Course settings</span></p>
+        </div>
+
+        <form method="POST" id="create-course-form" enctype="multipart/form-data">
             {% csrf_token %}
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-sm font-semibold mb-2">Course Name *</label>
-                    <input type="text" name="name" required class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g., Sprint 8.0">
+            <input type="hidden" name="quick_ai" id="quick_ai" value="0">
+
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <h2 class="text-2xl font-bold">CourseForge creation</h2>
+                <div class="flex items-center gap-3 text-sm">
+                    <label class="flex items-center gap-2 cursor-pointer text-gray-300">
+                        <input type="checkbox" name="use_ai" id="use_ai" checked class="w-5 h-5 text-cyan-electric bg-[#0a0e27]/40 border-cyan-electric/30 rounded focus:ring-cyan-electric">
+                        <span>Generate with AI</span>
+                    </label>
                 </div>
-                
+            </div>
+
+            <!-- Step 1: Foundation (doc steps 1) -->
+            <div class="wizard-step space-y-5" data-step="1">
+                <h3 class="text-lg font-semibold text-cyan-electric/90 border-b border-cyan-electric/20 pb-2">Step 1 — Course settings</h3>
+                <p class="text-xs text-gray-400">Everything downstream depends on this layer. Be specific — avoid “everyone.”</p>
+                <button type="button" id="btn-quick-ai" class="w-full sm:w-auto text-sm px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/10 transition-all">
+                    Quick AI (classic) — I only have a title &amp; full description →
+                </button>
+
                 <div>
-                    <label class="block text-sm font-semibold mb-2">Short Description *</label>
-                    <input type="text" name="short_description" required class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="One-line description for course cards">
+                    <label class="block text-sm font-semibold mb-1">Course topic <span class="text-red-400">*</span></label>
+                    <input type="text" name="cf_topic" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g. Video production for small businesses">
                 </div>
-                
                 <div>
-                    <label class="block text-sm font-semibold mb-2">Full Description *</label>
-                    <textarea name="description" rows="6" required class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="Detailed course description"></textarea>
-                    <p class="text-xs text-gray-400 mt-1">Provide a detailed description of what the course covers. The more detail you provide, the better the AI-generated content will be.</p>
+                    <label class="block text-sm font-semibold mb-1">Target audience <span class="text-red-400">*</span></label>
+                    <input type="text" name="cf_target_audience" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="Who is this for?">
                 </div>
-                
-                <div class="bg-gradient-to-r from-cyan-electric/10 to-purple-500/10 border border-cyan-electric/30 rounded-lg p-4">
-                    <div class="flex items-start gap-3">
-                        <input type="checkbox" name="use_ai" id="use_ai" checked class="mt-1 w-5 h-5 text-cyan-electric bg-[#0a0e27]/40 border-cyan-electric/30 rounded focus:ring-cyan-electric focus:ring-2">
-                        <div class="flex-1">
-                            <label for="use_ai" class="block text-sm font-semibold mb-1 cursor-pointer">
-                                <i class="fas fa-robot mr-2 text-cyan-electric"></i>
-                                Generate Course Structure with AI
-                            </label>
-                            <p class="text-xs text-gray-400">
-                                Automatically generate modules and lessons based on your description. This will create a complete course structure with 3-6 modules and 12-30 lessons that you can edit afterward.
-                            </p>
-                        </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">High-level learning goals <span class="text-red-400">*</span></label>
+                    <textarea name="cf_learning_goals" rows="3" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="What should learners achieve by the end?"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Required knowledge <span class="text-red-400">*</span></label>
+                    <textarea name="cf_required_knowledge" rows="2" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="Prerequisites or “no prior experience”"></textarea>
+                </div>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Course format <span class="text-red-400">*</span></label>
+                        <select name="cf_course_format" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                            {% for val, label in course_formats %}
+                            <option value="{{ val }}" {% if val == 'masterclass' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Knowledge level <span class="text-red-400">*</span></label>
+                        <select name="cf_knowledge_level" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                            {% for val, label in knowledge_levels %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
-                
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Class length <span class="text-red-400">*</span></label>
+                        <input type="text" name="cf_class_length" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g. 45 minutes">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Total classes / lessons <span class="text-red-400">*</span></label>
+                        <input type="number" name="cf_total_classes" min="4" max="120" value="12" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Writing style sample <span class="text-gray-500 font-normal">(optional)</span></label>
+                    <p class="text-xs text-gray-500 mb-1">Paste a short sample so the AI can match your tone — not used as factual content.</p>
+                    <textarea name="cf_writing_sample" rows="3" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Course content / raw material <span class="text-gray-500 font-normal">(optional)</span></label>
+                    <p class="text-xs text-gray-500 mb-1">Paste existing notes or outlines to repurpose into lessons.</p>
+                    <textarea name="cf_reference_content" rows="4" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none"></textarea>
+                </div>
+            </div>
+
+            <!-- Step 2: About -->
+            <div class="wizard-step space-y-5 hidden" data-step="2">
+                <h3 class="text-lg font-semibold text-cyan-electric/90 border-b border-cyan-electric/20 pb-2">Step 2 — About</h3>
+                <p id="quick-ai-hint" class="hidden text-xs text-cyan-electric/80 mb-2">Using classic AI: enter title, short line, and a detailed description — same as before CourseForge.</p>
+                <button type="button" id="btn-full-forge" class="hidden text-xs text-gray-400 hover:text-cyan-electric underline mb-2">← Use full CourseForge wizard instead</button>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Course title <span class="text-red-400 manual-req">*</span></label>
+                    <p class="text-xs text-gray-500 mb-1">Leave blank with AI on to use your topic as the title.</p>
+                    <input type="text" name="name" class="manual-req-field w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="Outcome-driven title (under 60 characters)">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Short description <span class="text-red-400 manual-req">*</span></label>
+                    <input type="text" name="short_description" class="manual-req-field w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="One line for course cards" maxlength="1000">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Full description <span class="text-gray-500 font-normal manual-opt">(optional with AI)</span><span class="text-red-400 manual-req hidden">*</span></label>
+                    <textarea name="description" rows="5" class="manual-req-field w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="Benefits, outcomes, audience. With AI on, you can leave this empty — we build a full brief from your earlier steps."></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4 pt-2">
                     <div>
                         <label class="block text-sm font-semibold mb-2">Course Type</label>
                         <select name="course_type" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
@@ -57,7 +138,6 @@
                             <option value="special">Special</option>
                         </select>
                     </div>
-                    
                     <div>
                         <label class="block text-sm font-semibold mb-2">Status</label>
                         <select name="status" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
@@ -67,23 +147,116 @@
                         </select>
                     </div>
                 </div>
-                
+
+                <!-- Pricing -->
+                <div class="pt-2">
+                    <label class="block text-sm font-semibold mb-3">Pricing</label>
+                    <div class="flex gap-3 mb-3">
+                        <label class="flex-1 flex items-center gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-[#0a0e27]/40 cursor-pointer has-[:checked]:border-cyan-electric/60 has-[:checked]:bg-cyan-electric/5 transition">
+                            <input type="radio" name="pricing_type" value="free" checked class="text-cyan-electric" id="pricing-free">
+                            <div>
+                                <div class="text-sm font-medium">Free</div>
+                                <div class="text-xs text-gray-500">Open enrollment, no payment needed</div>
+                            </div>
+                        </label>
+                        <label class="flex-1 flex items-center gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-[#0a0e27]/40 cursor-pointer has-[:checked]:border-cyan-electric/60 has-[:checked]:bg-cyan-electric/5 transition">
+                            <input type="radio" name="pricing_type" value="paid" class="text-cyan-electric" id="pricing-paid">
+                            <div>
+                                <div class="text-sm font-medium">Paid</div>
+                                <div class="text-xs text-gray-500">Students pay before access</div>
+                            </div>
+                        </label>
+                    </div>
+                    <div id="price-amount-row" class="hidden">
+                        <label class="block text-xs text-gray-400 mb-1">Price (USD)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                            <input type="number" name="price" id="price-input" min="0.50" step="0.01" placeholder="e.g. 49.00"
+                                class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg pl-7 pr-4 py-3 text-sm focus:outline-none focus:border-cyan-electric/50">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">Requires your Stripe keys to be configured in Payment Settings.</p>
+                    </div>
+                </div>
+                <script>
+                    (function(){
+                        const free = document.getElementById('pricing-free');
+                        const paid = document.getElementById('pricing-paid');
+                        const row  = document.getElementById('price-amount-row');
+                        const inp  = document.getElementById('price-input');
+                        function toggle(){
+                            const isPaid = paid.checked;
+                            row.classList.toggle('hidden', !isPaid);
+                            inp.required = isPaid;
+                        }
+                        free.addEventListener('change', toggle);
+                        paid.addEventListener('change', toggle);
+                    })();
+                </script>
                 <div>
                     <label class="block text-sm font-semibold mb-2">AI Coach Name</label>
-                    <input type="text" name="coach_name" value="Sprint Coach" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g., Sprint Coach">
+                    <input type="text" name="coach_name" value="Sprint Coach" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
                 </div>
-                
-                <div class="flex gap-4 pt-4">
-                    <button type="submit" id="submit-btn" class="flex-1 px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span id="submit-text">Create Course</span>
-                        <span id="submit-loading" class="hidden">
-                            <i class="fas fa-spinner fa-spin mr-2"></i>Creating...
-                        </span>
-                    </button>
-                    <a href="{% url 'dashboard_courses' %}" class="px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all text-center">
-                        Cancel
-                    </a>
+            </div>
+
+            <!-- Step 3: Promise -->
+            <div class="wizard-step space-y-5 hidden" data-step="3">
+                <h3 class="text-lg font-semibold text-cyan-electric/90 border-b border-cyan-electric/20 pb-2">Step 3 — Course promise</h3>
+                <p class="text-xs text-gray-400">Specific outcome plus timeframe (e.g. “Launch a landing page in 5 days”).</p>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Transformation promise <span class="text-red-400">*</span></label>
+                    <textarea name="cf_course_promise" rows="3" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none"></textarea>
                 </div>
+            </div>
+
+            <!-- Step 4: Framework -->
+            <div class="wizard-step space-y-5 hidden" data-step="4">
+                <h3 class="text-lg font-semibold text-cyan-electric/90 border-b border-cyan-electric/20 pb-2">Step 4 — Teaching framework</h3>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Framework title <span class="text-red-400">*</span></label>
+                    <input type="text" name="cf_framework_title" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g. The 5-Step Growth Engine">
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-cyan-electric/5">
+                    <input type="checkbox" name="cf_framework_auto" id="cf_framework_auto" class="mt-1 w-5 h-5 text-cyan-electric bg-[#0a0e27]/40 border-cyan-electric/30 rounded">
+                    <label for="cf_framework_auto" class="text-sm cursor-pointer text-gray-300">Generate framework steps automatically (AI invents steps to match your framework title)</label>
+                </div>
+                <div id="framework-steps-wrap">
+                    <label class="block text-sm font-semibold mb-1">Framework steps <span class="text-gray-500 font-normal">(one per line, if not auto)</span></label>
+                    <textarea name="cf_framework_steps" rows="5" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="Step 1&#10;Step 2&#10;Step 3"></textarea>
+                </div>
+            </div>
+
+            <!-- Step 5: Outcomes -->
+            <div class="wizard-step space-y-5 hidden" data-step="5">
+                <h3 class="text-lg font-semibold text-cyan-electric/90 border-b border-cyan-electric/20 pb-2">Step 5 — Learning outcomes</h3>
+                <p class="text-xs text-gray-400">Measurable skills — start with action verbs. One per line.</p>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Outcomes <span class="text-red-400">*</span></label>
+                    <textarea name="cf_outcomes" rows="6" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="Create a weekly content plan&#10;Analyze basic analytics&#10;Publish first campaign"></textarea>
+                </div>
+            </div>
+
+            <!-- Step 6: Review + options -->
+            <div class="wizard-step space-y-5 hidden" data-step="6">
+                <h3 class="text-lg font-semibold text-cyan-electric/90 border-b border-cyan-electric/20 pb-2">Step 6 — Structure, content &amp; review</h3>
+                <div class="text-sm text-gray-400 space-y-2 p-4 rounded-lg bg-[#0a0e27]/40 border border-cyan-electric/10">
+                    <p><strong class="text-gray-300">Steps 6–9 in CourseForge:</strong> generating modules and lessons (structure), lesson scripts (content), quizzes, and final exam happen automatically in the background after you submit with AI enabled.</p>
+                    <p>Course type, status, and coach are on <strong class="text-gray-300">step 2</strong>. Polish and publish from <strong class="text-gray-300">Dashboard → Courses</strong> when the progress widget shows complete.</p>
+                </div>
+
+                <div class="bg-gradient-to-r from-cyan-electric/10 to-purple-500/10 border border-cyan-electric/30 rounded-lg p-4">
+                    <p class="text-sm text-gray-300 mb-2"><i class="fas fa-robot mr-2 text-cyan-electric"></i>With AI on, we create modules, lessons, quizzes, and a final exam from your brief.</p>
+                    <p class="text-xs text-gray-500">Turn AI off above for an empty course shell — you’ll add everything manually.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3 pt-8 border-t border-cyan-electric/10 mt-6">
+                <button type="button" id="wizard-back" class="hidden px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all">Back</button>
+                <button type="button" id="wizard-next" class="px-6 py-3 bg-cyan-electric/20 text-cyan-electric border border-cyan-electric/40 rounded-full font-medium hover:bg-cyan-electric/30 transition-all">Next step</button>
+                <button type="submit" id="submit-btn" class="hidden flex-1 min-w-[200px] px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="submit-text">Create course</span>
+                    <span id="submit-loading" class="hidden"><i class="fas fa-spinner fa-spin mr-2"></i>Creating...</span>
+                </button>
+                <a href="{% url 'dashboard_courses' %}" class="px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all text-center">Cancel</a>
             </div>
         </form>
     </div>
@@ -93,78 +266,241 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('create-course-form');
     const aiCheckbox = document.getElementById('use_ai');
+    const steps = Array.from(document.querySelectorAll('.wizard-step'));
+    const btnNext = document.getElementById('wizard-next');
+    const btnBack = document.getElementById('wizard-back');
+    const btnSubmit = document.getElementById('submit-btn');
+    const progressBar = document.getElementById('wizard-progress-bar');
+    const stepLabel = document.getElementById('wizard-step-label');
+    const stepTitle = document.getElementById('wizard-step-title');
+    const wizardProgress = document.getElementById('wizard-progress');
+    const manualHint = document.getElementById('manual-hint');
     const preloader = document.getElementById('universal-preloader');
     const preloaderText = document.getElementById('preloader-text');
     const submitBtn = document.getElementById('submit-btn');
     const submitText = document.getElementById('submit-text');
     const submitLoading = document.getElementById('submit-loading');
-    
+    const frameworkAuto = document.getElementById('cf_framework_auto');
+    const frameworkWrap = document.getElementById('framework-steps-wrap');
+    const quickAiField = document.getElementById('quick_ai');
+    const btnQuickAi = document.getElementById('btn-quick-ai');
+    const btnFullForge = document.getElementById('btn-full-forge');
+
+    const stepTitles = ['Course settings', 'About & positioning', 'Course promise', 'Teaching framework', 'Learning outcomes', 'Review & generate'];
+
+    let current = 1;
+    const total = steps.length;
+
+    function aiOn() {
+        return aiCheckbox && aiCheckbox.checked;
+    }
+
+    function enterQuickAiMode(fromButton) {
+        if (fromButton && quickAiField) quickAiField.value = '1';
+        if (wizardProgress) wizardProgress.classList.add('hidden');
+        showStep(2);
+        if (btnNext) btnNext.classList.add('hidden');
+        if (btnBack) btnBack.classList.add('hidden');
+        if (btnSubmit) btnSubmit.classList.remove('hidden');
+        if (stepLabel) stepLabel.textContent = 'Quick AI';
+        if (stepTitle) stepTitle.textContent = 'Title & descriptions';
+        var qh = document.getElementById('quick-ai-hint');
+        if (qh) qh.classList.remove('hidden');
+        if (btnFullForge) btnFullForge.classList.remove('hidden');
+        document.querySelectorAll('.manual-req').forEach(function(el) { el.classList.remove('hidden'); });
+        document.querySelectorAll('.manual-opt').forEach(function(el) { el.classList.add('hidden'); });
+        document.querySelectorAll('.manual-req-field').forEach(function(el) {
+            if (el.name === 'name' || el.name === 'short_description' || el.name === 'description') {
+                el.required = true;
+            }
+        });
+    }
+
+    function enterFullForgeMode() {
+        if (quickAiField) quickAiField.value = '0';
+        if (wizardProgress) wizardProgress.classList.remove('hidden');
+        var qh = document.getElementById('quick-ai-hint');
+        if (qh) qh.classList.add('hidden');
+        if (btnFullForge) btnFullForge.classList.add('hidden');
+        document.querySelectorAll('.manual-req').forEach(function(el) { el.classList.add('hidden'); });
+        document.querySelectorAll('.manual-opt').forEach(function(el) { el.classList.remove('hidden'); });
+        document.querySelectorAll('.manual-req-field').forEach(function(el) { el.required = false; });
+        showStep(1);
+    }
+
+    function updateFrameworkStepsVisibility() {
+        if (!frameworkWrap) return;
+        frameworkWrap.classList.toggle('opacity-50', frameworkAuto && frameworkAuto.checked);
+        const ta = frameworkWrap.querySelector('textarea');
+        if (ta) ta.disabled = !!(frameworkAuto && frameworkAuto.checked);
+    }
+    if (frameworkAuto) {
+        frameworkAuto.addEventListener('change', updateFrameworkStepsVisibility);
+        updateFrameworkStepsVisibility();
+    }
+
+    function showStep(n) {
+        current = n;
+        steps.forEach(function(el) {
+            el.classList.toggle('hidden', parseInt(el.dataset.step, 10) !== n);
+        });
+        const pct = (n / total) * 100;
+        if (progressBar) progressBar.style.width = pct + '%';
+        if (stepLabel) stepLabel.textContent = 'Step ' + n + ' of ' + total;
+        if (stepTitle) stepTitle.textContent = stepTitles[n - 1] || '';
+
+        if (btnBack) btnBack.classList.toggle('hidden', n <= 1);
+        if (btnNext) {
+            btnNext.classList.toggle('hidden', n >= total);
+            btnNext.textContent = n === total - 1 ? 'Review' : 'Next step';
+        }
+        if (btnSubmit) btnSubmit.classList.toggle('hidden', n < total);
+    }
+
+    function applyMode() {
+        const ai = aiOn();
+        if (!ai) {
+            if (quickAiField) quickAiField.value = '0';
+            if (wizardProgress) wizardProgress.classList.add('hidden');
+            if (manualHint) manualHint.classList.remove('hidden');
+            var qh = document.getElementById('quick-ai-hint');
+            if (qh) qh.classList.add('hidden');
+            if (btnFullForge) btnFullForge.classList.add('hidden');
+            document.querySelectorAll('.manual-req').forEach(function(el) { el.classList.remove('hidden'); });
+            document.querySelectorAll('.manual-opt').forEach(function(el) { el.classList.add('hidden'); });
+            document.querySelectorAll('.manual-req-field').forEach(function(el) {
+                el.required = (el.name === 'name' || el.name === 'short_description' || el.name === 'description');
+            });
+            showStep(2);
+            if (btnBack) btnBack.classList.add('hidden');
+            if (btnNext) btnNext.classList.add('hidden');
+            if (btnSubmit) btnSubmit.classList.remove('hidden');
+            if (progressBar) progressBar.style.width = '100%';
+            if (stepLabel) stepLabel.textContent = 'Manual create';
+            if (stepTitle) stepTitle.textContent = 'Course details';
+            return;
+        }
+        if (manualHint) manualHint.classList.add('hidden');
+        if (wizardProgress) wizardProgress.classList.remove('hidden');
+        document.querySelectorAll('.manual-req').forEach(function(el) { el.classList.add('hidden'); });
+        document.querySelectorAll('.manual-opt').forEach(function(el) { el.classList.remove('hidden'); });
+        document.querySelectorAll('.manual-req-field').forEach(function(el) { el.required = false; });
+
+        if (quickAiField && quickAiField.value === '1') {
+            enterQuickAiMode(false);
+        } else {
+            if (btnQuickAi) btnQuickAi.classList.remove('hidden');
+            showStep(1);
+        }
+    }
+
+    if (btnNext) {
+        btnNext.addEventListener('click', function() {
+            if (!aiOn()) return;
+            if (current < total) {
+                const panel = document.querySelector('.wizard-step[data-step="' + current + '"]');
+                if (panel) {
+                    const req = panel.querySelectorAll('.cf-ai-req');
+                    for (let i = 0; i < req.length; i++) {
+                        const el = req[i];
+                        if (el.disabled) continue;
+                        if (!el.value || !String(el.value).trim()) {
+                            el.focus();
+                            el.classList.add('ring-2', 'ring-red-500/50');
+                            setTimeout(function() { el.classList.remove('ring-2', 'ring-red-500/50'); }, 2000);
+                            return;
+                        }
+                    }
+                    if (current === 4 && frameworkAuto && !frameworkAuto.checked) {
+                        const ta = panel.querySelector('[name="cf_framework_steps"]');
+                        if (ta && ta.value.split('\n').filter(function(l) { return l.trim(); }).length < 2) {
+                            ta.focus();
+                            return;
+                        }
+                    }
+                }
+                showStep(current + 1);
+            }
+        });
+    }
+    if (btnBack) {
+        btnBack.addEventListener('click', function() {
+            if (current > 1) showStep(current - 1);
+        });
+    }
+    if (aiCheckbox) aiCheckbox.addEventListener('change', applyMode);
+    if (btnQuickAi) btnQuickAi.addEventListener('click', function() { enterQuickAiMode(true); });
+    if (btnFullForge) btnFullForge.addEventListener('click', enterFullForgeMode);
+    applyMode();
+
     if (form) {
         form.addEventListener('submit', function(e) {
-            e.preventDefault();
             const useAI = aiCheckbox && aiCheckbox.checked;
-            
-            // Disable submit button and show loading state
-            if (submitBtn) {
-                submitBtn.disabled = true;
-            }
-            if (submitText) {
-                submitText.classList.add('hidden');
-            }
-            if (submitLoading) {
-                submitLoading.classList.remove('hidden');
-            }
-            
-            if (useAI) {
-                // Show AI generation preloader with progress messages
-                if (preloader && preloaderText) {
-                    preloaderText.textContent = 'Creating Course...';
-                    preloader.classList.remove('hidden');
-                    preloader.classList.add('flex');
-                    document.body.style.overflow = 'hidden';
-                    
-                    // Update message after a short delay to show AI is working
-                    setTimeout(function() {
-                        if (preloaderText) {
-                            preloaderText.textContent = 'Generating Course Structure with AI...';
-                        }
-                    }, 1000);
-                    
-                    setTimeout(function() {
-                        if (preloaderText) {
-                            preloaderText.textContent = 'Creating Modules and Lessons...';
-                        }
-                    }, 3000);
-                    
-                    setTimeout(function() {
-                        if (preloaderText) {
-                            preloaderText.textContent = 'Generating Lesson Content...';
-                        }
-                    }, 6000);
-                    
-                    setTimeout(function() {
-                        if (preloaderText) {
-                            preloaderText.textContent = 'Almost done! Finalizing course structure...';
-                        }
-                    }, 10000);
+            const isQuickAi = quickAiField && quickAiField.value === '1';
+            if (useAI && isQuickAi) {
+                const n = form.querySelector('[name="name"]');
+                const sd = form.querySelector('[name="short_description"]');
+                const d = form.querySelector('[name="description"]');
+                if (!n || !n.value.trim() || !sd || !sd.value.trim() || !d || !d.value.trim()) {
+                    e.preventDefault();
+                    enterQuickAiMode(false);
+                    if (!n || !n.value.trim()) { n && n.focus(); }
+                    else if (!sd || !sd.value.trim()) sd.focus();
+                    else d.focus();
+                    return;
+                }
+            } else if (useAI) {
+                const promise = form.querySelector('[name="cf_course_promise"]');
+                const outcomes = form.querySelector('[name="cf_outcomes"]');
+                if (promise && !promise.value.trim()) {
+                    e.preventDefault();
+                    showStep(3);
+                    promise.focus();
+                    return;
+                }
+                if (outcomes && outcomes.value.split('\n').filter(function(l) { return l.trim(); }).length < 2) {
+                    e.preventDefault();
+                    showStep(5);
+                    outcomes.focus();
+                    return;
                 }
             } else {
-                // Regular course creation
-                if (preloader && preloaderText) {
-                    preloaderText.textContent = 'Creating Course...';
-                    preloader.classList.remove('hidden');
-                    preloader.classList.add('flex');
-                    document.body.style.overflow = 'hidden';
+                const n = form.querySelector('[name="name"]');
+                const sd = form.querySelector('[name="short_description"]');
+                const d = form.querySelector('[name="description"]');
+                if (!n || !n.value.trim() || !sd || !sd.value.trim() || !d || !d.value.trim()) {
+                    e.preventDefault();
+                    applyMode();
+                    return;
                 }
             }
 
-            // Give the loader one paint frame so users always see it.
-            requestAnimationFrame(() => {
-                setTimeout(() => form.submit(), 120);
+            e.preventDefault();
+            if (submitBtn) submitBtn.disabled = true;
+            if (submitText) submitText.classList.add('hidden');
+            if (submitLoading) submitLoading.classList.remove('hidden');
+
+            if (useAI) {
+                if (preloader && preloaderText) {
+                    preloaderText.textContent = 'Creating course…';
+                    preloader.classList.remove('hidden');
+                    preloader.classList.add('flex');
+                    document.body.style.overflow = 'hidden';
+                    setTimeout(function() { if (preloaderText) preloaderText.textContent = 'Starting AI generation…'; }, 800);
+                }
+            } else {
+                if (preloader && preloaderText) {
+                    preloaderText.textContent = 'Creating course…';
+                    preloader.classList.remove('hidden');
+                    preloader.classList.add('flex');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+            requestAnimationFrame(function() {
+                setTimeout(function() { form.submit(); }, 120);
             });
         });
     }
 });
 </script>
 {% endblock %}
-

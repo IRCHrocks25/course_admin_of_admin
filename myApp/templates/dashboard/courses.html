@@ -87,6 +87,11 @@
     <div class="flex items-center gap-3 text-[11px] text-gray-500 mb-4">
       <span><i class="fas fa-video mr-1"></i>{{ course.get_lesson_count }} lessons</span>
       <span><i class="fas fa-calendar mr-1"></i>{{ course.created_at|date:"M Y" }}</span>
+      {% if course.price %}
+      <span class="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">${{ course.price }}</span>
+      {% else %}
+      <span class="ml-auto px-2 py-0.5 rounded-full bg-white/5 text-gray-500 border border-white/10">Free</span>
+      {% endif %}
     </div>
 
     <div class="h-px bg-cyan-electric/8 mb-3 mt-auto"></div>

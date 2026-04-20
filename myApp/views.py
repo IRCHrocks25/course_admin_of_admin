@@ -11,8 +11,11 @@ from django.middleware.csrf import get_token
 from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.utils.text import slugify
 from datetime import datetime
+import importlib.util
 import json
 import re
 import requests
@@ -21,6 +24,7 @@ import os
 import threading
 import stripe
 import time
+from pathlib import Path
 from .models import (
     Course,
     Lesson,
@@ -56,6 +60,27 @@ staff_member_required = user_passes_test(
     lambda u: u.is_authenticated and u.is_staff,
     login_url='login'
 )
+
+
+def course_queryset_for_slug(request, course_slug):
+    """
+    Courses are unique on (tenant, slug). Student/creator URLs must scope by the
+    tenant resolved from the host (or ?tenant= on platform) so duplicate slugs
+    across academies do not raise MultipleObjectsReturned.
+    """
+    qs = Course.objects.filter(slug=course_slug)
+    tenant = getattr(request, 'tenant', None)
+    if tenant is not None:
+        return qs.filter(tenant=tenant)
+    n = qs.count()
+    if n == 0:
+        return qs.none()
+    if n == 1:
+        return qs
+    tenant_slug = (request.GET.get('tenant') or '').strip().lower()
+    if tenant_slug:
+        return qs.filter(tenant__slug=tenant_slug)
+    return qs.none()
 
 PLATFORM_PLANS = {
     'lean': {'name': 'Lean', 'amount_env': 'STRIPE_PLAN_AMOUNT_LEAN_USD', 'default_amount_cents': 2900},
@@ -95,6 +120,41 @@ def _get_start_academy_checkout_mode():
     return 'payment' if raw == 'payment' else 'subscription'
 
 
+def _start_academy_free_local_enabled():
+    """
+    Skip Stripe checkout and activate the academy immediately (local dev only).
+    Gated by DEBUG, explicit opt-in, and non-live Stripe keys.
+    """
+    if not getattr(settings, 'DEBUG', False):
+        return False
+    if not _env_truthy('START_ACADEMY_FREE_LOCAL'):
+        return False
+    if _using_live_stripe_key():
+        return False
+    return True
+
+
+def _activate_signup_free_local(tenant, admin_user):
+    """Mirror checkout activation without Stripe (see _activate_signup_from_checkout_session)."""
+    tenant.billing_status = 'active'
+    tenant.is_active = True
+    tenant.stripe_customer_id = ''
+    tenant.stripe_subscription_id = ''
+    tenant.save(update_fields=['billing_status', 'is_active', 'stripe_customer_id', 'stripe_subscription_id', 'updated_at'])
+    ensure_tenant_branding(tenant)
+    ensure_temporary_domain(tenant)
+    if admin_user:
+        admin_user.is_active = True
+        admin_user.is_staff = True
+        admin_user.save(update_fields=['is_active', 'is_staff'])
+        TenantMembership.objects.update_or_create(
+            tenant=tenant,
+            user=admin_user,
+            defaults={'role': 'tenant_admin', 'is_active': True},
+        )
+    return tenant
+
+
 def _is_abandoned_signup_user(user):
     """
     Identify placeholder users created during signup before payment completion.
@@ -105,6 +165,20 @@ def _is_abandoned_signup_user(user):
     if user.is_active or user.is_staff or user.is_superuser:
         return False
     return not TenantMembership.objects.filter(user=user).exists()
+
+
+def _normalize_referral_code(raw_code):
+    return re.sub(r'[^A-Z0-9]', '', (raw_code or '').upper())
+
+
+def _get_referrer_tenant(raw_code):
+    normalized = _normalize_referral_code(raw_code)
+    if not normalized:
+        return None
+    for candidate in Tenant.objects.exclude(referral_code='').only('id', 'referral_code', 'is_active'):
+        if _normalize_referral_code(candidate.referral_code) == normalized:
+            return candidate
+    return None
 
 
 def _get_tenant_custom_pages(tenant):
@@ -240,6 +314,117 @@ def _render_tenant_custom_html(request, tenant, custom_html):
     })
 
 
+_CERTIFICATE_GENERATOR_FN = None
+_CERTIFICATE_GENERATOR_LOADED = False
+
+
+def _load_certificate_generator_fn():
+    """Load generate_certificate() from myApp/utils.py/certificate_generator.py."""
+    global _CERTIFICATE_GENERATOR_FN, _CERTIFICATE_GENERATOR_LOADED
+    if _CERTIFICATE_GENERATOR_LOADED:
+        return _CERTIFICATE_GENERATOR_FN
+
+    _CERTIFICATE_GENERATOR_LOADED = True
+    generator_path = Path(__file__).resolve().parent / 'utils.py' / 'certificate_generator.py'
+    if not generator_path.exists():
+        return None
+
+    try:
+        spec = importlib.util.spec_from_file_location('myapp_certificate_generator', str(generator_path))
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        generator_fn = getattr(module, 'generate_certificate', None)
+        if callable(generator_fn):
+            _CERTIFICATE_GENERATOR_FN = generator_fn
+    except Exception:
+        _CERTIFICATE_GENERATOR_FN = None
+
+    return _CERTIFICATE_GENERATOR_FN
+
+
+def _auto_issue_course_certificate(user, course, certification=None):
+    """
+    Generate and persist certificate URL/ID when learner completed requirements.
+    """
+    generator_fn = _load_certificate_generator_fn()
+    if not generator_fn:
+        return certification
+
+    cert = certification
+    if cert and cert.accredible_certificate_url and cert.accredible_certificate_id:
+        return cert
+
+    def _store_pdf_buffer_locally(pdf_buffer, cert_id):
+        if not pdf_buffer:
+            return ''
+        try:
+            pdf_buffer.seek(0)
+            filename = (
+                f"certificates/generated/{course.slug}/"
+                f"{cert_id}_{uuid.uuid4().hex[:8]}.pdf"
+            )
+            saved_path = default_storage.save(filename, ContentFile(pdf_buffer.read()))
+            return default_storage.url(saved_path)
+        except Exception:
+            return ''
+
+    try:
+        result = generator_fn(
+            user=user,
+            course=course,
+            issued_date=timezone.now(),
+            upload_to_cloudinary=True
+        )
+    except Exception:
+        return cert
+
+    # Fallback path: generate PDF buffer and store using Django storage.
+    if not result:
+        try:
+            local_result = generator_fn(
+                user=user,
+                course=course,
+                issued_date=timezone.now(),
+                upload_to_cloudinary=False
+            )
+        except Exception:
+            local_result = None
+
+        if local_result and local_result.get('pdf_buffer'):
+            cert_id = local_result.get('certificate_id') or f"CERT-{course.slug.upper()}-{user.id}"
+            local_url = _store_pdf_buffer_locally(local_result.get('pdf_buffer'), cert_id)
+            if local_url:
+                result = {
+                    'certificate_id': cert_id,
+                    'certificate_url': local_url,
+                }
+
+    if not result:
+        return cert
+
+    if cert is None:
+        cert = Certification.objects.filter(
+            tenant=course.tenant,
+            user=user,
+            course=course,
+        ).first()
+    if cert is None:
+        cert = Certification(
+            tenant=course.tenant,
+            user=user,
+            course=course,
+        )
+
+    cert.status = 'passed'
+    cert.issued_at = cert.issued_at or timezone.now()
+    cert.accredible_certificate_id = result.get('certificate_id') or cert.accredible_certificate_id
+    cert.accredible_certificate_url = result.get('certificate_url') or cert.accredible_certificate_url
+    cert.save()
+    return cert
+
+
 def home(request):
     """
     Platform host shows creator-acquisition landing.
@@ -270,6 +455,27 @@ def railway_cost_calculator_light(request):
     return render(request, 'calculator/railway_courseforge_cost_calculator_light.html')
 
 
+def verify_certificate(request, certificate_id):
+    """
+    Public certificate verification page for QR scans.
+    """
+    cert = (
+        Certification.objects
+        .select_related('user', 'course', 'tenant')
+        .filter(
+            accredible_certificate_id=certificate_id,
+            status='passed',
+        )
+        .first()
+    )
+
+    return render(request, 'verify_certificate.html', {
+        'certificate_id': certificate_id,
+        'certificate': cert,
+        'is_valid': bool(cert),
+    })
+
+
 @never_cache
 def start_academy(request):
     """
@@ -285,6 +491,8 @@ def start_academy(request):
         messages.info(request, 'You are already on a tenant portal. Please sign in or register here.')
         return redirect('login')
 
+    preset_referral_code = (request.GET.get('ref') or request.GET.get('code') or '').strip()
+
     if request.method == 'POST':
         academy_name = (request.POST.get('academy_name') or '').strip()
         admin_username = (request.POST.get('admin_username') or '').strip()
@@ -293,12 +501,30 @@ def start_academy(request):
         target_audience = (request.POST.get('target_audience') or '').strip()
         outcome_promise = (request.POST.get('outcome_promise') or '').strip()
         selected_plan = (request.POST.get('selected_plan') or 'baseline').strip().lower()
+        referral_code = (request.POST.get('referral_code') or '').strip()
         password = request.POST.get('password') or ''
         confirm_password = request.POST.get('confirm_password') or ''
         # Always generate server-side idempotency for each POST attempt.
         # Client-provided keys can be stale when pages are restored from cache.
         idempotency_key = f"start-academy:{uuid.uuid4()}"
-        template_ctx = {'platform_base_domain': get_platform_base_domain(), 'selected_plan': selected_plan, 'idempotency_key': str(uuid.uuid4())}
+        free_local = _start_academy_free_local_enabled()
+        template_ctx = {
+            'platform_base_domain': get_platform_base_domain(),
+            'selected_plan': selected_plan,
+            'idempotency_key': str(uuid.uuid4()),
+            'start_academy_free_local': free_local,
+            'referral_code': referral_code,
+        }
+
+        referred_by_tenant = None
+        if referral_code:
+            referred_by_tenant = _get_referrer_tenant(referral_code)
+            if referred_by_tenant is None:
+                messages.error(request, 'Referral code not found. Please check the code and try again.')
+                return render(request, 'platform/start_academy.html', template_ctx)
+            if not referred_by_tenant.is_active:
+                messages.error(request, 'That referral code belongs to an inactive academy and cannot be used.')
+                return render(request, 'platform/start_academy.html', template_ctx)
 
         if not academy_name or not admin_username or not password:
             messages.error(request, 'Academy name, admin username, and password are required.')
@@ -309,7 +535,7 @@ def start_academy(request):
         if selected_plan not in PLATFORM_PLANS:
             messages.error(request, 'Please choose a valid plan.')
             return render(request, 'platform/start_academy.html', template_ctx)
-        if not _stripe_client_configured():
+        if not free_local and not _stripe_client_configured():
             messages.error(request, 'Payments are not configured yet. Please contact support.')
             return render(request, 'platform/start_academy.html', template_ctx)
 
@@ -345,17 +571,18 @@ def start_academy(request):
 
         plan_def = PLATFORM_PLANS[selected_plan]
         plan_amount_cents = _get_plan_amount_cents(plan_def)
-        if not plan_amount_cents:
-            messages.error(request, f'{plan_def["name"]} amount is not configured correctly.')
-            return render(request, 'platform/start_academy.html', template_ctx)
-        if _using_live_stripe_key() and plan_amount_cents <= 50 and not _env_truthy('ALLOW_LIVE_TEST_PRICING'):
-            messages.error(
-                request,
-                f'{plan_def["name"]} is set to a test-level amount in live mode. '
-                'Please update STRIPE_PLAN_AMOUNT_* values before checkout, '
-                'or set ALLOW_LIVE_TEST_PRICING=true temporarily.'
-            )
-            return render(request, 'platform/start_academy.html', template_ctx)
+        if not free_local:
+            if not plan_amount_cents:
+                messages.error(request, f'{plan_def["name"]} amount is not configured correctly.')
+                return render(request, 'platform/start_academy.html', template_ctx)
+            if _using_live_stripe_key() and plan_amount_cents <= 50 and not _env_truthy('ALLOW_LIVE_TEST_PRICING'):
+                messages.error(
+                    request,
+                    f'{plan_def["name"]} is set to a test-level amount in live mode. '
+                    'Please update STRIPE_PLAN_AMOUNT_* values before checkout, '
+                    'or set ALLOW_LIVE_TEST_PRICING=true temporarily.'
+                )
+                return render(request, 'platform/start_academy.html', template_ctx)
 
         tenant = Tenant.objects.create(
             name=academy_name,
@@ -363,6 +590,8 @@ def start_academy(request):
             is_active=False,
             plan_code=selected_plan,
             billing_status='pending',
+            referred_by=referred_by_tenant,
+            referral_recorded_at=timezone.now() if referred_by_tenant else None,
         )
         config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
         features = config.features or {}
@@ -383,6 +612,12 @@ def start_academy(request):
         )
         admin_user.is_active = False
         admin_user.save(update_fields=['is_active'])
+
+        if free_local:
+            _activate_signup_free_local(tenant, admin_user)
+            admin_user.refresh_from_db()
+            login(request, admin_user)
+            return _render_academy_created_from_tenant(request, tenant)
 
         success_url = f"{request.scheme}://{request.get_host()}/start-academy/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{request.scheme}://{request.get_host()}/start-academy/"
@@ -419,6 +654,8 @@ def start_academy(request):
                     'admin_user_id': str(admin_user.id),
                     'plan_code': selected_plan,
                     'signup_checkout_mode': checkout_mode,
+                    'referral_code': referred_by_tenant.referral_code if referred_by_tenant else '',
+                    'referred_by_tenant_id': str(referred_by_tenant.id) if referred_by_tenant else '',
                 }
             )
             response = redirect(session.url, permanent=False)
@@ -433,7 +670,13 @@ def start_academy(request):
             messages.error(request, f'Unable to create checkout session: {str(exc)}')
             return render(request, 'platform/start_academy.html', template_ctx)
 
-    return render(request, 'platform/start_academy.html', {'platform_base_domain': get_platform_base_domain(), 'selected_plan': 'baseline', 'idempotency_key': str(uuid.uuid4())})
+    return render(request, 'platform/start_academy.html', {
+        'platform_base_domain': get_platform_base_domain(),
+        'selected_plan': 'baseline',
+        'idempotency_key': str(uuid.uuid4()),
+        'start_academy_free_local': _start_academy_free_local_enabled(),
+        'referral_code': preset_referral_code,
+    })
 
 
 def _render_academy_created_from_tenant(request, tenant):
@@ -457,6 +700,11 @@ def _render_academy_created_from_tenant(request, tenant):
         tenant_dashboard_url = f"{base}/dashboard/?{tenant_qs}"
         tenant_domain_settings_url = f"{base}/dashboard/domains/?{tenant_qs}"
 
+    request.session['highlight_course_creation_wizard'] = True
+    request.session.modified = True
+    first_course_create_url = f"{tenant_dashboard_url.rstrip('/')}/courses/add/?onboarding=1"
+    referral_signup_url = f"{request.scheme}://{request.get_host()}/start-academy/?ref={tenant.referral_code}"
+
     return render(request, 'platform/academy_created.html', {
         'tenant': tenant,
         'tenant_host': tenant_host,
@@ -468,6 +716,8 @@ def _render_academy_created_from_tenant(request, tenant):
         'tenant_domain_settings_url': tenant_domain_settings_url,
         'using_fallback_urls': using_fallback_urls,
         'platform_base_domain': get_platform_base_domain(),
+        'first_course_create_url': first_course_create_url,
+        'referral_signup_url': referral_signup_url,
     })
 
 
@@ -644,6 +894,67 @@ def stripe_webhook(request):
     return HttpResponse(status=200)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def stripe_tenant_webhook(request, tenant_slug):
+    """
+    Per-tenant Stripe webhook for tenants using own-keys mode.
+    Tenants register: https://<platform>/webhooks/stripe/tenant/<slug>/
+    in their own Stripe dashboard and paste the resulting whsec_ here.
+    """
+    from myApp.models import TenantConfig as TC, Tenant as TenantModel
+    try:
+        tenant = TenantModel.objects.get(slug=tenant_slug, is_active=True)
+        config = TC.objects.get(tenant=tenant)
+    except (TenantModel.DoesNotExist, TC.DoesNotExist):
+        return HttpResponse(status=404)
+
+    secret_key = config.stripe_own_secret_key.strip()
+    webhook_secret = config.stripe_own_webhook_secret.strip()
+    if not secret_key or not webhook_secret:
+        return HttpResponse(status=500)
+
+    stripe.api_key = secret_key
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except Exception:
+        return HttpResponse(status=400)
+
+    event_id = event.get('id')
+    event_type = event.get('type', '')
+    if not event_id:
+        return HttpResponse(status=200)
+    if StripeEventLog.objects.filter(event_id=event_id).exists():
+        return HttpResponse(status=200)
+
+    with transaction.atomic():
+        StripeEventLog.objects.create(event_id=event_id, event_type=event_type)
+
+        if event_type == 'checkout.session.completed':
+            session = event['data']['object']
+            metadata = session.get('metadata') or {}
+            if metadata.get('flow') == 'bundle_checkout':
+                bundle_id = metadata.get('bundle_id')
+                user_id = metadata.get('user_id')
+                if bundle_id and user_id:
+                    try:
+                        from myApp.models import Bundle, BundlePurchase, CourseAccess
+                        bundle = Bundle.objects.get(id=bundle_id, tenant=tenant)
+                        user = User.objects.get(id=user_id)
+                        BundlePurchase.objects.get_or_create(
+                            bundle=bundle, user=user,
+                            defaults={'stripe_payment_intent': session.get('payment_intent', '')}
+                        )
+                        for course in bundle.courses.all():
+                            CourseAccess.objects.get_or_create(user=user, course=course)
+                    except Exception:
+                        pass
+
+    return HttpResponse(status=200)
+
+
 @login_required
 @require_http_methods(["POST"])
 def create_bundle_checkout_session(request, bundle_id):
@@ -654,20 +965,29 @@ def create_bundle_checkout_session(request, bundle_id):
     if not bundle.price:
         return JsonResponse({'success': False, 'error': 'Bundle price is not configured.'}, status=400)
     config = getattr(tenant, 'config', None)
-    if not config or not config.stripe_connect_account_id or not config.stripe_connect_charges_enabled:
-        return JsonResponse({'success': False, 'error': 'Tenant Stripe account is not connected for charges.'}, status=400)
-    if not _stripe_client_configured():
-        return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
+
+    # Determine which Stripe mode to use: own keys > Connect > error
+    use_own_keys = bool(config and config.stripe_own_secret_key and config.stripe_own_publishable_key)
+    use_connect = bool(config and config.stripe_connect_account_id and config.stripe_connect_charges_enabled)
+
+    if not use_own_keys and not use_connect:
+        return JsonResponse({'success': False, 'error': 'Tenant Stripe account is not configured for charges.'}, status=400)
+
+    if use_own_keys:
+        stripe.api_key = config.stripe_own_secret_key.strip()
+    else:
+        if not _stripe_client_configured():
+            return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
 
     try:
         amount_cents = int(bundle.price * 100)
         first_course = bundle.courses.first()
-        if first_course:
-            success_url = f"{request.scheme}://{request.get_host()}/courses/{first_course.slug}/?checkout=success"
-        else:
-            success_url = f"{request.scheme}://{request.get_host()}/courses/?checkout=success"
-        cancel_url = f"{request.scheme}://{request.get_host()}/courses/"
-        session = stripe.checkout.Session.create(
+        base = f"{request.scheme}://{request.get_host()}"
+        # Include session ID so the success handler can verify payment without relying solely on webhooks.
+        success_url = f"{base}/bundles/{bundle.id}/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{base}/courses/"
+
+        session_kwargs = dict(
             mode='payment',
             line_items=[{
                 'price_data': {
@@ -686,11 +1006,195 @@ def create_bundle_checkout_session(request, bundle_id):
                 'bundle_id': str(bundle.id),
                 'user_id': str(request.user.id),
             },
-            stripe_account=config.stripe_connect_account_id,
         )
+        if use_connect:
+            session_kwargs['stripe_account'] = config.stripe_connect_account_id
+
+        session = stripe.checkout.Session.create(**session_kwargs)
         return JsonResponse({'success': True, 'checkout_url': session.url})
     except Exception as exc:
         return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@login_required
+def bundle_checkout_success(request, bundle_id):
+    """
+    Verify a completed bundle purchase on redirect and grant access.
+    Works for both Connect and own-keys tenants.
+    Webhooks are still processed when available, but this ensures access
+    is granted immediately even if the webhook hasn't fired yet.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.error(request, 'Unable to verify payment — no tenant context.')
+        return redirect('courses')
+
+    bundle = get_object_or_404(Bundle, id=bundle_id, tenant=tenant, is_active=True)
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing payment session — contact support if you were charged.')
+        return redirect('courses')
+
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(config and config.stripe_connect_account_id)
+
+    try:
+        if use_own_keys:
+            stripe.api_key = config.stripe_own_secret_key.strip()
+            session = stripe.checkout.Session.retrieve(session_id)
+        elif use_connect:
+            _stripe_client_configured()
+            session = stripe.checkout.Session.retrieve(
+                session_id, stripe_account=config.stripe_connect_account_id
+            )
+        else:
+            _stripe_client_configured()
+            session = stripe.checkout.Session.retrieve(session_id)
+
+        if session.get('payment_status') != 'paid':
+            messages.warning(request, 'Payment is not confirmed yet. Access will be granted once payment clears.')
+            return redirect('courses')
+
+        purchase, created = BundlePurchase.objects.get_or_create(
+            bundle=bundle,
+            user=request.user,
+            defaults={'stripe_payment_intent': session.get('payment_intent', '')}
+        )
+        for course in bundle.courses.all():
+            CourseAccess.objects.get_or_create(user=request.user, course=course)
+
+        first_course = bundle.courses.first()
+        if created:
+            messages.success(request, f'Payment confirmed! You now have access to {bundle.name}.')
+        else:
+            messages.info(request, f'You already have access to {bundle.name}.')
+
+        if first_course:
+            return redirect('course_detail', course_slug=first_course.slug)
+        return redirect('courses')
+
+    except Exception as exc:
+        messages.error(request, f'Could not verify payment: {exc}')
+        return redirect('courses')
+
+
+@login_required
+@require_http_methods(["POST"])
+def create_course_checkout_session(request, course_slug):
+    """Stripe checkout for a single paid course (own-keys or Connect)."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        return JsonResponse({'success': False, 'error': 'Tenant context missing.'}, status=400)
+
+    course = get_object_or_404(Course, slug=course_slug, tenant=tenant, status='active')
+    if not course.price:
+        return JsonResponse({'success': False, 'error': 'This course is free — no payment needed.'}, status=400)
+
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(config and config.stripe_connect_account_id and config.stripe_connect_charges_enabled)
+
+    if not use_own_keys and not use_connect:
+        return JsonResponse({'success': False, 'error': 'Payments are not configured for this academy.'}, status=400)
+
+    if use_own_keys:
+        stripe.api_key = config.stripe_own_secret_key.strip()
+    else:
+        if not _stripe_client_configured():
+            return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
+
+    try:
+        amount_cents = int(course.price * 100)
+        base = f"{request.scheme}://{request.get_host()}"
+        success_url = f"{base}/courses/{course.slug}/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{base}/courses/{course.slug}/"
+
+        session_kwargs = dict(
+            mode='payment',
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': course.name,
+                        'description': course.short_description or 'Course access',
+                    },
+                    'unit_amount': amount_cents,
+                },
+                'quantity': 1,
+            }],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            client_reference_id=f"tenant:{tenant.id}:course:{course.id}:user:{request.user.id}",
+            metadata={
+                'flow': 'course_checkout',
+                'tenant_id': str(tenant.id),
+                'course_id': str(course.id),
+                'user_id': str(request.user.id),
+            },
+        )
+        if use_connect:
+            session_kwargs['stripe_account'] = config.stripe_connect_account_id
+
+        session = stripe.checkout.Session.create(**session_kwargs)
+        return JsonResponse({'success': True, 'checkout_url': session.url})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@login_required
+def course_checkout_success(request, course_slug):
+    """Verify a completed course purchase on redirect and grant access."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.error(request, 'Unable to verify payment — no tenant context.')
+        return redirect('courses')
+
+    course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing payment session — contact support if you were charged.')
+        return redirect('course_detail', course_slug=course_slug)
+
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(config and config.stripe_connect_account_id)
+
+    try:
+        if use_own_keys:
+            stripe.api_key = config.stripe_own_secret_key.strip()
+            session = stripe.checkout.Session.retrieve(session_id)
+        elif use_connect:
+            _stripe_client_configured()
+            session = stripe.checkout.Session.retrieve(
+                session_id, stripe_account=config.stripe_connect_account_id
+            )
+        else:
+            _stripe_client_configured()
+            session = stripe.checkout.Session.retrieve(session_id)
+
+        if session.get('payment_status') != 'paid':
+            messages.warning(request, 'Payment is not confirmed yet. Access will be granted once payment clears.')
+            return redirect('course_detail', course_slug=course_slug)
+
+        from .utils.access import grant_course_access
+        grant_course_access(
+            user=request.user,
+            course=course,
+            access_type='purchase',
+            notes=f'Purchased via Stripe session {session_id}',
+        )
+        CourseEnrollment.objects.get_or_create(
+            user=request.user,
+            course=course,
+            defaults={'tenant': course.tenant}
+        )
+        messages.success(request, f'Payment confirmed! You now have access to {course.name}.')
+        return redirect('course_detail', course_slug=course_slug)
+
+    except Exception as exc:
+        messages.error(request, f'Could not verify payment: {exc}')
+        return redirect('course_detail', course_slug=course_slug)
 
 
 @ensure_csrf_cookie
@@ -1057,7 +1561,7 @@ def _courses_authenticated(request):
 @login_required
 def enroll_course(request, course_slug):
     """Enroll in a course (self-enrollment for open-enrollment courses) and redirect to course."""
-    course = get_object_or_404(Course, slug=course_slug)
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     user = request.user
 
     from .utils.access import has_course_access, grant_course_access, check_course_prerequisites
@@ -1099,27 +1603,58 @@ def enroll_course(request, course_slug):
 @login_required
 def course_detail(request, course_slug):
     """Course detail page - redirects to first lesson or course overview. Shows enroll option if no access."""
-    course = get_object_or_404(Course, slug=course_slug)
+    from django.db.models import Prefetch as _Prefetch
+    course = get_object_or_404(
+        course_queryset_for_slug(request, course_slug).prefetch_related(
+            _Prefetch('modules', queryset=Module.objects.order_by('order', 'id').prefetch_related(
+                _Prefetch('lessons', queryset=Lesson.objects.order_by('order', 'id'))
+            )),
+            _Prefetch('lessons', queryset=Lesson.objects.filter(module__isnull=True).order_by('order', 'id')),
+        )
+    )
     user = request.user
 
     from .utils.access import has_course_access, check_course_prerequisites
     has_access, _, _ = has_course_access(user, course)
 
+    # Build syllabus: modules with their lessons, then orphan (no-module) lessons
+    modules_qs = list(course.modules.all())
+    orphan_lessons = list(course.lessons.filter(module__isnull=True).order_by('order', 'id'))
+    syllabus = []
+    for mod in modules_qs:
+        syllabus.append({'type': 'module', 'obj': mod, 'lessons': list(mod.lessons.all())})
+    if orphan_lessons:
+        syllabus.append({'type': 'module', 'obj': None, 'lessons': orphan_lessons})
+
     if has_access:
-        first_lesson = course.lessons.first()
+        first_lesson = course.lessons.order_by('order', 'id').first()
         if first_lesson:
             return lesson_detail(request, course_slug, first_lesson.slug)
         return render(request, 'course_detail.html', {
             'course': course,
             'has_access': True,
             'can_self_enroll': False,
+            'syllabus': syllabus,
         })
 
     # No access - show overview with enroll option if applicable
     prereqs_met, missing_prereqs = check_course_prerequisites(user, course)
     can_self_enroll = course.enrollment_method == 'open' and prereqs_met
-    from .models import Bundle
+    from .models import Bundle, TenantConfig as TC
     bundles = list(Bundle.objects.filter(courses=course, is_active=True))
+
+    # Direct course purchase
+    config = None
+    try:
+        config = TC.objects.get(tenant=course.tenant)
+    except TC.DoesNotExist:
+        pass
+    stripe_ready = bool(
+        config and (config.stripe_own_secret_key or
+                    (config.stripe_connect_account_id and config.stripe_connect_charges_enabled))
+    )
+    can_purchase = bool(course.price and stripe_ready and prereqs_met)
+
     return render(request, 'course_detail.html', {
         'course': course,
         'has_access': False,
@@ -1127,6 +1662,9 @@ def course_detail(request, course_slug):
         'prereqs_met': prereqs_met,
         'missing_prereqs': missing_prereqs,
         'bundles': bundles,
+        'can_purchase': can_purchase,
+        'stripe_ready': stripe_ready,
+        'syllabus': syllabus,
     })
 
 
@@ -1135,12 +1673,11 @@ def lesson_detail(request, course_slug, lesson_slug):
     """Lesson detail page with three-column layout"""
     from django.db.models import Prefetch
     course = get_object_or_404(
-        Course.objects.prefetch_related(
+        course_queryset_for_slug(request, course_slug).prefetch_related(
             'resources',
             Prefetch('modules', queryset=Module.objects.prefetch_related('lessons').order_by('order', 'id')),
             Prefetch('lessons', queryset=Lesson.objects.select_related('module').prefetch_related('quiz', 'quiz__questions').order_by('order', 'id')),
         ),
-        slug=course_slug
     )
     lesson = get_object_or_404(Lesson, course=course, slug=lesson_slug)
     
@@ -1325,7 +1862,7 @@ def lesson_detail(request, course_slug, lesson_slug):
 @login_required
 def lesson_quiz_view(request, course_slug, lesson_slug):
     """Simple multiple‑choice quiz attached to a lesson (optional)."""
-    course = get_object_or_404(Course, slug=course_slug)
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     lesson = get_object_or_404(Lesson, course=course, slug=lesson_slug)
 
     # Require that a quiz exists for this lesson
@@ -1424,11 +1961,67 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
                 }
             )
 
+        certificate_available = False
+        certificate_url = ''
+        certificate_id = ''
+        if passed:
+            total_lessons = course.lessons.count()
+            completed_lessons = UserProgress.objects.filter(
+                user=request.user,
+                lesson__course=course,
+                completed=True
+            ).count()
+            required_quiz_ids = list(
+                LessonQuiz.objects.filter(
+                    lesson__course=course,
+                    is_required=True
+                ).values_list('id', flat=True)
+            )
+            passed_required_quiz_count = LessonQuizAttempt.objects.filter(
+                user=request.user,
+                quiz_id__in=required_quiz_ids,
+                passed=True
+            ).values('quiz_id').distinct().count()
+            required_quizzes_complete = passed_required_quiz_count >= len(required_quiz_ids)
+
+            final_exam = Exam.objects.filter(course=course, is_active=True).first()
+            exam_required_for_certificate = bool(final_exam and not required_quiz_ids)
+            exam_passed = bool(
+                final_exam and ExamAttempt.objects.filter(
+                    user=request.user,
+                    exam=final_exam,
+                    passed=True
+                ).exists()
+            )
+            certificate_available = (
+                total_lessons > 0
+                and completed_lessons >= total_lessons
+                and required_quizzes_complete
+                and (not exam_required_for_certificate or exam_passed)
+            )
+
+            if certificate_available:
+                cert = Certification.objects.filter(
+                    user=request.user,
+                    course=course
+                ).first()
+                cert = _auto_issue_course_certificate(
+                    user=request.user,
+                    course=course,
+                    certification=cert
+                )
+                if cert:
+                    certificate_url = cert.accredible_certificate_url or ''
+                    certificate_id = cert.accredible_certificate_id or ''
+
         result = {
             'score': round(score, 1),
             'passed': passed,
             'correct': correct,
             'total': total,
+            'certificate_available': certificate_available,
+            'certificate_url': certificate_url,
+            'certificate_id': certificate_id,
         }
 
     return render(request, 'lesson_quiz.html', {
@@ -1455,7 +2048,7 @@ def creator_dashboard(request):
 @staff_member_required
 def course_lessons(request, course_slug):
     """View all lessons for a course"""
-    course = get_object_or_404(Course, slug=course_slug)
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     lessons = course.lessons.all()
     modules = course.modules.all()
     
@@ -1469,7 +2062,7 @@ def course_lessons(request, course_slug):
 @staff_member_required
 def add_lesson(request, course_slug):
     """Add new lesson - 3-step flow with video upload and transcription"""
-    course = get_object_or_404(Course, slug=course_slug)
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     
     if request.method == 'POST':
         # Handle form submission
@@ -1593,7 +2186,7 @@ def _save_lesson_media_and_content(lesson, request):
 @staff_member_required
 def generate_lesson_ai(request, course_slug, lesson_id):
     """Generate AI content for lesson"""
-    course = get_object_or_404(Course, slug=course_slug)
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     lesson = get_object_or_404(Lesson, id=lesson_id, course=course)
     
     if request.method == 'POST':
@@ -2134,7 +2727,7 @@ def student_dashboard(request):
 @login_required
 def student_course_progress(request, course_slug):
     """Detailed progress view for a specific course"""
-    course = get_object_or_404(Course, slug=course_slug)
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     user = request.user
 
     # Check access (CourseAccess or legacy CourseEnrollment)
@@ -2146,8 +2739,12 @@ def student_course_progress(request, course_slug):
 
     enrollment = CourseEnrollment.objects.filter(user=user, course=course).select_related('course').first()
     
-    # Get all lessons (single query)
-    lessons = list(course.lessons.select_related('module').order_by('order', 'id'))
+    # Get all lessons ordered by module, then lesson order.
+    lessons = list(
+        course.lessons
+        .select_related('module')
+        .order_by('module__order', 'module_id', 'order', 'id')
+    )
     lesson_ids = [l.id for l in lessons]
     
     # Batch fetch all UserProgress for this course (1 query instead of N)
@@ -2170,6 +2767,21 @@ def student_course_progress(request, course_slug):
             'completed': progress.completed if progress else False,
             'last_accessed': progress.last_accessed if progress else None,
         })
+
+    module_sections = []
+    module_lookup = {}
+    for lp in lesson_progress:
+        lesson = lp['lesson']
+        module = lesson.module
+        module_key = module.id if module else 'ungrouped'
+        if module_key not in module_lookup:
+            module_lookup[module_key] = {
+                'module': module,
+                'title': module.name if module else 'Ungrouped Lessons',
+                'lessons': [],
+            }
+            module_sections.append(module_lookup[module_key])
+        module_lookup[module_key]['lessons'].append(lp)
     
     # Calculate overall progress
     total_lessons = len(lessons)
@@ -2185,11 +2797,46 @@ def student_course_progress(request, course_slug):
     except Exam.DoesNotExist:
         pass
     
+    required_quiz_ids = list(
+        LessonQuiz.objects.filter(
+            lesson__course=course,
+            is_required=True,
+        ).values_list('id', flat=True)
+    )
+    passed_required_quiz_ids = set()
+    if required_quiz_ids:
+        passed_required_quiz_ids = set(
+            LessonQuizAttempt.objects.filter(
+                user=user,
+                quiz_id__in=required_quiz_ids,
+                passed=True,
+            ).values_list('quiz_id', flat=True)
+        )
+    required_quizzes_complete = len(passed_required_quiz_ids) >= len(required_quiz_ids)
+
+    has_passed_exam = any(attempt.passed for attempt in exam_attempts)
+    # If required lesson quizzes exist, they become the completion gate.
+    # Final exam only blocks certification when no required lesson quizzes are configured.
+    exam_required_for_certificate = bool(exam and exam.is_active and not required_quiz_ids)
+    certificate_available = (
+        total_lessons > 0
+        and completed_lessons >= total_lessons
+        and required_quizzes_complete
+        and (not exam_required_for_certificate or has_passed_exam)
+    )
+
     # Get certification
     try:
         certification = Certification.objects.get(user=user, course=course)
     except Certification.DoesNotExist:
         certification = None
+
+    if certificate_available:
+        certification = _auto_issue_course_certificate(
+            user=user,
+            course=course,
+            certification=certification,
+        )
 
     # Get course resources (downloadable SOP materials)
     course_resources = course.resources.all()
@@ -2198,12 +2845,16 @@ def student_course_progress(request, course_slug):
         'course': course,
         'enrollment': enrollment,
         'lesson_progress': lesson_progress,
+        'module_sections': module_sections,
         'total_lessons': total_lessons,
         'completed_lessons': completed_lessons,
         'progress_percentage': progress_percentage,
         'exam': exam,
         'exam_attempts': exam_attempts,
         'certification': certification,
+        'certificate_available': certificate_available,
+        'required_quiz_count': len(required_quiz_ids),
+        'passed_required_quiz_count': len(passed_required_quiz_ids),
         'is_exam_available': enrollment.is_exam_available() if enrollment else False,
         'course_resources': course_resources,
     })

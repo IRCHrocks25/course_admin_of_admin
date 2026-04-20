@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils.crypto import get_random_string
 from django.utils import timezone
 import json
 import re
@@ -24,6 +25,15 @@ class Tenant(models.Model):
     billing_status = models.CharField(max_length=20, choices=BILLING_STATUS_CHOICES, default='active')
     stripe_customer_id = models.CharField(max_length=120, blank=True, default='')
     stripe_subscription_id = models.CharField(max_length=120, blank=True, default='')
+    referral_code = models.CharField(max_length=24, unique=True, blank=True, default='')
+    referred_by = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='referred_tenants'
+    )
+    referral_recorded_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -32,6 +42,27 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.name
+
+    def _generate_referral_code(self):
+        # Stable, readable code based on slug/name + random suffix.
+        seed_source = (self.slug or self.name or 'tenant').upper()
+        seed = re.sub(r'[^A-Z0-9]', '', seed_source)[:6] or 'TENANT'
+        charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+        for _ in range(15):
+            suffix = get_random_string(6, allowed_chars=charset)
+            candidate = f"{seed}-{suffix}"
+            existing = Tenant.objects.filter(referral_code=candidate)
+            if self.pk:
+                existing = existing.exclude(pk=self.pk)
+            if not existing.exists():
+                return candidate
+        # Very unlikely fallback.
+        return f"TENANT-{get_random_string(8, allowed_chars=charset)}"
+
+    def save(self, *args, **kwargs):
+        if not self.referral_code:
+            self.referral_code = self._generate_referral_code()
+        super().save(*args, **kwargs)
 
 
 class TenantConfig(models.Model):
@@ -43,6 +74,10 @@ class TenantConfig(models.Model):
     stripe_connect_account_id = models.CharField(max_length=120, blank=True)
     stripe_connect_onboarding_complete = models.BooleanField(default=False)
     stripe_connect_charges_enabled = models.BooleanField(default=False)
+    # Own-keys mode: tenant supplies their own Stripe credentials directly.
+    stripe_own_secret_key = models.CharField(max_length=255, blank=True)
+    stripe_own_publishable_key = models.CharField(max_length=255, blank=True)
+    stripe_own_webhook_secret = models.CharField(max_length=255, blank=True)
     features = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -128,6 +163,7 @@ class Course(models.Model):
         ('drip', 'Drip Schedule'),
     ]
     
+    price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text="Leave blank or 0 for free. Set a price to require purchase.")
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public', help_text="Who can see this course exists")
     enrollment_method = models.CharField(max_length=20, choices=ENROLLMENT_METHOD_CHOICES, default='open', help_text="How students get access")
     access_duration_type = models.CharField(max_length=20, choices=ACCESS_DURATION_CHOICES, default='lifetime', help_text="Access duration rule")
@@ -135,6 +171,9 @@ class Course(models.Model):
     access_until_date = models.DateTimeField(null=True, blank=True, help_text="Access expires on this date (if access_duration_type='until_date')")
     prerequisite_courses = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='unlocks_courses', help_text="Courses that must be completed first")
     required_quiz_score = models.IntegerField(null=True, blank=True, help_text="Required quiz score to unlock (0-100)")
+
+    # Guided CourseForge wizard + AI context (steps 1–5); empty for legacy courses
+    creation_blueprint = models.JSONField(default=dict, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

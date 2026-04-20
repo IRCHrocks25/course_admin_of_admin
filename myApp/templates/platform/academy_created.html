@@ -475,10 +475,36 @@
         </div>
     </div>
 
+    <div class="section-card">
+        <div class="card-title">Your Referral Link</div>
+
+        <div class="url-row portal">
+            <div class="url-left">
+                <div class="url-label">Referral Code</div>
+                <div class="url-value">{{ tenant.referral_code }}</div>
+            </div>
+            <button class="copy-btn" onclick="copyUrl(this, '{{ tenant.referral_code }}')">Copy</button>
+        </div>
+
+        <div class="url-row register">
+            <div class="url-left">
+                <div class="url-label">Referral Signup URL</div>
+                <div class="url-value">{{ referral_signup_url }}</div>
+            </div>
+            <button class="copy-btn" onclick="copyUrl(this, '{{ referral_signup_url }}')">Copy</button>
+        </div>
+    </div>
+
     <!-- ACTIONS CARD -->
     <div class="section-card">
         <div class="card-title">Next Steps</div>
         <div class="actions">
+            {% if first_course_create_url %}
+            <a href="{{ first_course_create_url }}" class="btn-primary" style="background:linear-gradient(135deg,var(--green),#00c77a);box-shadow:0 0 24px rgba(0,245,160,0.35);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                Create your first course
+            </a>
+            {% endif %}
             <a href="{{ tenant_dashboard_url }}" class="btn-primary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                 Go to Admin Dashboard

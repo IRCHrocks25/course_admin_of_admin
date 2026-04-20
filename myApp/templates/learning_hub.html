@@ -382,7 +382,7 @@
     .badge-green  { background: rgba(34,212,123,0.1); border: 1px solid rgba(34,212,123,0.25); color: #22d47b; }
     .badge-yellow { background: rgba(245,168,0,0.1);  border: 1px solid rgba(245,168,0,0.25);  color: #ffc94d; }
     .badge-blue   { background: rgba(26,107,255,0.12); border: 1px solid rgba(26,107,255,0.25); color: var(--blue2); }
-    .card-actions { display: flex; gap: 10px; }
+    .card-actions { display: flex; gap: 10px; margin-top: auto; padding-top: 16px; }
     .btn-ghost {
         flex: 1; padding: 10px 14px; border-radius: 9px;
         font-size: 13px; font-weight: 700; text-align: center;
@@ -406,6 +406,7 @@
         background: var(--card); border: 1.5px solid rgba(245,168,0,0.18);
         border-radius: 18px; padding: 28px;
         transition: border-color .25s, transform .25s;
+        display: flex; flex-direction: column;
     }
     .unlock-card:hover { border-color: rgba(245,168,0,0.38); transform: translateY(-2px); }
     .unlock-badge {
@@ -540,8 +541,15 @@
             </div>
         </div>
         <div class="c-actions">
+            {% if course.price %}
+            <span style="font-size:13px;font-weight:700;color:#00e5ff;margin-right:auto;">${{ course.price }}</span>
+            {% else %}
+            <span style="font-size:11px;color:#6ee7b7;padding:2px 8px;border-radius:999px;border:1px solid rgba(110,231,183,0.25);background:rgba(110,231,183,0.07);margin-right:auto;">Free</span>
+            {% endif %}
             {% if course.status == 'active' %}
-            <a href="{% url 'course_detail' course.slug %}" class="btn-primary-sm">View Course</a>
+            <a href="{% url 'course_detail' course.slug %}" class="btn-primary-sm">
+                {% if course.price %}Buy · ${{ course.price }}{% else %}View Course{% endif %}
+            </a>
             {% else %}
             <span class="btn-locked"><i class="fas fa-lock" style="margin-right:6px;font-size:10px;"></i>Locked</span>
             {% endif %}
@@ -771,13 +779,22 @@
                 {% endif %}
 
                 <div class="card-actions">
-                    <a href="{% url 'course_detail' data.course.slug %}" class="btn-unlock-ghost">View Details</a>
+                    {% if data.course.price %}
+                    <div style="font-size:16px;font-weight:700;color:#fff;display:flex;align-items:center;gap:4px;margin-right:auto;">
+                        ${{ data.course.price }}<span style="font-size:11px;font-weight:400;color:#9ca3af;">USD</span>
+                    </div>
+                    {% endif %}
+                    <a href="{% url 'course_detail' data.course.slug %}" class="btn-unlock-ghost" style="flex:{% if data.course.price %}0 0 auto{% else %}1{% endif %};">View Details</a>
                     {% if data.can_self_enroll %}
                     <a href="{% url 'enroll_course' data.course.slug %}" class="btn-solid">
                         <i class="fas fa-play" style="margin-right:6px;font-size:11px;"></i>Start Course
                     </a>
+                    {% elif data.course.price and data.prereqs_met %}
+                    <button type="button" onclick="startCourseCheckout('{{ data.course.slug }}')" class="btn-solid">
+                        <i class="fas fa-credit-card" style="margin-right:6px;font-size:11px;"></i>Buy
+                    </button>
                     {% elif data.bundles %}
-                    <a href="{% url 'courses' %}" class="btn-solid">View Bundles</a>
+                    <a href="{% url 'course_detail' data.course.slug %}" class="btn-solid">View Bundles</a>
                     {% endif %}
                 </div>
             </div>
@@ -855,6 +872,18 @@ function toggleFavorite(courseId, buttonElement) {
 function getCookie(name) {
     const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
     return v ? v.pop() : '';
+}
+
+async function startCourseCheckout(slug) {
+    try {
+        const res = await fetch(`/courses/${slug}/checkout/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) { alert(data.error || 'Unable to start checkout.'); return; }
+        window.location.href = data.checkout_url;
+    } catch(e) { alert('Unable to start checkout. Please try again.'); }
 }
 </script>
 

@@ -70,26 +70,132 @@
 {% endif %}
 
 {% if tenant %}
-<div class="mb-6 rounded-xl border border-white/10 bg-white/5 p-4">
+<div class="mb-4 rounded-xl border border-green-400/20 bg-green-500/5 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <div class="font-semibold mb-1 text-green-300">Your referral code</div>
+            <p class="text-sm text-gray-300">
+                Share this code or URL when inviting other creators to CourseForge.
+            </p>
+        </div>
+    </div>
+    <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Referral code</label>
+            <input type="text" readonly value="{{ tenant.referral_code }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Signup link with your code</label>
+            <input type="text" readonly value="{{ referral_signup_url }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+    </div>
+    <div class="mt-4 border-t border-white/10 pt-3">
+        <div class="text-xs text-gray-400 mb-2">Signups attributed to your code</div>
+        <div class="space-y-2">
+            {% for referred in referred_tenants|slice:":6" %}
+            <div class="rounded-lg border border-white/10 bg-[#0a0e27]/70 px-3 py-2 flex items-center justify-between gap-3">
+                <div>
+                    <div class="text-sm font-medium text-white">{{ referred.name }}</div>
+                    <div class="text-xs text-gray-400">{{ referred.slug }}</div>
+                </div>
+                <div class="text-xs">
+                    {% if referred.is_active %}
+                    <span class="px-2 py-0.5 rounded bg-green-500/20 text-green-400">Active</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300">Pending</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-sm text-gray-400">No attributed signups yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{# ── Stripe Connect card ── #}
+<div class="mb-4 rounded-xl border border-white/10 bg-white/5 p-4">
     <div class="flex items-center justify-between gap-3">
         <div>
-            <div class="font-semibold mb-1">Student Payments (Stripe Connect)</div>
+            <div class="font-semibold mb-1">Student Payments — Stripe Connect <span class="ml-2 text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Recommended</span></div>
             {% if tenant_config.stripe_connect_account_id %}
             <p class="text-sm text-gray-300">
                 Connected account: <span class="text-cyan-electric">{{ tenant_config.stripe_connect_account_id }}</span>
                 {% if tenant_config.stripe_connect_charges_enabled %}
                 <span class="ml-2 px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs">Charges enabled</span>
                 {% else %}
-                <span class="ml-2 px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 text-xs">Complete onboarding</span>
+                <span class="ml-2 px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 text-xs">Complete onboarding in Stripe</span>
                 {% endif %}
             </p>
             {% else %}
-            <p class="text-sm text-gray-300">Connect Stripe to let students pay for your bundles/courses directly.</p>
+            <p class="text-sm text-gray-300">OAuth flow — no API keys to copy. Stripe links your account in ~2 minutes.</p>
             {% endif %}
         </div>
-        <a href="{% url 'dashboard_connect_stripe' %}" class="px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/20 transition">
+        <a href="{% url 'dashboard_connect_stripe' %}" class="whitespace-nowrap px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/20 transition text-sm">
             {% if tenant_config.stripe_connect_account_id %}Reconnect Stripe{% else %}Connect Stripe{% endif %}
         </a>
+    </div>
+</div>
+
+{# ── Own API Keys card ── #}
+<div class="mb-6 rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+    <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <div>
+            <span class="font-semibold">Student Payments — Own Stripe Keys</span>
+            <span class="ml-2 text-xs px-2 py-0.5 rounded bg-white/10 text-gray-400">Alternative</span>
+        </div>
+        {% if tenant_config.stripe_own_secret_key %}
+        <span class="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs">Active</span>
+        {% endif %}
+    </div>
+    <div class="p-4">
+        {% if tenant_config.stripe_own_secret_key %}
+        <p class="text-sm text-gray-300 mb-3">
+            Your own Stripe keys are saved. Students pay directly through your Stripe account.<br>
+            Secret key: <span class="font-mono text-cyan-electric">sk_…{{ tenant_config.stripe_own_secret_key|slice:"-4:" }}</span> &nbsp;
+            Publishable key: <span class="font-mono text-cyan-electric">pk_…{{ tenant_config.stripe_own_publishable_key|slice:"-4:" }}</span>
+        </p>
+        <p class="text-xs text-gray-400 mb-4">
+            Webhook URL to register in your Stripe Dashboard →
+            <span class="font-mono bg-white/5 px-2 py-0.5 rounded text-cyan-300">https://courseforge.katek-ai.com/webhooks/stripe/tenant/{{ tenant.slug }}/</span>
+        </p>
+        <form method="post" action="{% url 'dashboard_save_stripe_own_keys' %}">
+            {% csrf_token %}
+            <input type="hidden" name="clear_own_keys" value="1">
+            <button type="submit" class="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition text-sm">Remove Own Keys</button>
+        </form>
+        {% else %}
+        <p class="text-sm text-gray-400 mb-4">
+            Already have a Stripe account and don't want to use Connect? Paste your keys below.
+            Get them from <a href="https://dashboard.stripe.com/apikeys" target="_blank" class="text-cyan-electric underline">Stripe → Developers → API keys</a>.
+        </p>
+        <form method="post" action="{% url 'dashboard_save_stripe_own_keys' %}" class="space-y-3">
+            {% csrf_token %}
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Secret Key <span class="text-gray-500">(sk_live_… or sk_test_…)</span></label>
+                <input type="password" name="stripe_own_secret_key" placeholder="sk_live_…"
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-electric/50" required>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Publishable Key <span class="text-gray-500">(pk_live_… or pk_test_…)</span></label>
+                <input type="text" name="stripe_own_publishable_key" placeholder="pk_live_…"
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-electric/50" required>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">
+                    Webhook Secret <span class="text-gray-500">(optional — adds reliability for edge cases)</span>
+                </label>
+                <input type="password" name="stripe_own_webhook_secret" placeholder="whsec_… (optional)"
+                    class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-electric/50">
+                <p class="text-xs text-gray-500 mt-1">
+                    Without this, access is granted on the success redirect — works for most cases.<br>
+                    For extra reliability, add this endpoint in Stripe → Developers → Webhooks:
+                    <span class="font-mono text-cyan-300">https://courseforge.katek-ai.com/webhooks/stripe/tenant/{{ tenant.slug }}/</span>
+                </p>
+            </div>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition text-sm">Save Stripe Keys</button>
+        </form>
+        {% endif %}
     </div>
 </div>
 

@@ -278,6 +278,17 @@
         background: rgba(22,163,74,.05);
         color: var(--success);
     }
+    .dev-free-local {
+        font-size: .8rem;
+        padding: 10px 14px;
+        border-radius: var(--radius);
+        font-family: var(--mono);
+        letter-spacing: .01em;
+        border: 1px solid rgba(35,81,245,.25);
+        background: var(--blue-light);
+        color: #1e3a8a;
+        margin-bottom: 20px;
+    }
 
     /* Form structure */
     form { display: flex; flex-direction: column; gap: 0; }
@@ -626,6 +637,9 @@
             <p class="form-sub">We'll create your platform and your owner account in one step.</p>
         </div>
 
+        {% if start_academy_free_local %}
+        <div class="dev-free-local">Dev mode: submitting this form creates your academy without Stripe checkout.</div>
+        {% endif %}
         {% if messages %}
         <div class="messages">
             {% for message in messages %}
@@ -768,6 +782,31 @@
                                 autocomplete="off"
                             >
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Referral -->
+            <div class="section">
+                <div class="section-head">
+                    <div class="section-icon">🎁</div>
+                    <span class="section-label">Referral (optional)</span>
+                </div>
+                <div class="section-body">
+                    <div class="field">
+                        <label for="referral_code">
+                            Referral code
+                            <span class="label-hint">— if another academy owner invited you</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="referral_code"
+                            name="referral_code"
+                            value="{{ referral_code|default:'' }}"
+                            placeholder="e.g. LADYA-7F3K9Q"
+                            autocomplete="off"
+                        >
+                        <p class="field-hint">We'll connect this signup to the referrer for affiliate attribution.</p>
                     </div>
                 </div>
             </div>

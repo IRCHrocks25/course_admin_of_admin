@@ -1,105 +1,364 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{{ course.name }} - S.O.P Master{% endblock %}
+{% block title %}{{ course.name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4">
-    <div class="text-center mb-12">
-        <h1 class="text-4xl font-bold mb-4">{{ course.name }}</h1>
-        <p class="text-xl text-gray-300">{{ course.description }}</p>
+<style>
+  .cd-page { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  .cd-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; text-decoration: none; margin-bottom: 1.75rem; transition: color .15s; }
+  .cd-back:hover { color: #e2e8f0; }
+  .cd-grid { display: grid; grid-template-columns: 1fr 300px; gap: 2.25rem; align-items: start; }
+  @media (max-width: 700px) { .cd-grid { grid-template-columns: 1fr; } }
+
+  /* Thumbnail */
+  .cd-thumb { width: 100%; height: 210px; border-radius: 12px; object-fit: cover; display: block; margin-bottom: 1.5rem; }
+
+  /* Left col */
+  .cd-title { font-size: 24px; font-weight: 700; line-height: 1.3; margin-bottom: .75rem; color: #f1f5f9; }
+  .cd-short-desc { font-size: 15px; color: #94a3b8; line-height: 1.7; margin-bottom: 1.5rem; }
+  .cd-about { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .cd-about-label { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: #38bdf8; margin-bottom: .75rem; }
+  .cd-about-body { font-size: 14px; color: #94a3b8; line-height: 1.75; }
+  .cd-about-body p { margin-bottom: .75rem; }
+  .cd-about-body p:last-child { margin-bottom: 0; }
+  .cd-meta { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .cd-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #94a3b8; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; padding: 5px 11px; }
+  .cd-pill svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .cd-pill.cert { color: #fbbf24; border-color: rgba(251,191,36,.2); background: rgba(251,191,36,.06); }
+
+  /* Right card */
+  .cd-card { background: rgba(10,14,39,.85); border: 1px solid rgba(255,255,255,.09); border-radius: 14px; padding: 1.25rem; position: sticky; top: 1.25rem; }
+
+  /* Access state */
+  .cd-access-badge { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #4ade80; background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.2); border-radius: 8px; padding: 9px 12px; margin-bottom: 1rem; }
+  .cd-access-badge svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* Progress bar */
+  .cd-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .cd-progress-track { height: 4px; background: rgba(255,255,255,.08); border-radius: 99px; overflow: hidden; margin-bottom: 1.25rem; }
+  .cd-progress-fill { height: 100%; background: #38bdf8; border-radius: 99px; }
+
+  /* Price */
+  .cd-price-block { text-align: center; padding-bottom: 1.25rem; margin-bottom: 1.25rem; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .cd-price-amount { font-size: 34px; font-weight: 800; color: #f1f5f9; line-height: 1; }
+  .cd-price-currency { font-size: 15px; font-weight: 400; color: #64748b; }
+  .cd-price-note { font-size: 11px; color: #475569; margin-top: 5px; }
+  .cd-free { font-size: 28px; font-weight: 800; color: #4ade80; }
+
+  /* Prereqs */
+  .cd-prereq { background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2); border-radius: 8px; padding: 10px 12px; margin-bottom: 1rem; }
+  .cd-prereq-title { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #fbbf24; margin-bottom: 6px; }
+  .cd-prereq-title svg { width: 12px; height: 12px; }
+  .cd-prereq-item { font-size: 12px; color: #94a3b8; padding: 2px 0 2px 10px; position: relative; }
+  .cd-prereq-item::before { content: ''; position: absolute; left: 2px; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: #64748b; }
+
+  /* Buttons */
+  .cd-btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border-radius: 99px; background: #38bdf8; color: #0a0e27; font-size: 14px; font-weight: 700; cursor: pointer; border: none; text-decoration: none; margin-bottom: .625rem; transition: background .15s, opacity .15s; }
+  .cd-btn-primary:hover { background: #7dd3fc; color: #0a0e27; }
+  .cd-btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+  .cd-btn-primary svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .cd-btn-outline { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px; border-radius: 99px; background: transparent; color: #e2e8f0; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,.15); text-decoration: none; margin-bottom: .625rem; transition: background .15s; }
+  .cd-btn-outline:hover { background: rgba(255,255,255,.05); color: #e2e8f0; }
+  .cd-btn-outline svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* Secure note */
+  .cd-secure { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; color: #475569; margin-top: .75rem; }
+  .cd-secure svg { width: 11px; height: 11px; }
+
+  /* Divider */
+  .cd-divider { height: 1px; background: rgba(255,255,255,.07); margin: 1.1rem 0; }
+
+  /* Bundles */
+  .cd-bundle-label { font-size: 11px; color: #64748b; margin-bottom: .5rem; }
+  .cd-bundle-row { display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); border-radius: 8px; margin-bottom: 6px; }
+  .cd-bundle-name { flex: 1; font-size: 13px; font-weight: 500; color: #e2e8f0; }
+  .cd-bundle-price { font-size: 13px; color: #38bdf8; font-weight: 600; }
+  .cd-bundle-buy { font-size: 11px; padding: 4px 10px; border-radius: 99px; border: 1px solid rgba(56,189,248,.3); background: transparent; color: #38bdf8; cursor: pointer; transition: background .15s; }
+  .cd-bundle-buy:hover { background: rgba(56,189,248,.1); }
+
+  /* Empty state */
+  .cd-empty { text-align: center; }
+  .cd-empty p { font-size: 13px; color: #64748b; margin-bottom: 1rem; }
+
+  /* Syllabus */
+  .cd-syllabus { margin-top: 2rem; }
+  .cd-syllabus-label { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: #38bdf8; margin-bottom: .9rem; }
+  .cd-module { border: 1px solid rgba(255,255,255,.07); border-radius: 10px; overflow: hidden; margin-bottom: .625rem; }
+  .cd-module-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: rgba(255,255,255,.03); cursor: pointer; user-select: none; }
+  .cd-module-hd:hover { background: rgba(255,255,255,.055); }
+  .cd-module-name { font-size: 13px; font-weight: 600; color: #e2e8f0; flex: 1; }
+  .cd-module-count { font-size: 11px; color: #64748b; white-space: nowrap; }
+  .cd-module-chevron { width: 13px; height: 13px; color: #64748b; flex-shrink: 0; transition: transform .2s; }
+  .cd-module[open] .cd-module-chevron { transform: rotate(180deg); }
+  .cd-lesson-list { padding: 0; margin: 0; list-style: none; }
+  .cd-lesson-row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid rgba(255,255,255,.05); }
+  .cd-lesson-row:first-child { border-top: none; }
+  .cd-lesson-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cd-lesson-icon.unlocked { background: rgba(56,189,248,.1); }
+  .cd-lesson-icon.locked   { background: rgba(255,255,255,.04); }
+  .cd-lesson-icon svg { width: 11px; height: 11px; }
+  .cd-lesson-icon.unlocked svg { color: #38bdf8; }
+  .cd-lesson-icon.locked   svg { color: #475569; }
+  .cd-lesson-title { flex: 1; font-size: 13px; }
+  .cd-lesson-title.locked { color: #475569; }
+  .cd-lesson-title.unlocked { color: #cbd5e1; }
+  .cd-lesson-dur { font-size: 11px; color: #475569; white-space: nowrap; }
+</style>
+
+<div class="cd-page">
+
+  <a href="{% url 'courses' %}" class="cd-back">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 3L5 8l5 5"/></svg>
+    Back to courses
+  </a>
+
+  <div class="cd-grid">
+
+    <!-- ── Left: course info ── -->
+    <div>
+      {% if course.thumbnail %}
+        <img src="{{ course.thumbnail.url }}" alt="{{ course.name }}" class="cd-thumb">
+      {% endif %}
+
+      <h1 class="cd-title">{{ course.name }}</h1>
+      <p class="cd-short-desc">{{ course.short_description }}</p>
+
+      {% if course.description %}
+      <div class="cd-about">
+        <div class="cd-about-label">About this course</div>
+        <div class="cd-about-body">{{ course.description|linebreaks }}</div>
+      </div>
+      {% endif %}
+
+      <div class="cd-meta">
+        <span class="cd-pill">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><polygon points="6,5 11,8 6,11" fill="currentColor" stroke="none"/></svg>
+          {{ course.get_lesson_count }} lessons
+        </span>
+        {% if course.coach_name %}
+        <span class="cd-pill">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5"/></svg>
+          AI Coach: {{ course.coach_name }}
+        </span>
+        {% endif %}
+        {% if course.is_accredible_certified %}
+        <span class="cd-pill cert">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l1.6 3.2L13 6l-2.5 2.4.6 3.6L8 10.4l-3.1 1.6.6-3.6L3 6l3.4-.8z"/></svg>
+          Certificate included
+        </span>
+        {% endif %}
+      </div>
+
+      {% if syllabus %}
+      <div class="cd-syllabus">
+        <div class="cd-syllabus-label">Course syllabus</div>
+
+        {% for section in syllabus %}
+        <details class="cd-module" {% if forloop.first %}open{% endif %}>
+          <summary class="cd-module-hd">
+            <span class="cd-module-name">
+              {% if section.obj %}{{ section.obj.name }}{% else %}Lessons{% endif %}
+            </span>
+            <span class="cd-module-count">{{ section.lessons|length }} lesson{{ section.lessons|length|pluralize }}</span>
+            <svg class="cd-module-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6l4 4 4-4"/></svg>
+          </summary>
+
+          <ul class="cd-lesson-list">
+            {% for lesson in section.lessons %}
+            <li class="cd-lesson-row">
+              {% if has_access %}
+              <span class="cd-lesson-icon unlocked">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="4,3 13,8 4,13" fill="currentColor" stroke="none"/></svg>
+              </span>
+              <span class="cd-lesson-title unlocked">{{ lesson.title }}</span>
+              {% else %}
+              <span class="cd-lesson-icon locked">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
+              </span>
+              <span class="cd-lesson-title locked">{{ lesson.title }}</span>
+              {% endif %}
+              {% if lesson.video_duration %}
+              <span class="cd-lesson-dur">{{ lesson.video_duration }} min</span>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endfor %}
+
+        {% if not has_access %}
+        <p style="font-size:12px;color:#475569;margin-top:.75rem;text-align:center;">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin-right:3px;"><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
+          Lessons unlock after {% if can_self_enroll %}enrollment{% elif course.price %}purchase{% else %}access is granted{% endif %}
+        </p>
+        {% endif %}
+      </div>
+      {% endif %}
+
     </div>
 
-    {% if has_access %}
-        {# User has access - show content or placeholder #}
-        {% if course.lessons.count == 0 %}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-8 text-center">
-            <i class="fas fa-book-open text-6xl text-gray-600 mb-4"></i>
-            <p class="text-gray-400 mb-6">This course doesn't have any lessons yet.</p>
-            <a href="{% url 'courses' %}" class="inline-block px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
-                Back to Courses
-            </a>
-        </div>
-        {% endif %}
-    {% else %}
-        {# No access - show enroll / purchase options #}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-8">
-            {% if not prereqs_met %}
-            <div class="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg text-left">
-                <p class="font-semibold text-amber-400 mb-2"><i class="fas fa-lock mr-2"></i>Prerequisites Required</p>
-                <p class="text-gray-300 text-sm mb-2">Complete these courses first:</p>
-                <ul class="list-disc list-inside text-gray-400">
-                    {% for prereq in missing_prereqs %}
-                    <li>{{ prereq.name }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
+    <!-- ── Right: access / purchase card ── -->
+    <div>
+      <div class="cd-card">
 
-            {% if can_self_enroll %}
-            <p class="text-gray-400 mb-6">Enroll now to start learning. You'll get instant access to all lessons.</p>
-            <a href="{% url 'enroll_course' course.slug %}" class="inline-block px-8 py-4 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all text-lg">
-                <i class="fas fa-play mr-2"></i>Start Course
-            </a>
-            {% elif bundles %}
-            <p class="text-gray-400 mb-6">This course is available through a bundle. Purchase to get access.</p>
-            <div class="space-y-2 mb-6">
-                {% for bundle in bundles %}
-                <div class="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                    <span class="text-white font-medium">{{ bundle.name }}</span>
-                    <div class="flex items-center gap-3">
-                        {% if bundle.price %}<span class="text-cyan-electric">${{ bundle.price }}</span>{% endif %}
-                        {% if user.is_authenticated %}
-                        <button
-                            type="button"
-                            class="px-3 py-1.5 text-xs border border-cyan-electric text-cyan-electric rounded-full hover:bg-cyan-electric/10 transition-all"
-                            onclick="startBundleCheckout({{ bundle.id }})"
-                        >
-                            Buy
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <a href="{% url 'courses' %}" class="inline-block px-6 py-3 border border-cyan-electric text-cyan-electric rounded-full font-bold hover:bg-cyan-electric/10 transition-all">
-                View Bundles
-            </a>
+        {% if has_access %}
+          <div class="cd-access-badge">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4"/></svg>
+            You have access
+          </div>
+
+          {% if course.user_lesson_progress %}
+          <div class="cd-progress-label">
+            <span>Progress</span>
+            <span>{{ course.user_lessons_done|default:0 }} / {{ course.get_lesson_count }} lessons</span>
+          </div>
+          <div class="cd-progress-track">
+            <div class="cd-progress-fill" style="width: {{ course.user_progress_pct|default:0 }}%"></div>
+          </div>
+          {% endif %}
+
+          <a href="{% url 'course_detail' course.slug %}" class="cd-btn-primary">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="4,3 13,8 4,13" fill="currentColor" stroke="none"/></svg>
+            {% if course.user_lessons_done %}Continue learning{% else %}Start learning{% endif %}
+          </a>
+
+        {% else %}
+
+          <!-- Price -->
+          <div class="cd-price-block">
+            {% if course.price %}
+              <div class="cd-price-amount">${{ course.price }}<span class="cd-price-currency"> USD</span></div>
+              <div class="cd-price-note">One-time payment &middot; Lifetime access</div>
             {% else %}
-            <p class="text-gray-400 mb-6">This course requires assignment or purchase. Contact your administrator or check available bundles.</p>
-            <a href="{% url 'courses' %}" class="inline-block px-6 py-3 border border-cyan-electric/50 text-gray-300 rounded-full font-bold hover:bg-cyan-electric/10 transition-all">
-                Back to Courses
+              <div class="cd-free">Free</div>
+              <div class="cd-price-note">No payment required</div>
+            {% endif %}
+          </div>
+
+          <!-- Prerequisites warning -->
+          {% if not prereqs_met %}
+          <div class="cd-prereq">
+            <div class="cd-prereq-title">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="1" width="6" height="5" rx="1"/><path d="M3 6h10v9H3z"/></svg>
+              Prerequisites required
+            </div>
+            {% for prereq in missing_prereqs %}
+            <div class="cd-prereq-item">{{ prereq.name }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <!-- CTA buttons -->
+          {% if can_self_enroll %}
+            <a href="{% url 'enroll_course' course.slug %}" class="cd-btn-primary">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="4,3 13,8 4,13" fill="currentColor" stroke="none"/></svg>
+              Start course — Free
+            </a>
+
+          {% elif can_purchase %}
+            {% if user.is_authenticated %}
+              <button id="btn-buy-course" onclick="startCourseCheckout('{{ course.slug }}')" class="cd-btn-primary">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg>
+                Buy now — ${{ course.price }}
+              </button>
+            {% else %}
+              <a href="{% url 'login' %}?next={{ request.path }}" class="cd-btn-primary">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 8H3m5-3l3 3-3 3"/><rect x="2" y="2" width="8" height="12" rx="1.5"/></svg>
+                Log in to buy — ${{ course.price }}
+              </a>
+            {% endif %}
+
+            <div class="cd-secure">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L3 3.5V8c0 3 2 5 5 6 3-1 5-3 5-6V3.5z"/></svg>
+              Secure checkout via Stripe
+            </div>
+
+          {% elif bundles %}
+            <div class="cd-bundle-label">Available in these bundles</div>
+            {% for bundle in bundles %}
+            <div class="cd-bundle-row">
+              <span class="cd-bundle-name">{{ bundle.name }}</span>
+              {% if bundle.price %}<span class="cd-bundle-price">${{ bundle.price }}</span>{% endif %}
+              {% if user.is_authenticated %}
+              <button type="button" onclick="startBundleCheckout({{ bundle.id }})" class="cd-bundle-buy">Buy</button>
+              {% endif %}
+            </div>
+            {% endfor %}
+            {% if not user.is_authenticated %}
+            <a href="{% url 'login' %}?next={{ request.path }}" class="cd-btn-outline" style="margin-top:.75rem">
+              Log in to purchase
             </a>
             {% endif %}
 
-            <div class="mt-8 pt-6 border-t border-white/10">
-                <a href="{% url 'courses' %}" class="text-gray-500 hover:text-gray-300 text-sm">
-                    <i class="fas fa-arrow-left mr-1"></i> Back to Courses
-                </a>
+          {% else %}
+            <div class="cd-empty">
+              <p>
+                {% if course.enrollment_method == 'purchase' and not stripe_ready %}
+                  Payments are not yet set up for this academy. Check back soon.
+                {% else %}
+                  Access requires assignment by an administrator.
+                {% endif %}
+              </p>
+              <a href="{% url 'courses' %}" class="cd-btn-outline">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg>
+                Browse other courses
+              </a>
             </div>
-        </div>
-    {% endif %}
-</div>
+          {% endif %}
+
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</div><!-- /page -->
+
 {% if user.is_authenticated %}
 <script>
-async function startBundleCheckout(bundleId) {
-    try {
-        const res = await fetch(`/bundles/${bundleId}/checkout/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-            alert(data.error || 'Unable to start checkout.');
-            return;
-        }
-        window.location.href = data.checkout_url;
-    } catch (e) {
-        alert('Unable to start checkout.');
+async function startCourseCheckout(slug) {
+  const btn = document.getElementById('btn-buy-course');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6" stroke-dasharray="30" stroke-dashoffset="30" style="animation:spin 1s linear infinite"/></svg> Redirecting…';
+  }
+  try {
+    const res = await fetch(`/courses/${slug}/checkout/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alert(data.error || 'Unable to start checkout. Please try again.');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg> Buy now — ${{ course.price }}';
+      }
+      return;
     }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    alert('Unable to start checkout. Please try again.');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg> Buy now — ${{ course.price }}';
+    }
+  }
+}
+
+async function startBundleCheckout(bundleId) {
+  try {
+    const res = await fetch(`/bundles/${bundleId}/checkout/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) { alert(data.error || 'Unable to start checkout.'); return; }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    alert('Unable to start checkout.');
+  }
 }
 </script>
 {% endif %}

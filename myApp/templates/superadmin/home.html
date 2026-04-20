@@ -75,7 +75,21 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3">
-                        <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="text-cyan-electric hover:underline">Open</a>
+                        <div class="flex items-center gap-3">
+                            <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="text-cyan-electric hover:underline">Open</a>
+                            <a href="{% url 'student_dashboard' %}?tenant={{ tenant.slug }}" class="text-indigo-300 hover:underline">View Course Dashboard</a>
+                            <form method="post" action="{% url 'superadmin_tenant_suspend' tenant.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{% url 'superadmin_home' %}">
+                                {% if tenant.is_active %}
+                                <input type="hidden" name="action" value="suspend">
+                                <button type="submit" class="text-red-400 hover:underline">Revoke</button>
+                                {% else %}
+                                <input type="hidden" name="action" value="activate">
+                                <button type="submit" class="text-green-400 hover:underline">Activate</button>
+                                {% endif %}
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
