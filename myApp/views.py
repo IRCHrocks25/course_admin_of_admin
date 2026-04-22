@@ -13,6 +13,8 @@ from django.contrib import messages
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from datetime import datetime
 import importlib.util
@@ -1240,8 +1242,24 @@ def login_view(request):
                     return _render_login_page()
             login(request, user)
             default_next = _default_redirect_for_user(user)
-            next_url = request.POST.get('next') or request.GET.get('next', default_next)
-            return redirect(next_url)
+            default_next_url = reverse(default_next)
+            requested_next = (request.POST.get('next') or request.GET.get('next') or '').strip()
+
+            if requested_next and not url_has_allowed_host_and_scheme(
+                url=requested_next,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                requested_next = ''
+
+            # Ignore generic public paths for elevated roles and send them
+            # directly to their control panel by default.
+            if user.is_superuser and requested_next in {'/', reverse('home'), reverse('courses')}:
+                requested_next = ''
+            elif user.is_staff and requested_next in {'/', reverse('home'), reverse('courses')}:
+                requested_next = ''
+
+            return redirect(requested_next or default_next_url)
         else:
             messages.error(request, 'Invalid username or password.')
     

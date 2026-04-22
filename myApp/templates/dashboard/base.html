@@ -116,6 +116,10 @@
                     <i class="fas fa-shield-halved w-5"></i>
                     <span>Super Admin</span>
                 </a>
+                <a href="{% url 'superadmin_tenants' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if request.resolver_match.url_name == 'superadmin_tenants' or request.resolver_match.url_name == 'superadmin_tenant_detail' or request.resolver_match.url_name == 'superadmin_tenant_analytics' or request.resolver_match.url_name == 'superadmin_tenant_suspend' or request.resolver_match.url_name == 'superadmin_tenant_archive' or request.resolver_match.url_name == 'superadmin_create_tenant_admin' or request.resolver_match.url_name == 'superadmin_add_tenant_domain' or request.resolver_match.url_name == 'superadmin_verify_tenant_domain' or request.resolver_match.url_name == 'superadmin_set_primary_tenant_domain' or request.resolver_match.url_name == 'superadmin_set_tenant_stripe_keys' %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
+                    <i class="fas fa-building w-5"></i>
+                    <span>Tenants</span>
+                </a>
                 {% endif %}
                 <a href="{% if tenant_site_url %}{{ tenant_site_url }}{% elif tenant %}{% url 'home' %}?tenant={{ tenant.slug }}{% else %}{% url 'home' %}{% endif %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
                     <i class="fas fa-external-link-alt w-5"></i>

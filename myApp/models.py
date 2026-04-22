@@ -21,6 +21,7 @@ class Tenant(models.Model):
     logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True)
     primary_color = models.CharField(max_length=7, default='#3B82F6')
     is_active = models.BooleanField(default=True)
+    is_archived = models.BooleanField(default=False)
     plan_code = models.CharField(max_length=50, blank=True, default='starter')
     billing_status = models.CharField(max_length=20, choices=BILLING_STATUS_CHOICES, default='active')
     stripe_customer_id = models.CharField(max_length=120, blank=True, default='')

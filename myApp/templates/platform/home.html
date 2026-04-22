@@ -3,690 +3,2088 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CourseForge — Turn What You Know Into What You Earn</title>
+<title>CourseForge — The platform for experts who sell knowledge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #04060d;
-  --bg1:      #080d1a;
-  --bg2:      #0c1120;
-  --surface:  #0e1525;
-  --panel:    #111929;
-  --border:   rgba(255,255,255,0.06);
-  --border2:  rgba(255,255,255,0.1);
-  --blue:     #2563ff;
-  --blue-hi:  #4d84ff;
-  --blue-glow:rgba(37,99,255,0.15);
-  --blue-rim: rgba(37,99,255,0.25);
-  --ice:      #e8f0ff;
-  --text:     #d4dcf0;
-  --muted:    rgba(212,220,240,0.5);
-  --dim:      rgba(212,220,240,0.25);
-  --dimmer:   rgba(212,220,240,0.12);
-  --font: 'Geist', system-ui, sans-serif;
-  --mono: 'Geist Mono', monospace;
+  /* Palette — deep navy canvas, pure whites, orange laser accent */
+  --bg:         #060912;
+  --bg-1:       #0a0f1f;
+  --bg-2:       #0f1629;
+  --panel:      #121b33;
+  --panel-2:    #172143;
+  --navy-hi:    #1f2d5c;
+
+  --border:     rgba(255,255,255,0.06);
+  --border-2:   rgba(255,255,255,0.10);
+  --border-3:   rgba(255,255,255,0.16);
+
+  --white:      #ffffff;
+  --text:       #e6e9f2;
+  --text-2:     #b4bacb;
+  --muted:      #7a8299;
+  --dim:        #525a72;
+  --dimmer:     #363d52;
+
+  --orange:     #ff6a1f;
+  --orange-hi:  #ff8444;
+  --orange-dk:  #d94a0f;
+  --orange-glow:rgba(255,106,31,0.22);
+  --orange-rim: rgba(255,106,31,0.4);
+
+  --green:      #24d97a;
+  --red:        #ff4a6a;
+
+  --sans:       'Roboto', -apple-system, sans-serif;
+  --mono:       'Roboto Mono', ui-monospace, monospace;
+
+  --radius:     10px;
+  --radius-lg:  16px;
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; background: var(--bg); }
 body {
-  background: var(--bg); color: var(--text);
-  font-family: var(--font); font-size: 15px; line-height: 1.6;
-  overflow-x: hidden; cursor: none;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 400;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* CURSOR */
-#cur { position:fixed; width:8px; height:8px; background:var(--blue-hi); border-radius:50%; pointer-events:none; z-index:9999; transform:translate(-50%,-50%); mix-blend-mode:screen; }
-#cur-ring { position:fixed; width:32px; height:32px; border:1px solid rgba(77,132,255,0.4); border-radius:50%; pointer-events:none; z-index:9998; transform:translate(-50%,-50%); transition:left .1s ease,top .1s ease; }
+::selection { background: var(--orange); color: var(--white); }
 
-/* NOISE */
-body::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:2000; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); opacity:.5; }
-
-/* NAV */
-nav { position:fixed; top:0; left:0; right:0; z-index:800; padding:0 5vw; height:60px; display:flex; align-items:center; justify-content:space-between; background:rgba(4,6,13,0.75); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-bottom:1px solid var(--border); }
-.nav-logo { font-size:.95rem; font-weight:500; letter-spacing:-.02em; color:var(--ice); text-decoration:none; display:flex; align-items:center; gap:8px; }
-.nav-logo-mark { width:22px; height:22px; border-radius:6px; background:var(--blue); display:flex; align-items:center; justify-content:center; font-size:.6rem; font-weight:600; color:#fff; }
-.nav-links { display:flex; gap:32px; list-style:none; }
-.nav-links a { font-size:.82rem; color:var(--muted); text-decoration:none; transition:color .2s; }
-.nav-links a:hover { color:var(--text); }
-.nav-right { display:flex; align-items:center; gap:12px; }
-.nav-sign { font-size:.82rem; color:var(--muted); background:none; border:none; cursor:pointer; font-family:var(--font); transition:color .2s; }
-.nav-sign:hover { color:var(--text); }
-.nav-cta { background:var(--blue); color:#fff; border:none; padding:8px 18px; border-radius:6px; font-family:var(--font); font-size:.82rem; font-weight:500; cursor:pointer; transition:background .2s, transform .15s, box-shadow .2s; }
-.nav-cta:hover { background:var(--blue-hi); transform:translateY(-1px); box-shadow:0 6px 24px rgba(37,99,255,.3); }
-
-/* HERO */
-.hero { min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:120px 5vw 80px; position:relative; overflow:hidden; }
-.hero-glow { position:absolute; width:900px; height:900px; border-radius:50%; background:radial-gradient(circle, rgba(37,99,255,.09) 0%, transparent 65%); top:-250px; left:50%; transform:translateX(-50%); pointer-events:none; animation:breathe 8s ease-in-out infinite alternate; }
-.hero-glow2 { position:absolute; width:500px; height:500px; border-radius:50%; background:radial-gradient(circle, rgba(37,99,255,.05) 0%, transparent 70%); bottom:-100px; right:10%; pointer-events:none; animation:breathe2 11s ease-in-out infinite alternate; }
-@keyframes breathe  { from{opacity:.8;transform:scale(1) translateX(-50%);} to{opacity:1;transform:scale(1.12) translateX(-50%);} }
-@keyframes breathe2 { from{opacity:.6;transform:scale(1);} to{opacity:1;transform:scale(1.15);} }
-.hero-grid { position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px); background-size:64px 64px; mask-image:radial-gradient(ellipse 70% 70% at 50% 40%, black 0%, transparent 100%); }
-
-.hero-inner { position:relative; z-index:1; max-width:800px; margin:0 auto; text-align:center; display:flex; flex-direction:column; align-items:center; }
-.hero-badge { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--blue-rim); background:var(--blue-glow); padding:5px 14px 5px 10px; border-radius:100px; font-size:.72rem; font-weight:500; color:var(--blue-hi); letter-spacing:.06em; text-transform:uppercase; margin-bottom:36px; animation:fadeUp .7s ease both; }
-.badge-dot { width:5px; height:5px; background:var(--blue-hi); border-radius:50%; animation:ping 2.5s ease infinite; }
-@keyframes ping { 0%,100%{opacity:1;} 50%{opacity:.3;} }
-
-.hero-h1 { font-size:clamp(2.8rem, 6.5vw, 5.6rem); font-weight:300; line-height:1.05; letter-spacing:-.04em; color:var(--ice); margin-bottom:28px; animation:fadeUp .7s .08s ease both; }
-.hero-h1 strong { font-weight:500; background:linear-gradient(135deg, var(--blue-hi) 0%, #7eb8ff 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-
-/* Hero body copy — two-line punchy setup */
-.hero-setup {
-  font-size:clamp(.95rem, 1.4vw, 1.1rem); color:var(--muted); font-weight:300;
-  max-width:520px; line-height:1.8; margin-bottom:12px;
-  animation:fadeUp .7s .14s ease both;
+/* ═══ AMBIENT BACKGROUND LAYER ═══ */
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
 }
-.hero-setup strong { color:var(--text); font-weight:400; }
+.ambient::before {
+  content: '';
+  position: absolute;
+  top: -300px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1100px;
+  height: 900px;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255,106,31,0.14), transparent 65%);
+  filter: blur(40px);
+}
+.ambient::after {
+  content: '';
+  position: absolute;
+  top: 200px;
+  right: -200px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(31,45,92,0.5), transparent 65%);
+  filter: blur(60px);
+}
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 85%);
+}
+
+/* Noise */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 500;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.035;
+}
+
+/* ═══ NAV ═══ */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 32px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  background: rgba(6, 9, 18, 0.72);
+  border-bottom: 1px solid var(--border);
+}
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--white);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.nav-logo-mark {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--orange), var(--orange-dk));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: var(--white);
+  box-shadow: 0 0 20px var(--orange-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 4px;
+}
+.nav-links a {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  transition: all .15s ease;
+  font-weight: 400;
+}
+.nav-links a:hover {
+  color: var(--white);
+  background: rgba(255,255,255,0.04);
+}
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-right .signin {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  transition: color .15s;
+}
+.nav-right .signin:hover { color: var(--white); }
+.nav-cta {
+  background: var(--white);
+  color: var(--bg);
+  padding: 8px 18px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all .15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-cta:hover {
+  background: var(--orange);
+  color: var(--white);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--orange-glow);
+}
+.nav-cta .kbd {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  background: rgba(0,0,0,0.12);
+  border: 1px solid rgba(0,0,0,0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: currentColor;
+  opacity: 0.6;
+}
+.nav-cta:hover .kbd { background: rgba(0,0,0,0.2); border-color: rgba(0,0,0,0.3); opacity: 0.9; }
+
+/* ═══ HERO ═══ */
+.hero {
+  position: relative;
+  z-index: 1;
+  padding: 160px 32px 80px;
+  text-align: center;
+}
+.hero-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px 5px 5px;
+  border: 1px solid var(--border-2);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(10px);
+  border-radius: 100px;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  margin-bottom: 36px;
+  font-weight: 400;
+  text-decoration: none;
+  transition: all .2s;
+}
+.hero-pill:hover {
+  border-color: var(--orange-rim);
+  color: var(--white);
+}
+.hero-pill .tag {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--orange);
+  color: var(--white);
+  padding: 3px 9px;
+  border-radius: 100px;
+  font-weight: 500;
+}
+.hero-pill .arrow {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-left: 4px;
+}
+
+.hero-h1 {
+  font-size: clamp(2.8rem, 6.2vw, 5.2rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  color: var(--white);
+  margin-bottom: 28px;
+}
+.hero-h1 .muted {
+  color: var(--muted);
+  font-weight: 300;
+}
+.hero-h1 .highlight {
+  color: var(--orange);
+  position: relative;
+}
 
 .hero-sub {
-  font-size:clamp(.88rem, 1.2vw, 1rem); color:var(--muted); font-weight:300;
-  max-width:500px; line-height:1.8; margin-bottom:44px;
-  animation:fadeUp .7s .2s ease both;
+  font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+  color: var(--text-2);
+  max-width: 640px;
+  margin: 0 auto 44px;
+  line-height: 1.55;
+  font-weight: 400;
 }
 
-.hero-actions { display:flex; gap:12px; align-items:center; animation:fadeUp .7s .26s ease both; }
-.btn-primary { background:var(--blue); color:#fff; border:none; padding:13px 28px; border-radius:7px; font-family:var(--font); font-size:.9rem; font-weight:500; cursor:pointer; transition:background .2s, transform .15s, box-shadow .2s; }
-.btn-primary:hover { background:var(--blue-hi); transform:translateY(-1px); box-shadow:0 10px 36px rgba(37,99,255,.35); }
-.btn-outline { background:transparent; color:var(--muted); border:1px solid var(--border2); padding:12px 22px; border-radius:7px; font-family:var(--font); font-size:.85rem; cursor:pointer; transition:color .2s, border-color .2s; }
-.btn-outline:hover { color:var(--text); border-color:rgba(255,255,255,.2); }
-
-.hero-meta { margin-top:56px; display:flex; gap:48px; justify-content:center; animation:fadeUp .7s .32s ease both; border-top:1px solid var(--border); padding-top:40px; }
-.hero-stat-num { font-size:1.9rem; font-weight:300; letter-spacing:-.04em; color:var(--ice); display:block; }
-.hero-stat-num span { color:var(--blue-hi); }
-.hero-stat-lbl { font-size:.72rem; color:var(--dim); letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
-
-/* TICKER */
-.ticker { overflow:hidden; border-top:1px solid var(--border); border-bottom:1px solid var(--border); background:rgba(255,255,255,.012); padding:14px 0; }
-.ticker-track { display:flex; gap:64px; animation:ticker 30s linear infinite; width:max-content; }
-.ticker-track span { font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); white-space:nowrap; }
-.ticker-track .sep { color:var(--blue); opacity:.5; }
-@keyframes ticker { from{transform:translateX(0);} to{transform:translateX(-50%);} }
-
-/* SHARED */
-.section-eyebrow { font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--blue-hi); margin-bottom:16px; }
-.section-h2 { font-size:clamp(1.8rem, 3.2vw, 2.8rem); font-weight:300; letter-spacing:-.035em; line-height:1.15; color:var(--ice); }
-.section-h2 em { font-style:normal; color:var(--muted); }
-.section-body { font-size:.9rem; color:var(--muted); font-weight:300; line-height:1.8; max-width:440px; }
-
-/* WHO */
-.who { padding:120px 5vw; }
-.who-header { margin-bottom:48px; }
-.who-header .section-h2 { max-width:640px; margin-bottom:0; }
-
-/* Realization block */
-.realization {
-  background:var(--bg1); border:1px solid var(--border);
-  border-radius:14px; padding:48px 52px;
-  margin-bottom:56px;
-  display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center;
+.hero-actions {
+  display: inline-flex;
+  gap: 10px;
+  margin-bottom: 72px;
 }
-.real-left p {
-  font-size:1.05rem; font-weight:300; color:var(--muted); line-height:1.85;
-  margin-bottom:20px;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: all .18s ease;
+  font-family: var(--sans);
 }
-.real-left p strong { color:var(--text); font-weight:400; }
-.real-left .real-close {
-  font-size:.95rem; font-weight:400; color:var(--ice); line-height:1.7;
+.btn-primary {
+  background: var(--white);
+  color: var(--bg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.4) inset,
+    0 0 0 1px rgba(255,255,255,0.2),
+    0 12px 32px rgba(255,255,255,0.1);
 }
-.real-list { list-style:none; display:flex; flex-direction:column; gap:10px; }
-.real-list li {
-  font-family:var(--mono); font-size:.78rem; color:var(--muted);
-  display:flex; align-items:center; gap:12px; padding:12px 16px;
-  background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+.btn-primary:hover {
+  background: var(--orange);
+  color: var(--white);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.3) inset,
+    0 0 0 1px var(--orange-rim),
+    0 12px 40px var(--orange-glow);
+  transform: translateY(-1px);
 }
-.real-list li::before { content:'—'; color:var(--blue-hi); flex-shrink:0; }
+.btn-secondary {
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  border: 1px solid var(--border-2);
+  backdrop-filter: blur(10px);
+}
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--border-3);
+  color: var(--white);
+}
+.btn-arrow {
+  transition: transform .2s;
+  margin-left: 2px;
+}
+.btn:hover .btn-arrow { transform: translateX(3px); }
 
-.persona-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-.persona { background:var(--bg1); padding:32px 28px; transition:background .25s; position:relative; }
-.persona::after { content:''; position:absolute; inset:0; background:var(--blue-glow); opacity:0; transition:opacity .25s; pointer-events:none; }
-.persona:hover { background:var(--bg2); }
-.persona:hover::after { opacity:1; }
-.persona-icon { font-size:1.3rem; margin-bottom:16px; }
-.persona h3 { font-size:.88rem; font-weight:500; color:var(--ice); letter-spacing:-.02em; margin-bottom:8px; }
-.persona p { font-size:.78rem; color:var(--muted); line-height:1.7; font-weight:300; }
+.hero-trust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 64px;
+  flex-wrap: wrap;
+}
+.hero-trust .sep { color: var(--dimmer); }
+.hero-trust strong { color: var(--text); font-weight: 500; }
+.avatar-stack {
+  display: flex;
+  align-items: center;
+}
+.avatar-stack .av {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  margin-left: -8px;
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatar-stack .av:first-child { margin-left: 0; }
+.avatar-stack .av.a { background: linear-gradient(135deg, #ff6a1f, #d94a0f); }
+.avatar-stack .av.b { background: linear-gradient(135deg, #3a5cc8, #1f2d80); }
+.avatar-stack .av.c { background: linear-gradient(135deg, #24d97a, #168a4a); }
+.avatar-stack .av.d { background: linear-gradient(135deg, #a855f7, #6b1dbf); }
 
-/* HOW IT WORKS */
-.how { padding:80px 5vw; }
-.how-wrap { border:1px solid var(--border); border-radius:18px; overflow:hidden; background:var(--bg1); }
-.how-header { padding:56px 56px 40px; border-bottom:1px solid var(--border); }
-.how-header .section-h2 { margin:14px 0 12px; max-width:500px; }
-.how-header .section-body { max-width:480px; }
-.steps { display:grid; grid-template-columns:repeat(3,1fr); }
-.step { padding:40px 36px; border-right:1px solid var(--border); position:relative; }
-.step:last-child { border-right:none; }
-.step-num { font-family:var(--mono); font-size:.68rem; color:var(--blue-hi); letter-spacing:.1em; margin-bottom:18px; opacity:.7; }
-.step h3 { font-size:.95rem; font-weight:500; color:var(--ice); letter-spacing:-.02em; margin-bottom:10px; }
-.step p { font-size:.83rem; color:var(--muted); line-height:1.75; font-weight:300; }
-.step-arrow { position:absolute; top:50%; right:-12px; transform:translateY(-50%); width:24px; height:24px; background:var(--bg2); border:1px solid var(--border); border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:1; }
-.step-arrow svg { color:var(--blue-hi); }
+/* ═══ HERO PRODUCT SHOT ═══ */
+.hero-product {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+.hero-product-wrap {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-2);
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 40px 80px -20px rgba(0,0,0,0.8),
+    0 0 120px -20px var(--orange-glow);
+}
+.hero-product-wrap::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  z-index: 2;
+}
 
-/* FEATURES */
-.features { padding:80px 5vw 120px; }
-.features-header { display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:end; margin-bottom:64px; }
-.features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-.feat { background:var(--bg1); padding:36px 32px; transition:background .25s; position:relative; }
-.feat::after { content:''; position:absolute; inset:0; background:var(--blue-glow); opacity:0; transition:opacity .25s; pointer-events:none; }
-.feat:hover { background:var(--bg2); }
-.feat:hover::after { opacity:1; }
-.feat-num { font-family:var(--mono); font-size:.68rem; color:var(--blue-hi); letter-spacing:.08em; margin-bottom:20px; opacity:.7; }
-.feat h3 { font-size:.95rem; font-weight:500; letter-spacing:-.02em; color:var(--ice); margin-bottom:6px; }
-.feat .feat-hook { font-size:.78rem; color:var(--blue-hi); font-family:var(--mono); letter-spacing:.04em; margin-bottom:10px; }
-.feat p { font-size:.83rem; color:var(--muted); line-height:1.75; font-weight:300; }
+/* Browser chrome */
+.pc-chrome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.25);
+}
+.pc-dots { display: flex; gap: 6px; }
+.pc-dots span {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+}
+.pc-dots span:nth-child(1) { background: #ff5f57; }
+.pc-dots span:nth-child(2) { background: #febc2e; }
+.pc-dots span:nth-child(3) { background: #28c840; }
+.pc-url {
+  flex: 1;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+.pc-url .lock { color: var(--green); margin-right: 6px; }
+.pc-url .path { color: var(--text); }
+.pc-actions { display: flex; gap: 6px; }
+.pc-actions span {
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.04);
+}
 
-/* PLATFORM */
-.platform { padding:40px 5vw 120px; }
-.platform-wrap { border:1px solid var(--border); border-radius:18px; overflow:hidden; background:var(--bg1); }
-.platform-top { display:grid; grid-template-columns:1fr 1fr; }
-.platform-text { padding:64px 56px; border-right:1px solid var(--border); }
-.platform-text .section-h2 { margin:16px 0 20px; }
-.platform-text .section-body { margin-bottom:36px; }
-.feature-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:40px; }
-.chip { font-family:var(--mono); font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:var(--blue-hi); border:1px solid var(--blue-rim); background:var(--blue-glow); padding:4px 10px; border-radius:4px; }
-.list-clean { list-style:none; display:flex; flex-direction:column; gap:12px; }
-.list-clean li { font-size:.85rem; color:var(--muted); font-weight:300; display:flex; align-items:flex-start; gap:10px; }
-.list-clean li::before { content:'–'; color:var(--blue-hi); flex-shrink:0; margin-top:1px; }
-.platform-visual { padding:32px; background:var(--bg2); }
-.mock { background:var(--bg); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:0 32px 64px rgba(0,0,0,.6); }
-.mock-bar { display:flex; align-items:center; gap:6px; padding:10px 14px; background:rgba(255,255,255,.025); border-bottom:1px solid var(--border); }
-.mock-bar .d { width:7px; height:7px; border-radius:50%; }
-.d1,.d2 { background:#2a2e3a; } .d3 { background:var(--blue); opacity:.7; }
-.mock-url { flex:1; text-align:center; font-family:var(--mono); font-size:.65rem; color:var(--dim); letter-spacing:.04em; }
-.mock-body { padding:18px; }
-.mock-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
-.mock-card { background:var(--panel); border:1px solid var(--border); border-radius:7px; padding:12px 10px; }
-.mc-val { font-size:1.25rem; font-weight:300; letter-spacing:-.03em; color:var(--ice); }
-.mc-lbl { font-family:var(--mono); font-size:.6rem; color:var(--dim); margin-top:2px; }
-.mc-row { display:flex; align-items:center; gap:8px; margin-bottom:9px; font-family:var(--mono); font-size:.62rem; color:var(--dim); }
-.mc-row span:first-child { width:110px; flex-shrink:0; }
-.mc-track { flex:1; height:4px; background:rgba(255,255,255,.05); border-radius:2px; overflow:hidden; }
-.mc-fill { height:100%; border-radius:2px; animation:grow 1.6s ease both; transform-origin:left; }
-.mc-fill.b1 { background:var(--blue); animation-delay:.3s; }
-.mc-fill.b2 { background:var(--blue-hi); animation-delay:.5s; }
-.mc-fill.b3 { background:#7eb8ff; animation-delay:.7s; }
-@keyframes grow { from{transform:scaleX(0);} to{transform:scaleX(1);} }
-.mc-pct { width:28px; text-align:right; color:var(--muted); }
-.platform-bottom { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--border); }
-.pb-cell { padding:28px 32px; border-right:1px solid var(--border); }
-.pb-cell:last-child { border-right:none; }
-.pb-num { font-size:1.6rem; font-weight:300; letter-spacing:-.04em; color:var(--ice); }
-.pb-lbl { font-family:var(--mono); font-size:.68rem; color:var(--dim); letter-spacing:.07em; margin-top:4px; }
+/* Product dashboard body */
+.pc-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 520px;
+}
+.pc-sidebar {
+  border-right: 1px solid var(--border);
+  padding: 16px 12px;
+  background: rgba(0,0,0,0.15);
+}
+.pc-org {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  margin-bottom: 20px;
+}
+.pc-org-mark {
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, var(--orange), var(--orange-dk));
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pc-org-name { font-size: 0.78rem; color: var(--white); font-weight: 500; }
+.pc-org-caret { margin-left: auto; color: var(--muted); font-size: 0.7rem; }
 
-/* PRICING */
-.pricing { padding:120px 5vw; }
-.pricing-header { margin-bottom:56px; }
-.plans { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:16px; overflow:hidden; max-width:980px; }
-.plan { background:var(--bg1); padding:40px 32px; transition:background .25s; }
-.plan:hover { background:var(--bg2); }
-.plan.hi { background:var(--bg2); }
-.plan-tag { font-family:var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin-bottom:24px; }
-.plan.hi .plan-tag { color:var(--blue-hi); }
-.plan-price { font-size:2.6rem; font-weight:300; letter-spacing:-.05em; color:var(--ice); line-height:1; margin-bottom:4px; }
-.plan-price sup { font-size:1.1rem; vertical-align:super; }
-.plan-price sub { font-size:.8rem; color:var(--muted); font-weight:300; letter-spacing:0; }
-.plan-desc { font-size:.82rem; color:var(--muted); font-weight:300; line-height:1.65; margin:14px 0 28px; }
-.plan-feats { list-style:none; display:flex; flex-direction:column; gap:10px; margin-bottom:32px; }
-.plan-feats li { font-size:.82rem; color:var(--muted); font-weight:300; display:flex; gap:10px; align-items:flex-start; }
-.plan-feats li .ck { color:var(--blue-hi); flex-shrink:0; }
-.plan-btn { width:100%; padding:11px; border-radius:7px; font-family:var(--font); font-size:.84rem; font-weight:400; cursor:pointer; transition:all .2s; }
-.plan-btn.soft { background:transparent; color:var(--muted); border:1px solid var(--border2); }
-.plan-btn.soft:hover { color:var(--text); border-color:rgba(255,255,255,.18); }
-.plan-btn.solid { background:var(--blue); color:#fff; border:none; }
-.plan-btn.solid:hover { background:var(--blue-hi); box-shadow:0 8px 28px rgba(37,99,255,.3); }
+.pc-nav-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  padding: 0 10px;
+  margin: 16px 0 6px;
+}
+.pc-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background .15s;
+}
+.pc-nav-item:hover { background: rgba(255,255,255,0.03); }
+.pc-nav-item.active {
+  background: rgba(255,106,31,0.1);
+  color: var(--white);
+  border-left: 2px solid var(--orange);
+  padding-left: 8px;
+}
+.pc-nav-item .icn {
+  width: 14px; height: 14px;
+  color: currentColor;
+  opacity: 0.7;
+}
+.pc-nav-item .count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
 
-/* TESTIMONIALS */
-.testis { padding:80px 5vw; }
-.testi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-top:48px; }
-.tcard { background:var(--bg1); padding:36px 28px; transition:background .25s; }
-.tcard:hover { background:var(--bg2); }
-.tcard-quote { font-size:.92rem; color:var(--text); font-weight:400; line-height:1.75; margin-bottom:28px; font-style:italic; }
-.tcard-quote strong { font-style:normal; color:var(--ice); font-weight:500; }
-.tcard-author { display:flex; align-items:center; gap:10px; }
-.tcard-av { width:34px; height:34px; border-radius:50%; font-family:var(--mono); font-size:.68rem; font-weight:500; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#fff; }
-.av-a { background:linear-gradient(135deg, var(--blue), var(--blue-hi)); }
-.av-b { background:linear-gradient(135deg, #1a6cff, #60a5fa); }
-.av-c { background:linear-gradient(135deg, #2563ff, #7eb8ff); }
-.tcard-name { font-size:.82rem; font-weight:500; color:var(--ice); }
-.tcard-role { font-family:var(--mono); font-size:.65rem; color:var(--dim); margin-top:1px; }
+/* Main canvas */
+.pc-main {
+  padding: 24px 28px;
+}
+.pc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.pc-header-left h3 {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--white);
+  letter-spacing: -0.01em;
+}
+.pc-header-left .crumbs {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.pc-header-left .crumbs .slash { color: var(--dim); margin: 0 6px; }
+.pc-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pc-chip {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-2);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.04em;
+}
+.pc-chip.live {
+  color: var(--green);
+  border-color: rgba(36,217,122,0.2);
+  background: rgba(36,217,122,0.08);
+}
+.pc-chip.live::before {
+  content: '';
+  display: inline-block;
+  width: 5px; height: 5px;
+  background: var(--green);
+  border-radius: 50%;
+  margin-right: 5px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.3; } }
 
-/* CTA */
-.cta-wrap { padding:80px 5vw 120px; }
-.cta-box { border:1px solid var(--blue-rim); border-radius:18px; background:linear-gradient(135deg, rgba(37,99,255,.06) 0%, rgba(37,99,255,.02) 100%); padding:80px 5vw; text-align:center; position:relative; overflow:hidden; }
-.cta-glow { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse 60% 60% at 50% 100%, rgba(37,99,255,.09), transparent); }
-.cta-box .section-eyebrow { margin-bottom:14px; }
-.cta-box .section-h2 { max-width:560px; margin:0 auto 16px; font-size:clamp(1.9rem, 3.5vw, 3rem); }
-.cta-sub { font-size:.95rem; color:var(--muted); font-weight:300; max-width:400px; margin:0 auto 12px; line-height:1.75; }
-.cta-sub2 { font-size:.88rem; color:var(--dim); font-weight:300; margin-bottom:40px; font-style:italic; }
-.cta-acts { display:flex; gap:12px; justify-content:center; position:relative; z-index:1; }
-.cta-note { font-family:var(--mono); font-size:.68rem; color:var(--dim); letter-spacing:.06em; text-transform:uppercase; margin-top:18px; position:relative; z-index:1; }
+.pc-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.pc-stat {
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.pc-stat.hot { border-color: var(--orange-rim); background: linear-gradient(180deg, rgba(255,106,31,0.05), rgba(255,106,31,0.01)); }
+.pc-stat-lbl {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pc-stat-val {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--white);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.pc-stat.hot .pc-stat-val { color: var(--orange); }
+.pc-stat-delta {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--green);
+  margin-top: 6px;
+}
+.pc-stat-delta.down { color: var(--red); }
 
-/* FOOTER */
-footer { border-top:1px solid var(--border); padding:36px 5vw; display:flex; justify-content:space-between; align-items:center; }
-.f-logo { font-size:.85rem; font-weight:500; letter-spacing:-.02em; color:var(--muted); display:flex; align-items:center; gap:7px; }
-.f-logo-mark { width:18px; height:18px; border-radius:5px; background:var(--blue); opacity:.8; display:flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:600; color:#fff; }
-.f-links { display:flex; gap:28px; list-style:none; }
-.f-links a { font-size:.78rem; color:var(--dim); text-decoration:none; transition:color .2s; }
-.f-links a:hover { color:var(--muted); }
-.f-copy { font-family:var(--mono); font-size:.68rem; color:var(--dimmer); }
+.pc-split {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 14px;
+}
 
-/* ANIMATIONS */
-@keyframes fadeUp { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
-.reveal { opacity:0; transform:translateY(28px); transition:opacity .65s ease, transform .65s ease; }
-.reveal.in { opacity:1; transform:translateY(0); }
+/* Chart card */
+.pc-card {
+  padding: 16px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pc-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.pc-card-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--white);
+}
+.pc-card-sub {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.pc-card-actions {
+  display: flex;
+  gap: 4px;
+}
+.pc-card-actions .tab {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pc-card-actions .tab.active { color: var(--white); background: rgba(255,255,255,0.05); }
 
-/* RESPONSIVE */
-@media(max-width:860px){
-  .persona-grid,.features-grid,.plans,.testi-grid { grid-template-columns:1fr; }
-  .features-header { grid-template-columns:1fr; }
-  .realization { grid-template-columns:1fr; gap:32px; padding:32px; }
-  .steps { grid-template-columns:1fr; }
-  .step { border-right:none; border-bottom:1px solid var(--border); }
-  .step:last-child { border-bottom:none; }
-  .step-arrow { display:none; }
-  .platform-top { grid-template-columns:1fr; }
-  .platform-text { border-right:none; border-bottom:1px solid var(--border); padding:40px 28px; }
-  .how-header { padding:40px 28px; }
-  .platform-bottom { grid-template-columns:1fr 1fr; }
-  .nav-links { display:none; }
-  footer { flex-direction:column; gap:20px; text-align:center; }
-  .f-links { flex-wrap:wrap; justify-content:center; }
-  .hero-meta { gap:28px; flex-wrap:wrap; }
+.pc-chart {
+  height: 140px;
+  position: relative;
+}
+.pc-chart svg { width: 100%; height: 100%; display: block; }
+.pc-chart .grid-line { stroke: rgba(255,255,255,0.04); stroke-width: 1; }
+.pc-chart .area { fill: url(#areaGrad); }
+.pc-chart .line { fill: none; stroke: var(--orange); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pc-chart .line-2 { fill: none; stroke: rgba(255,255,255,0.25); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.pc-chart .dot { fill: var(--orange); stroke: var(--bg); stroke-width: 2; }
+
+.pc-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  padding: 0 8px;
+  margin-top: 4px;
+}
+
+/* Activity feed */
+.pc-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pc-feed-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  transition: background .15s;
+}
+.pc-feed-item:hover { background: rgba(255,255,255,0.02); }
+.pc-feed-icon {
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.pc-feed-icon.sale { background: rgba(255,106,31,0.12); color: var(--orange); }
+.pc-feed-icon.enroll { background: rgba(36,217,122,0.12); color: var(--green); }
+.pc-feed-body { flex: 1; color: var(--text-2); line-height: 1.3; }
+.pc-feed-body strong { color: var(--white); font-weight: 500; }
+.pc-feed-time {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+
+/* ═══ LOGO STRIP ═══ */
+.logos {
+  position: relative;
+  z-index: 1;
+  padding: 80px 32px 40px;
+  text-align: center;
+}
+.logos-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+.logos-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
+  flex-wrap: wrap;
+  opacity: 0.6;
+}
+.logos-row .logo {
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: var(--text-2);
+  letter-spacing: -0.02em;
+  transition: color .2s, opacity .2s;
+}
+.logos-row .logo:hover { color: var(--white); }
+.logos-row .logo.serif { font-family: Georgia, serif; font-style: italic; font-weight: 400; }
+
+/* ═══ SECTION HEADERS ═══ */
+.section {
+  position: relative;
+  z-index: 1;
+  padding: 120px 32px;
+}
+.section-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--orange);
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+.section-kicker::before {
+  content: '';
+  width: 16px;
+  height: 1px;
+  background: var(--orange);
+}
+.section-h2 {
+  font-size: clamp(2.2rem, 4.4vw, 3.8rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--white);
+  max-width: 780px;
+}
+.section-h2 .muted { color: var(--muted); font-weight: 300; }
+.section-deck {
+  font-size: 1.05rem;
+  color: var(--text-2);
+  max-width: 580px;
+  margin-top: 20px;
+  font-weight: 400;
+}
+
+/* ═══ BENTO GRID — FEATURES ═══ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+  margin-top: 64px;
+}
+.bento-card {
+  position: relative;
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  overflow: hidden;
+  transition: border-color .25s, transform .25s;
+}
+.bento-card:hover {
+  border-color: var(--border-3);
+  transform: translateY(-2px);
+}
+.bento-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+}
+
+.b-1 { grid-column: span 7; grid-row: span 2; }
+.b-2 { grid-column: span 5; }
+.b-3 { grid-column: span 5; }
+.b-4 { grid-column: span 4; }
+.b-5 { grid-column: span 4; }
+.b-6 { grid-column: span 4; }
+
+.bento-header { margin-bottom: 20px; }
+.bento-cat {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--orange);
+  margin-bottom: 10px;
+  display: block;
+  font-weight: 500;
+}
+.bento-h {
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--white);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+.b-1 .bento-h { font-size: 1.8rem; max-width: 460px; }
+.bento-body {
+  font-size: 0.88rem;
+  color: var(--text-2);
+  line-height: 1.55;
+  max-width: 400px;
+}
+
+/* Bento visual — Content Builder animated */
+.bento-visual { margin-top: 24px; position: relative; }
+.builder-ui {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.builder-prompt {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+.builder-prompt .caret {
+  color: var(--orange);
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.builder-prompt .ph { color: var(--muted); }
+.builder-output {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.b-module {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  color: var(--text);
+  opacity: 0;
+  animation: slideIn .4s ease forwards;
+}
+.b-module:nth-child(1) { animation-delay: 0.4s; }
+.b-module:nth-child(2) { animation-delay: 0.8s; }
+.b-module:nth-child(3) { animation-delay: 1.2s; }
+.b-module:nth-child(4) { animation-delay: 1.6s; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.b-module-num { font-family: var(--mono); font-size: 0.66rem; color: var(--orange); font-weight: 500; }
+.b-module-lessons {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+  background: rgba(255,255,255,0.03);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* White-label visual */
+.whitelabel-ui {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.wl-site {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.2);
+}
+.wl-url {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+.wl-url .dot-g { color: var(--green); }
+.wl-body { padding: 16px 12px; min-height: 100px; }
+.wl-body .t1 { font-size: 0.85rem; font-weight: 500; color: var(--white); margin-bottom: 6px; }
+.wl-body .t2 { font-size: 0.68rem; color: var(--muted); line-height: 1.4; }
+.wl-body .chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-top: 8px;
+}
+.wl-site-a .chip { background: rgba(168,85,247,0.15); color: #c084fc; }
+.wl-site-b .chip { background: rgba(36,217,122,0.15); color: var(--green); }
+
+/* Monetization visual */
+.money-ui { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.money-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 0.78rem;
+}
+.money-row .m-label { color: var(--text); font-weight: 400; }
+.money-row .m-val { font-family: var(--mono); font-size: 0.78rem; color: var(--orange); font-weight: 500; }
+.money-row.active {
+  border-color: var(--orange-rim);
+  background: linear-gradient(90deg, rgba(255,106,31,0.08), rgba(255,106,31,0.02));
+}
+
+/* Intelligence visual */
+.intel-ui { margin-top: 20px; }
+.intel-bar {
+  display: grid;
+  grid-template-columns: 90px 1fr 40px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.74rem;
+}
+.intel-bar .lb { color: var(--text-2); font-family: var(--mono); font-size: 0.68rem; }
+.intel-track {
+  height: 5px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.intel-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--orange-dk), var(--orange));
+  border-radius: 3px;
+  animation: growBar 1.5s ease both;
+  transform-origin: left;
+}
+@keyframes growBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.intel-pct { font-family: var(--mono); font-size: 0.7rem; color: var(--white); text-align: right; font-weight: 500; }
+
+/* Visuals/certs */
+.cert-ui {
+  margin-top: 20px;
+  padding: 18px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.cert-ui::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--orange), transparent);
+}
+.cert-seal {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--orange-hi), var(--orange-dk));
+  margin: 0 auto 10px;
+  box-shadow: 0 0 24px var(--orange-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--white);
+}
+.cert-tag {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.cert-name { font-size: 0.92rem; color: var(--white); font-weight: 500; margin-bottom: 2px; }
+.cert-course { font-size: 0.72rem; color: var(--text-2); }
+.cert-sig {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ═══ WHO IT'S FOR ═══ */
+.who-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 48px;
+}
+.who-card {
+  background: rgba(255,255,255,0.015);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  transition: all .2s;
+  position: relative;
+}
+.who-card:hover {
+  background: rgba(255,255,255,0.03);
+  border-color: var(--border-3);
+}
+.who-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--border-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: var(--orange);
+}
+.who-h { font-size: 1rem; font-weight: 500; color: var(--white); margin-bottom: 6px; letter-spacing: -0.01em; }
+.who-body { font-size: 0.82rem; color: var(--text-2); line-height: 1.55; }
+
+/* ═══ HOW IT WORKS ═══ */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 64px;
+  counter-reset: step;
+}
+.step-card {
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  position: relative;
+  counter-increment: step;
+  transition: all .25s;
+}
+.step-card:hover { border-color: var(--border-3); }
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.step-num::before {
+  content: counter(step, decimal-leading-zero);
+  color: var(--orange);
+  font-weight: 500;
+}
+.step-num::after {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--border-3);
+  margin-left: 4px;
+}
+.step-h { font-size: 1.15rem; font-weight: 500; color: var(--white); margin-bottom: 10px; letter-spacing: -0.015em; }
+.step-body { font-size: 0.85rem; color: var(--text-2); line-height: 1.6; }
+
+/* ═══ PRICING ═══ */
+.plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 48px;
+}
+.plan {
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+  position: relative;
+  transition: border-color .2s;
+}
+.plan:hover { border-color: var(--border-3); }
+.plan.hi {
+  border-color: var(--orange-rim);
+  background:
+    linear-gradient(180deg, rgba(255,106,31,0.06), rgba(255,106,31,0.01)),
+    linear-gradient(180deg, var(--bg-1), var(--bg-2));
+  box-shadow: 0 0 0 1px var(--orange-rim), 0 24px 60px -20px var(--orange-glow);
+}
+.plan-badge {
+  position: absolute;
+  top: -1px;
+  right: 20px;
+  background: var(--orange);
+  color: var(--white);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 0 0 6px 6px;
+  font-weight: 500;
+}
+.plan-name { font-size: 0.95rem; font-weight: 500; color: var(--white); margin-bottom: 4px; }
+.plan-tag {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.plan-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+.plan-price .amt {
+  font-size: 3rem;
+  font-weight: 500;
+  color: var(--white);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.plan.hi .plan-price .amt { color: var(--orange); }
+.plan-price .cur {
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin-right: 2px;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.plan-price .per { font-size: 0.85rem; color: var(--muted); margin-left: 4px; }
+.plan-desc {
+  font-size: 0.85rem;
+  color: var(--text-2);
+  margin: 14px 0 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  min-height: 48px;
+  line-height: 1.5;
+}
+.plan-feats {
+  list-style: none;
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.plan-feats li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+.plan-feats .ck { color: var(--orange); flex-shrink: 0; margin-top: 2px; }
+.plan-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all .18s;
+  font-family: var(--sans);
+  border: 1px solid var(--border-2);
+  background: rgba(255,255,255,0.04);
+  color: var(--white);
+}
+.plan-btn:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: var(--border-3);
+}
+.plan-btn.primary {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--white);
+  box-shadow: 0 8px 28px var(--orange-glow);
+}
+.plan-btn.primary:hover {
+  background: var(--orange-hi);
+  border-color: var(--orange-hi);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 36px var(--orange-glow);
+}
+
+/* ═══ TESTIMONIALS ═══ */
+.testis {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 14px;
+  margin-top: 48px;
+}
+.testi {
+  background: rgba(255,255,255,0.015);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color .2s;
+}
+.testi:hover { border-color: var(--border-3); }
+.testi-q {
+  font-size: 1rem;
+  color: var(--white);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  flex: 1;
+  margin-bottom: 24px;
+}
+.testi.featured .testi-q { font-size: 1.2rem; font-weight: 500; }
+.testi-q em { color: var(--orange); font-style: normal; font-weight: 500; }
+.testi-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.testi-av {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.testi-av.a { background: linear-gradient(135deg, var(--orange), var(--orange-dk)); }
+.testi-av.b { background: linear-gradient(135deg, #3a5cc8, #1f2d80); }
+.testi-av.c { background: linear-gradient(135deg, #a855f7, #6b1dbf); }
+.testi-name { font-size: 0.85rem; color: var(--white); font-weight: 500; }
+.testi-role { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+
+/* ═══ FINAL CTA ═══ */
+.final {
+  position: relative;
+  z-index: 1;
+  padding: 120px 32px;
+  text-align: center;
+  overflow: hidden;
+}
+.final-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 80% at 50% 100%, rgba(255,106,31,0.18), transparent 60%);
+}
+.final-inner { position: relative; max-width: 780px; margin: 0 auto; }
+.final-h {
+  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  color: var(--white);
+  margin-bottom: 20px;
+}
+.final-h .hl { color: var(--orange); }
+.final-deck {
+  font-size: 1.1rem;
+  color: var(--text-2);
+  margin-bottom: 36px;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.final-actions { display: inline-flex; gap: 10px; margin-bottom: 20px; }
+.final-note { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; }
+.final-note .sep { margin: 0 10px; color: var(--dimmer); }
+
+/* ═══ FOOTER ═══ */
+footer {
+  position: relative;
+  z-index: 1;
+  padding: 64px 32px 40px;
+  border-top: 1px solid var(--border);
+}
+.foot-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 48px;
+  margin-bottom: 48px;
+}
+.foot-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.foot-brand .mark {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--orange), var(--orange-dk));
+  font-size: 0.58rem;
+  font-weight: 900;
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.foot-brand .name { color: var(--white); font-weight: 500; font-size: 0.95rem; letter-spacing: -0.01em; }
+.foot-tag { font-size: 0.82rem; color: var(--muted); max-width: 260px; line-height: 1.55; }
+.foot-col h4 {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-2);
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+.foot-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.foot-col a { font-size: 0.82rem; color: var(--muted); text-decoration: none; transition: color .15s; }
+.foot-col a:hover { color: var(--white); }
+.foot-bottom {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.foot-bottom a { color: var(--muted); text-decoration: none; transition: color .15s; margin-left: 20px; }
+.foot-bottom a:hover { color: var(--white); }
+
+/* ═══ ANIMATIONS ═══ */
+.reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+.reveal.in { opacity: 1; transform: translateY(0); }
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 1100px) {
+  .bento { grid-template-columns: repeat(6, 1fr); }
+  .b-1 { grid-column: span 6; grid-row: auto; }
+  .b-2, .b-3 { grid-column: span 6; }
+  .b-4, .b-5, .b-6 { grid-column: span 6; }
+  .who-grid { grid-template-columns: repeat(2, 1fr); }
+  .steps-grid { grid-template-columns: 1fr; }
+  .plans { grid-template-columns: 1fr; }
+  .testis { grid-template-columns: 1fr; }
+  .foot-inner { grid-template-columns: 1fr 1fr 1fr; }
+  .pc-body { grid-template-columns: 1fr; }
+  .pc-sidebar { display: none; }
+  .pc-stats { grid-template-columns: repeat(2, 1fr); }
+  .pc-split { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  nav { padding: 0 16px; }
+  .nav-links { display: none; }
+  .hero { padding: 120px 16px 64px; }
+  .hero-product { padding: 0 16px; }
+  .section { padding: 80px 16px; }
+  .who-grid { grid-template-columns: 1fr; }
+  .foot-inner { grid-template-columns: 1fr 1fr; gap: 32px; }
+  .hero-actions, .final-actions { flex-direction: column; width: 100%; }
+  .btn { justify-content: center; }
+  .foot-bottom { flex-direction: column; gap: 12px; }
 }
 </style>
 </head>
 <body>
 
-<div id="cur"></div>
-<div id="cur-ring"></div>
+<div class="ambient"></div>
+<div class="grid-bg"></div>
 
+<!-- ═══ NAV ═══ -->
 <nav>
-  <a href="#" class="nav-logo">
+  <a href="{% url 'home' %}" class="nav-logo">
     <span class="nav-logo-mark">CF</span>
     CourseForge
   </a>
   <ul class="nav-links">
-    <li><a href="#who">Who it's for</a></li>
     <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
     <li><a href="#pricing">Pricing</a></li>
-    <li><a href="#">Docs</a></li>
+    <li><a href="#customers">Customers</a></li>
+    <li><a href="{% url 'login' %}">Docs</a></li>
   </ul>
   <div class="nav-right">
-    {% if user.is_authenticated %}
-    <a href="{% if user.is_superuser %}{% url 'superadmin_home' %}{% elif user.is_staff %}{% url 'dashboard_home' %}{% else %}{% url 'student_dashboard' %}{% endif %}" class="nav-sign">Dashboard</a>
-    {% else %}
-    <a href="{% url 'login' %}" class="nav-sign">Sign in</a>
-    <a href="{% url 'start_academy' %}" class="nav-cta">Get started</a>
-    {% endif %}
+    <a href="{% url 'login' %}" class="signin">Sign in</a>
+    <a href="{% url 'start_academy' %}" class="nav-cta">Get started <span class="kbd">↵</span></a>
   </div>
 </nav>
 
-<!-- HERO -->
+<!-- ═══ HERO ═══ -->
 <section class="hero">
-  <div class="hero-glow"></div>
-  <div class="hero-glow2"></div>
-  <div class="hero-grid"></div>
   <div class="hero-inner">
-    <div class="hero-badge"><span class="badge-dot"></span>Knowledge monetization platform</div>
-    <h1 class="hero-h1">Turn what you know<br><strong>into a product that sells.</strong></h1>
-    <p class="hero-setup">
-      You don't need more clients.<br>
-      <strong>You need to stop trading your time for answers you've already given 100 times.</strong>
-    </p>
+    <a href="#features" class="hero-pill">
+      <span class="tag">New</span>
+      AI course builder v2 — structure in under 60 seconds
+      <span class="arrow">→</span>
+    </a>
+    <h1 class="hero-h1">
+      Turn what you know<br>
+      into <span class="highlight">recurring revenue.</span>
+    </h1>
     <p class="hero-sub">
-      CourseForge turns your expertise into a premium program — so people can pay you without needing you live on the call. No tech. No team. No compromise on how it looks.
+      CourseForge is the platform for experts, consultants, and operators who are ready to stop trading time for advice — and package it as a product that sells while they sleep.
     </p>
     <div class="hero-actions">
-      <a href="{% url 'start_academy' %}" class="btn-primary">Start monetizing free →</a>
-      <a href="#how" class="btn-outline">See how it works</a>
+      <a href="{% url 'start_academy' %}" class="btn btn-primary">Start free <span class="btn-arrow">→</span></a>
+      <a href="mailto:sales@courseforge.com?subject=CourseForge%20Demo%20Request" class="btn btn-secondary">Book a demo</a>
     </div>
-    <div class="hero-meta">
-      <div>
-        <span class="hero-stat-num">4,<span>200</span>+</span>
-        <div class="hero-stat-lbl">Professionals on platform</div>
+    <div class="hero-trust">
+      <div class="avatar-stack">
+        <div class="av a">MR</div>
+        <div class="av b">SN</div>
+        <div class="av c">DL</div>
+        <div class="av d">AK</div>
       </div>
-      <div>
-        <span class="hero-stat-num">$<span>18</span>M+</span>
-        <div class="hero-stat-lbl">Earned from knowledge</div>
-      </div>
-      <div>
-        <span class="hero-stat-num"><span>48</span>hr</span>
-        <div class="hero-stat-lbl">Avg. time to first sale</div>
-      </div>
+      <span><strong>4,200+</strong> experts building</span>
+      <span class="sep">·</span>
+      <span><strong>$18M+</strong> earned</span>
+      <span class="sep">·</span>
+      <span>48hr median to first sale</span>
     </div>
   </div>
 </section>
 
-<!-- TICKER -->
-<div class="ticker">
-  <div class="ticker-track">
-    <span>Consultants</span><span class="sep">/</span>
-    <span>Coaches</span><span class="sep">/</span>
-    <span>Executives</span><span class="sep">/</span>
-    <span>Lawyers</span><span class="sep">/</span>
-    <span>Designers</span><span class="sep">/</span>
-    <span>Engineers</span><span class="sep">/</span>
-    <span>Marketers</span><span class="sep">/</span>
-    <span>Founders</span><span class="sep">/</span>
-    <span>Finance Pros</span><span class="sep">/</span>
-    <span>HR Leaders</span><span class="sep">/</span>
-    <span>Sales Trainers</span><span class="sep">/</span>
-    <span>Consultants</span><span class="sep">/</span>
-    <span>Coaches</span><span class="sep">/</span>
-    <span>Executives</span><span class="sep">/</span>
-    <span>Lawyers</span><span class="sep">/</span>
-    <span>Designers</span><span class="sep">/</span>
-    <span>Engineers</span><span class="sep">/</span>
-    <span>Marketers</span><span class="sep">/</span>
-    <span>Founders</span><span class="sep">/</span>
-    <span>Finance Pros</span><span class="sep">/</span>
-    <span>HR Leaders</span><span class="sep">/</span>
-    <span>Sales Trainers</span><span class="sep">/</span>
+<!-- ═══ HERO PRODUCT SHOT ═══ -->
+<div class="hero-product">
+  <div class="hero-product-wrap">
+    <div class="pc-chrome">
+      <div class="pc-dots"><span></span><span></span><span></span></div>
+      <div class="pc-url">
+        <span class="lock">●</span>
+        marco.courseforge.io<span class="path">/dashboard</span>
+      </div>
+      <div class="pc-actions"><span></span><span></span></div>
+    </div>
+    <div class="pc-body">
+      <aside class="pc-sidebar">
+        <div class="pc-org">
+          <div class="pc-org-mark">MR</div>
+          <div class="pc-org-name">Marco Reyes</div>
+          <div class="pc-org-caret">⌄</div>
+        </div>
+        <div class="pc-nav-label">Workspace</div>
+        <div class="pc-nav-item active">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+          Dashboard
+        </div>
+        <div class="pc-nav-item">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M3 8h10M3 12h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Programs
+          <span class="count">3</span>
+        </div>
+        <div class="pc-nav-item">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 13c0-2.5 2.5-4 5-4s5 1.5 5 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Clients
+          <span class="count">118</span>
+        </div>
+        <div class="pc-nav-item">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><path d="M2 8l3 3 9-9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Enrollments
+        </div>
+        <div class="pc-nav-item">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2zM2 6h12" stroke="currentColor" stroke-width="1.3"/></svg>
+          Payments
+        </div>
+        <div class="pc-nav-label">Insights</div>
+        <div class="pc-nav-item">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><path d="M2 13V8m4 5V4m4 9v-7m4 7V3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Analytics
+        </div>
+        <div class="pc-nav-item">
+          <svg class="icn" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          Reports
+        </div>
+      </aside>
+      <main class="pc-main">
+        <div class="pc-header">
+          <div class="pc-header-left">
+            <div class="crumbs">Workspace <span class="slash">/</span> Dashboard <span class="slash">/</span> Overview</div>
+            <h3>Good morning, Marco</h3>
+          </div>
+          <div class="pc-header-right">
+            <span class="pc-chip">Last 30 days</span>
+            <span class="pc-chip live">Live</span>
+          </div>
+        </div>
+
+        <div class="pc-stats">
+          <div class="pc-stat hot">
+            <div class="pc-stat-lbl">MRR</div>
+            <div class="pc-stat-val">$9,240</div>
+            <div class="pc-stat-delta">↑ 18.4% vs last month</div>
+          </div>
+          <div class="pc-stat">
+            <div class="pc-stat-lbl">Active clients</div>
+            <div class="pc-stat-val">118</div>
+            <div class="pc-stat-delta">↑ 12 new this week</div>
+          </div>
+          <div class="pc-stat">
+            <div class="pc-stat-lbl">Completion rate</div>
+            <div class="pc-stat-val">91%</div>
+            <div class="pc-stat-delta">↑ 4.2%</div>
+          </div>
+          <div class="pc-stat">
+            <div class="pc-stat-lbl">NPS</div>
+            <div class="pc-stat-val">72</div>
+            <div class="pc-stat-delta down">↓ 2 pts</div>
+          </div>
+        </div>
+
+        <div class="pc-split">
+          <div class="pc-card">
+            <div class="pc-card-head">
+              <div>
+                <div class="pc-card-title">Revenue</div>
+                <div class="pc-card-sub">Last 30 days · across 3 programs</div>
+              </div>
+              <div class="pc-card-actions">
+                <span class="tab">Day</span>
+                <span class="tab active">Week</span>
+                <span class="tab">Month</span>
+              </div>
+            </div>
+            <div class="pc-chart">
+              <svg viewBox="0 0 400 140" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ff6a1f" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#ff6a1f" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <line class="grid-line" x1="0" y1="30" x2="400" y2="30"/>
+                <line class="grid-line" x1="0" y1="70" x2="400" y2="70"/>
+                <line class="grid-line" x1="0" y1="110" x2="400" y2="110"/>
+                <path class="area" d="M0,100 L40,90 L80,95 L120,75 L160,82 L200,62 L240,55 L280,45 L320,40 L360,28 L400,18 L400,140 L0,140 Z"/>
+                <path class="line-2" d="M0,115 L40,108 L80,105 L120,98 L160,94 L200,88 L240,80 L280,75 L320,68 L360,60 L400,55"/>
+                <path class="line" d="M0,100 L40,90 L80,95 L120,75 L160,82 L200,62 L240,55 L280,45 L320,40 L360,28 L400,18"/>
+                <circle class="dot" cx="400" cy="18" r="4"/>
+              </svg>
+            </div>
+            <div class="pc-chart-labels">
+              <span>Mar 24</span><span>Mar 31</span><span>Apr 7</span><span>Apr 14</span><span>Apr 21</span>
+            </div>
+          </div>
+
+          <div class="pc-card">
+            <div class="pc-card-head">
+              <div>
+                <div class="pc-card-title">Activity</div>
+                <div class="pc-card-sub">Live updates</div>
+              </div>
+            </div>
+            <div class="pc-feed">
+              <div class="pc-feed-item">
+                <div class="pc-feed-icon sale">$</div>
+                <div class="pc-feed-body"><strong>Jamie L.</strong> purchased Strategy OS</div>
+                <div class="pc-feed-time">2m</div>
+              </div>
+              <div class="pc-feed-item">
+                <div class="pc-feed-icon enroll">✓</div>
+                <div class="pc-feed-body"><strong>Priya D.</strong> completed Module 4</div>
+                <div class="pc-feed-time">14m</div>
+              </div>
+              <div class="pc-feed-item">
+                <div class="pc-feed-icon sale">$</div>
+                <div class="pc-feed-body"><strong>Cohort #7</strong> enrolled (8 seats)</div>
+                <div class="pc-feed-time">1h</div>
+              </div>
+              <div class="pc-feed-item">
+                <div class="pc-feed-icon enroll">✓</div>
+                <div class="pc-feed-body"><strong>Tomás R.</strong> earned certificate</div>
+                <div class="pc-feed-time">2h</div>
+              </div>
+              <div class="pc-feed-item">
+                <div class="pc-feed-icon sale">$</div>
+                <div class="pc-feed-body"><strong>Anna K.</strong> upgraded to annual</div>
+                <div class="pc-feed-time">3h</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
 </div>
 
-<!-- WHO -->
-<section class="who" id="who">
-  <div class="who-header reveal">
-    <p class="section-eyebrow">Who it's for</p>
-    <h2 class="section-h2">If people ask for your advice,<br><em>you're already sitting on a product.</em></h2>
+<!-- ═══ LOGO STRIP ═══ -->
+<section class="logos">
+  <div class="logos-label">Trusted by experts building serious knowledge businesses</div>
+  <div class="logos-row">
+    <span class="logo">◆ Meridian</span>
+    <span class="logo serif">Hartley &amp; Co.</span>
+    <span class="logo">NORTHWIND</span>
+    <span class="logo">⬢ Obsidian</span>
+    <span class="logo serif">Vellum Studio</span>
+    <span class="logo">PARALLAX</span>
+    <span class="logo">△ Keystone</span>
   </div>
+</section>
 
-  <div class="realization reveal">
-    <div class="real-left">
-      <p>You've explained the same thing in <strong>client calls, Slack messages, Zoom sessions, and long emails.</strong></p>
-      <p>That's not support. <strong>That's a product you haven't packaged yet.</strong></p>
-      <p class="real-close">CourseForge lets you build it once — and get paid every time someone needs it.</p>
+<!-- ═══ FEATURES — BENTO ═══ -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="reveal">
+      <span class="section-kicker">Platform</span>
+      <h2 class="section-h2">Everything you need<br><span class="muted">to sell what you know.</span></h2>
+      <p class="section-deck">One platform. Every piece already wired together. No Zapier duct tape, no dev team, no compromise on how it looks.</p>
     </div>
-    <ul class="real-list">
-      <li>That framework you explain on every intro call</li>
-      <li>That process document you've rewritten 12 times</li>
-      <li>That advice you give for free in every meeting</li>
-      <li>That methodology only you seem to know</li>
-    </ul>
-  </div>
 
-  <div class="persona-grid reveal">
-    <div class="persona">
-      <div class="persona-icon">🎯</div>
-      <h3>Consultants</h3>
-      <p>Your frameworks shouldn't live in decks. Turn them into revenue.</p>
-    </div>
-    <div class="persona">
-      <div class="persona-icon">💼</div>
-      <h3>Executives & Leaders</h3>
-      <p>Your internal playbook is valuable outside your company.</p>
-    </div>
-    <div class="persona">
-      <div class="persona-icon">🧠</div>
-      <h3>Coaches & Trainers</h3>
-      <p>Stop capping your income at 1:1 hours.</p>
-    </div>
-    <div class="persona">
-      <div class="persona-icon">⚡</div>
-      <h3>Specialists</h3>
-      <p>Niche knowledge — law, finance, engineering — commands premium pricing when packaged right.</p>
+    <div class="bento reveal">
+
+      <!-- 1. AI Builder (big) -->
+      <div class="bento-card b-1">
+        <div class="bento-header">
+          <span class="bento-cat">01 · Authorship</span>
+          <h3 class="bento-h">Turn a prompt into a full program in under 60 seconds.</h3>
+          <p class="bento-body">Describe your expertise — our AI drafts the curriculum, modules, lessons, and assessments. You refine the output. Publish when it's ready.</p>
+        </div>
+        <div class="bento-visual">
+          <div class="builder-ui">
+            <div class="builder-prompt">
+              <span class="ph">›</span>
+              <span>Build a program on B2B SaaS pricing strategy</span>
+              <span class="caret">▊</span>
+            </div>
+            <div class="builder-output">
+              <div class="b-module">
+                <span class="b-module-num">01</span>
+                <span>Foundations of Value-Based Pricing</span>
+                <span class="b-module-lessons">5 lessons</span>
+              </div>
+              <div class="b-module">
+                <span class="b-module-num">02</span>
+                <span>Packaging &amp; Positioning Tiers</span>
+                <span class="b-module-lessons">6 lessons</span>
+              </div>
+              <div class="b-module">
+                <span class="b-module-num">03</span>
+                <span>Running Your First Price Increase</span>
+                <span class="b-module-lessons">4 lessons</span>
+              </div>
+              <div class="b-module">
+                <span class="b-module-num">04</span>
+                <span>Measuring Pricing Health &amp; Churn</span>
+                <span class="b-module-lessons">7 lessons</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. White-label -->
+      <div class="bento-card b-2">
+        <div class="bento-header">
+          <span class="bento-cat">02 · Brand</span>
+          <h3 class="bento-h">Your domain. Your brand. Your credibility.</h3>
+          <p class="bento-body">Custom domains, colors, and logo — on every page your clients see. It looks like a $100k build without hiring anyone.</p>
+        </div>
+        <div class="whitelabel-ui">
+          <div class="wl-site wl-site-a">
+            <div class="wl-url"><span class="dot-g">●</span> strategyos.marco.com</div>
+            <div class="wl-body">
+              <div class="t1">Strategy OS</div>
+              <div class="t2">Marco's flagship for operators</div>
+              <span class="chip">Purple brand</span>
+            </div>
+          </div>
+          <div class="wl-site wl-site-b">
+            <div class="wl-url"><span class="dot-g">●</span> learn.sofia.coach</div>
+            <div class="wl-body">
+              <div class="t1">Leadership Lab</div>
+              <div class="t2">Sofia's cohort for execs</div>
+              <span class="chip">Green brand</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Monetization -->
+      <div class="bento-card b-3">
+        <div class="bento-header">
+          <span class="bento-cat">03 · Revenue</span>
+          <h3 class="bento-h">Price by value. Paid by Stripe.</h3>
+          <p class="bento-body">One-time, subscription, cohort, or group enrollment. Stripe handles collection, tax, and payouts automatically.</p>
+        </div>
+        <div class="money-ui">
+          <div class="money-row active">
+            <span class="m-label">Cohort · Leadership Playbook</span>
+            <span class="m-val">$2,400 × 8 seats</span>
+          </div>
+          <div class="money-row">
+            <span class="m-label">Subscription · Strategy OS</span>
+            <span class="m-val">$49/mo recurring</span>
+          </div>
+          <div class="money-row">
+            <span class="m-label">One-time · Masterclass</span>
+            <span class="m-val">$299 lifetime</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Analytics -->
+      <div class="bento-card b-4">
+        <div class="bento-header">
+          <span class="bento-cat">04 · Intelligence</span>
+          <h3 class="bento-h">See where clients engage and drop.</h3>
+          <p class="bento-body">Per-lesson completion and cohort-level retention, at a glance.</p>
+        </div>
+        <div class="intel-ui">
+          <div class="intel-bar">
+            <span class="lb">Module 1</span>
+            <div class="intel-track"><div class="intel-fill" style="width:94%"></div></div>
+            <span class="intel-pct">94%</span>
+          </div>
+          <div class="intel-bar">
+            <span class="lb">Module 2</span>
+            <div class="intel-track"><div class="intel-fill" style="width:82%"></div></div>
+            <span class="intel-pct">82%</span>
+          </div>
+          <div class="intel-bar">
+            <span class="lb">Module 3</span>
+            <div class="intel-track"><div class="intel-fill" style="width:67%"></div></div>
+            <span class="intel-pct">67%</span>
+          </div>
+          <div class="intel-bar">
+            <span class="lb">Module 4</span>
+            <div class="intel-track"><div class="intel-fill" style="width:49%"></div></div>
+            <span class="intel-pct">49%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Visuals -->
+      <div class="bento-card b-5">
+        <div class="bento-header">
+          <span class="bento-cat">05 · Aesthetic</span>
+          <h3 class="bento-h">AI-generated covers.</h3>
+          <p class="bento-body">DALL·E 3 creates on-brand covers, thumbnails, and social assets — instantly.</p>
+        </div>
+        <div class="cert-ui">
+          <div class="cert-seal">✦</div>
+          <div class="cert-tag">Cover · generated</div>
+          <div class="cert-name">The Pricing Operator</div>
+          <div class="cert-course">Program cover · ready</div>
+        </div>
+      </div>
+
+      <!-- 6. Certificates -->
+      <div class="bento-card b-6">
+        <div class="bento-header">
+          <span class="bento-cat">06 · Recognition</span>
+          <h3 class="bento-h">Branded certificates.</h3>
+          <p class="bento-body">Auto-issued on completion. Clients share them on LinkedIn. Your program becomes a credential.</p>
+        </div>
+        <div class="cert-ui">
+          <div class="cert-tag">Certificate of completion</div>
+          <div class="cert-name">Tomás Rivera</div>
+          <div class="cert-course">Strategy OS · Module 08</div>
+          <div class="cert-sig">— Marco Reyes, Instructor</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
 
-<!-- HOW IT WORKS -->
-<section class="how">
-  <div class="how-wrap reveal">
-    <div class="how-header">
-      <p class="section-eyebrow">How it works</p>
-      <h2 class="section-h2">From expertise to income.<br><em>This is the machine.</em></h2>
-      <p class="section-body" style="margin-top:16px;">CourseForge handles the platform, the payments, and the presentation. You bring the expertise — the one thing only you can do.</p>
+<!-- ═══ WHO IT'S FOR ═══ -->
+<section class="section" style="padding-top:60px;">
+  <div class="section-inner">
+    <div class="reveal">
+      <span class="section-kicker">Built for</span>
+      <h2 class="section-h2">If people ask for your advice,<br><span class="muted">you're already running a business.</span></h2>
+      <p class="section-deck">CourseForge is for professionals whose knowledge is currently trapped in calls, Slack threads, and billable hours.</p>
     </div>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">01 — Extract</div>
-        <h3>Extract what you know</h3>
-        <p>Describe your expertise. The AI structures it into a complete program — modules, lessons, and flow. Go from idea to curriculum in minutes, not weeks.</p>
-        <div class="step-arrow">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 5h4M5 3l2 2-2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+
+    <div class="who-grid reveal">
+      <div class="who-card">
+        <div class="who-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
+        <h3 class="who-h">Consultants</h3>
+        <p class="who-body">Your frameworks shouldn't live inside decks and intro calls. Package them once, charge for them forever.</p>
       </div>
-      <div class="step">
-        <div class="step-num">02 — Launch</div>
-        <h3>Launch under your name</h3>
-        <p>Your domain. Your brand. Your product. It looks like a $100k build without hiring anyone. Clients see credibility before they've read a single word.</p>
-        <div class="step-arrow">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 5h4M5 3l2 2-2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <div class="who-card">
+        <div class="who-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M5 4V2h6v2" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
+        <h3 class="who-h">Executives</h3>
+        <p class="who-body">The playbook you built inside your company is worth more outside of it. Someone is always rebuilding it from scratch.</p>
       </div>
-      <div class="step">
-        <div class="step-num">03 — Earn</div>
-        <h3>Get paid automatically</h3>
-        <p>Set pricing once. Payments, access, and delivery are handled. You focus on content. The system handles everything else — including while you sleep.</p>
+      <div class="who-card">
+        <div class="who-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3c2.5 0 4 2 4 4s-1.5 3-2 4c-.5 1-1 2-2 2s-1.5-1-2-2c-.5-1-2-2-2-4s1.5-4 4-4z" stroke="currentColor" stroke-width="1.4"/></svg>
+        </div>
+        <h3 class="who-h">Coaches</h3>
+        <p class="who-body">Stop capping your income at the number of 1:1 hours a calendar can physically hold.</p>
+      </div>
+      <div class="who-card">
+        <div class="who-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 13l5-10 5 10M5.5 9h5" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </div>
+        <h3 class="who-h">Specialists</h3>
+        <p class="who-body">Law, finance, engineering, medicine — niche knowledge commands premium pricing when packaged with care.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- FEATURES -->
-<section class="features" id="features">
-  <div class="features-header reveal">
-    <div>
-      <p class="section-eyebrow">Built to convert knowledge into revenue</p>
-      <h2 class="section-h2">Every feature answers<br><em>one question.</em></h2>
+<!-- ═══ HOW IT WORKS ═══ -->
+<section class="section" id="how">
+  <div class="section-inner">
+    <div class="reveal">
+      <span class="section-kicker">How it works</span>
+      <h2 class="section-h2">Three steps<br><span class="muted">from expertise to income.</span></h2>
     </div>
-    <p class="section-body">"How does this make me more money or save me time?" If it doesn't — it's not in here.</p>
-  </div>
-  <div class="features-grid reveal">
-    <div class="feat">
-      <div class="feat-num">01</div>
-      <h3>AI Content Builder</h3>
-      <div class="feat-hook">Idea → structured program in minutes</div>
-      <p>Describe your expertise. CourseForge structures it into a full curriculum — modules, lessons, assessments — ready to refine and publish.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-num">02</div>
-      <h3>White-Label Platform</h3>
-      <div class="feat-hook">Clients see your brand — not a tool</div>
-      <p>Your name, your domain, your colors. That trust is worth more than any feature list — and it closes sales before the conversation starts.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-num">03</div>
-      <h3>Flexible Monetization</h3>
-      <div class="feat-hook">Price based on value, not time</div>
-      <p>Sell once, monthly, or by cohort. Set your price. Stripe handles collection and payouts. You get paid on your terms.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-num">04</div>
-      <h3>Client Intelligence</h3>
-      <div class="feat-hook">Optimize like a product, not a service</div>
-      <p>See exactly where people engage, drop, and succeed. Data that helps you improve — and justify premium pricing to future clients.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-num">05</div>
-      <h3>Instant Visuals</h3>
-      <div class="feat-hook">Professional assets without a designer</div>
-      <p>DALL·E 3 generates on-brand program covers and visuals in seconds. Polished from day one — no Canva, no agency, no waiting.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-num">06</div>
-      <h3>Certificates</h3>
-      <div class="feat-hook">Content people show off, not just consume</div>
-      <p>Auto-issue branded certificates on completion. Your clients share them on LinkedIn. Your program becomes a credential — not just content.</p>
+
+    <div class="steps-grid reveal">
+      <div class="step-card">
+        <div class="step-num">Extract</div>
+        <h3 class="step-h">Describe what you know</h3>
+        <p class="step-body">Paste your framework, outline, or a rough description of what you teach. Our AI structures it into a publishable program — modules, lessons, flow. Minutes, not weeks.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Launch</div>
+        <h3 class="step-h">Publish under your brand</h3>
+        <p class="step-body">Your domain, your colors, your logo. Stripe is connected. Client accounts, drip scheduling, and access control are already wired up.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Earn</div>
+        <h3 class="step-h">Get paid on autopilot</h3>
+        <p class="step-body">Set your price. Stripe handles collection and payouts. You focus on the content and the conversations that only you can have.</p>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- PLATFORM -->
-<section class="platform">
-  <div class="platform-wrap reveal">
-    <div class="platform-top">
-      <div class="platform-text">
-        <p class="section-eyebrow">Your dashboard</p>
-        <h2 class="section-h2">One place.<br>Every program you run.</h2>
-        <p class="section-body">Revenue, engagement, completion — all in one clean view. Manage multiple programs and client groups without switching tools.</p>
-        <div class="feature-chips">
-          <span class="chip">Multi-Program</span>
-          <span class="chip">Cohort Groups</span>
-          <span class="chip">Revenue Tracking</span>
-          <span class="chip">Completion Data</span>
+<!-- ═══ PRICING ═══ -->
+<section class="section" id="pricing">
+  <div class="section-inner">
+    <div class="reveal">
+      <span class="section-kicker">Pricing</span>
+      <h2 class="section-h2">Simple pricing.<br><span class="muted">Built to scale with you.</span></h2>
+      <p class="section-deck">14-day free trial on every plan. No credit card required on Starter. Cancel any time.</p>
+    </div>
+
+    <div class="plans reveal">
+      <div class="plan">
+        <div class="plan-name">Starter</div>
+        <div class="plan-tag">For validation</div>
+        <div class="plan-price">
+          <span class="cur">$</span><span class="amt">29</span><span class="per">/ month</span>
         </div>
-        <ul class="list-clean">
-          <li>Real-time revenue and enrollment data</li>
-          <li>Per-program and per-client engagement breakdown</li>
-          <li>Drip content scheduling — unlock at your pace</li>
-          <li>Discussion threads built into every lesson</li>
-          <li>Bulk enrollment for corporate or group clients</li>
+        <p class="plan-desc">Launch your first program and find out if anyone will pay for it.</p>
+        <ul class="plan-feats">
+          <li><span class="ck">✓</span>2 programs</li>
+          <li><span class="ck">✓</span>Unlimited clients</li>
+          <li><span class="ck">✓</span>Stripe payments</li>
+          <li><span class="ck">✓</span>Custom subdomain</li>
+          <li><span class="ck">✓</span>AI visual generation</li>
         </ul>
+        <a href="{% url 'start_academy' %}" class="plan-btn">Start free</a>
       </div>
-      <div class="platform-visual">
-        <div class="mock">
-          <div class="mock-bar">
-            <div class="d d1"></div><div class="d d2"></div><div class="d d3"></div>
-            <span class="mock-url">yourname.courseforge.io</span>
+
+      <div class="plan hi">
+        <div class="plan-badge">Most popular</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-tag">For operators</div>
+        <div class="plan-price">
+          <span class="cur">$</span><span class="amt">79</span><span class="per">/ month</span>
+        </div>
+        <p class="plan-desc">Build a serious knowledge business with full branding, analytics, and automation.</p>
+        <ul class="plan-feats">
+          <li><span class="ck">✓</span>Unlimited programs</li>
+          <li><span class="ck">✓</span>Custom domain + full white-label</li>
+          <li><span class="ck">✓</span>AI course builder</li>
+          <li><span class="ck">✓</span>Cohort &amp; group enrollment</li>
+          <li><span class="ck">✓</span>Advanced analytics</li>
+          <li><span class="ck">✓</span>Branded certificates</li>
+        </ul>
+        <a href="{% url 'start_academy' %}" class="plan-btn primary">Start Pro free</a>
+      </div>
+
+      <div class="plan">
+        <div class="plan-name">Business</div>
+        <div class="plan-tag">For teams</div>
+        <div class="plan-price">
+          <span class="cur">$</span><span class="amt">199</span><span class="per">/ month</span>
+        </div>
+        <p class="plan-desc">Run programs across teams, clients, and multiple brand identities.</p>
+        <ul class="plan-feats">
+          <li><span class="ck">✓</span>Multiple brand workspaces</li>
+          <li><span class="ck">✓</span>Team access + permissions</li>
+          <li><span class="ck">✓</span>Priority support + SLA</li>
+          <li><span class="ck">✓</span>Custom integrations</li>
+          <li><span class="ck">✓</span>Dedicated onboarding</li>
+        </ul>
+        <a href="mailto:sales@courseforge.com?subject=CourseForge%20Business%20Plan%20Inquiry" class="plan-btn">Contact sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TESTIMONIALS ═══ -->
+<section class="section" id="customers">
+  <div class="section-inner">
+    <div class="reveal">
+      <span class="section-kicker">Customers</span>
+      <h2 class="section-h2">They built it once.<br><span class="muted">It pays them repeatedly.</span></h2>
+    </div>
+
+    <div class="testis reveal">
+      <div class="testi featured">
+        <p class="testi-q">"I made back the annual subscription in the <em>first week.</em> My clients don't think it's a template — they think it's custom software I paid an agency to build."</p>
+        <div class="testi-meta">
+          <div class="testi-av a">MR</div>
+          <div>
+            <div class="testi-name">Marco Reyes</div>
+            <div class="testi-role">Strategy Consultant</div>
           </div>
-          <div class="mock-body">
-            <div class="mock-cards">
-              <div class="mock-card"><div class="mc-val">$9,240</div><div class="mc-lbl">This month</div></div>
-              <div class="mock-card"><div class="mc-val">118</div><div class="mc-lbl">Active clients</div></div>
-              <div class="mock-card"><div class="mc-val">91%</div><div class="mc-lbl">Completion</div></div>
-            </div>
-            <div>
-              <div class="mc-row"><span>Strategy OS</span><div class="mc-track"><div class="mc-fill b1" style="width:82%"></div></div><span class="mc-pct">82%</span></div>
-              <div class="mc-row"><span>Leadership Playbook</span><div class="mc-track"><div class="mc-fill b2" style="width:67%"></div></div><span class="mc-pct">67%</span></div>
-              <div class="mc-row"><span>Sales Masterclass</span><div class="mc-track"><div class="mc-fill b3" style="width:49%"></div></div><span class="mc-pct">49%</span></div>
-            </div>
+        </div>
+      </div>
+      <div class="testi">
+        <p class="testi-q">"My clients think it's a custom-built platform. <em>That alone closes deals</em> before I'm even on the call."</p>
+        <div class="testi-meta">
+          <div class="testi-av b">SN</div>
+          <div>
+            <div class="testi-name">Sofia Nakamura</div>
+            <div class="testi-role">Executive Coach</div>
+          </div>
+        </div>
+      </div>
+      <div class="testi">
+        <p class="testi-q">"We run programs across <em>multiple industries</em> from one dashboard. Switching tools used to eat half my week."</p>
+        <div class="testi-meta">
+          <div class="testi-av c">DL</div>
+          <div>
+            <div class="testi-name">Dana Lim</div>
+            <div class="testi-role">Corporate Trainer</div>
           </div>
         </div>
       </div>
     </div>
-    <div class="platform-bottom">
-      <div class="pb-cell"><div class="pb-num">48hr</div><div class="pb-lbl">Avg. to first sale</div></div>
-      <div class="pb-cell"><div class="pb-num">$18M+</div><div class="pb-lbl">Knowledge sold</div></div>
-      <div class="pb-cell"><div class="pb-num">4,200+</div><div class="pb-lbl">Professionals on platform</div></div>
-    </div>
   </div>
 </section>
 
-<!-- PRICING -->
-<section class="pricing" id="pricing">
-  <div class="pricing-header reveal">
-    <p class="section-eyebrow">Pricing</p>
-    <h2 class="section-h2">Simple pricing.<br><em>Built to scale with you.</em></h2>
-  </div>
-  <div class="plans reveal">
-    <div class="plan">
-      <div class="plan-tag">Starter</div>
-      <div class="plan-price"><sup>$</sup>29<sub>/mo</sub></div>
-      <p class="plan-desc">Launch your first program and validate demand.</p>
-      <ul class="plan-feats">
-        <li><span class="ck">✓</span> 2 programs</li>
-        <li><span class="ck">✓</span> Unlimited clients</li>
-        <li><span class="ck">✓</span> Stripe payments</li>
-        <li><span class="ck">✓</span> Custom subdomain</li>
-        <li><span class="ck">✓</span> AI visual generation</li>
-      </ul>
-      <a href="{% url 'start_academy' %}" class="plan-btn soft" style="display:block; text-align:center; text-decoration:none;">Get started</a>
+<!-- ═══ FINAL CTA ═══ -->
+<section class="final">
+  <div class="final-bg"></div>
+  <div class="final-inner">
+    <h2 class="final-h">Stop explaining it <span class="hl">for free.</span></h2>
+    <p class="final-deck">Build it once. Get paid repeatedly. Your expertise deserves a product, not another meeting.</p>
+    <div class="final-actions">
+      <a href="{% url 'start_academy' %}" class="btn btn-primary">Start building free <span class="btn-arrow">→</span></a>
+      <a href="mailto:sales@courseforge.com?subject=Talk%20to%20CourseForge%20Team" class="btn btn-secondary">Talk to the team</a>
     </div>
-    <div class="plan hi">
-      <div class="plan-tag">Pro — Most Popular</div>
-      <div class="plan-price"><sup>$</sup>79<sub>/mo</sub></div>
-      <p class="plan-desc">Build a serious knowledge business with full branding and automation.</p>
-      <ul class="plan-feats">
-        <li><span class="ck">✓</span> Unlimited programs</li>
-        <li><span class="ck">✓</span> Custom domain + full white-label</li>
-        <li><span class="ck">✓</span> AI course builder</li>
-        <li><span class="ck">✓</span> Cohort & group enrollment</li>
-        <li><span class="ck">✓</span> Advanced analytics</li>
-        <li><span class="ck">✓</span> Branded certificates</li>
-      </ul>
-      <a href="{% url 'start_academy' %}" class="plan-btn solid" style="display:block; text-align:center; text-decoration:none;">Start Pro free</a>
-    </div>
-    <div class="plan">
-      <div class="plan-tag">Business</div>
-      <div class="plan-price"><sup>$</sup>199<sub>/mo</sub></div>
-      <p class="plan-desc">Run programs across teams, clients, and multiple brands.</p>
-      <ul class="plan-feats">
-        <li><span class="ck">✓</span> Multiple brand workspaces</li>
-        <li><span class="ck">✓</span> Team access with permissions</li>
-        <li><span class="ck">✓</span> Priority support + SLA</li>
-        <li><span class="ck">✓</span> Custom integrations</li>
-        <li><span class="ck">✓</span> Dedicated onboarding</li>
-      </ul>
-      <a href="{% url 'login' %}" class="plan-btn soft" style="display:block; text-align:center; text-decoration:none;">Contact us</a>
-    </div>
+    <p class="final-note">14-day free trial<span class="sep">·</span>No credit card on Starter<span class="sep">·</span>Cancel anytime</p>
   </div>
 </section>
 
-<!-- TESTIMONIALS -->
-<section class="testis">
-  <p class="section-eyebrow reveal">Real professionals. Real revenue.</p>
-  <h2 class="section-h2 reveal">They built it once.<br><em>It pays them repeatedly.</em></h2>
-  <div class="testi-grid">
-    <div class="tcard reveal">
-      <p class="tcard-quote"><strong>"I made back the annual subscription in the first week."</strong></p>
-      <div class="tcard-author">
-        <div class="tcard-av av-a">MR</div>
-        <div><div class="tcard-name">Marco Reyes</div><div class="tcard-role">Strategy Consultant</div></div>
-      </div>
-    </div>
-    <div class="tcard reveal">
-      <p class="tcard-quote"><strong>"My clients think it's a custom-built platform.</strong> That alone closes deals."</p>
-      <div class="tcard-author">
-        <div class="tcard-av av-b">SN</div>
-        <div><div class="tcard-name">Sofia Nakamura</div><div class="tcard-role">Executive Coach</div></div>
-      </div>
-    </div>
-    <div class="tcard reveal">
-      <p class="tcard-quote"><strong>"We run programs across multiple industries</strong> without worrying about delivery."</p>
-      <div class="tcard-author">
-        <div class="tcard-av av-c">DL</div>
-        <div><div class="tcard-name">Dana Lim</div><div class="tcard-role">Corporate Trainer</div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- CTA -->
-<section class="cta-wrap">
-  <div class="cta-box reveal">
-    <div class="cta-glow"></div>
-    <p class="section-eyebrow">You don't need more time. You need leverage.</p>
-    <h2 class="section-h2">Everything you've been<br>explaining manually can sell.</h2>
-    <p class="cta-sub">Build it once. Get paid repeatedly.</p>
-    <p class="cta-sub2">Start building free →</p>
-    <div class="cta-acts">
-      <a href="{% url 'start_academy' %}" class="btn-primary">Start building free →</a>
-      <a href="{% url 'login' %}" class="btn-outline">Talk to the team</a>
-    </div>
-    <p class="cta-note">14-day free trial · No credit card on Starter · Cancel anytime</p>
-  </div>
-</section>
-
+<!-- ═══ FOOTER ═══ -->
 <footer>
-  <div class="f-logo"><span class="f-logo-mark">CF</span>CourseForge</div>
-  <ul class="f-links">
-    <li><a href="#">Features</a></li><li><a href="#">Pricing</a></li>
-    <li><a href="#">Docs</a></li><li><a href="#">Blog</a></li><li><a href="#">Privacy</a></li>
-  </ul>
-  <span class="f-copy">© 2025 CourseForge</span>
+  <div class="foot-inner">
+    <div>
+      <div class="foot-brand">
+        <span class="mark">CF</span>
+        <span class="name">CourseForge</span>
+      </div>
+      <p class="foot-tag">The platform for experts who are ready to turn what they know into what they earn.</p>
+    </div>
+    <div class="foot-col">
+      <h4>Product</h4>
+      <ul>
+        <li><a href="#">Features</a></li>
+        <li><a href="#">Pricing</a></li>
+        <li><a href="#">Changelog</a></li>
+        <li><a href="#">Roadmap</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h4>Resources</h4>
+      <ul>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">API</a></li>
+        <li><a href="#">Blog</a></li>
+        <li><a href="#">Help</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="#">About</a></li>
+        <li><a href="#">Customers</a></li>
+        <li><a href="#">Careers</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+    <div class="foot-col">
+      <h4>Legal</h4>
+      <ul>
+        <li><a href="#">Terms</a></li>
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Security</a></li>
+        <li><a href="#">DPA</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot-bottom">
+    <span>© 2026 CourseForge, Inc.</span>
+    <div>
+      <a href="#">Status</a>
+      <a href="#">Twitter</a>
+      <a href="#">LinkedIn</a>
+      <a href="#">GitHub</a>
+    </div>
+  </div>
 </footer>
 
 <script>
-  const cur = document.getElementById('cur');
-  const ring = document.getElementById('cur-ring');
-  let mx = 0, my = 0;
-  document.addEventListener('mousemove', e => {
-    mx = e.clientX; my = e.clientY;
-    cur.style.left = mx + 'px'; cur.style.top = my + 'px';
-  });
-  setInterval(() => { ring.style.left = mx + 'px'; ring.style.top = my + 'px'; }, 60);
-
   const els = document.querySelectorAll('.reveal');
   const io = new IntersectionObserver((entries) => {
-    entries.forEach((e, i) => {
-      if (e.isIntersecting) { setTimeout(() => e.target.classList.add('in'), i * 60); io.unobserve(e.target); }
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
     });
-  }, { threshold: 0.08 });
+  }, { threshold: 0.1, rootMargin: '0px 0px -80px 0px' });
   els.forEach(el => io.observe(el));
 </script>
+
 </body>
 </html>

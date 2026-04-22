@@ -4,13 +4,34 @@
 {% block page_title %}Tenant Management{% endblock %}
 
 {% block content %}
+<div class="mb-4 flex items-center gap-3">
+    {% if include_archived %}
+    <a href="{% url 'superadmin_tenants' %}" class="px-3 py-2 rounded-lg border border-white/20 text-sm hover:bg-white/10 transition">Hide Archived</a>
+    {% else %}
+    <a href="{% url 'superadmin_tenants' %}?include_archived=1" class="px-3 py-2 rounded-lg border border-white/20 text-sm hover:bg-white/10 transition">Show Archived ({{ archived_count }})</a>
+    {% endif %}
+</div>
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <div class="xl:col-span-2 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-        <div class="px-4 py-3 border-b border-white/10 font-semibold">All Tenants</div>
+        <div class="px-4 py-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
+            <div class="font-semibold">All Tenants</div>
+            <form id="bulk-archive-form" method="post" action="{% url 'superadmin_tenants' %}" class="flex items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% if include_archived %}{% url 'superadmin_tenants' %}?include_archived=1{% else %}{% url 'superadmin_tenants' %}{% endif %}">
+                {% if include_archived %}
+                <button type="submit" name="bulk_action" value="unarchive" class="px-3 py-1.5 rounded-md border border-amber-300/40 text-amber-300 text-xs hover:bg-amber-300/10 transition">Unarchive Selected</button>
+                {% else %}
+                <button type="submit" name="bulk_action" value="archive" class="px-3 py-1.5 rounded-md border border-gray-300/40 text-gray-200 text-xs hover:bg-gray-300/10 transition">Archive Selected</button>
+                {% endif %}
+            </form>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-white/5 text-gray-300">
                     <tr>
+                        <th class="text-left px-4 py-3">
+                            <input type="checkbox" id="select-all-tenants" class="rounded border-white/20 bg-[#0a0e27]">
+                        </th>
                         <th class="text-left px-4 py-3">Name</th>
                         <th class="text-left px-4 py-3">Slug</th>
                         <th class="text-left px-4 py-3">Domain</th>
@@ -24,6 +45,9 @@
                 <tbody>
                     {% for tenant in tenants %}
                     <tr class="border-t border-white/10">
+                        <td class="px-4 py-3 align-top">
+                            <input type="checkbox" name="tenant_ids" value="{{ tenant.id }}" form="bulk-archive-form" class="tenant-checkbox rounded border-white/20 bg-[#0a0e27]">
+                        </td>
                         <td class="px-4 py-3">{{ tenant.name }}</td>
                         <td class="px-4 py-3">{{ tenant.slug }}</td>
                         <td class="px-4 py-3">{{ tenant.custom_domain|default:"-" }}</td>
@@ -31,7 +55,9 @@
                         <td class="px-4 py-3">{{ tenant.lesson_count }}</td>
                         <td class="px-4 py-3">{{ tenant.enrollment_count }}</td>
                         <td class="px-4 py-3">
-                            {% if tenant.is_active %}
+                            {% if tenant.is_archived %}
+                            <span class="px-2 py-1 rounded bg-gray-500/20 text-gray-300">Archived</span>
+                            {% elif tenant.is_active %}
                             <span class="px-2 py-1 rounded bg-green-500/20 text-green-400">Active</span>
                             {% else %}
                             <span class="px-2 py-1 rounded bg-red-500/20 text-red-400">Suspended</span>
@@ -40,10 +66,12 @@
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-3">
                                 <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="text-cyan-electric hover:underline">Edit</a>
-                                <a href="{% url 'student_dashboard' %}?tenant={{ tenant.slug }}" class="text-indigo-300 hover:underline">View Course Dashboard</a>
+                                <a href="{% url 'dashboard_home' %}?tenant={{ tenant.slug }}" class="text-indigo-300 hover:underline">Manage Dashboard</a>
+                                <a href="{% url 'dashboard_branding_settings' %}?tenant={{ tenant.slug }}" class="text-pink-300 hover:underline">Branding</a>
+                                <a href="{% url 'dashboard_courses' %}?tenant={{ tenant.slug }}" class="text-purple-300 hover:underline">Courses</a>
                                 <form method="post" action="{% url 'superadmin_tenant_suspend' tenant.id %}">
                                     {% csrf_token %}
-                                    <input type="hidden" name="next" value="{% url 'superadmin_tenants' %}">
+                                    <input type="hidden" name="next" value="{% if include_archived %}{% url 'superadmin_tenants' %}?include_archived=1{% else %}{% url 'superadmin_tenants' %}{% endif %}">
                                     {% if tenant.is_active %}
                                     <input type="hidden" name="action" value="suspend">
                                     <button type="submit" class="text-red-400 hover:underline">Revoke</button>
@@ -52,11 +80,22 @@
                                     <button type="submit" class="text-green-400 hover:underline">Activate</button>
                                     {% endif %}
                                 </form>
+                                <form method="post" action="{% url 'superadmin_tenant_archive' tenant.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{% if include_archived %}{% url 'superadmin_tenants' %}?include_archived=1{% else %}{% url 'superadmin_tenants' %}{% endif %}">
+                                    {% if tenant.is_archived %}
+                                    <input type="hidden" name="action" value="unarchive">
+                                    <button type="submit" class="text-amber-300 hover:underline">Unarchive</button>
+                                    {% else %}
+                                    <input type="hidden" name="action" value="archive">
+                                    <button type="submit" class="text-gray-300 hover:underline">Archive</button>
+                                    {% endif %}
+                                </form>
                             </div>
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td class="px-4 py-6 text-gray-400" colspan="8">No tenants yet.</td></tr>
+                    <tr><td class="px-4 py-6 text-gray-400" colspan="9">No tenants yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -93,5 +132,27 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAll = document.getElementById('select-all-tenants');
+    const checkboxes = Array.from(document.querySelectorAll('.tenant-checkbox'));
+    if (!selectAll || !checkboxes.length) return;
+
+    selectAll.addEventListener('change', function () {
+        checkboxes.forEach(function (cb) {
+            cb.checked = selectAll.checked;
+        });
+    });
+
+    checkboxes.forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            selectAll.checked = checkboxes.every(function (item) { return item.checked; });
+        });
+    });
+});
+</script>
 {% endblock %}
 

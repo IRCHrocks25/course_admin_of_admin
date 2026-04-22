@@ -3588,7 +3588,30 @@ def _get_dashboard_tenant(request):
     """Resolve active tenant for tenant-admin dashboard context."""
     tenant = getattr(request, 'tenant', None)
     if tenant is not None:
+        if request.user.is_superuser:
+            request.session['superadmin_tenant_id'] = tenant.id
         return tenant
+
+    # Superadmins can select a tenant once and keep that context across
+    # dashboard navigation on platform hosts (where request.tenant is None).
+    if request.user.is_superuser:
+        tenant_query = (request.GET.get('tenant') or '').strip().lower()
+        if tenant_query == 'clear':
+            request.session.pop('superadmin_tenant_id', None)
+            return None
+        if tenant_query:
+            selected = Tenant.objects.filter(slug=tenant_query, is_archived=False).first()
+            if selected:
+                request.session['superadmin_tenant_id'] = selected.id
+                return selected
+
+        selected_id = request.session.get('superadmin_tenant_id')
+        if selected_id:
+            selected = Tenant.objects.filter(id=selected_id, is_archived=False).first()
+            if selected:
+                return selected
+            request.session.pop('superadmin_tenant_id', None)
+
     # Legacy fallback for old host-based access.
     membership = TenantMembership.objects.filter(
         user=request.user,

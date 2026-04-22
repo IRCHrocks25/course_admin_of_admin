@@ -647,7 +647,7 @@
 
                 <form method="POST" action="{% url 'login' %}" id="loginForm">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ request.GET.next|default:'courses' }}">
+                    <input type="hidden" name="next" value="{{ request.GET.next|default:'' }}">
 
                     <div class="field">
                         <label for="username">Username</label>

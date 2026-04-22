@@ -33,14 +33,32 @@ def superadmin_required(view_func):
 
 @superadmin_required
 def superadmin_home(request):
-    tenants = Tenant.objects.all().order_by('name')
+    tenants = Tenant.objects.filter(is_archived=False).order_by('name')
     total_tenants = tenants.count()
     active_tenants = tenants.filter(is_active=True).count()
-    total_courses = Course.objects.count()
-    total_lessons = Lesson.objects.count()
-    total_enrollments = CourseEnrollment.objects.count()
-    total_accesses = CourseAccess.objects.filter(status='unlocked').count()
-    total_certifications = Certification.objects.count()
+
+    # Keep metrics tenant-scoped and student-centric so cards reflect
+    # real learner activity, not platform/admin seed records.
+    total_courses = Course.objects.filter(tenant__in=tenants).count()
+    total_lessons = Lesson.objects.filter(
+        Q(tenant__in=tenants) | Q(course__tenant__in=tenants)
+    ).distinct().count()
+    total_enrollments = CourseEnrollment.objects.filter(
+        Q(tenant__in=tenants) | Q(course__tenant__in=tenants),
+        user__is_staff=False,
+        user__is_superuser=False,
+    ).distinct().count()
+    total_accesses = CourseAccess.objects.filter(
+        tenant__in=tenants,
+        status='unlocked',
+        user__is_staff=False,
+        user__is_superuser=False,
+    ).count()
+    total_certifications = Certification.objects.filter(
+        tenant__in=tenants,
+        user__is_staff=False,
+        user__is_superuser=False,
+    ).count()
 
     platform_base_domain = (get_platform_base_domain() or '').strip()
     raw_host = (request.get_host() or '').strip()
@@ -95,7 +113,43 @@ def superadmin_home(request):
 
 @superadmin_required
 def superadmin_tenants(request):
+    include_archived = request.GET.get('include_archived', '').strip().lower() in {'1', 'true', 'yes', 'on'}
     if request.method == 'POST':
+        # Bulk archive/unarchive from tenants list.
+        bulk_action = (request.POST.get('bulk_action') or '').strip().lower()
+        if bulk_action:
+            selected_ids = []
+            for raw_id in request.POST.getlist('tenant_ids'):
+                try:
+                    selected_ids.append(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+
+            if not selected_ids:
+                messages.error(request, 'Select at least one tenant.')
+                return redirect('superadmin_tenants')
+
+            tenants_qs = Tenant.objects.filter(id__in=selected_ids)
+            if not tenants_qs.exists():
+                messages.error(request, 'No matching tenants found.')
+                return redirect('superadmin_tenants')
+
+            if bulk_action == 'unarchive':
+                updated = tenants_qs.update(is_archived=False)
+                messages.success(request, f'Restored {updated} tenant(s).')
+            else:
+                updated = tenants_qs.update(is_archived=True, is_active=False)
+                messages.success(request, f'Archived {updated} tenant(s).')
+
+            next_url = (request.POST.get('next') or '').strip()
+            if next_url and url_has_allowed_host_and_scheme(
+                url=next_url,
+                allowed_hosts={request.get_host()},
+                require_https=request.is_secure(),
+            ):
+                return redirect(next_url)
+            return redirect('superadmin_tenants')
+
         name = request.POST.get('name', '').strip()
         slug = request.POST.get('slug', '').strip().lower()
         custom_domain = request.POST.get('custom_domain', '').strip().lower() or None
@@ -127,7 +181,11 @@ def superadmin_tenants(request):
         messages.success(request, f'Tenant "{tenant.name}" created successfully.')
         return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
 
-    tenants = Tenant.objects.annotate(
+    tenants_qs = Tenant.objects.all()
+    if not include_archived:
+        tenants_qs = tenants_qs.filter(is_archived=False)
+
+    tenants = tenants_qs.annotate(
         course_count=Count('courses', distinct=True),
         # Count via courses to include legacy lessons with null tenant FK.
         lesson_count=Count('courses__lessons', distinct=True),
@@ -144,6 +202,8 @@ def superadmin_tenants(request):
 
     return render(request, 'superadmin/tenants.html', {
         'tenants': tenants,
+        'include_archived': include_archived,
+        'archived_count': Tenant.objects.filter(is_archived=True).count(),
     })
 
 
@@ -335,6 +395,34 @@ def superadmin_tenant_suspend(request, tenant_id):
     ):
         return redirect(next_url)
     return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+
+
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_tenant_archive(request, tenant_id):
+    tenant = get_object_or_404(Tenant, id=tenant_id)
+    action = request.POST.get('action', '').strip().lower()
+
+    if action == 'unarchive':
+        tenant.is_archived = False
+        tenant.save(update_fields=['is_archived', 'updated_at'])
+        messages.success(request, f'Tenant "{tenant.name}" has been restored.')
+    else:
+        # Archive acts like soft-delete: hide from default superadmin lists and
+        # disable portal activity without removing any data.
+        tenant.is_archived = True
+        tenant.is_active = False
+        tenant.save(update_fields=['is_archived', 'is_active', 'updated_at'])
+        messages.success(request, f'Tenant "{tenant.name}" has been archived.')
+
+    next_url = (request.POST.get('next') or '').strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect('superadmin_tenants')
 
 
 @superadmin_required

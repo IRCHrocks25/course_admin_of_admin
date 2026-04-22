@@ -116,6 +116,7 @@ urlpatterns = [
     path('superadmin/tenants/<int:tenant_id>/analytics/', superadmin_views.superadmin_tenant_analytics, name='superadmin_tenant_analytics'),
     path('superadmin/analytics/', superadmin_views.superadmin_analytics, name='superadmin_analytics'),
     path('superadmin/tenants/<int:tenant_id>/suspend/', superadmin_views.superadmin_tenant_suspend, name='superadmin_tenant_suspend'),
+    path('superadmin/tenants/<int:tenant_id>/archive/', superadmin_views.superadmin_tenant_archive, name='superadmin_tenant_archive'),
     path('superadmin/tenants/<int:tenant_id>/admins/create/', superadmin_views.superadmin_create_tenant_admin, name='superadmin_create_tenant_admin'),
     path('superadmin/tenants/<int:tenant_id>/domains/add/', superadmin_views.superadmin_add_tenant_domain, name='superadmin_add_tenant_domain'),
     path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/verify/', superadmin_views.superadmin_verify_tenant_domain, name='superadmin_verify_tenant_domain'),
