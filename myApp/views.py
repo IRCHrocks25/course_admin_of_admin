@@ -2,8 +2,9 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import user_passes_test
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -11,6 +12,7 @@ from django.middleware.csrf import get_token
 from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.urls import reverse
@@ -1241,6 +1243,20 @@ def login_view(request):
                     messages.error(request, 'This account does not have access to this tenant portal.')
                     return _render_login_page()
             login(request, user)
+            if TenantMembership.objects.filter(
+                user=user,
+                is_active=True,
+                must_change_password=True
+            ).exists():
+                requested_next = (request.POST.get('next') or request.GET.get('next') or '').strip()
+                if requested_next and url_has_allowed_host_and_scheme(
+                    url=requested_next,
+                    allowed_hosts={request.get_host()},
+                    require_https=request.is_secure(),
+                ):
+                    request.session['post_password_change_redirect'] = requested_next
+                return redirect('force_password_change')
+
             default_next = _default_redirect_for_user(user)
             default_next_url = reverse(default_next)
             requested_next = (request.POST.get('next') or request.GET.get('next') or '').strip()
@@ -1264,6 +1280,69 @@ def login_view(request):
             messages.error(request, 'Invalid username or password.')
     
     return _render_login_page()
+
+
+@login_required
+@ensure_csrf_cookie
+def force_password_change(request):
+    """Force users flagged by membership to choose a new password."""
+    must_change = TenantMembership.objects.filter(
+        user=request.user,
+        is_active=True,
+        must_change_password=True,
+    ).exists()
+    if not must_change:
+        if request.user.is_superuser:
+            return redirect('superadmin_home')
+        if request.user.is_staff:
+            return redirect('dashboard_home')
+        return redirect('courses')
+
+    if request.method == 'POST':
+        new_password = request.POST.get('new_password') or ''
+        confirm_password = request.POST.get('confirm_password') or ''
+
+        if not new_password:
+            messages.error(request, 'New password is required.')
+            return render(request, 'force_password_change.html')
+        if new_password != confirm_password:
+            messages.error(request, 'Passwords do not match.')
+            return render(request, 'force_password_change.html')
+
+        try:
+            validate_password(new_password, request.user)
+        except ValidationError as exc:
+            for err in exc.messages:
+                messages.error(request, err)
+            return render(request, 'force_password_change.html')
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+        TenantMembership.objects.filter(
+            user=request.user,
+            is_active=True,
+            must_change_password=True,
+        ).update(
+            must_change_password=False,
+            updated_at=timezone.now(),
+        )
+        update_session_auth_hash(request, request.user)
+
+        messages.success(request, 'Password updated successfully.')
+        requested_next = (request.session.pop('post_password_change_redirect', '') or '').strip()
+        if requested_next and url_has_allowed_host_and_scheme(
+            url=requested_next,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(requested_next)
+        if request.user.is_superuser:
+            return redirect('superadmin_home')
+        if request.user.is_staff:
+            return redirect('dashboard_home')
+        return redirect('courses')
+
+    return render(request, 'force_password_change.html')
 
 
 @ensure_csrf_cookie

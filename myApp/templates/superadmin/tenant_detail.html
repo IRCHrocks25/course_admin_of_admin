@@ -99,7 +99,7 @@
 </div>
 
 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
-    <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+    <div id="tenant-admin-access" class="rounded-xl bg-white/5 border border-white/10 p-5">
         <h2 class="font-semibold text-lg mb-4">Create Tenant Admin</h2>
         <form method="post" action="{% url 'superadmin_create_tenant_admin' tenant.id %}" class="space-y-4">
             {% csrf_token %}

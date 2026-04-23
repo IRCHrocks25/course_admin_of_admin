@@ -4,7 +4,9 @@ import time
 
 from django.core.cache import cache
 from django.http import JsonResponse
-from .models import Tenant, TenantDomain
+from django.shortcuts import redirect
+from django.urls import reverse
+from .models import Tenant, TenantDomain, TenantMembership
 
 
 class ProtectiveThrottleMiddleware:
@@ -164,5 +166,42 @@ class TenantMiddleware:
                 tenant = Tenant.objects.filter(slug=maybe_slug, is_active=True, is_archived=False).first()
 
         request.tenant = tenant
+        return self.get_response(request)
+
+
+class ForcePasswordChangeMiddleware:
+    """
+    Redirect authenticated users to password-change flow when required.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return self.get_response(request)
+
+        path = (request.path or '').rstrip('/') or '/'
+        exempt_paths = {
+            (reverse('force_password_change').rstrip('/') or '/'),
+            (reverse('logout').rstrip('/') or '/'),
+            (reverse('login').rstrip('/') or '/'),
+            (reverse('admin:logout').rstrip('/') or '/'),
+        }
+        if (
+            path in exempt_paths
+            or path.startswith('/static/')
+            or path.startswith('/media/')
+            or path.startswith('/admin/')
+        ):
+            return self.get_response(request)
+
+        if TenantMembership.objects.filter(
+            user=user,
+            is_active=True,
+            must_change_password=True,
+        ).exists():
+            return redirect('force_password_change')
+
         return self.get_response(request)
 

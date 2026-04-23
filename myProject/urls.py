@@ -21,6 +21,7 @@ urlpatterns = [
     path('webhooks/stripe/tenant/<slug:tenant_slug>/', views.stripe_tenant_webhook, name='stripe_tenant_webhook'),
     path('calculator/railway-cost/', views.railway_cost_calculator_light, name='railway_cost_calculator_light'),
     path('login/', views.login_view, name='login'),
+    path('force-password-change/', views.force_password_change, name='force_password_change'),
     path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
     path('courses/', views.courses, name='courses'),

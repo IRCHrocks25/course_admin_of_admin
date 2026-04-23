@@ -89,10 +89,13 @@
                 </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">Upload HTML file</label>
-                    <input type="file" name="landing_html_file" accept=".html,.htm,text/html" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <input id="landing-html-file" type="file" name="landing_html_file" accept=".html,.htm,text/html" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-300 mb-1">Or paste landing HTML</label>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm text-gray-300">Or paste landing HTML</label>
+                        <button id="preview-landing-html" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">Preview HTML</button>
+                    </div>
                     <textarea name="landing_html" rows="10" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ landing_html }}</textarea>
                 </div>
                 <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
@@ -136,7 +139,10 @@
                     <textarea name="register_subtitle" rows="2" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.register_subtitle }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-300 mb-1">Custom Sign Up HTML (optional)</label>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm text-gray-300">Custom Sign Up HTML (optional)</label>
+                        <button id="preview-signup-html" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">Preview HTML</button>
+                    </div>
                     <textarea name="signup_html" rows="8" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ signup_html }}</textarea>
                 </div>
                 <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
@@ -175,7 +181,10 @@
                     <textarea name="login_form_tagline" rows="2" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">{{ branding.login_form_tagline }}</textarea>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-300 mb-1">Custom Login HTML (optional)</label>
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-sm text-gray-300">Custom Login HTML (optional)</label>
+                        <button id="preview-login-html" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">Preview HTML</button>
+                    </div>
                     <textarea name="login_html" rows="8" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ login_html }}</textarea>
                 </div>
                 <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
@@ -301,6 +310,19 @@
     </div>
 </form>
 
+<div id="html-preview-modal" class="fixed inset-0 z-[120] hidden">
+    <div id="html-preview-backdrop" class="absolute inset-0 bg-black/75"></div>
+    <div class="relative mx-auto mt-6 w-[96%] max-w-6xl rounded-xl border border-white/20 bg-[#0b1030] shadow-2xl">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-white/15">
+            <h3 id="html-preview-title" class="text-sm sm:text-base font-semibold text-cyan-300">HTML Preview</h3>
+            <button id="html-preview-close" type="button" class="px-2.5 py-1 rounded border border-white/20 text-xs text-gray-300 hover:bg-white/10 transition">Close</button>
+        </div>
+        <div class="h-[75vh]">
+            <iframe id="html-preview-frame" title="Custom HTML Preview" class="w-full h-full rounded-b-xl bg-white"></iframe>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const buttons = document.querySelectorAll('.tab-btn');
@@ -318,6 +340,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const accentSecondaryPicker = document.getElementById('accent-secondary-picker');
     const accentPrimaryHex = document.getElementById('accent-primary-hex');
     const accentSecondaryHex = document.getElementById('accent-secondary-hex');
+    const previewLandingBtn = document.getElementById('preview-landing-html');
+    const previewSignupBtn = document.getElementById('preview-signup-html');
+    const previewLoginBtn = document.getElementById('preview-login-html');
+    const landingHtmlFileInput = document.getElementById('landing-html-file');
+    const htmlPreviewModal = document.getElementById('html-preview-modal');
+    const htmlPreviewBackdrop = document.getElementById('html-preview-backdrop');
+    const htmlPreviewClose = document.getElementById('html-preview-close');
+    const htmlPreviewFrame = document.getElementById('html-preview-frame');
+    const htmlPreviewTitle = document.getElementById('html-preview-title');
     buttons.forEach((btn) => {
         btn.addEventListener('click', () => {
             const target = btn.getAttribute('data-tab');
@@ -384,6 +415,67 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    function openHtmlPreview(rawHtml, title) {
+        if (!htmlPreviewModal || !htmlPreviewFrame || !htmlPreviewTitle) return;
+        const trimmed = (rawHtml || '').trim();
+        if (!trimmed) {
+            window.alert('Please add HTML first, then click Preview.');
+            return;
+        }
+        htmlPreviewTitle.textContent = title;
+        htmlPreviewFrame.srcdoc = trimmed;
+        htmlPreviewModal.classList.remove('hidden');
+    }
+
+    function closeHtmlPreview() {
+        if (!htmlPreviewModal || !htmlPreviewFrame) return;
+        htmlPreviewModal.classList.add('hidden');
+        htmlPreviewFrame.srcdoc = '';
+    }
+
+    if (previewLandingBtn) {
+        previewLandingBtn.addEventListener('click', function () {
+            const currentHtml = (landingTextarea && landingTextarea.value) ? landingTextarea.value : '';
+            if (currentHtml.trim()) {
+                openHtmlPreview(currentHtml, 'Landing HTML Preview');
+                return;
+            }
+            if (landingHtmlFileInput && landingHtmlFileInput.files && landingHtmlFileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    openHtmlPreview(event.target?.result || '', 'Landing HTML Preview');
+                };
+                reader.readAsText(landingHtmlFileInput.files[0]);
+                return;
+            }
+            openHtmlPreview('', 'Landing HTML Preview');
+        });
+    }
+
+    if (previewSignupBtn && signupTextarea) {
+        previewSignupBtn.addEventListener('click', function () {
+            openHtmlPreview(signupTextarea.value, 'Sign Up HTML Preview');
+        });
+    }
+
+    if (previewLoginBtn && loginTextarea) {
+        previewLoginBtn.addEventListener('click', function () {
+            openHtmlPreview(loginTextarea.value, 'Login HTML Preview');
+        });
+    }
+
+    if (htmlPreviewClose) {
+        htmlPreviewClose.addEventListener('click', closeHtmlPreview);
+    }
+    if (htmlPreviewBackdrop) {
+        htmlPreviewBackdrop.addEventListener('click', closeHtmlPreview);
+    }
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && htmlPreviewModal && !htmlPreviewModal.classList.contains('hidden')) {
+            closeHtmlPreview();
+        }
+    });
 });
 </script>
 {% endblock %}

@@ -66,6 +66,7 @@
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-3">
                                 <a href="{% url 'superadmin_tenant_detail' tenant.id %}" class="text-cyan-electric hover:underline">Edit</a>
+                                <a href="{% url 'superadmin_tenant_detail' tenant.id %}#tenant-admin-access" class="text-emerald-300 hover:underline">Admins</a>
                                 <a href="{% url 'dashboard_home' %}?tenant={{ tenant.slug }}" class="text-indigo-300 hover:underline">Manage Dashboard</a>
                                 <a href="{% url 'dashboard_branding_settings' %}?tenant={{ tenant.slug }}" class="text-pink-300 hover:underline">Branding</a>
                                 <a href="{% url 'dashboard_courses' %}?tenant={{ tenant.slug }}" class="text-purple-300 hover:underline">Courses</a>

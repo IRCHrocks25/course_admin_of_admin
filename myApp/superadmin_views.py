@@ -454,12 +454,13 @@ def superadmin_create_tenant_admin(request, tenant_id):
     membership, created = TenantMembership.objects.get_or_create(
         tenant=tenant,
         user=user,
-        defaults={'role': 'tenant_admin', 'is_active': True}
+        defaults={'role': 'tenant_admin', 'is_active': True, 'must_change_password': True}
     )
     if not created:
         membership.role = 'tenant_admin'
         membership.is_active = True
-        membership.save(update_fields=['role', 'is_active', 'updated_at'])
+        membership.must_change_password = True
+        membership.save(update_fields=['role', 'is_active', 'must_change_password', 'updated_at'])
 
     messages.success(request, f'User "{user.username}" now has tenant admin access for "{tenant.name}".')
     return redirect('superadmin_tenant_detail', tenant_id=tenant.id)

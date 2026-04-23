@@ -894,6 +894,7 @@ class TenantMembership(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tenant_memberships')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
     is_active = models.BooleanField(default=True)
+    must_change_password = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
