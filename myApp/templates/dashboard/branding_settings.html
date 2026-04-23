@@ -25,6 +25,7 @@
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="landing">Landing Page</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="signup">Sign Up</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="login">Login</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="certificate">Certificate</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="logo">Logo</button>
             </div>
         </div>
@@ -200,6 +201,36 @@
                 <label class="inline-flex items-center gap-2 text-sm text-gray-300">
                     <input type="checkbox" name="clear_login_html" value="1" class="rounded">
                     Clear stored login custom HTML
+                </label>
+            </div>
+        </div>
+
+        <div id="tab-certificate" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Certificate Template</h2>
+            <div class="space-y-4">
+                <div class="rounded-lg border border-white/10 bg-[#0a0e27] p-3 text-sm text-gray-300">
+                    Current template:
+                    {% if branding.certificate_template_url %}
+                    <span class="font-semibold text-cyan-300">Custom PDF</span>
+                    · <a href="{{ branding.certificate_template_url }}" target="_blank" rel="noopener noreferrer" class="text-cyan-300 hover:underline">Preview current template</a>
+                    {% else %}
+                    <span class="font-semibold text-gray-300">Default platform template</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Upload Certificate PDF Template</label>
+                    <input type="file" name="certificate_template_file" accept=".pdf,application/pdf" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="mt-1 text-xs text-gray-400">Upload a PDF certificate background. Student name/course/date are added automatically during generation.</p>
+                </div>
+                <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
+                    <p class="text-xs text-gray-300">Preview the platform sample template so you know the expected layout.</p>
+                    <a href="{{ certificate_template_sample_url }}" target="_blank" rel="noopener noreferrer" class="inline-flex mt-2 px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">
+                        Preview Sample Certificate Template
+                    </a>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="clear_certificate_template" value="1" class="rounded">
+                    Remove custom certificate template (switch back to default)
                 </label>
             </div>
         </div>

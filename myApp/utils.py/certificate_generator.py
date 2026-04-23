@@ -527,6 +527,27 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
             except Exception as e:
                 print(f"Could not download template: {e}")
                 template_path = None
+
+    # Next, try tenant-level custom certificate template from branding settings.
+    if not template_path and DJANGO_AVAILABLE:
+        try:
+            tenant = getattr(course, 'tenant', None)
+            if tenant is not None:
+                from myApp.models import TenantConfig
+                tenant_config = TenantConfig.objects.filter(tenant=tenant).only('features').first()
+                tenant_features = tenant_config.features if tenant_config and isinstance(tenant_config.features, dict) else {}
+                tenant_branding = tenant_features.get('branding') or {}
+                tenant_template_url = (tenant_branding.get('certificate_template_url') or '').strip()
+                if tenant_template_url:
+                    response = requests.get(tenant_template_url, timeout=12)
+                    if response.status_code == 200:
+                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                        temp_file.write(response.content)
+                        temp_file.close()
+                        template_path = temp_file.name
+                        temp_template_path = template_path
+        except Exception as e:
+            print(f"Could not load tenant certificate template: {e}")
     
     # If no course-specific template, use local default template.
     if not template_path:

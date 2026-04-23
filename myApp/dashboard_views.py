@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
+from django.conf import settings
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import json
 import re
@@ -736,6 +737,34 @@ def _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file):
             overwrite=True,
             resource_type='image',
             format='webp',
+        )
+        return (result.get('secure_url') or '').strip()
+    except Exception:
+        return ''
+
+
+def _upload_tenant_certificate_template_to_cloudinary(tenant, template_file):
+    """
+    Upload tenant certificate PDF template to Cloudinary and return secure URL.
+    """
+    if not CLOUDINARY_UPLOAD_AVAILABLE:
+        return ''
+    if not (os.getenv('CLOUDINARY_CLOUD_NAME') and os.getenv('CLOUDINARY_API_KEY') and os.getenv('CLOUDINARY_API_SECRET')):
+        return ''
+    if not template_file:
+        return ''
+    try:
+        name = (getattr(template_file, 'name', '') or '').lower()
+        if not name.endswith('.pdf'):
+            return ''
+
+        result = cloudinary_uploader.upload(
+            template_file,
+            folder='courseforge/certificate_templates',
+            public_id=f"tenant_{tenant.id}_certificate_template_{uuid.uuid4().hex[:10]}",
+            overwrite=True,
+            resource_type='raw',
+            format='pdf',
         )
         return (result.get('secure_url') or '').strip()
     except Exception:
@@ -3885,6 +3914,22 @@ def dashboard_branding_settings(request):
                 tenant.save(update_fields=['logo', 'updated_at'])
                 updated['logo_url'] = tenant.logo.url if tenant.logo else updated.get('logo_url', '')
 
+        certificate_template_file = request.FILES.get('certificate_template_file')
+        clear_certificate_template = request.POST.get('clear_certificate_template') == '1'
+        if clear_certificate_template and not certificate_template_file:
+            updated['certificate_template_url'] = ''
+            messages.info(request, 'Custom certificate template removed. Default template will be used.')
+        if certificate_template_file:
+            certificate_template_name = (getattr(certificate_template_file, 'name', '') or '').lower()
+            if not certificate_template_name.endswith('.pdf'):
+                messages.error(request, 'Certificate template must be a PDF file.')
+                return redirect('dashboard_branding_settings')
+            certificate_template_url = _upload_tenant_certificate_template_to_cloudinary(tenant, certificate_template_file)
+            if not certificate_template_url:
+                messages.error(request, 'Could not upload certificate template. Please try again.')
+                return redirect('dashboard_branding_settings')
+            updated['certificate_template_url'] = certificate_template_url
+
         features['branding'] = updated
         features['custom_pages'] = custom_pages
         config.features = features
@@ -3907,5 +3952,6 @@ def dashboard_branding_settings(request):
         'landing_html_sample': LANDING_HTML_SAMPLE,
         'signup_html_sample': SIGNUP_HTML_SAMPLE,
         'login_html_sample': LOGIN_HTML_SAMPLE,
+        'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
     })
 
