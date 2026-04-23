@@ -753,6 +753,11 @@ def _is_valid_logo_url(raw_url):
         return False
 
 
+def _is_valid_hex_color(raw_color):
+    value = (raw_color or '').strip()
+    return bool(re.match(r'^#[0-9a-fA-F]{6}$', value))
+
+
 @staff_member_required
 def dashboard_home(request):
     """Main dashboard overview with analytics"""
@@ -3739,9 +3744,23 @@ def dashboard_branding_settings(request):
 
     if request.method == 'POST':
         updated = dict(current_branding)
+        theme_mode = (request.POST.get('theme_mode') or current_branding.get('theme_mode') or 'dark').strip().lower()
+        if theme_mode not in ('dark', 'light'):
+            theme_mode = 'dark'
+        accent_primary = (request.POST.get('accent_primary') or current_branding.get('accent_primary') or '#00f0ff').strip().lower()
+        accent_secondary = (request.POST.get('accent_secondary') or current_branding.get('accent_secondary') or '#a855f7').strip().lower()
+        if not _is_valid_hex_color(accent_primary):
+            messages.error(request, 'Primary accent color must be a valid hex color (example: #00f0ff).')
+            return redirect('dashboard_branding_settings')
+        if not _is_valid_hex_color(accent_secondary):
+            messages.error(request, 'Secondary accent color must be a valid hex color (example: #a855f7).')
+            return redirect('dashboard_branding_settings')
         updated.update({
             'brand_name': (request.POST.get('brand_name') or current_branding.get('brand_name', '')).strip(),
             'brand_short_name': (request.POST.get('brand_short_name') or current_branding.get('brand_short_name', '')).strip(),
+            'theme_mode': theme_mode,
+            'accent_primary': accent_primary,
+            'accent_secondary': accent_secondary,
             'headline_line1': (request.POST.get('headline_line1') or current_branding.get('headline_line1', '')).strip(),
             'headline_line2': (request.POST.get('headline_line2') or current_branding.get('headline_line2', '')).strip(),
             'headline_line3': (request.POST.get('headline_line3') or current_branding.get('headline_line3', '')).strip(),

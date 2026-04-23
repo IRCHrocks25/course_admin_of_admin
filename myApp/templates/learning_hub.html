@@ -18,6 +18,12 @@
         --text:   rgba(255,255,255,0.9);
         --muted:  rgba(255,255,255,0.42);
     }
+    .brand-theme-light {
+        --card: rgba(255,255,255,0.92);
+        --border: rgba(15,23,42,0.12);
+        --text: #0f172a;
+        --muted: #64748b;
+    }
 
     .hub-page { font-family: 'DM Sans', 'Barlow', sans-serif; }
 
@@ -46,6 +52,17 @@
         color: #fff; margin-bottom: 6px;
     }
     .page-subtitle { font-size: 14px; color: var(--muted); max-width: 480px; line-height: 1.6; }
+    .brand-theme-light .page-title,
+    .brand-theme-light .section-title,
+    .brand-theme-light .divider-title,
+    .brand-theme-light .c-name,
+    .brand-theme-light .card-name,
+    .brand-theme-light .unlock-name,
+    .brand-theme-light .empty-title { color: #0f172a; }
+    .brand-theme-light .c-short,
+    .brand-theme-light .card-desc,
+    .brand-theme-light .thumb-meta-item,
+    .brand-theme-light .status-badge { color: #334155; }
 
     .btn-certs {
         display: inline-flex; align-items: center; gap: 9px;
@@ -394,11 +411,14 @@
     .btn-solid {
         padding: 10px 18px; border-radius: 9px;
         font-size: 13px; font-weight: 700; text-decoration: none;
-        background: var(--blue); color: #fff;
+        background: var(--brand-accent-primary); color: var(--brand-accent-on-primary);
         transition: transform .2s, box-shadow .2s; white-space: nowrap;
-        box-shadow: 0 0 20px rgba(26,107,255,0.3);
+        box-shadow: 0 0 20px color-mix(in srgb, var(--brand-accent-primary) 35%, transparent);
     }
-    .btn-solid:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(26,107,255,0.45); }
+    .btn-solid:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 28px color-mix(in srgb, var(--brand-accent-primary) 50%, transparent);
+    }
 
     /* ── UNLOCK SECTION ── */
     .unlock-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }

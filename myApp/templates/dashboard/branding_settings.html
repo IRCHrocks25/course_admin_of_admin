@@ -9,6 +9,11 @@
     <p class="text-sm text-gray-300">
         Configure brand copy, logo, and page content from one place.
     </p>
+    {% if tenant %}
+    <p class="text-xs text-gray-400 mt-2">
+        Editing tenant: <span class="text-cyan-300 font-semibold">{{ tenant.name }}</span>
+    </p>
+    {% endif %}
 </div>
 
 <form method="post" enctype="multipart/form-data" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -34,6 +39,30 @@
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">Short Name</label>
                     <input name="brand_short_name" value="{{ branding.brand_short_name }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Student Theme</label>
+                    <select name="theme_mode" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="dark" {% if branding.theme_mode != 'light' %}selected{% endif %}>Dark (current)</option>
+                        <option value="light" {% if branding.theme_mode == 'light' %}selected{% endif %}>Light</option>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Applies to the student-facing course experience (dashboard, lessons, quizzes, and catalog pages).</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Primary Accent Color</label>
+                    <div class="flex items-center gap-2">
+                        <input id="accent-primary-picker" type="color" value="{{ branding.accent_primary|default:'#00f0ff' }}" class="h-10 w-14 rounded bg-[#0a0e27] border border-white/20 p-1">
+                        <input id="accent-primary-hex" type="text" name="accent_primary" value="{{ branding.accent_primary|default:'#00f0ff' }}" pattern="^#[0-9A-Fa-f]{6}$" class="flex-1 rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Used for main accents, highlights, and links.</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Secondary Accent Color</label>
+                    <div class="flex items-center gap-2">
+                        <input id="accent-secondary-picker" type="color" value="{{ branding.accent_secondary|default:'#a855f7' }}" class="h-10 w-14 rounded bg-[#0a0e27] border border-white/20 p-1">
+                        <input id="accent-secondary-hex" type="text" name="accent_secondary" value="{{ branding.accent_secondary|default:'#a855f7' }}" pattern="^#[0-9A-Fa-f]{6}$" class="flex-1 rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Used as gradient partner and secondary accent tone.</p>
                 </div>
             </div>
         </div>
@@ -285,6 +314,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const useLoginSampleBtn = document.getElementById('use-login-sample');
     const loginTextarea = document.querySelector('textarea[name="login_html"]');
     const loginModeSelect = document.querySelector('select[name="login_mode"]');
+    const accentPrimaryPicker = document.getElementById('accent-primary-picker');
+    const accentSecondaryPicker = document.getElementById('accent-secondary-picker');
+    const accentPrimaryHex = document.getElementById('accent-primary-hex');
+    const accentSecondaryHex = document.getElementById('accent-secondary-hex');
     buttons.forEach((btn) => {
         btn.addEventListener('click', () => {
             const target = btn.getAttribute('data-tab');
@@ -327,6 +360,28 @@ document.addEventListener('DOMContentLoaded', function () {
             const loginTab = document.querySelector('.tab-btn[data-tab="login"]');
             if (loginTab) loginTab.click();
             loginTextarea.focus();
+        });
+    }
+    if (accentPrimaryPicker && accentPrimaryHex) {
+        accentPrimaryPicker.addEventListener('input', function () {
+            accentPrimaryHex.value = this.value;
+        });
+        accentPrimaryHex.addEventListener('input', function () {
+            const value = this.value.trim();
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                accentPrimaryPicker.value = value;
+            }
+        });
+    }
+    if (accentSecondaryPicker && accentSecondaryHex) {
+        accentSecondaryPicker.addEventListener('input', function () {
+            accentSecondaryHex.value = this.value;
+        });
+        accentSecondaryHex.addEventListener('input', function () {
+            const value = this.value.trim();
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                accentSecondaryPicker.value = value;
+            }
         });
     }
 });

@@ -148,7 +148,7 @@
                         <div class="flex-1">
                             <div class="flex items-center gap-3 mb-2">
                                 <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-accent to-cyan-electric flex items-center justify-center">
-                                    <i class="fas fa-question-circle text-white text-lg"></i>
+                                    <i class="lesson-quiz-icon fas fa-question-circle text-white text-lg"></i>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <h3 class="text-xl font-bold text-white">Lesson Quiz</h3>
@@ -195,7 +195,7 @@
                     <!-- Quiz Action Button -->
                     <a 
                         href="{% url 'lesson_quiz' course.slug lesson.slug %}"
-                        class="inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-gradient-to-r from-purple-accent to-cyan-electric hover:from-purple-accent/90 hover:to-cyan-electric/90 text-white font-semibold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                        class="quiz-cta-btn inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-cyan-electric hover:bg-cyan-electric/90 text-white font-semibold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                     >
                         <i class="fas {% if latest_quiz_attempt and latest_quiz_attempt.passed %}fa-check{% elif latest_quiz_attempt %}fa-redo{% else %}fa-play{% endif %}"></i>
                         <span>{% if latest_quiz_attempt and latest_quiz_attempt.passed %}Quiz Completed{% elif latest_quiz_attempt %}Retake Quiz{% else %}Take Required Quiz{% endif %}</span>
@@ -408,6 +408,199 @@
     .quick-suggestion-btn:hover {
         transform: translateX(2px);
     }
+
+    /* ============================================
+       LESSON DETAIL PAGE - LIGHT THEME (Improved)
+       ============================================ */
+
+    /* --- CARD BACKGROUNDS --- */
+    /* Solid white cards with subtle shadow instead of translucent overlays */
+    .brand-theme-light .bg-\[\#0a0e27\]\/60 {
+        background: #ffffff !important;
+        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+    }
+    .brand-theme-light .bg-\[\#0d1230\] {
+        background: #f8fafc !important;
+    }
+    .brand-theme-light .bg-\[\#080b1e\] {
+        background: #f8fafc !important;
+    }
+
+    /* --- TEXT HIERARCHY --- */
+    /* Proper hierarchy instead of flattening everything to one gray */
+    .brand-theme-light .text-white {
+        color: #0f172a !important; /* slate-900 — strong for headings */
+    }
+    .brand-theme-light .text-gray-200,
+    .brand-theme-light .text-gray-300 {
+        color: #334155 !important; /* slate-700 — body text */
+    }
+    .brand-theme-light .text-gray-400 {
+        color: #64748b !important; /* slate-500 — secondary */
+    }
+    .brand-theme-light .text-gray-500 {
+        color: #94a3b8 !important; /* slate-400 — muted */
+    }
+
+    /* --- BORDERS --- */
+    .brand-theme-light .border-cyan-electric\/10,
+    .brand-theme-light .border-cyan-electric\/15 {
+        border-color: #e5e7eb !important;
+    }
+    .brand-theme-light .border-cyan-electric\/20,
+    .brand-theme-light .border-cyan-electric\/30 {
+        border-color: #cbd5e1 !important;
+    }
+    .brand-theme-light .border-cyan-electric\/40,
+    .brand-theme-light .border-cyan-electric\/50 {
+        border-color: #06b6d4 !important;
+    }
+
+    /* --- VIDEO INFO CHIPS --- */
+    .brand-theme-light .bg-cyan-electric\/10 {
+        background: #ecfeff !important; /* cyan-50 */
+    }
+    .brand-theme-light .bg-cyan-electric\/10:hover,
+    .brand-theme-light .hover\:bg-cyan-electric\/20:hover {
+        background: #cffafe !important; /* cyan-100 */
+    }
+    .brand-theme-light .bg-cyan-electric\/20 {
+        background: #cffafe !important;
+        border-color: #67e8f9 !important;
+    }
+    /* Cyan icon & text inside chips */
+    .brand-theme-light .text-cyan-electric {
+        color: #0891b2 !important; /* cyan-600 — readable on white */
+    }
+
+    /* --- LESSON TYPE BADGE (top-left of video) --- */
+    .brand-theme-light .bg-cyan-electric\/90 {
+        background: #0891b2 !important;
+        color: #ffffff !important;
+    }
+
+    /* --- "THIS LESSON WILL PRODUCE" CHECKMARKS --- */
+    /* Circle behind the checkmark */
+    .brand-theme-light section .bg-cyan-electric\/20.border {
+        background: #ecfeff !important;
+        border-color: #06b6d4 !important;
+    }
+
+    /* --- LESSON NOTES (prose content) --- */
+    .brand-theme-light .prose-invert {
+        color: #334155 !important;
+    }
+    .brand-theme-light .prose-invert p,
+    .brand-theme-light .prose-invert li {
+        color: #334155 !important;
+    }
+    .brand-theme-light .prose-invert h1,
+    .brand-theme-light .prose-invert h2,
+    .brand-theme-light .prose-invert h3,
+    .brand-theme-light .prose-invert h4 {
+        color: #0f172a !important;
+    }
+    .brand-theme-light blockquote {
+        border-left-color: #06b6d4 !important;
+        color: #475569 !important;
+        background: #f8fafc;
+    }
+    .brand-theme-light blockquote cite {
+        color: #64748b !important;
+    }
+
+    /* ============================================
+       QUIZ SECTION — Cleaned up for light theme
+       ============================================ */
+    /* The gradient was too loud. Replace with a soft neutral card
+       that still feels distinct but doesn't scream. */
+    .brand-theme-light .bg-gradient-to-br.from-purple-accent\/10 {
+        background: #f8fafc !important;
+        background-image: none !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+    }
+    /* Quiz icon container — keep the branded gradient but smaller visual weight */
+    .brand-theme-light .from-purple-accent.to-cyan-electric,
+    .brand-theme-light .bg-gradient-to-br.from-purple-accent.to-cyan-electric {
+        background: linear-gradient(135deg, #8b5cf6, #06b6d4) !important;
+    }
+
+    /* "Required" red pill */
+    .brand-theme-light .bg-red-500\/20 {
+        background: #fef2f2 !important;
+        border-color: #fecaca !important;
+    }
+    .brand-theme-light .text-red-400 {
+        color: #dc2626 !important;
+    }
+
+    /* Yellow warning text ("You must pass this quiz...") */
+    .brand-theme-light .text-yellow-400 {
+        color: #b45309 !important; /* amber-700 — readable on white */
+    }
+    .brand-theme-light .bg-yellow-500\/10 {
+        background: #fffbeb !important; /* amber-50 */
+    }
+    .brand-theme-light .border-yellow-500\/30,
+    .brand-theme-light .border-yellow-500\/40 {
+        border-color: #fcd34d !important; /* amber-300 */
+    }
+
+    /* Green success (quiz passed) */
+    .brand-theme-light .text-green-400 {
+        color: #059669 !important; /* emerald-600 */
+    }
+    .brand-theme-light .bg-green-500\/10 {
+        background: #ecfdf5 !important; /* emerald-50 */
+    }
+    .brand-theme-light .border-green-500\/20,
+    .brand-theme-light .border-green-500\/40 {
+        border-color: #6ee7b7 !important; /* emerald-300 */
+    }
+
+    /* ============================================
+       PRIMARY ACTION BUTTONS (Finish Lesson, etc.)
+       ============================================ */
+    /* Keep the cyan→purple gradient — it's the brand CTA.
+       Just soften the shadow so it doesn't glow too harshly on white. */
+    .brand-theme-light .shadow-cyan-electric\/20 {
+        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2) !important;
+    }
+
+    /* Keep quiz CTA text readable on dark primary accents */
+    .brand-theme-light .quiz-cta-btn,
+    .brand-theme-light .quiz-cta-btn span,
+    .brand-theme-light .quiz-cta-btn i {
+        color: #ffffff !important;
+    }
+    .brand-theme-light .lesson-quiz-icon {
+        color: #ffffff !important;
+    }
+
+    /* Disabled "Complete Quiz to Finish" button */
+    .brand-theme-light .bg-gray-600\/50 {
+        background: #e2e8f0 !important;
+    }
+
+    /* ============================================
+       ERROR MODAL
+       ============================================ */
+    .brand-theme-light #lesson-error-modal > div {
+        background: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.2) !important;
+    }
+    .brand-theme-light #lesson-error-modal .bg-red-500\/10 {
+        background: #fef2f2 !important;
+    }
+
+    /* ============================================
+       FINISH LESSON DIVIDER
+       ============================================ */
+    .brand-theme-light .border-cyan-electric\/10.border-t {
+        border-top-color: #e5e7eb !important;
+    }
 </style>
 <script>
     // Get CSRF token from cookies
@@ -575,6 +768,14 @@
     }
     
     function setupChatbotListeners() {
+    const assistantLogoImg = document.querySelector('.chat-avatar img');
+    const assistantLogoUrl = assistantLogoImg?.getAttribute('src') || 'https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png';
+
+    function assistantAvatar(sizeClass = 'w-7 h-7', extraClass = '') {
+        return `<div class="${sizeClass} rounded-full overflow-hidden bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0 mt-0.5 ${extraClass}">
+                    <img src="${assistantLogoUrl}" alt="Assistant Logo" class="w-full h-full object-cover" loading="lazy">
+                </div>`;
+    }
     
     // Function to add user message to chat
     function addUserMessage(message) {
@@ -618,9 +819,7 @@
         
         messageDiv.innerHTML = `
             <div class="flex items-start gap-3">
-                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <i class="fas fa-sparkles text-white text-xs"></i>
-                </div>
+                ${assistantAvatar()}
                 <div class="flex-1 min-w-0">
                     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/20 rounded-2xl rounded-tl-sm px-4 py-3">
                         ${content}
@@ -1108,4 +1307,3 @@
     }
 </script>
 {% endblock %}
-

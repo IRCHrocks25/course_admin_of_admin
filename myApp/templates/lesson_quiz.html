@@ -17,7 +17,7 @@
                 <div class="mb-8">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-accent to-cyan-electric flex items-center justify-center">
-                            <i class="fas fa-question-circle text-white text-2xl"></i>
+                            <i class="fas fa-question-circle text-2xl quiz-accent-on-text"></i>
                         </div>
                         <div>
                             <h1 class="text-3xl lg:text-4xl font-bold">
@@ -109,7 +109,7 @@
                     {% for question in questions %}
                     <div class="bg-gradient-to-br from-[#0a0e27]/80 to-[#1a1f3a]/80 backdrop-blur-sm border border-cyan-electric/20 rounded-xl p-6 hover:border-cyan-electric/40 transition-all">
                         <div class="flex items-start gap-4 mb-4">
-                            <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center text-[#0a0e27] font-bold">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center font-bold quiz-accent-on-text">
                                 {{ forloop.counter }}
                             </div>
                             <div class="flex-1">
@@ -120,14 +120,14 @@
                                     <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
                                         <input type="radio" name="q_{{ question.id }}" value="A" class="mt-1 text-cyan-electric focus:ring-cyan-electric" required>
                                         <div class="flex-1">
-                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric">A.</span>
+                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">A.</span>
                                             <span class="text-gray-300 ml-2">{{ question.option_a }}</span>
                                         </div>
                                     </label>
                                     <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
                                         <input type="radio" name="q_{{ question.id }}" value="B" class="mt-1 text-cyan-electric focus:ring-cyan-electric">
                                         <div class="flex-1">
-                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric">B.</span>
+                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">B.</span>
                                             <span class="text-gray-300 ml-2">{{ question.option_b }}</span>
                                         </div>
                                     </label>
@@ -135,7 +135,7 @@
                                     <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
                                         <input type="radio" name="q_{{ question.id }}" value="C" class="mt-1 text-cyan-electric focus:ring-cyan-electric">
                                         <div class="flex-1">
-                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric">C.</span>
+                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">C.</span>
                                             <span class="text-gray-300 ml-2">{{ question.option_c }}</span>
                                         </div>
                                     </label>
@@ -144,7 +144,7 @@
                                     <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
                                         <input type="radio" name="q_{{ question.id }}" value="D" class="mt-1 text-cyan-electric focus:ring-cyan-electric">
                                         <div class="flex-1">
-                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric">D.</span>
+                                            <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">D.</span>
                                             <span class="text-gray-300 ml-2">{{ question.option_d }}</span>
                                         </div>
                                     </label>
@@ -156,11 +156,11 @@
                     {% endfor %}
 
                     <div class="flex items-center justify-between mt-8 pt-6 border-t border-cyan-electric/10">
-                        <a href="{% url 'lesson_detail' course.slug lesson.slug %}" class="px-5 py-3 rounded-xl border border-cyan-electric/30 text-cyan-electric font-semibold hover:bg-cyan-electric/10 transition-all flex items-center gap-2">
+                        <a href="{% url 'lesson_detail' course.slug lesson.slug %}" class="quiz-back-btn px-5 py-3 rounded-xl border border-cyan-electric/30 text-cyan-electric font-semibold hover:bg-cyan-electric/10 transition-all flex items-center gap-2">
                             <i class="fas fa-arrow-left"></i>
                             <span>Back to Lesson</span>
                         </a>
-                        <button type="submit" class="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-bold text-lg transition-all transform hover:scale-105 shadow-lg shadow-cyan-electric/20 flex items-center gap-2" id="quiz-submit-btn">
+                        <button type="submit" class="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 font-bold text-lg transition-all transform hover:scale-105 shadow-lg shadow-cyan-electric/20 flex items-center gap-2 quiz-accent-on-text" id="quiz-submit-btn">
                             <span id="quiz-submit-text">Submit Quiz</span>
                             <i class="fas fa-paper-plane" id="quiz-submit-icon"></i>
                         </button>
@@ -266,6 +266,38 @@
         .center-content-inner.max-w-4xl {
             max-width: 52rem; /* 832px - slightly wider on xl screens */
         }
+    }
+
+    .brand-theme-light .bg-gradient-to-br.from-\[\#0a0e27\]\/80.to-\[\#1a1f3a\]\/80,
+    .brand-theme-light .bg-\[\#0a0e27\]\/60,
+    .brand-theme-light .bg-\[\#0d1230\],
+    .brand-theme-light .bg-\[\#080b1e\] {
+        background: rgba(255,255,255,0.94) !important;
+    }
+    .brand-theme-light .text-gray-300,
+    .brand-theme-light .text-gray-400 { color: #475569 !important; }
+    .brand-theme-light .border-cyan-electric\/10,
+    .brand-theme-light .border-cyan-electric\/20,
+    .brand-theme-light .border-cyan-electric\/30,
+    .brand-theme-light .border-cyan-electric\/40 { border-color: rgba(15,23,42,.12) !important; }
+
+    /* Auto-contrast text for accent/gradient blocks based on tenant colors */
+    .quiz-accent-on-text {
+        color: var(--brand-accent-on-gradient) !important;
+    }
+
+    /* Keep answer option labels readable when dark accent colors are selected */
+    .brand-theme-dark .quiz-option-letter {
+        color: #ffffff !important;
+    }
+
+    /* Keep back button readable in dark mode */
+    .brand-theme-dark .quiz-back-btn {
+        color: #ffffff !important;
+        border-color: rgba(255,255,255,0.28) !important;
+    }
+    .brand-theme-dark .quiz-back-btn:hover {
+        background: rgba(255,255,255,0.08) !important;
     }
 </style>
 {% endblock %}

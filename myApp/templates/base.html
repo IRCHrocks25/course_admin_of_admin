@@ -39,6 +39,32 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background: var(--brand-bg-gradient);
+            color: var(--brand-text-primary);
+        }
+        .brand-theme-dark {
+            --brand-bg-gradient: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #000000 100%);
+            --brand-bg-solid: #0a0e27;
+            --brand-surface: #0a0e27;
+            --brand-text-primary: #ffffff;
+            --brand-text-muted: #d1d5db;
+            --brand-border: rgba(0, 240, 255, 0.4);
+            --brand-menu-bg: #0a0e27;
+            --brand-menu-border: rgba(0, 240, 255, 0.2);
+            --brand-accent-primary: #00f0ff;
+            --brand-accent-secondary: #a855f7;
+        }
+        .brand-theme-light {
+            --brand-bg-gradient: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #ffffff 100%);
+            --brand-bg-solid: #ffffff;
+            --brand-surface: #ffffff;
+            --brand-text-primary: #0f172a;
+            --brand-text-muted: #475569;
+            --brand-border: rgba(15, 23, 42, 0.12);
+            --brand-menu-bg: #ffffff;
+            --brand-menu-border: rgba(15, 23, 42, 0.1);
+            --brand-accent-primary: #00f0ff;
+            --brand-accent-secondary: #a855f7;
         }
         /* Page Preloader */
         #page-preloader {
@@ -47,7 +73,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #000000 100%);
+            background: var(--brand-bg-gradient);
             z-index: 9999;
             display: flex;
             align-items: center;
@@ -61,17 +87,112 @@
         .preloader-spinner {
             width: 60px;
             height: 60px;
-            border: 4px solid rgba(0, 240, 255, 0.2);
-            border-top-color: #00f0ff;
+            border: 4px solid color-mix(in srgb, var(--brand-accent-primary) 20%, transparent);
+            border-top-color: var(--brand-accent-primary);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        .brand-nav {
+            background: var(--brand-surface);
+            border-bottom: 1px solid var(--brand-border);
+        }
+        .brand-nav-link {
+            color: var(--brand-text-primary);
+        }
+        .brand-nav-link:hover {
+            color: var(--brand-accent-primary);
+        }
+        .brand-nav-cta {
+            color: var(--brand-text-primary);
+            background: var(--brand-bg-solid);
+            border-color: color-mix(in srgb, var(--brand-accent-primary) 50%, transparent);
+        }
+        .brand-mobile-menu {
+            background: var(--brand-menu-bg);
+            border-top: 1px solid var(--brand-menu-border);
+        }
+        .brand-logo-main {
+            width: auto;
+            height: auto;
+            max-height: 64px;
+            max-width: clamp(140px, 22vw, 320px);
+            object-fit: contain;
+            object-position: left center;
+        }
+        @media (max-width: 640px) {
+            .brand-logo-main {
+                max-height: 52px;
+                max-width: 190px;
+            }
+        }
+
+        /* Accent color mapping for existing utility usage */
+        .text-cyan-electric { color: var(--brand-accent-primary) !important; }
+        .text-cyan-electric\/80 { color: color-mix(in srgb, var(--brand-accent-primary) 80%, transparent) !important; }
+        .text-cyan-electric\/70 { color: color-mix(in srgb, var(--brand-accent-primary) 70%, transparent) !important; }
+        .text-cyan-electric\/50 { color: color-mix(in srgb, var(--brand-accent-primary) 50%, transparent) !important; }
+        .text-purple-accent { color: var(--brand-accent-secondary) !important; }
+
+        .bg-cyan-electric { background-color: var(--brand-accent-primary) !important; }
+        .bg-cyan-electric\/20 { background-color: color-mix(in srgb, var(--brand-accent-primary) 20%, transparent) !important; }
+        .bg-cyan-electric\/15 { background-color: color-mix(in srgb, var(--brand-accent-primary) 15%, transparent) !important; }
+        .bg-cyan-electric\/10 { background-color: color-mix(in srgb, var(--brand-accent-primary) 10%, transparent) !important; }
+        .bg-cyan-electric\/5 { background-color: color-mix(in srgb, var(--brand-accent-primary) 5%, transparent) !important; }
+
+        .border-cyan-electric { border-color: var(--brand-accent-primary) !important; }
+        .border-cyan-electric\/40 { border-color: color-mix(in srgb, var(--brand-accent-primary) 40%, transparent) !important; }
+        .border-cyan-electric\/30 { border-color: color-mix(in srgb, var(--brand-accent-primary) 30%, transparent) !important; }
+        .border-cyan-electric\/20 { border-color: color-mix(in srgb, var(--brand-accent-primary) 20%, transparent) !important; }
+        .border-cyan-electric\/15 { border-color: color-mix(in srgb, var(--brand-accent-primary) 15%, transparent) !important; }
+        .border-cyan-electric\/10 { border-color: color-mix(in srgb, var(--brand-accent-primary) 10%, transparent) !important; }
+
+        .hover\:bg-cyan-electric\/10:hover { background-color: color-mix(in srgb, var(--brand-accent-primary) 10%, transparent) !important; }
+        .hover\:bg-cyan-electric\/15:hover { background-color: color-mix(in srgb, var(--brand-accent-primary) 15%, transparent) !important; }
+        .hover\:bg-cyan-electric\/20:hover { background-color: color-mix(in srgb, var(--brand-accent-primary) 20%, transparent) !important; }
+        .hover\:text-cyan-electric:hover { color: var(--brand-accent-primary) !important; }
+        .hover\:border-cyan-electric\/30:hover { border-color: color-mix(in srgb, var(--brand-accent-primary) 30%, transparent) !important; }
+        .hover\:border-cyan-electric\/40:hover { border-color: color-mix(in srgb, var(--brand-accent-primary) 40%, transparent) !important; }
+        .focus\:border-cyan-electric\/40:focus { border-color: color-mix(in srgb, var(--brand-accent-primary) 40%, transparent) !important; }
+        .focus\:ring-cyan-electric\/15:focus { --tw-ring-color: color-mix(in srgb, var(--brand-accent-primary) 15%, transparent) !important; }
+
+        .shadow-cyan-electric\/20 { box-shadow: 0 10px 18px -12px color-mix(in srgb, var(--brand-accent-primary) 35%, transparent) !important; }
+        .shadow-cyan-electric\/50 { box-shadow: 0 12px 24px -10px color-mix(in srgb, var(--brand-accent-primary) 50%, transparent) !important; }
+
+        .from-cyan-electric {
+            --tw-gradient-from: var(--brand-accent-primary) var(--tw-gradient-from-position) !important;
+            --tw-gradient-to: color-mix(in srgb, var(--brand-accent-primary) 0%, transparent) var(--tw-gradient-to-position) !important;
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+        }
+        .to-cyan-electric { --tw-gradient-to: var(--brand-accent-primary) var(--tw-gradient-to-position) !important; }
+        .from-purple-accent {
+            --tw-gradient-from: var(--brand-accent-secondary) var(--tw-gradient-from-position) !important;
+            --tw-gradient-to: color-mix(in srgb, var(--brand-accent-secondary) 0%, transparent) var(--tw-gradient-to-position) !important;
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+        }
+        .to-purple-accent { --tw-gradient-to: var(--brand-accent-secondary) var(--tw-gradient-to-position) !important; }
+
+        .brand-theme-light .text-white { color: #0f172a !important; }
+        .brand-theme-light .text-gray-400,
+        .brand-theme-light .text-gray-300,
+        .brand-theme-light .text-gray-500,
+        .brand-theme-light .text-gray-600 { color: #475569 !important; }
+        .brand-theme-light .bg-\[\#0a0e27\],
+        .brand-theme-light .bg-\[\#080b1e\],
+        .brand-theme-light .bg-\[\#0d1230\],
+        .brand-theme-light .bg-\[\#1a1f3a\] { background-color: #ffffff !important; }
+        .brand-theme-light .border-cyan-electric\/10,
+        .brand-theme-light .border-cyan-electric\/20,
+        .brand-theme-light .border-cyan-electric\/30,
+        .brand-theme-light .border-cyan-electric\/40 { border-color: rgba(15, 23, 42, 0.12) !important; }
+        .brand-theme-light .shadow-cyan-electric\/20,
+        .brand-theme-light .shadow-cyan-electric\/50 { box-shadow: none !important; }
     </style>
 </head>
-<body class="bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#000000] min-h-screen text-white">
+<body class="min-h-screen {% if tenant_branding.theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" style="--brand-accent-primary: {{ tenant_branding.accent_primary|default:'#00f0ff' }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary|default:'#a855f7' }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on|default:'#0a0e27' }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on|default:'#ffffff' }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on|default:'#ffffff' }};">
     <!-- Page Preloader -->
     <div id="page-preloader">
         <div class="text-center">
@@ -80,7 +201,7 @@
         </div>
     </div>
     <!-- Top Navigation Bar -->
-    <nav class="bg-[#0a0e27] border-b border-cyan-electric/40 sticky top-0 z-50">
+    <nav class="brand-nav sticky top-0 z-50">
         <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
             <!-- Left: Logo -->
             <a href="{% url 'home' %}" class="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity">
@@ -88,14 +209,14 @@
                 <img 
                     src="{{ tenant_branding.logo_url }}"
                     alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
-                    class="h-12 sm:h-16 w-auto"
+                    class="brand-logo-main"
                     loading="eager"
                 >
                 {% else %}
                 <img 
                     src="https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png"
                     alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
-                    class="h-12 sm:h-16 w-auto"
+                    class="brand-logo-main"
                     loading="eager"
                 >
                 {% endif %}
@@ -105,40 +226,40 @@
             </a>
             
             <!-- Mobile Menu Button -->
-            <button id="mobile-menu-btn" class="md:hidden p-2 text-white hover:text-cyan-electric transition-colors">
+            <button id="mobile-menu-btn" class="md:hidden p-2 brand-nav-link transition-colors">
                 <i class="fas fa-bars text-xl"></i>
             </button>
             
             <!-- Right: Navigation Links (Desktop) -->
             <div class="hidden md:flex items-center gap-6 lg:gap-8">
-                <a href="{% url 'courses' %}" class="text-sm font-medium text-white hover:text-cyan-electric transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
+                <a href="{% url 'courses' %}" class="text-sm font-medium brand-nav-link transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
                 {% if user.is_authenticated %}
-                <a href="{% url 'student_certifications' %}" class="text-sm font-medium text-white hover:text-cyan-electric transition-colors">Certifications</a>
+                <a href="{% url 'student_certifications' %}" class="text-sm font-medium brand-nav-link transition-colors">Certifications</a>
                 {% endif %}
                 {% if user.is_staff %}
-                <a href="{% url 'dashboard_home' %}" class="text-sm font-medium text-white hover:text-cyan-electric transition-colors">Admin</a>
+                <a href="{% url 'dashboard_home' %}" class="text-sm font-medium brand-nav-link transition-colors">Admin</a>
                 {% endif %}
                 {% if user.is_superuser %}
-                <a href="{% url 'superadmin_home' %}" class="text-sm font-medium text-white hover:text-cyan-electric transition-colors">Super Admin</a>
+                <a href="{% url 'superadmin_home' %}" class="text-sm font-medium brand-nav-link transition-colors">Super Admin</a>
                 {% endif %}
-                <a href="{% url 'logout' %}" class="px-4 py-2 rounded-lg border border-cyan-electric text-white text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/70 transition-all bg-[#0a0e27]">Log Out</a>
+                <a href="{% url 'logout' %}" class="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/70 transition-all brand-nav-cta">Log Out</a>
             </div>
         </div>
         
         <!-- Mobile Menu (Hidden by default) -->
-        <div id="mobile-menu" class="hidden md:hidden border-t border-cyan-electric/20 bg-[#0a0e27]">
+        <div id="mobile-menu" class="hidden md:hidden brand-mobile-menu">
             <div class="px-4 py-4 space-y-3">
-                <a href="{% url 'courses' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
+                <a href="{% url 'courses' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
                 {% if user.is_authenticated %}
-                <a href="{% url 'student_certifications' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors">Certifications</a>
+                <a href="{% url 'student_certifications' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Certifications</a>
                 {% endif %}
                 {% if user.is_staff %}
-                <a href="{% url 'dashboard_home' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors">Admin</a>
+                <a href="{% url 'dashboard_home' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Admin</a>
                 {% endif %}
                 {% if user.is_superuser %}
-                <a href="{% url 'superadmin_home' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors">Super Admin</a>
+                <a href="{% url 'superadmin_home' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Super Admin</a>
                 {% endif %}
-                <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm font-medium text-white hover:text-cyan-electric hover:bg-cyan-electric/10 rounded-lg transition-colors border border-cyan-electric/30">Log Out</a>
+                <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors border border-cyan-electric/30">Log Out</a>
             </div>
         </div>
     </nav>

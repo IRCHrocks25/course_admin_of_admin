@@ -4,24 +4,25 @@
 <div class="hidden lg:block lg:fixed lg:right-0 lg:top-24 lg:w-[20%] lg:z-40 sidebar-right-desktop">
     <div class="bg-[#0a0e27]/90 backdrop-blur-md border border-cyan-electric/10 rounded-xl lg:rounded-l-xl lg:rounded-r-none lg:sticky lg:top-24 lg:h-[calc(100vh-6rem)] lg:overflow-hidden flex flex-col sidebar-scroll border-r lg:border-r-0">
         <!-- Chat Header -->
-        <div class="flex items-center gap-3 px-4 py-3 border-b border-cyan-electric/10 bg-gradient-to-r from-cyan-electric/5 to-transparent">
-            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-electric via-purple-accent to-cyan-electric flex items-center justify-center shadow-lg shadow-cyan-electric/20 flex-shrink-0">
-                {% if lesson.ai_chatbot_enabled and lesson.ai_chatbot_training_status == 'trained' %}
-                <i class="fas fa-robot text-white text-xs"></i>
-                {% else %}
-                <i class="fas fa-sparkles text-white text-xs"></i>
-                {% endif %}
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-cyan-electric/10 bg-gradient-to-r from-cyan-electric/5 to-transparent chat-header">
+            <div class="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-cyan-electric via-purple-accent to-cyan-electric flex items-center justify-center shadow-lg shadow-cyan-electric/20 flex-shrink-0 chat-avatar">
+                <img
+                    src="{% if tenant_branding.logo_url %}{{ tenant_branding.logo_url }}{% elif tenant.logo %}{{ tenant.logo.url }}{% else %}https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png{% endif %}"
+                    alt="{{ tenant_branding.brand_name|default:'Tenant' }} Logo"
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                >
             </div>
             <div class="flex-1 min-w-0">
-                <div class="text-sm font-bold text-white truncate leading-tight">
+                <div class="text-sm font-bold text-white truncate leading-tight chat-header-title">
                     {% if lesson.ai_chatbot_enabled and lesson.ai_chatbot_training_status == 'trained' %}
                     Lesson AI Assistant
                     {% else %}
                     {{ course.coach_name }}
                     {% endif %}
                 </div>
-                <div class="text-[11px] text-cyan-electric/70 flex items-center gap-1 mt-0.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-electric animate-pulse"></span>
+                <div class="text-[11px] text-cyan-electric/70 flex items-center gap-1 mt-0.5 chat-header-status">
+                    <span class="w-1.5 h-1.5 rounded-full bg-cyan-electric animate-pulse chat-status-dot"></span>
                     {% if lesson.ai_chatbot_enabled and lesson.ai_chatbot_training_status == 'trained' %}
                     <span>Trained on this lesson</span>
                     {% else %}
@@ -29,7 +30,7 @@
                     {% endif %}
                 </div>
             </div>
-            <button class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-cyan-electric/70 hover:text-cyan-electric transition-all" id="clear-chat" title="Clear chat">
+            <button class="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-cyan-electric/70 hover:text-cyan-electric transition-all chat-clear-btn" id="clear-chat" title="Clear chat">
                 <i class="fas fa-trash-alt text-[10px]"></i>
             </button>
         </div>
@@ -39,28 +40,33 @@
             <!-- Welcome Message -->
             <div class="chat-message ai-message">
                 <div class="flex items-start gap-2.5">
-                    <div class="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <i class="fas fa-sparkles text-white text-[9px]"></i>
+                    <div class="w-6 h-6 rounded-full overflow-hidden bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0 mt-0.5 chat-message-avatar">
+                        <img
+                            src="{% if tenant_branding.logo_url %}{{ tenant_branding.logo_url }}{% elif tenant.logo %}{{ tenant.logo.url }}{% else %}https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png{% endif %}"
+                            alt="{{ tenant_branding.brand_name|default:'Tenant' }} Logo"
+                            class="w-full h-full object-cover"
+                            loading="lazy"
+                        >
                     </div>
                     <div class="flex-1 min-w-0">
-                        <div class="bg-[#0d1230] border border-cyan-electric/15 rounded-2xl rounded-tl-md px-3.5 py-3">
+                        <div class="bg-[#0d1230] border border-cyan-electric/15 rounded-2xl rounded-tl-md px-3.5 py-3 chat-bubble">
                             {% if lesson.ai_chatbot_enabled and lesson.ai_chatbot_training_status == 'trained' %}
-                            <p class="text-[13px] text-gray-200 leading-[1.6]">
+                            <p class="text-[13px] text-gray-200 leading-[1.6] chat-bubble-text">
                                 Hi! I'm your AI Assistant for this lesson. I've been trained on the lesson content and can answer your questions!
                             </p>
-                            <p class="text-[13px] text-gray-200 leading-[1.6] mt-2">
+                            <p class="text-[13px] text-gray-200 leading-[1.6] mt-2 chat-bubble-text">
                                 Ask me anything about this specific lesson, or try one of the suggestions below.
                             </p>
                             {% else %}
-                            <p class="text-[13px] text-gray-200 leading-[1.6]">
+                            <p class="text-[13px] text-gray-200 leading-[1.6] chat-bubble-text">
                                 Hi! I'm your AI Lesson Coach. I'm wired to this program and your lesson history.
                             </p>
-                            <p class="text-[13px] text-gray-200 leading-[1.6] mt-2">
+                            <p class="text-[13px] text-gray-200 leading-[1.6] mt-2 chat-bubble-text">
                                 Ask me anything about this lesson, or try one of the suggestions below.
                             </p>
                             {% endif %}
                         </div>
-                        <div class="text-[10px] text-gray-500 mt-1.5 ml-1">Just now</div>
+                        <div class="text-[10px] text-gray-500 mt-1.5 ml-1 chat-timestamp">Just now</div>
                     </div>
                 </div>
             </div>
@@ -80,7 +86,7 @@
         </div>
         
         <!-- Chat Input Area -->
-        <div class="border-t border-cyan-electric/10 bg-[#080b1e] p-3">
+        <div class="border-t border-cyan-electric/10 bg-[#080b1e] p-3 chat-input-area">
             <div class="flex items-end gap-2">
                 <textarea 
                     id="chat-input" 
@@ -91,14 +97,16 @@
                 ></textarea>
                 <button 
                     id="send-message" 
-                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 flex items-center justify-center text-white shadow-lg shadow-cyan-electric/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 flex items-center justify-center text-white shadow-lg shadow-cyan-electric/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 chat-send-btn"
                     title="Send message"
                 >
-                    <i class="fas fa-paper-plane text-sm"></i>
+                    <svg class="w-4 h-4 chat-send-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M3.4 20.4 21.3 12 3.4 3.6l.1 6.4 12.8 2-12.8 2-.1 6.4Z"/>
+                    </svg>
                 </button>
             </div>
             <div class="flex items-center justify-center mt-2">
-                <div class="text-[10px] text-gray-500 flex items-center gap-1.5">
+                <div class="text-[10px] text-gray-500 flex items-center gap-1.5 chat-input-hint">
                     <i class="fas fa-keyboard text-[8px]"></i>
                     Enter to send · Shift+Enter for new line
                 </div>
@@ -106,3 +114,212 @@
         </div>
     </div>
 </div>
+
+<style>
+    /* ============================================
+       DARK THEME - Accent readability safeguards
+       ============================================ */
+    .brand-theme-dark .chat-header-status,
+    .brand-theme-dark .chat-header-status span:not(.chat-status-dot),
+    .brand-theme-dark .quick-suggestion-btn,
+    .brand-theme-dark .quick-suggestion-btn i,
+    .brand-theme-dark .quick-suggestion-btn:hover {
+        color: #e2e8f0 !important;
+    }
+    .brand-theme-dark .chat-status-dot {
+        background: #e2e8f0 !important;
+    }
+    .brand-theme-dark .quick-suggestion-btn {
+        background: rgba(56, 189, 248, 0.12) !important;
+        border-color: rgba(56, 189, 248, 0.4) !important;
+    }
+    .brand-theme-dark .quick-suggestion-btn:hover {
+        background: rgba(56, 189, 248, 0.2) !important;
+        border-color: rgba(56, 189, 248, 0.55) !important;
+    }
+    .brand-theme-dark .sidebar-right-desktop .text-cyan-electric,
+    .brand-theme-dark .sidebar-right-desktop .text-cyan-electric\/70,
+    .brand-theme-dark .sidebar-right-desktop .text-cyan-electric\/80,
+    .brand-theme-dark .sidebar-right-desktop .hover\:text-cyan-electric:hover {
+        color: #e2e8f0 !important;
+    }
+    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric,
+    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/10,
+    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/15,
+    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/20,
+    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/30,
+    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/40 {
+        border-color: rgba(226, 232, 240, 0.28) !important;
+    }
+    .brand-theme-dark .sidebar-right-desktop .bg-cyan-electric\/5,
+    .brand-theme-dark .sidebar-right-desktop .bg-cyan-electric\/10,
+    .brand-theme-dark .sidebar-right-desktop .hover\:bg-cyan-electric\/10:hover,
+    .brand-theme-dark .sidebar-right-desktop .hover\:bg-cyan-electric\/15:hover {
+        background: rgba(226, 232, 240, 0.08) !important;
+    }
+
+    /* ============================================
+       CHATBOT SIDEBAR - LIGHT THEME (Improved)
+       ============================================ */
+
+    /* Outer container — solid white with soft shadow */
+    .brand-theme-light .sidebar-right-desktop > div {
+        background: #ffffff !important;
+        border-color: #e5e7eb !important;
+        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+    }
+
+    /* --- HEADER --- */
+    .brand-theme-light .chat-header {
+        background: linear-gradient(to right, #f0fdff, #ffffff) !important;
+        border-bottom-color: #e5e7eb !important;
+    }
+    .brand-theme-light .chat-header-title {
+        color: #0f172a !important; /* slate-900 — was white, invisible on white bg */
+    }
+    .brand-theme-light .chat-header-status {
+        color: var(--brand-accent-primary) !important;
+    }
+    .brand-theme-light .chat-header-status span:not(.chat-status-dot) {
+        color: var(--brand-accent-primary) !important;
+    }
+    .brand-theme-light .chat-status-dot {
+        background: var(--brand-accent-primary) !important;
+        box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.15);
+    }
+    .brand-theme-light .chat-clear-btn {
+        background: #f1f5f9 !important;
+        color: #64748b !important;
+    }
+    .brand-theme-light .chat-clear-btn:hover {
+        background: #e2e8f0 !important;
+        color: var(--brand-accent-primary) !important;
+    }
+
+    /* Avatar keeps the cyan→purple gradient — looks great on white */
+    .brand-theme-light .chat-avatar,
+    .brand-theme-light .chat-message-avatar {
+        box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+    }
+
+    /* Keep chat area clean and bright */
+    .brand-theme-light .sidebar-right-desktop #chat-messages {
+        background: #ffffff !important;
+    }
+
+    /* --- AI MESSAGE BUBBLE --- */
+    /* The key fix: bubble needs a visible tint on white, not dark navy */
+    .brand-theme-light .chat-bubble {
+        background: #f8fafc !important; /* slate-50 */
+        border-color: #e2e8f0 !important; /* slate-200 */
+    }
+    .brand-theme-light .chat-bubble-text {
+        color: #1e293b !important; /* slate-800 — strong readability */
+    }
+    /* Dynamic AI bubbles injected by JS in lesson.html */
+    .brand-theme-light .sidebar-right-desktop .ai-message .bg-\[\#0a0e27\]\/60 {
+        background: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+        backdrop-filter: none !important;
+    }
+    .brand-theme-light .sidebar-right-desktop .ai-message .text-gray-200 {
+        color: #1e293b !important;
+    }
+    .brand-theme-light .sidebar-right-desktop .ai-message .text-gray-400 {
+        color: #64748b !important;
+    }
+    .brand-theme-light .chat-timestamp {
+        color: #94a3b8 !important; /* slate-400 */
+    }
+
+    /* --- QUICK SUGGESTION BUTTONS --- */
+    .brand-theme-light .quick-suggestion-btn {
+        background: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+        color: var(--brand-accent-primary) !important;
+    }
+    .brand-theme-light .quick-suggestion-btn:hover {
+        background: #f1f5f9 !important;
+        border-color: var(--brand-accent-primary) !important;
+        color: var(--brand-accent-primary) !important;
+    }
+    .brand-theme-light .quick-suggestion-btn i {
+        color: var(--brand-accent-primary) !important;
+    }
+
+    /* --- INPUT AREA --- */
+    .brand-theme-light .chat-input-area {
+        background: #f8fafc !important; /* subtle divider from message area */
+        border-top-color: #e5e7eb !important;
+    }
+    .brand-theme-light .sidebar-right-desktop #chat-input {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important; /* slate-300, more visible than the old rgba */
+    }
+    .brand-theme-light .sidebar-right-desktop #chat-input::placeholder {
+        color: #94a3b8 !important;
+    }
+    .brand-theme-light .sidebar-right-desktop #chat-input:focus {
+        border-color: var(--brand-accent-primary) !important;
+        box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12) !important;
+    }
+    .brand-theme-light .chat-send-btn {
+        box-shadow: 0 2px 8px rgba(6, 182, 212, 0.25) !important;
+        background: linear-gradient(135deg, var(--brand-accent-primary), var(--brand-accent-secondary)) !important;
+    }
+    .brand-theme-light .chat-send-btn i {
+        color: #ffffff !important;
+        opacity: 1 !important;
+    }
+    .brand-theme-light .chat-send-btn .chat-send-icon {
+        color: #ffffff !important;
+        opacity: 1 !important;
+    }
+    .brand-theme-light .chat-input-hint {
+        color: #94a3b8 !important;
+    }
+
+    /* --- USER MESSAGES (for when they appear) --- */
+    /* If user messages follow the same .chat-bubble pattern with a different class,
+       you may want a distinct tint. Adjust as needed: */
+    .brand-theme-light .user-message .chat-bubble {
+        background: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+    }
+    .brand-theme-light .user-message .chat-bubble-text {
+        color: #0f172a !important;
+    }
+    /* Dynamic user bubble/avatar injected by JS */
+    .brand-theme-light .sidebar-right-desktop .user-message .bg-gradient-to-br {
+        background: linear-gradient(
+            135deg,
+            color-mix(in srgb, var(--brand-accent-primary) 70%, white 30%),
+            color-mix(in srgb, var(--brand-accent-secondary) 78%, white 22%)
+        ) !important;
+    }
+    .brand-theme-light .sidebar-right-desktop .user-message p.text-\[\#0a0e27\] {
+        color: #0f172a !important;
+    }
+    .brand-theme-light .sidebar-right-desktop .user-message .bg-gray-700 {
+        background: #cbd5e1 !important;
+    }
+    .brand-theme-light .sidebar-right-desktop .user-message .bg-gray-700 i {
+        color: #475569 !important;
+    }
+
+    /* --- SCROLLBAR --- */
+    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar-thumb {
+        background: #e2e8f0;
+        border-radius: 3px;
+    }
+    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+        background: #cbd5e1;
+    }
+</style>
