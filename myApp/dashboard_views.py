@@ -1424,12 +1424,18 @@ def dashboard_delete_quiz(request, lesson_id):
 @staff_member_required
 def dashboard_quizzes(request):
     """List all quizzes across all lessons"""
+    tenant = _get_dashboard_tenant(request)
     # Get filter parameters
     course_filter = request.GET.get('course', '')
     search_query = request.GET.get('search', '')
     
     # Get all quizzes with related lesson and course info
     quizzes = LessonQuiz.objects.select_related('lesson', 'lesson__course').prefetch_related('questions').all()
+    if not request.user.is_superuser:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required.')
+            return redirect('dashboard_courses')
+        quizzes = quizzes.filter(tenant=tenant)
     
     # Apply course filter
     if course_filter:
@@ -1456,7 +1462,7 @@ def dashboard_quizzes(request):
             'question_count': quiz.questions.count(),
         })
     
-    courses = Course.objects.all()
+    courses = Course.objects.all() if request.user.is_superuser else Course.objects.filter(tenant=tenant)
     
     return render(request, 'dashboard/quizzes.html', {
         'quiz_data': quiz_data,
