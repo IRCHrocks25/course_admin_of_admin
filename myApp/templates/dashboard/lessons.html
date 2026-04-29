@@ -74,51 +74,65 @@
     </form>
 </div>
 
-<!-- Lessons List -->
+<!-- Lessons List (grouped by course) -->
 <div class="space-y-4">
-    {% for lesson in lessons %}
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-5 hover:border-cyan-electric/25 transition-all">
-        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-            <div class="flex items-start gap-4 flex-1 min-w-0">
-                {% if lesson.vimeo_thumbnail %}
-                <img src="{{ lesson.vimeo_thumbnail }}" alt="{{ lesson.title }}" class="w-24 h-16 object-cover rounded-lg flex-shrink-0">
-                {% else %}
-                <div class="w-24 h-16 bg-gradient-to-br from-cyan-electric/20 to-purple-accent/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-video text-cyan-electric/50"></i>
+    {% regroup lessons by course as course_groups %}
+    {% for group in course_groups %}
+    <details class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl" {% if course_filter and group.grouper.id|stringformat:"s" == course_filter %}open{% elif not course_filter and forloop.first %}open{% endif %}>
+        <summary class="list-none cursor-pointer px-5 py-4 border-b border-cyan-electric/10 hover:bg-cyan-electric/5 transition-all">
+            <div class="flex items-center justify-between">
+                <div class="min-w-0">
+                    <h3 class="font-bold text-lg truncate">{{ group.grouper.name }}</h3>
+                    <p class="text-xs text-gray-400">{{ group.list|length }} lesson{{ group.list|length|pluralize }}</p>
                 </div>
-                {% endif %}
-                <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-base leading-snug mb-1">{{ lesson.title }}</div>
-                    <div class="text-xs text-gray-400 flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <span><i class="fas fa-book mr-1"></i>{{ lesson.course.name }}</span>
-                        {% if lesson.module %}
-                        <span><i class="fas fa-folder mr-1"></i>{{ lesson.module.name }}</span>
+                <i class="fas fa-chevron-down text-gray-500"></i>
+            </div>
+        </summary>
+        <div class="p-4 space-y-3">
+            {% for lesson in group.list %}
+            <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-xl p-4 hover:border-cyan-electric/25 transition-all">
+                <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div class="flex items-start gap-4 flex-1 min-w-0">
+                        {% if lesson.vimeo_thumbnail %}
+                        <img src="{{ lesson.vimeo_thumbnail }}" alt="{{ lesson.title }}" class="w-24 h-16 object-cover rounded-lg flex-shrink-0">
+                        {% else %}
+                        <div class="w-24 h-16 bg-gradient-to-br from-cyan-electric/20 to-purple-accent/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-video text-cyan-electric/50"></i>
+                        </div>
                         {% endif %}
-                        <span><i class="fas fa-clock mr-1"></i>{{ lesson.get_formatted_duration }}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-base leading-snug mb-1">{{ lesson.title }}</div>
+                            <div class="text-xs text-gray-400 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                {% if lesson.module %}
+                                <span><i class="fas fa-folder mr-1"></i>{{ lesson.module.name }}</span>
+                                {% endif %}
+                                <span><i class="fas fa-clock mr-1"></i>{{ lesson.get_formatted_duration }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2 lg:items-end">
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-medium border w-fit
+                            {% if lesson.ai_generation_status == 'approved' %}bg-green-500/10 text-green-400 border-green-500/25
+                            {% elif lesson.ai_generation_status == 'generated' %}bg-yellow-500/10 text-yellow-400 border-yellow-500/25
+                            {% else %}bg-gray-500/10 text-gray-400 border-gray-500/25{% endif %}">
+                            {{ lesson.get_ai_generation_status_display }}
+                        </span>
+                        <div class="flex flex-wrap gap-2 lg:justify-end">
+                            <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="lesson-btn lesson-cyan">Edit</a>
+                            <a href="{% url 'dashboard_lesson_quiz' lesson.id %}" class="lesson-btn lesson-purple">Manage Quiz</a>
+                            <form method="POST" action="{% url 'dashboard_delete_lesson' lesson.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete this lesson? This will also delete related progress, quiz data, and other associated information. This action cannot be undone.');">
+                                {% csrf_token %}
+                                <button type="submit" class="lesson-btn lesson-red lesson-btn-icon">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <div class="flex flex-col gap-2 lg:items-end">
-                <span class="px-2.5 py-1 rounded-full text-[11px] font-medium border w-fit
-                    {% if lesson.ai_generation_status == 'approved' %}bg-green-500/10 text-green-400 border-green-500/25
-                    {% elif lesson.ai_generation_status == 'generated' %}bg-yellow-500/10 text-yellow-400 border-yellow-500/25
-                    {% else %}bg-gray-500/10 text-gray-400 border-gray-500/25{% endif %}">
-                    {{ lesson.get_ai_generation_status_display }}
-                </span>
-                <div class="flex flex-wrap gap-2 lg:justify-end">
-                    <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="lesson-btn lesson-cyan">Edit</a>
-                    <a href="{% url 'dashboard_lesson_quiz' lesson.id %}" class="lesson-btn lesson-purple">Manage Quiz</a>
-                    <form method="POST" action="{% url 'dashboard_delete_lesson' lesson.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete this lesson? This will also delete related progress, quiz data, and other associated information. This action cannot be undone.');">
-                        {% csrf_token %}
-                        <button type="submit" class="lesson-btn lesson-red lesson-btn-icon">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
-                </div>
-            </div>
+            {% endfor %}
         </div>
-    </div>
+    </details>
     {% empty %}
     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-12 text-center">
         <i class="fas fa-video text-6xl text-gray-600 mb-4"></i>

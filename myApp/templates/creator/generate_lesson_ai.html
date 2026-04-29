@@ -284,9 +284,14 @@
             <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-bold">3. Full Lesson Description</h3>
-                    <button type="button" class="edit-field-btn px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full text-xs font-medium hover:bg-cyan-electric/20 transition-all" data-field="full_description">
-                        <i class="fas fa-edit mr-1"></i> Edit
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="submit" name="action" value="improve_description" class="px-3 py-1 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-xs font-medium hover:bg-purple-accent/30 transition-all text-purple-accent">
+                            <i class="fas fa-wand-magic-sparkles mr-1"></i> Improve with AI
+                        </button>
+                        <button type="button" class="edit-field-btn px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full text-xs font-medium hover:bg-cyan-electric/20 transition-all" data-field="full_description">
+                            <i class="fas fa-edit mr-1"></i> Edit
+                        </button>
+                    </div>
                 </div>
                 <div class="space-y-3">
                     <div id="full-description-display" class="text-gray-300 leading-relaxed">{{ lesson.ai_full_description|default:"AI description will appear here..." }}</div>

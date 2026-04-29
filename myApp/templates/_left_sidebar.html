@@ -67,6 +67,46 @@
                 </div>
             </div>
             {% endfor %}
+
+            {% if orphan_lessons %}
+                <div class="sidebar-module">
+                    <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="orphans">
+                        <span>Additional Lessons</span>
+                        <i class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
+                    </button>
+                    <div class="module-content pl-4 space-y-2" data-module="orphans">
+                        {% for module_lesson in orphan_lessons %}
+                            {% if not module_lesson.module_id %}
+                                {% if module_lesson.id in accessible_lessons %}
+                                <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
+                                    {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
+                                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
+                                        {% if module_lesson.id == lesson.id %}bg-cyan-electric text-[#0a0e27] sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
+                                        {{ forloop.counter }}
+                                    </div>
+                                    <span class="flex-1 text-sm leading-snug {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                                        {{ module_lesson.title }}
+                                    </span>
+                                    {% if module_lesson.id in completed_lessons %}
+                                    <i class="fas fa-check-circle text-green-400 flex-shrink-0 sidebar-check"></i>
+                                    {% endif %}
+                                </a>
+                                {% else %}
+                                <div class="flex items-center gap-3 py-2 px-3 rounded-lg opacity-50 cursor-not-allowed sidebar-lesson-locked">
+                                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-800 text-gray-600">
+                                        {{ forloop.counter }}
+                                    </div>
+                                    <span class="flex-1 text-sm text-gray-500 leading-snug">
+                                        {{ module_lesson.title }}
+                                    </span>
+                                    <i class="fas fa-lock text-gray-600 flex-shrink-0" title="Complete previous lessons to unlock"></i>
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>

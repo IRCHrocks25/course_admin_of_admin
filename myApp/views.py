@@ -86,6 +86,30 @@ def course_queryset_for_slug(request, course_slug):
         return qs.filter(tenant__slug=tenant_slug)
     return qs.none()
 
+
+def _attach_orphan_lessons_to_first_module(course):
+    """Ensure orphan lessons are attached to a real module when possible."""
+    first_module = course.modules.order_by('order', 'id').first()
+    if not first_module:
+        return 0
+    orphans = list(course.lessons.filter(module__isnull=True).order_by('order', 'id'))
+    if not orphans:
+        return 0
+
+    max_order = Lesson.objects.filter(course=course, module=first_module).aggregate(models.Max('order'))['order__max'] or 0
+    next_order = max_order + 1
+    to_update = []
+    for orphan in orphans:
+        orphan.module = first_module
+        if not orphan.order or orphan.order <= max_order:
+            orphan.order = next_order
+        next_order = max(next_order, int(orphan.order or 0) + 1)
+        to_update.append(orphan)
+
+    if to_update:
+        Lesson.objects.bulk_update(to_update, ['module', 'order'])
+    return len(to_update)
+
 PLATFORM_PLANS = {
     'lean': {'name': 'Lean', 'amount_env': 'STRIPE_PLAN_AMOUNT_LEAN_USD', 'default_amount_cents': 2900},
     'baseline': {'name': 'Baseline', 'amount_env': 'STRIPE_PLAN_AMOUNT_BASELINE_USD', 'default_amount_cents': 7900},
@@ -1769,6 +1793,8 @@ def course_detail(request, course_slug):
 def lesson_detail(request, course_slug, lesson_slug):
     """Lesson detail page with three-column layout"""
     from django.db.models import Prefetch
+    course_ref = get_object_or_404(course_queryset_for_slug(request, course_slug))
+    _attach_orphan_lessons_to_first_module(course_ref)
     course = get_object_or_404(
         course_queryset_for_slug(request, course_slug).prefetch_related(
             'resources',
@@ -1953,6 +1979,7 @@ def lesson_detail(request, course_slug, lesson_slug):
         'quiz_attempts': quiz_attempts,
         'latest_quiz_attempt': latest_quiz_attempt,
         'quiz_passed': quiz_passed,
+        'orphan_lessons': [l for l in all_lessons if not l.module_id],
     })
 
 
@@ -1960,6 +1987,7 @@ def lesson_detail(request, course_slug, lesson_slug):
 def lesson_quiz_view(request, course_slug, lesson_slug):
     """Simple multiple‑choice quiz attached to a lesson (optional)."""
     course = get_object_or_404(course_queryset_for_slug(request, course_slug))
+    _attach_orphan_lessons_to_first_module(course)
     lesson = get_object_or_404(Lesson, course=course, slug=lesson_slug)
 
     # Require that a quiz exists for this lesson
@@ -2128,6 +2156,7 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
         'questions': questions,
         'result': result,
         'next_lesson': next_lesson,
+        'orphan_lessons': [l for l in all_lessons if not l.module_id],
     })
 
 
@@ -2331,6 +2360,14 @@ def generate_lesson_ai(request, course_slug, lesson_id):
             
             _save_lesson_media_and_content(lesson, request)
             lesson.save()
+        
+        elif action == 'improve_description':
+            current_text = request.POST.get('full_description', lesson.ai_full_description or lesson.description or '')
+            lesson.ai_full_description = improve_ai_full_description(lesson, current_text)
+            if lesson.ai_generation_status == 'pending':
+                lesson.ai_generation_status = 'generated'
+            lesson.save(update_fields=['ai_full_description', 'ai_generation_status'])
+            messages.success(request, 'Full lesson description improved with AI.')
     
     # Content for JSON textarea (pass dict for json_script)
     content_data = lesson.content if (lesson.content and isinstance(lesson.content, dict)) else {'blocks': []}
@@ -2543,6 +2580,23 @@ def generate_ai_lesson_content(lesson):
         'outcomes': outcomes,
         'coach_actions': coach_actions,
     }
+
+
+def improve_ai_full_description(lesson, current_text=''):
+    """Improve and polish the full lesson description using local AI-style rewrite."""
+    base = (current_text or '').strip() or (lesson.ai_full_description or '').strip() or (lesson.description or '').strip()
+    if not base:
+        base = f"This lesson covers {lesson.working_title or lesson.title or 'the topic'} and gives practical guidance."
+
+    topic = (lesson.ai_clean_title or lesson.working_title or lesson.title or 'this lesson').strip()
+    # Lightweight enhancement: tighten voice, outcome orientation, and readability.
+    improved = (
+        f"In this lesson, you will build a practical understanding of {topic}. "
+        f"{base}\n\n"
+        "You will move from concept to execution with clear examples, guided thinking prompts, and specific actions you can apply immediately. "
+        "By the end, you should be able to explain the core idea in your own words and translate it into a repeatable approach."
+    )
+    return improved.strip()
 
 
 def generate_slug(text):

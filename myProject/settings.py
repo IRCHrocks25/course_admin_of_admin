@@ -126,6 +126,10 @@ WSGI_APPLICATION = 'myProject.wsgi.application'
 # or: sqlite:///path/to/db.sqlite3
 
 DATABASE_URL = os.getenv('DATABASE_URL')
+USE_LOCAL_SQLITE = (os.getenv('USE_LOCAL_SQLITE', 'False').strip().lower() in {'1', 'true', 'yes', 'on'})
+
+if USE_LOCAL_SQLITE:
+    DATABASE_URL = ''
 
 if DATABASE_URL:
     # Parse DATABASE_URL (works for PostgreSQL, MySQL, etc.)

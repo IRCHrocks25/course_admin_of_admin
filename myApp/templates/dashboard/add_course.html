@@ -20,21 +20,30 @@
 
     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-8">
         <p id="manual-hint" class="hidden text-sm text-gray-400 mb-6">Manual mode: fill course name and descriptions only. Steps 1 and 3–5 are optional.</p>
-
-        <!-- Step indicator (AI mode) -->
-        <div id="wizard-progress" class="mb-8">
-            <div class="flex justify-between text-[10px] uppercase tracking-wider text-gray-500 mb-2">
-                <span>Foundation</span><span>About</span><span>Promise</span><span>Framework</span><span>Outcomes</span><span>Review</span>
+        <div class="mb-6">
+            <div class="inline-flex rounded-lg border border-cyan-electric/25 bg-[#0a0e27]/40 p-1">
+                <button type="button" id="tab-course-builder" class="px-4 py-2 rounded-md text-sm font-medium bg-cyan-electric/20 text-cyan-electric">Course Builder</button>
+                <button type="button" id="tab-lesson-generator" class="px-4 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-cyan-electric">Lesson Generator</button>
             </div>
-            <div class="h-1.5 bg-[#0a0e27] rounded-full overflow-hidden flex">
-                <div id="wizard-progress-bar" class="h-full bg-cyan-electric transition-all duration-300" style="width:16.66%"></div>
-            </div>
-            <p class="text-xs text-gray-500 mt-2"><span id="wizard-step-label">Step 1 of 6</span> — <span id="wizard-step-title">Course settings</span></p>
+            <p class="text-xs text-gray-500 mt-2">Use Lesson Generator if your client already has lesson materials and you want AI to expand each lesson one by one.</p>
         </div>
 
-        <form method="POST" id="create-course-form" enctype="multipart/form-data">
+        <div id="course-builder-panel">
+            <!-- Step indicator (AI mode) -->
+            <div id="wizard-progress" class="mb-8">
+                <div class="flex justify-between text-[10px] uppercase tracking-wider text-gray-500 mb-2">
+                    <span>Foundation</span><span>About</span><span>Promise</span><span>Framework</span><span>Outcomes</span><span>Review</span>
+                </div>
+                <div class="h-1.5 bg-[#0a0e27] rounded-full overflow-hidden flex">
+                    <div id="wizard-progress-bar" class="h-full bg-cyan-electric transition-all duration-300" style="width:16.66%"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2"><span id="wizard-step-label">Step 1 of 6</span> — <span id="wizard-step-title">Course settings</span></p>
+            </div>
+
+            <form method="POST" id="create-course-form" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="quick_ai" id="quick_ai" value="0">
+            <input type="hidden" name="cf_seed_lessons_json" id="cf-seed-lessons-json" value="">
 
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                 <h2 class="text-2xl font-bold">CourseForge creation</h2>
@@ -247,6 +256,22 @@
                     <p class="text-sm text-gray-300 mb-2"><i class="fas fa-robot mr-2 text-cyan-electric"></i>With AI on, we create modules, lessons, quizzes, and a final exam from your brief.</p>
                     <p class="text-xs text-gray-500">Turn AI off above for an empty course shell — you’ll add everything manually.</p>
                 </div>
+
+                <div class="rounded-lg border border-purple-400/25 bg-purple-500/5 p-4 space-y-4">
+                    <div class="flex items-start gap-3">
+                        <input type="checkbox" id="cf-use-seed-lessons" class="mt-1 w-5 h-5 text-purple-400 bg-[#0a0e27]/40 border-purple-400/30 rounded">
+                        <div>
+                            <label for="cf-use-seed-lessons" class="text-sm font-semibold text-purple-200 cursor-pointer">Use provided lesson inputs (recommended for clients with ready lesson materials)</label>
+                            <p class="text-xs text-gray-400 mt-1">When enabled, AI builds lessons from your per-lesson title + description/transcription + optional video link. This can handle 5-10+ different lesson sources in one course.</p>
+                        </div>
+                    </div>
+                    <div id="cf-seed-lessons-wrap" class="hidden space-y-3">
+                        <div id="cf-seed-lessons-list" class="space-y-3"></div>
+                        <button type="button" id="cf-add-seed-lesson" class="px-4 py-2 text-sm rounded-lg border border-purple-400/40 text-purple-200 hover:bg-purple-500/10 transition-all">
+                            <i class="fas fa-plus mr-2"></i>Add lesson input
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div class="flex flex-wrap gap-3 pt-8 border-t border-cyan-electric/10 mt-6">
@@ -258,7 +283,33 @@
                 </button>
                 <a href="{% url 'dashboard_courses' %}" class="px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all text-center">Cancel</a>
             </div>
-        </form>
+            </form>
+        </div>
+
+        <div id="lesson-generator-panel" class="hidden">
+            <div class="rounded-xl border border-purple-500/30 bg-purple-500/5 p-5 space-y-4">
+                <h3 class="text-lg font-semibold text-purple-300">Lesson Generator (multi-lesson)</h3>
+                <p class="text-xs text-gray-400">Create your course title, add multiple lesson inputs, then generate complete lesson drafts per lesson.</p>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Course title <span class="text-red-400">*</span></label>
+                    <input type="text" id="lg-course-title" class="w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-400/50" placeholder="e.g. Level Up Sales Program">
+                </div>
+                <div id="lg-lessons-list" class="space-y-3"></div>
+                <button type="button" id="lg-add-lesson-btn" class="px-4 py-2 text-sm rounded-lg border border-purple-400/40 text-purple-200 hover:bg-purple-500/10 transition-all">
+                    <i class="fas fa-plus mr-2"></i>Add more lesson
+                </button>
+                <button type="button" id="lg-generate-btn" class="px-6 py-3 bg-purple-500/80 text-white rounded-full font-semibold hover:bg-purple-500 transition-all">
+                    <span id="lg-generate-text">Generate all lessons</span>
+                    <span id="lg-generate-loading" class="hidden"><i class="fas fa-spinner fa-spin mr-2"></i>Generating...</span>
+                </button>
+                <p id="lg-status" class="text-sm text-gray-400"></p>
+            </div>
+
+            <div id="lg-result" class="hidden mt-6 rounded-xl border border-cyan-electric/20 bg-[#0a0e27]/40 p-5 space-y-4">
+                <h4 class="text-base font-semibold text-cyan-electric">Generated lesson outputs</h4>
+                <div id="lg-results-list" class="space-y-5"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -285,11 +336,221 @@ document.addEventListener('DOMContentLoaded', function() {
     const quickAiField = document.getElementById('quick_ai');
     const btnQuickAi = document.getElementById('btn-quick-ai');
     const btnFullForge = document.getElementById('btn-full-forge');
+    const tabCourseBuilder = document.getElementById('tab-course-builder');
+    const tabLessonGenerator = document.getElementById('tab-lesson-generator');
+    const courseBuilderPanel = document.getElementById('course-builder-panel');
+    const lessonGeneratorPanel = document.getElementById('lesson-generator-panel');
+    const lgGenerateBtn = document.getElementById('lg-generate-btn');
+    const lgGenerateText = document.getElementById('lg-generate-text');
+    const lgGenerateLoading = document.getElementById('lg-generate-loading');
+    const lgStatus = document.getElementById('lg-status');
+    const lgResult = document.getElementById('lg-result');
+    const lgCourseTitle = document.getElementById('lg-course-title');
+    const lgLessonsList = document.getElementById('lg-lessons-list');
+    const lgAddLessonBtn = document.getElementById('lg-add-lesson-btn');
+    const lgResultsList = document.getElementById('lg-results-list');
+    const seedLessonsToggle = document.getElementById('cf-use-seed-lessons');
+    const seedLessonsWrap = document.getElementById('cf-seed-lessons-wrap');
+    const seedLessonsList = document.getElementById('cf-seed-lessons-list');
+    const addSeedLessonBtn = document.getElementById('cf-add-seed-lesson');
+    const seedLessonsJson = document.getElementById('cf-seed-lessons-json');
 
     const stepTitles = ['Course settings', 'About & positioning', 'Course promise', 'Teaching framework', 'Learning outcomes', 'Review & generate'];
 
     let current = 1;
     const total = steps.length;
+
+    function setActiveTopTab(tabName) {
+        const showCourse = tabName !== 'lesson';
+        if (courseBuilderPanel) courseBuilderPanel.classList.toggle('hidden', !showCourse);
+        if (lessonGeneratorPanel) lessonGeneratorPanel.classList.toggle('hidden', showCourse);
+        if (tabCourseBuilder) {
+            tabCourseBuilder.classList.toggle('bg-cyan-electric/20', showCourse);
+            tabCourseBuilder.classList.toggle('text-cyan-electric', showCourse);
+            tabCourseBuilder.classList.toggle('text-gray-300', !showCourse);
+        }
+        if (tabLessonGenerator) {
+            tabLessonGenerator.classList.toggle('bg-cyan-electric/20', !showCourse);
+            tabLessonGenerator.classList.toggle('text-cyan-electric', !showCourse);
+            tabLessonGenerator.classList.toggle('text-gray-300', showCourse);
+        }
+    }
+
+    function setLessonGeneratorBusy(isBusy) {
+        if (lgGenerateBtn) lgGenerateBtn.disabled = isBusy;
+        if (lgGenerateText) lgGenerateText.classList.toggle('hidden', isBusy);
+        if (lgGenerateLoading) lgGenerateLoading.classList.toggle('hidden', !isBusy);
+    }
+
+    function setLessonGeneratorStatus(message, isError) {
+        if (!lgStatus) return;
+        lgStatus.textContent = message || '';
+        lgStatus.classList.toggle('text-red-400', !!isError);
+        lgStatus.classList.toggle('text-green-400', !isError && !!message);
+        lgStatus.classList.toggle('text-gray-400', !message);
+    }
+
+    function createLgLessonRow(data) {
+        if (!lgLessonsList) return;
+        const row = document.createElement('div');
+        row.className = 'lg-lesson-row rounded-lg border border-purple-400/20 bg-[#0a0e27]/40 p-3 space-y-3';
+        row.innerHTML = [
+            '<div class="flex items-center justify-between gap-2">',
+            '<p class="text-xs text-purple-200 uppercase tracking-wide">Lesson</p>',
+            '<button type="button" class="lg-remove-lesson text-xs text-red-300 hover:text-red-200">Remove</button>',
+            '</div>',
+            '<input type="text" class="lg-lesson-title w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Lesson title">',
+            '<textarea rows="4" class="lg-lesson-source w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50 resize-y" placeholder="Lesson description or transcription"></textarea>',
+            '<input type="url" class="lg-lesson-video w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Optional video link">',
+        ].join('');
+        lgLessonsList.appendChild(row);
+        row.querySelector('.lg-lesson-title').value = (data && data.title) || '';
+        row.querySelector('.lg-lesson-source').value = (data && data.source) || '';
+        row.querySelector('.lg-lesson-video').value = (data && data.video_link) || '';
+        const removeBtn = row.querySelector('.lg-remove-lesson');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                row.remove();
+                if (!lgLessonsList.querySelector('.lg-lesson-row')) {
+                    createLgLessonRow();
+                }
+            });
+        }
+    }
+
+    function collectLgLessons(validate) {
+        if (!lgLessonsList) return [];
+        const rows = Array.from(lgLessonsList.querySelectorAll('.lg-lesson-row'));
+        const parsed = [];
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const titleEl = row.querySelector('.lg-lesson-title');
+            const sourceEl = row.querySelector('.lg-lesson-source');
+            const videoEl = row.querySelector('.lg-lesson-video');
+            const title = titleEl ? titleEl.value.trim() : '';
+            const source = sourceEl ? sourceEl.value.trim() : '';
+            const video_link = videoEl ? videoEl.value.trim() : '';
+            if (!title && !source && !video_link) continue;
+            if (!title || !source) {
+                if (validate) {
+                    if (!title && titleEl) titleEl.focus();
+                    else if (sourceEl) sourceEl.focus();
+                }
+                return null;
+            }
+            parsed.push({ title: title, source: source, video_link: video_link });
+        }
+        if (validate && parsed.length === 0) {
+            const t = lgLessonsList.querySelector('.lg-lesson-title');
+            if (t) t.focus();
+            return null;
+        }
+        return parsed;
+    }
+
+    function renderLgResultCard(item, index) {
+        if (!lgResultsList) return;
+        const lesson = item.lesson || {};
+        const card = document.createElement('div');
+        card.className = 'rounded-lg border border-cyan-electric/20 p-4 space-y-3 bg-[#0a0e27]/35';
+        const outcomes = (lesson.outcomes || []).join('\n');
+        const actions = (lesson.coach_actions || []).join('\n');
+        card.innerHTML = [
+            '<h5 class="font-semibold text-cyan-electric">Lesson ' + (index + 1) + ': ' + (lesson.clean_title || item.input_title || 'Untitled') + '</h5>',
+            '<div><label class="text-xs uppercase tracking-wide text-gray-500">Short summary</label><textarea rows="2" class="mt-1 w-full bg-[#0a0e27]/30 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm"></textarea></div>',
+            '<div><label class="text-xs uppercase tracking-wide text-gray-500">Full lesson description</label><textarea rows="6" class="mt-1 w-full bg-[#0a0e27]/30 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm"></textarea></div>',
+            '<div class="grid md:grid-cols-2 gap-3">',
+            '<div><label class="text-xs uppercase tracking-wide text-gray-500">Outcomes</label><textarea rows="5" class="mt-1 w-full bg-[#0a0e27]/30 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm"></textarea></div>',
+            '<div><label class="text-xs uppercase tracking-wide text-gray-500">Coach actions</label><textarea rows="5" class="mt-1 w-full bg-[#0a0e27]/30 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm"></textarea></div>',
+            '</div>',
+            '<div><label class="text-xs uppercase tracking-wide text-gray-500">Lesson notes JSON</label><textarea rows="8" class="mt-1 w-full bg-[#0a0e27]/30 border border-cyan-electric/20 rounded-lg px-3 py-2 text-xs font-mono"></textarea></div>',
+        ].join('');
+        const areas = card.querySelectorAll('textarea');
+        if (areas[0]) areas[0].value = lesson.short_summary || '';
+        if (areas[1]) areas[1].value = lesson.full_description || '';
+        if (areas[2]) areas[2].value = outcomes;
+        if (areas[3]) areas[3].value = actions;
+        if (areas[4]) areas[4].value = JSON.stringify(lesson.content || { blocks: [] }, null, 2);
+        lgResultsList.appendChild(card);
+    }
+
+    function createSeedLessonRow(data) {
+        if (!seedLessonsList) return;
+        const row = document.createElement('div');
+        row.className = 'seed-lesson-row rounded-lg border border-purple-400/20 bg-[#0a0e27]/40 p-3 space-y-3';
+        row.innerHTML = [
+            '<div class="flex items-center justify-between gap-2">',
+            '<p class="text-xs text-purple-200 uppercase tracking-wide">Lesson input</p>',
+            '<button type="button" class="seed-remove text-xs text-red-300 hover:text-red-200">Remove</button>',
+            '</div>',
+            '<input type="text" class="seed-title w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Lesson title">',
+            '<textarea rows="4" class="seed-source w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50 resize-y" placeholder="Lesson description/transcription"></textarea>',
+            '<input type="url" class="seed-video w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Optional video link">',
+        ].join('');
+        seedLessonsList.appendChild(row);
+        row.querySelector('.seed-title').value = (data && data.title) || '';
+        row.querySelector('.seed-source').value = (data && data.source) || '';
+        row.querySelector('.seed-video').value = (data && data.video_link) || '';
+        const removeBtn = row.querySelector('.seed-remove');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                row.remove();
+                if (!seedLessonsList.querySelector('.seed-lesson-row')) {
+                    createSeedLessonRow();
+                }
+                syncSeedLessons(false);
+            });
+        }
+    }
+
+    function syncSeedLessons(validate) {
+        if (!seedLessonsJson || !seedLessonsToggle || !seedLessonsList) return true;
+        if (!seedLessonsToggle.checked) {
+            seedLessonsJson.value = '[]';
+            return true;
+        }
+        const rows = Array.from(seedLessonsList.querySelectorAll('.seed-lesson-row'));
+        const parsed = [];
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const titleInput = row.querySelector('.seed-title');
+            const sourceInput = row.querySelector('.seed-source');
+            const videoInput = row.querySelector('.seed-video');
+            const title = titleInput ? titleInput.value.trim() : '';
+            const source = sourceInput ? sourceInput.value.trim() : '';
+            const video_link = videoInput ? videoInput.value.trim() : '';
+
+            if (!title && !source && !video_link) {
+                continue;
+            }
+
+            if (!title || !source) {
+                if (validate) {
+                    if (!title && titleInput) titleInput.focus();
+                    else if (sourceInput) sourceInput.focus();
+                    setLessonGeneratorStatus('', false);
+                }
+                return false;
+            }
+            parsed.push({ title: title, source: source, video_link: video_link });
+        }
+        if (validate && parsed.length === 0) {
+            const firstTitle = seedLessonsList.querySelector('.seed-title');
+            if (firstTitle) firstTitle.focus();
+            return false;
+        }
+        seedLessonsJson.value = JSON.stringify(parsed);
+        return true;
+    }
+
+    function toggleSeedLessons() {
+        if (!seedLessonsToggle || !seedLessonsWrap) return;
+        seedLessonsWrap.classList.toggle('hidden', !seedLessonsToggle.checked);
+        if (seedLessonsToggle.checked && seedLessonsList && !seedLessonsList.querySelector('.seed-lesson-row')) {
+            createSeedLessonRow();
+        }
+        syncSeedLessons(false);
+    }
 
     function aiOn() {
         return aiCheckbox && aiCheckbox.checked;
@@ -432,11 +693,120 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnQuickAi) btnQuickAi.addEventListener('click', function() { enterQuickAiMode(true); });
     if (btnFullForge) btnFullForge.addEventListener('click', enterFullForgeMode);
     applyMode();
+    setActiveTopTab('course');
+
+    if (tabCourseBuilder) {
+        tabCourseBuilder.addEventListener('click', function() {
+            setActiveTopTab('course');
+        });
+    }
+    if (tabLessonGenerator) {
+        tabLessonGenerator.addEventListener('click', function() {
+            setActiveTopTab('lesson');
+        });
+    }
+    if (seedLessonsToggle) {
+        seedLessonsToggle.addEventListener('change', toggleSeedLessons);
+        toggleSeedLessons();
+    }
+    if (addSeedLessonBtn) {
+        addSeedLessonBtn.addEventListener('click', function() {
+            createSeedLessonRow();
+        });
+    }
+    if (lgAddLessonBtn) {
+        lgAddLessonBtn.addEventListener('click', function() {
+            createLgLessonRow();
+        });
+    }
+    if (lgLessonsList && !lgLessonsList.querySelector('.lg-lesson-row')) {
+        createLgLessonRow();
+    }
+
+    if (lgGenerateBtn) {
+        lgGenerateBtn.addEventListener('click', function() {
+            if (!lgCourseTitle) return;
+            const courseTitleVal = lgCourseTitle.value.trim();
+            if (!courseTitleVal) {
+                setLessonGeneratorStatus('Course title is required.', true);
+                lgCourseTitle.focus();
+                return;
+            }
+
+            const lessons = collectLgLessons(true);
+            if (!lessons) {
+                setLessonGeneratorStatus('Each lesson needs title and description/transcription.', true);
+                return;
+            }
+
+            setLessonGeneratorBusy(true);
+            setLessonGeneratorStatus('Generating lessons...', false);
+            if (lgResult) lgResult.classList.add('hidden');
+            if (lgResultsList) lgResultsList.innerHTML = '';
+
+            const csrfField = form ? form.querySelector('[name="csrfmiddlewaretoken"]') : null;
+
+            (async function() {
+                try {
+                    for (let i = 0; i < lessons.length; i++) {
+                        const row = lessons[i];
+                        setLessonGeneratorStatus('Generating lesson ' + (i + 1) + ' of ' + lessons.length + '...', false);
+                        const payload = new URLSearchParams({
+                            lesson_title: row.title,
+                            lesson_source: row.source,
+                            lesson_video_link: row.video_link || '',
+                            course_context: courseTitleVal,
+                        });
+                        const resp = await fetch('{% url "dashboard_generate_lesson_draft" %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'X-CSRFToken': csrfField ? csrfField.value : '',
+                            },
+                            body: payload.toString(),
+                        });
+                        const data = await resp.json();
+                        if (!data.success || !data.lesson) {
+                            throw new Error(data.error || ('Generation failed on lesson ' + (i + 1)));
+                        }
+                        renderLgResultCard({ lesson: data.lesson, input_title: row.title }, i);
+                    }
+                    if (lgResult) lgResult.classList.remove('hidden');
+                    setLessonGeneratorStatus('Generated. Creating course in dashboard...', false);
+
+                    const createPayload = new URLSearchParams({
+                        course_title: courseTitleVal,
+                        lessons_json: JSON.stringify(lessons),
+                    });
+                    const createResp = await fetch('{% url "dashboard_create_course_from_lessons" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': csrfField ? csrfField.value : '',
+                        },
+                        body: createPayload.toString(),
+                    });
+                    const createData = await createResp.json();
+                    if (!createData.success) {
+                        throw new Error(createData.error || 'Course creation failed after generation.');
+                    }
+                    setLessonGeneratorStatus('Course created. Redirecting to Courses...', false);
+                    const redirectUrl = createData.redirect_url || '/dashboard/courses/';
+                    setTimeout(function() { window.location.href = redirectUrl; }, 700);
+                } catch (err) {
+                    setLessonGeneratorStatus(err.message || 'Failed to generate lessons.', true);
+                } finally {
+                    setLessonGeneratorBusy(false);
+                }
+            })();
+        });
+    }
 
     if (form) {
         form.addEventListener('submit', function(e) {
             const useAI = aiCheckbox && aiCheckbox.checked;
             const isQuickAi = quickAiField && quickAiField.value === '1';
+            const seedValid = syncSeedLessons(useAI && !isQuickAi);
             if (useAI && isQuickAi) {
                 const n = form.querySelector('[name="name"]');
                 const sd = form.querySelector('[name="short_description"]');
@@ -450,6 +820,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
             } else if (useAI) {
+                if (!seedValid) {
+                    e.preventDefault();
+                    showStep(6);
+                    return;
+                }
                 const promise = form.querySelector('[name="cf_course_promise"]');
                 const outcomes = form.querySelector('[name="cf_outcomes"]');
                 if (promise && !promise.value.trim()) {

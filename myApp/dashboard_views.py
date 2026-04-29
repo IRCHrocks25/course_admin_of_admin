@@ -133,6 +133,33 @@ def _parse_course_creation_blueprint(post):
     }
 
 
+def _parse_seed_lessons(raw_json):
+    """Parse optional per-lesson source inputs from step 6 JSON."""
+    if not raw_json:
+        return []
+    try:
+        parsed = json.loads(raw_json)
+    except Exception:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    cleaned = []
+    for item in parsed[:60]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get('title') or '').strip()
+        source = str(item.get('source') or '').strip()
+        video_link = str(item.get('video_link') or '').strip()
+        if not title or not source:
+            continue
+        cleaned.append({
+            'title': title[:200],
+            'source': source[:20000],
+            'video_link': video_link[:1000],
+        })
+    return cleaned
+
+
 def _validate_blueprint_for_ai(bp):
     """Return list of user-facing error strings when AI generation is requested."""
     errs = []
@@ -1885,19 +1912,42 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         course = Course.objects.get(id=course_id)
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
         lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
-        
-        # Generate course structure with AI
-        course_structure, ai_client = generate_ai_course_structure(
-            course_name=course_name,
-            description=description,
-            course_type=course_type,
-            coach_name=coach_name,
-            tenant=course.tenant,
-            course=course,
-            blueprint=blueprint,
-        )
-        
-        modules_data = course_structure.get('modules', [])
+        seed_lessons = blueprint.get('seed_lessons') if isinstance(blueprint.get('seed_lessons'), list) else []
+        modules_data = []
+
+        if seed_lessons:
+            if not OPENAI_AVAILABLE:
+                raise Exception('OpenAI is not available. Please install the openai package.')
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                raise Exception('OPENAI_API_KEY not found in environment variables.')
+            ai_client = OpenAI(api_key=api_key)
+            modules_data = [{
+                'name': 'Provided Lessons',
+                'description': 'Lessons generated from the creator-provided lesson inputs.',
+                'order': 1,
+                'lessons': [
+                    {
+                        'title': item.get('title', 'Untitled Lesson'),
+                        'description': item.get('source', ''),
+                        'video_link': item.get('video_link', ''),
+                        'order': idx + 1,
+                    }
+                    for idx, item in enumerate(seed_lessons)
+                ],
+            }]
+        else:
+            # Generate course structure with AI
+            course_structure, ai_client = generate_ai_course_structure(
+                course_name=course_name,
+                description=description,
+                course_type=course_type,
+                coach_name=coach_name,
+                tenant=course.tenant,
+                course=course,
+                blueprint=blueprint,
+            )
+            modules_data = course_structure.get('modules', [])
         total_items = sum(1 + len(m.get('lessons', [])) for m in modules_data)  # each module + each lesson
         if total_items == 0:
             total_items = 1
@@ -1926,6 +1976,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             for lesson_data in module_data.get('lessons', []):
                 lesson_title = lesson_data.get('title', 'Untitled Lesson')
                 lesson_description = lesson_data.get('description', '')
+                lesson_video_link = (lesson_data.get('video_link') or '').strip()
+                if lesson_video_link:
+                    lesson_description = f"{lesson_description}\n\nVideo reference: {lesson_video_link}"
                 lesson_slug = generate_slug(lesson_title)
                 
                 # Ensure lesson slug is unique within course
@@ -1969,6 +2022,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     title=lesson_title,
                     slug=lesson_slug,
                     description=lesson_description,
+                    video_url=lesson_video_link,
                     order=lesson_data.get('order', 0),
                     working_title=lesson_title,
                     # AI-generated metadata fields
@@ -2078,6 +2132,335 @@ def api_ai_generation_status(request, course_id):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def dashboard_generate_lesson_draft(request):
+    """Generate a complete AI lesson package from title + source text."""
+    if not OPENAI_AVAILABLE:
+        return JsonResponse({
+            'success': False,
+            'error': 'OpenAI package is not installed on this server.',
+        }, status=500)
+
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        return JsonResponse({
+            'success': False,
+            'error': 'OPENAI_API_KEY is missing. Configure it to use lesson generation.',
+        }, status=500)
+
+    lesson_title = (request.POST.get('lesson_title') or '').strip()
+    source_text = (request.POST.get('lesson_source') or '').strip()
+    video_link = (request.POST.get('lesson_video_link') or '').strip()
+    course_context = (request.POST.get('course_context') or '').strip() or 'Standalone lesson'
+
+    if not lesson_title:
+        return JsonResponse({'success': False, 'error': 'Lesson title is required.'}, status=400)
+    if not source_text:
+        return JsonResponse({'success': False, 'error': 'Lesson description or transcription is required.'}, status=400)
+
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
+
+    source_for_ai = source_text
+    if video_link:
+        source_for_ai = f"{source_for_ai}\n\nVideo reference link: {video_link}"
+
+    try:
+        client = OpenAI(api_key=api_key)
+        metadata = generate_ai_lesson_metadata(
+            client=client,
+            lesson_title=lesson_title,
+            lesson_description=source_for_ai,
+            course_name=course_context[:200],
+            course_type='sprint',
+            tenant=tenant,
+            course=None,
+            lesson=None,
+            blueprint_context='Generated from dashboard Lesson Generator quick tool.',
+        )
+        content_sections = generate_ai_lesson_content(
+            client=client,
+            lesson_title=lesson_title,
+            lesson_description=source_for_ai,
+            course_name=course_context[:200],
+            course_type='sprint',
+            tenant=tenant,
+            course=None,
+            lesson=None,
+            blueprint_context='Generate practical, immediately usable standalone lesson notes.',
+        )
+        content_data = create_editorjs_content(content_sections)
+
+        return JsonResponse({
+            'success': True,
+            'lesson': {
+                'clean_title': metadata.get('clean_title') or lesson_title,
+                'short_summary': metadata.get('short_summary') or '',
+                'full_description': metadata.get('full_description') or source_text,
+                'outcomes': metadata.get('outcomes') or [],
+                'coach_actions': metadata.get('coach_actions') or [],
+                'content': content_data,
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Lesson generation failed: {str(e)}',
+        }, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_create_course_from_lessons(request):
+    """Create a course from Lesson Generator inputs and start AI background generation."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
+
+    course_title = (request.POST.get('course_title') or '').strip()
+    seed_lessons = _parse_seed_lessons(request.POST.get('lessons_json'))
+    if not course_title:
+        return JsonResponse({'success': False, 'error': 'Course title is required.'}, status=400)
+    if not seed_lessons:
+        return JsonResponse({'success': False, 'error': 'Add at least one lesson with title and description.'}, status=400)
+
+    slug = generate_slug(course_title or 'course')
+    if len(slug) > 200:
+        slug = slug[:200].rstrip('-') or 'course'
+    base_slug = slug
+    counter = 1
+    while Course.objects.filter(tenant=tenant, slug=slug).exists():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    first_titles = [item.get('title', '').strip() for item in seed_lessons[:3] if item.get('title')]
+    short_description = (
+        f"AI-generated from provided lesson inputs ({len(seed_lessons)} lessons)."
+        + (f" Includes: {', '.join(first_titles)}." if first_titles else '')
+    )[:1000]
+    description = (
+        f"Course source: lesson-by-lesson creator inputs.\n\n"
+        f"Total provided lessons: {len(seed_lessons)}"
+    )
+    course_type = 'sprint'
+    coach_name = 'Sprint Coach'
+
+    course = Course.objects.create(
+        tenant=tenant,
+        name=course_title,
+        slug=slug,
+        short_description=short_description,
+        description=description,
+        course_type=course_type,
+        status='active',
+        coach_name=coach_name,
+        creation_blueprint={'seed_lessons': seed_lessons},
+        price=None,
+        enrollment_method='open',
+    )
+
+    courses_list = request.session.get('ai_generating_courses', [])
+    if not isinstance(courses_list, list):
+        courses_list = []
+    courses_list.append({'id': course.id, 'name': course.name})
+    request.session['ai_generating_courses'] = courses_list
+    request.session.modified = True
+
+    _update_ai_gen_progress(course.id, course.name, 'starting', progress=0, current='Starting...')
+    thread = threading.Thread(
+        target=_generate_course_ai_content,
+        args=(course.id, course.name, description, course_type, coach_name),
+        daemon=True
+    )
+    thread.start()
+
+    return JsonResponse({
+        'success': True,
+        'course_id': course.id,
+        'course_name': course.name,
+        'redirect_url': '/dashboard/courses/',
+    })
+
+
+def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
+    """Background append of AI-generated lessons into an existing course."""
+    try:
+        from django.db import connection
+        connection.close()
+
+        course = Course.objects.get(id=course_id)
+        blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+        lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
+        target_module = None
+        if module_id:
+            target_module = Module.objects.filter(id=module_id, course=course).first()
+        if target_module is None:
+            # Sensible default: if course already has modules, append into first module
+            target_module = course.modules.order_by('order', 'id').first()
+
+        if not OPENAI_AVAILABLE:
+            raise Exception('OpenAI is not available. Please install the openai package.')
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise Exception('OPENAI_API_KEY not found in environment variables.')
+        ai_client = OpenAI(api_key=api_key)
+
+        total_items = max(1, len(seed_lessons))
+        _update_ai_gen_progress(
+            course.id,
+            course.name,
+            'creating_content',
+            progress=15,
+            total=total_items,
+            current='Adding AI lessons to existing course...',
+        )
+
+        if target_module:
+            max_order = Lesson.objects.filter(course=course, module=target_module).aggregate(models.Max('order'))['order__max'] or 0
+        else:
+            max_order = Lesson.objects.filter(course=course).aggregate(models.Max('order'))['order__max'] or 0
+        next_order = max_order + 1
+
+        for idx, item in enumerate(seed_lessons):
+            lesson_title = (item.get('title') or '').strip() or f'Lesson {next_order}'
+            lesson_description = (item.get('source') or '').strip()
+            lesson_video_link = (item.get('video_link') or '').strip()
+            lesson_description_for_ai = lesson_description
+            if lesson_video_link:
+                lesson_description_for_ai = f"{lesson_description_for_ai}\n\nVideo reference: {lesson_video_link}"
+
+            lesson_slug = generate_slug(lesson_title)
+            base_lesson_slug = lesson_slug
+            lesson_counter = 1
+            while Lesson.objects.filter(course=course, slug=lesson_slug).exists():
+                lesson_slug = f"{base_lesson_slug}-{lesson_counter}"
+                lesson_counter += 1
+
+            lesson_metadata = generate_ai_lesson_metadata(
+                client=ai_client,
+                lesson_title=lesson_title,
+                lesson_description=lesson_description_for_ai,
+                course_name=course.name,
+                course_type=course.course_type,
+                tenant=course.tenant,
+                course=course,
+                blueprint_context=lesson_blueprint_ctx,
+            )
+            lesson_content_sections = generate_ai_lesson_content(
+                client=ai_client,
+                lesson_title=lesson_title,
+                lesson_description=lesson_description_for_ai,
+                course_name=course.name,
+                course_type=course.course_type,
+                tenant=course.tenant,
+                course=course,
+                blueprint_context=lesson_blueprint_ctx,
+            )
+            lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
+
+            lesson = Lesson.objects.create(
+                tenant=course.tenant,
+                course=course,
+                module=target_module,
+                title=lesson_title,
+                slug=lesson_slug,
+                description=lesson_description_for_ai,
+                video_url=lesson_video_link,
+                order=next_order,
+                working_title=lesson_title,
+                ai_clean_title=lesson_metadata.get('clean_title', lesson_title),
+                ai_short_summary=lesson_metadata.get('short_summary', ''),
+                ai_full_description=lesson_metadata.get('full_description', lesson_description_for_ai),
+                ai_outcomes=lesson_metadata.get('outcomes', []),
+                ai_coach_actions=lesson_metadata.get('coach_actions', []),
+                content=lesson_content,
+                ai_generation_status='generated',
+            )
+
+            try:
+                quiz, _ = LessonQuiz.objects.get_or_create(
+                    lesson=lesson,
+                    defaults={
+                        'tenant': lesson.tenant,
+                        'title': f'{lesson_title} Quiz',
+                        'passing_score': 70,
+                        'is_required': True,
+                    },
+                )
+                generate_ai_quiz(lesson, quiz, num_questions=5)
+            except Exception as eq:
+                print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
+
+            if _send_lesson_to_chatbot_webhook(lesson):
+                print(f'[Background] Chatbot trained for appended lesson: {lesson_title[:50]}')
+
+            next_order += 1
+            pct = min(95, 15 + int(80 * (idx + 1) / total_items))
+            _update_ai_gen_progress(
+                course.id,
+                course.name,
+                'creating_content',
+                progress=pct,
+                total=total_items,
+                current=f'Added lesson: {lesson_title[:50]}',
+            )
+
+        _update_ai_gen_progress(course.id, course.name, 'completed', progress=100, total=total_items, current='Complete!')
+    except Exception as e:
+        _update_ai_gen_progress(course_id, f'Course #{course_id}', 'failed', progress=0, error=str(e))
+        print(f'[Background] Error appending seed lessons for course #{course_id}: {str(e)}')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_course_add_seed_lessons(request, course_slug):
+    """Append multiple AI-generated lessons to an existing course."""
+    tenant = _get_dashboard_tenant(request)
+    if request.user.is_superuser:
+        course = get_object_or_404(Course, slug=course_slug)
+    else:
+        if tenant is None:
+            return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+
+    seed_lessons = _parse_seed_lessons(request.POST.get('lessons_json'))
+    if not seed_lessons:
+        return JsonResponse({'success': False, 'error': 'Add at least one lesson with title and description.'}, status=400)
+
+    module_id_raw = (request.POST.get('module_id') or '').strip()
+    module_id = None
+    if module_id_raw:
+        try:
+            module_id = int(module_id_raw)
+        except ValueError:
+            module_id = None
+
+    courses_list = request.session.get('ai_generating_courses', [])
+    if not isinstance(courses_list, list):
+        courses_list = []
+    if not any(isinstance(item, dict) and int(item.get('id') or 0) == int(course.id) for item in courses_list):
+        courses_list.append({'id': course.id, 'name': course.name})
+    request.session['ai_generating_courses'] = courses_list
+    request.session.modified = True
+
+    _update_ai_gen_progress(course.id, course.name, 'starting', progress=3, current='Queued lesson generation...')
+    thread = threading.Thread(
+        target=_append_seed_lessons_ai,
+        args=(course.id, seed_lessons, module_id),
+        daemon=True,
+    )
+    thread.start()
+
+    return JsonResponse({
+        'success': True,
+        'course_id': course.id,
+        'redirect_url': f'/dashboard/courses/{course.slug}/lessons/',
+        'message': f'Started generating {len(seed_lessons)} lesson(s) for {course.name}.',
+    })
+
+
+@staff_member_required
 def dashboard_add_course(request):
     """Add new course with optional AI generation"""
     tenant = _get_dashboard_tenant(request)
@@ -2096,6 +2479,7 @@ def dashboard_add_course(request):
     if request.method == 'POST':
         show_onboarding = True
         blueprint = _parse_course_creation_blueprint(request.POST)
+        seed_lessons = _parse_seed_lessons(request.POST.get('cf_seed_lessons_json'))
         name = (request.POST.get('name') or '').strip()
         if not name and blueprint.get('topic'):
             name = blueprint['topic'][:200]
@@ -2164,6 +2548,10 @@ def dashboard_add_course(request):
                     'or fill the guided steps above.',
                 )
                 return render(request, 'dashboard/add_course.html', ctx)
+
+            if seed_lessons:
+                blueprint_to_save = blueprint_to_save or {}
+                blueprint_to_save['seed_lessons'] = seed_lessons
         else:
             if not name or not short_description or not description:
                 messages.error(request, 'Course name, short description, and full description are required when AI generation is off.')
@@ -2224,7 +2612,13 @@ def dashboard_add_course(request):
 @staff_member_required
 def dashboard_lessons(request):
     """List all lessons across all courses"""
-    lessons = Lesson.objects.select_related('course', 'module').order_by('-created_at')
+    tenant = _get_dashboard_tenant(request)
+    lessons = Lesson.objects.select_related('course', 'module').order_by('course__name', 'module__order', 'order', 'id')
+    if not request.user.is_superuser:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required.')
+            return redirect('dashboard_courses')
+        lessons = lessons.filter(tenant=tenant)
     
     # Filtering
     status_filter = request.GET.get('status', 'all')
@@ -2235,7 +2629,7 @@ def dashboard_lessons(request):
     if course_filter:
         lessons = lessons.filter(course_id=course_filter)
     
-    courses = Course.objects.all()
+    courses = Course.objects.all() if request.user.is_superuser else Course.objects.filter(tenant=tenant)
     
     return render(request, 'dashboard/lessons.html', {
         'lessons': lessons,
@@ -2249,7 +2643,14 @@ def dashboard_lessons(request):
 @require_http_methods(["POST"])
 def dashboard_delete_lesson(request, lesson_id):
     """Delete a lesson"""
-    lesson = get_object_or_404(Lesson, id=lesson_id)
+    tenant = _get_dashboard_tenant(request)
+    if request.user.is_superuser:
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+    else:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required.')
+            return redirect('dashboard_lessons')
+        lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
     lesson_title = lesson.title
     course_slug = lesson.course.slug if lesson.course else None
     
