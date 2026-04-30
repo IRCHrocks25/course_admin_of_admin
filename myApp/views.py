@@ -58,6 +58,20 @@ from .utils.transcription import transcribe_video
 from .utils.access import has_course_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
+# Reuse the LLM helpers from dashboard_views so the per-lesson Regenerate button
+# uses the same prompts and OpenAI wiring as the course-creation pipeline.
+from .dashboard_views import (
+    OPENAI_AVAILABLE,
+    generate_ai_lesson_metadata,
+    generate_ai_lesson_content,
+    create_editorjs_content,
+    _blueprint_lesson_context_block,
+    _parse_generation_settings,
+    READING_LEVEL_CHOICES,
+    LENGTH_CHOICES,
+    DEPTH_CHOICES,
+)
+from .utils.prompts import LessonGenerationSettings
 
 # Tenant/admin-protected views should route unauthenticated users to app login.
 staff_member_required = user_passes_test(
@@ -2309,26 +2323,89 @@ def _save_lesson_media_and_content(lesson, request):
             pass
 
 
+def _resolve_lesson_generation_settings(request, lesson, course):
+    """Resolve LessonGenerationSettings precedence: POST form > lesson stored > course blueprint > defaults."""
+    blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+    course_defaults = blueprint.get('generation_settings') if isinstance(blueprint.get('generation_settings'), dict) else {}
+    lesson_stored = lesson.generation_settings if isinstance(lesson.generation_settings, dict) else {}
+    if request.method == 'POST' and request.POST.get('gen_reading_level') is not None:
+        return LessonGenerationSettings.from_dict(_parse_generation_settings(request.POST, prefix='gen_'))
+    base = {**course_defaults, **lesson_stored}
+    return LessonGenerationSettings.from_dict(base)
+
+
 @staff_member_required
 def generate_lesson_ai(request, course_slug, lesson_id):
     """Generate AI content for lesson"""
     course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     lesson = get_object_or_404(Lesson, id=lesson_id, course=course)
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
-        
+
         if action == 'generate':
-            # Generate AI content
-            ai_content = generate_ai_lesson_content(lesson)
-            
-            lesson.ai_clean_title = ai_content.get('clean_title', lesson.working_title)
-            lesson.ai_short_summary = ai_content.get('short_summary', '')
-            lesson.ai_full_description = ai_content.get('full_description', '')
-            lesson.ai_outcomes = ai_content.get('outcomes', [])
-            lesson.ai_coach_actions = ai_content.get('coach_actions', [])
-            lesson.ai_generation_status = 'generated'
-            lesson.save()
+            if not OPENAI_AVAILABLE:
+                messages.error(request, 'OpenAI package is not installed on this server.')
+            else:
+                api_key = os.getenv('OPENAI_API_KEY')
+                if not api_key:
+                    messages.error(request, 'OPENAI_API_KEY is not configured.')
+                else:
+                    settings_obj = _resolve_lesson_generation_settings(request, lesson, course)
+                    lesson_title = lesson.working_title or lesson.title or 'Lesson'
+                    description_parts = []
+                    if lesson.rough_notes:
+                        description_parts.append(lesson.rough_notes)
+                    if lesson.transcription:
+                        description_parts.append(f"Lesson transcript:\n{lesson.transcription}")
+                    if not description_parts and lesson.description:
+                        description_parts.append(lesson.description)
+                    lesson_description = '\n\n'.join(description_parts) or 'No source material provided.'
+
+                    blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+                    blueprint_context = _blueprint_lesson_context_block(blueprint)
+
+                    try:
+                        from openai import OpenAI
+                        client = OpenAI(api_key=api_key)
+                        metadata = generate_ai_lesson_metadata(
+                            client=client,
+                            lesson_title=lesson_title,
+                            lesson_description=lesson_description,
+                            course_name=course.name,
+                            course_type=course.course_type,
+                            tenant=course.tenant,
+                            course=course,
+                            lesson=lesson,
+                            blueprint_context=blueprint_context,
+                            settings=settings_obj,
+                        )
+                        content_sections = generate_ai_lesson_content(
+                            client=client,
+                            lesson_title=lesson_title,
+                            lesson_description=lesson_description,
+                            course_name=course.name,
+                            course_type=course.course_type,
+                            tenant=course.tenant,
+                            course=course,
+                            lesson=lesson,
+                            blueprint_context=blueprint_context,
+                            settings=settings_obj,
+                        )
+
+                        lesson.ai_clean_title = metadata.get('clean_title') or lesson_title
+                        lesson.ai_short_summary = metadata.get('short_summary', '')
+                        lesson.ai_full_description = metadata.get('full_description', '')
+                        lesson.ai_outcomes = metadata.get('outcomes', [])
+                        lesson.ai_coach_actions = metadata.get('coach_actions', [])
+                        if content_sections:
+                            lesson.content = create_editorjs_content(content_sections)
+                        lesson.generation_settings = settings_obj.to_dict()
+                        lesson.ai_generation_status = 'generated'
+                        lesson.save()
+                        messages.success(request, 'AI content generated.')
+                    except Exception as e:
+                        messages.error(request, f'AI generation failed: {e}')
             
         elif action == 'approve':
             # Save video & links from form (in case not saved via Edit first)
@@ -2373,11 +2450,17 @@ def generate_lesson_ai(request, course_slug, lesson_id):
     content_data = lesson.content if (lesson.content and isinstance(lesson.content, dict)) else {'blocks': []}
     if 'blocks' not in content_data:
         content_data = {'blocks': []}
-    
+
+    panel_settings = _resolve_lesson_generation_settings(request, lesson, course)
+
     return render(request, 'creator/generate_lesson_ai.html', {
         'course': course,
         'lesson': lesson,
         'content_data': content_data,
+        'gen_settings': panel_settings,
+        'reading_level_choices': READING_LEVEL_CHOICES,
+        'length_choices': LENGTH_CHOICES,
+        'depth_choices': DEPTH_CHOICES,
     })
 
 
@@ -2529,57 +2612,6 @@ def fetch_vimeo_metadata(vimeo_id):
         print(f"Error fetching Vimeo metadata: {e}")
     
     return {}
-
-
-def generate_ai_lesson_content(lesson):
-    """Generate AI content for lesson (placeholder - connect to OpenAI later)"""
-    # This is a placeholder - in production, connect to OpenAI API
-    # For now, generate basic content based on working title and notes
-    
-    working_title = lesson.working_title or "Lesson"
-    rough_notes = lesson.rough_notes or ""
-    
-    # Generate clean title
-    clean_title = working_title.title()
-    if "session" in clean_title.lower():
-        clean_title = clean_title.replace("Session", "Session").replace("session", "Session")
-    
-    # Generate short summary
-    short_summary = f"A strategic session covering key concepts from {working_title}. "
-    if rough_notes:
-        short_summary += "Focuses on practical implementation and actionable insights."
-    else:
-        short_summary += "Designed to accelerate your progress and build real assets."
-    
-    # Generate full description
-    full_description = f"In this session, you'll dive deep into {working_title}. "
-    if rough_notes:
-        full_description += f"{rough_notes[:200]}... "
-    full_description += "You'll learn practical strategies, implement key frameworks, and walk away with tangible outputs that move your business forward."
-    
-    # Generate outcomes (placeholder - should be AI-generated based on content)
-    outcomes = [
-        "Clear action plan for immediate implementation",
-        "Key frameworks and strategies from the session",
-        "Personalized insights tailored to your offer",
-        "Next steps checklist for continued progress"
-    ]
-    
-    # Generate coach actions
-    coach_actions = [
-        "Summarize in 5 bullets",
-        "Turn this into a 3-step action plan",
-        "Generate 3 email hooks from this content",
-        "Give me a comprehension quiz"
-    ]
-    
-    return {
-        'clean_title': clean_title,
-        'short_summary': short_summary,
-        'full_description': full_description,
-        'outcomes': outcomes,
-        'coach_actions': coach_actions,
-    }
 
 
 def improve_ai_full_description(lesson, current_text=''):

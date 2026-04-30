@@ -404,11 +404,23 @@
             </div>
         </div>
 
+        <!-- Generation Settings -->
+        {% include "components/_step_slider_assets.html" %}
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/20 rounded-xl p-6 mt-8">
+            <h3 class="text-lg font-bold mb-1">Generation settings</h3>
+            <p class="text-sm text-gray-400 mb-6">These shape the AI output when you click Regenerate.</p>
+            <div class="space-y-7">
+                {% include "components/_step_slider.html" with name="gen_reading_level" value=gen_settings.reading_level options=reading_level_choices label="Reading level" helper="Vocabulary and assumed familiarity with the topic." %}
+                {% include "components/_step_slider.html" with name="gen_length" value=gen_settings.length options=length_choices label="Lesson length" helper="Target word count and number of content blocks." %}
+                {% include "components/_step_slider.html" with name="gen_depth" value=gen_settings.depth options=depth_choices label="Content depth" helper="How much theory, examples, and edge cases to include." %}
+            </div>
+        </div>
+
         <!-- Action Buttons -->
         <div class="mt-8 flex gap-4">
-            <button 
-                type="submit" 
-                name="action" 
+            <button
+                type="submit"
+                name="action"
                 value="generate"
                 class="flex-1 px-6 py-3 bg-purple-accent text-white rounded-full font-bold hover:bg-purple-accent/90 transition-all"
             >

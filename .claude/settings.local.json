@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from myApp import views; print\\('OK', views.generate_ai_lesson_content.__module__\\)\")",
+      "Bash(DJANGO_SETTINGS_MODULE=myProject.settings python -c \"import django; django.setup\\(\\); from myApp import views; print\\('module:', views.generate_ai_lesson_content.__module__\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python manage.py makemigrations --check --dry-run myApp)",
+      "Bash(python manage.py migrate myApp)",
+      "Bash(python manage.py check)",
+      "Bash(python manage.py makemigrations --check --dry-run)"
+    ]
+  }
+}

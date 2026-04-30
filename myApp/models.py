@@ -303,7 +303,8 @@ class Lesson(models.Model):
     ai_full_description = models.TextField(blank=True, help_text="AI-generated full description for student page")
     ai_outcomes = models.JSONField(default=list, blank=True, help_text="List of outcomes this lesson will produce")
     ai_coach_actions = models.JSONField(default=list, blank=True, help_text="Recommended AI Coach actions for this lesson")
-    
+    generation_settings = models.JSONField(default=dict, blank=True, help_text="LessonGenerationSettings dict captured at last AI generation")
+
     # Editor.js Content
     content = models.JSONField(default=dict, blank=True, help_text="Editor.js content blocks for lesson content")
     

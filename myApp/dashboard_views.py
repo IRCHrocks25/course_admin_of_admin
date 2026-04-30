@@ -69,6 +69,11 @@ from django.utils import timezone
 from .utils.tenancy import get_default_tenant
 from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import get_tenant_branding, ensure_tenant_branding
+from .utils.prompts import (
+    LessonGenerationSettings,
+    build_lesson_metadata_prompt,
+    build_lesson_content_prompt,
+)
 
 # Tenant admins should use app login, not Django admin login.
 staff_member_required = user_passes_test(
@@ -93,6 +98,58 @@ COURSEFORGE_LEVEL_CHOICES = (
     ('advanced', 'Advanced'),
 )
 
+# Generation control choices surfaced in the wizard and per-lesson regenerate panel.
+READING_LEVEL_CHOICES = (
+    ('foundational', 'Foundational'),
+    ('practitioner', 'Practitioner'),
+    ('expert', 'Expert'),
+)
+LENGTH_CHOICES = (
+    ('short', 'Quick read'),
+    ('standard', 'Standard'),
+    ('deep', 'Deep dive'),
+)
+DEPTH_CHOICES = (
+    ('overview', 'Overview'),
+    ('how_to', 'How-to'),
+    ('comprehensive', 'Comprehensive'),
+)
+CLASS_LENGTH_CHOICES = (
+    ('5_min', '5 minutes'),
+    ('15_min', '15 minutes'),
+    ('30_min', '30 minutes'),
+    ('60_min', '60 minutes'),
+    ('90_min', '90 minutes'),
+)
+_VALID_READING_LEVELS = {v for v, _ in READING_LEVEL_CHOICES}
+_VALID_LENGTHS = {v for v, _ in LENGTH_CHOICES}
+_VALID_DEPTHS = {v for v, _ in DEPTH_CHOICES}
+_VALID_CLASS_LENGTHS = {v for v, _ in CLASS_LENGTH_CHOICES}
+_CLASS_LENGTH_LABELS = dict(CLASS_LENGTH_CHOICES)
+
+
+def _class_length_label(value):
+    """Render a class_length key as a human-readable label, falling back to the raw string."""
+    return _CLASS_LENGTH_LABELS.get(value, value or '')
+
+
+def _parse_generation_settings(post, prefix='cf_'):
+    """Pull a generation_settings dict from a POST payload using the given prefix.
+
+    Falls back to LessonGenerationSettings defaults for missing or invalid values.
+    """
+    defaults = LessonGenerationSettings()
+    rl = (post.get(f'{prefix}reading_level') or '').strip()
+    if rl not in _VALID_READING_LEVELS:
+        rl = defaults.reading_level
+    ln = (post.get(f'{prefix}length') or '').strip()
+    if ln not in _VALID_LENGTHS:
+        ln = defaults.length
+    dp = (post.get(f'{prefix}depth') or '').strip()
+    if dp not in _VALID_DEPTHS:
+        dp = defaults.depth
+    return {'reading_level': rl, 'length': ln, 'depth': dp}
+
 
 def _parse_course_creation_blueprint(post):
     """Build creation_blueprint dict from POST (CourseForge wizard)."""
@@ -113,6 +170,9 @@ def _parse_course_creation_blueprint(post):
         total_classes = max(1, min(120, int(total_raw)))
     except ValueError:
         total_classes = 12
+    class_length = (post.get('cf_class_length') or '').strip()
+    if class_length not in _VALID_CLASS_LENGTHS:
+        class_length = '30_min'
     return {
         'blueprint_version': 1,
         'topic': (post.get('cf_topic') or '').strip(),
@@ -120,7 +180,7 @@ def _parse_course_creation_blueprint(post):
         'learning_goals': (post.get('cf_learning_goals') or '').strip(),
         'required_knowledge': (post.get('cf_required_knowledge') or '').strip(),
         'course_format': fmt,
-        'class_length': (post.get('cf_class_length') or '').strip(),
+        'class_length': class_length,
         'total_classes': total_classes,
         'knowledge_level': level,
         'writing_sample': (post.get('cf_writing_sample') or '').strip(),
@@ -130,6 +190,7 @@ def _parse_course_creation_blueprint(post):
         'framework_steps': framework_steps,
         'framework_generate_auto': post.get('cf_framework_auto') == 'on',
         'outcomes': outcomes,
+        'generation_settings': _parse_generation_settings(post, prefix='cf_'),
     }
 
 
@@ -199,7 +260,7 @@ def _compose_description_from_blueprint(bp):
     parts.append(
         f"## Format & pacing\n"
         f"- Format: {fmt_labels.get(bp.get('course_format'), bp.get('course_format', ''))}\n"
-        f"- Typical class length: {bp.get('class_length', '')}\n"
+        f"- Typical class length: {_class_length_label(bp.get('class_length'))}\n"
         f"- Target number of classes/lessons: {bp.get('total_classes', '')}\n"
         f"- Knowledge level: {bp.get('knowledge_level', '')}"
     )
@@ -285,7 +346,7 @@ Additional CourseForge requirements (follow closely):
 - Difficulty: {bp.get('knowledge_level', '')}
 - Course format: {fmt} — match pacing and depth to this format (e.g. mini-course = tighter, fewer concepts per lesson).
 - Aim for approximately {n} lessons total across 3–6 modules (adjust counts to fit the format).
-- Typical session length context from author: {bp.get('class_length', '')}
+- Typical session length context from author: {_class_length_label(bp.get('class_length'))}
 - Transformation promise: {bp.get('course_promise', '')}
 - {framework_lines}
 - Measurable outcomes (lessons should build toward these): {', '.join(bp.get('outcomes') or [])}
@@ -1531,41 +1592,20 @@ def create_editorjs_content(content_sections):
     }
 
 
-def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context=''):
+def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context='', settings=None):
     """Generate all AI lesson metadata fields (title, summary, description, outcomes, coach actions)"""
-    extra = f"\n{blueprint_context}\n" if blueprint_context else ''
-    prompt = f"""You are an expert course creator. Generate comprehensive lesson metadata for the following lesson:
-
-Course: {course_name}
-Course Type: {course_type}
-Lesson Title: {lesson_title}
-Lesson Description: {lesson_description}
-{extra}
-Generate the following fields:
-1. clean_title: A polished, professional version of the lesson title (keep it concise and clear)
-2. short_summary: A 1-2 sentence summary for lesson cards/lists (max 150 characters)
-3. full_description: A detailed 2-3 paragraph description explaining what students will learn (engaging and informative)
-4. outcomes: An array of 3-5 specific learning outcomes (what students will achieve)
-5. coach_actions: An array of 3-4 recommended AI coach actions (e.g., "Summarize in 5 bullets", "Create a 3-step action plan")
-
-Return in JSON format:
-{{
-  "clean_title": "Polished Lesson Title",
-  "short_summary": "Brief summary for lesson cards",
-  "full_description": "Detailed multi-paragraph description of what students will learn in this lesson. Make it engaging and informative.",
-  "outcomes": [
-    "Outcome 1",
-    "Outcome 2",
-    "Outcome 3"
-  ],
-  "coach_actions": [
-    "Action 1",
-    "Action 2",
-    "Action 3"
-  ]
-}}
-
-Only return valid JSON, no additional text."""
+    if settings is None:
+        settings = LessonGenerationSettings()
+    prompt = build_lesson_metadata_prompt(
+        inputs={
+            'course_name': course_name,
+            'course_type': course_type,
+            'lesson_title': lesson_title,
+            'lesson_description': lesson_description,
+            'blueprint_context': blueprint_context,
+        },
+        settings=settings,
+    )
     
     try:
         response = client.chat.completions.create(
@@ -1637,50 +1677,20 @@ Only return valid JSON, no additional text."""
         }
 
 
-def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context=''):
+def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context='', settings=None):
     """Generate detailed lesson content using AI (Editor.js blocks)"""
-    extra = f"\n{blueprint_context}\n" if blueprint_context else ''
-    prompt = f"""You are an expert course creator. Create comprehensive lesson content for the following lesson:
-
-Course: {course_name}
-Course Type: {course_type}
-Lesson Title: {lesson_title}
-Lesson Description: {lesson_description}
-{extra}
-Generate detailed lesson content that includes:
-1. An engaging introduction paragraph
-2. Key learning objectives (as headers)
-3. Main content sections with explanations
-4. Practical examples or tips
-5. A summary or conclusion
-
-Return the content in JSON format with Editor.js compatible blocks:
-{{
-  "content": [
-    {{
-      "type": "header",
-      "text": "Section Title",
-      "level": 2
-    }},
-    {{
-      "type": "paragraph",
-      "text": "Paragraph text here"
-    }},
-    {{
-      "type": "list",
-      "style": "unordered",
-      "items": ["Item 1", "Item 2", "Item 3"]
-    }},
-    {{
-      "type": "quote",
-      "text": "Important quote or tip",
-      "caption": "Optional caption"
-    }}
-  ]
-}}
-
-Make the content educational, practical, and engaging. Include at least 5-8 content blocks.
-Only return valid JSON, no additional text."""
+    if settings is None:
+        settings = LessonGenerationSettings()
+    prompt = build_lesson_content_prompt(
+        inputs={
+            'course_name': course_name,
+            'course_type': course_type,
+            'lesson_title': lesson_title,
+            'lesson_description': lesson_description,
+            'blueprint_context': blueprint_context,
+        },
+        settings=settings,
+    )
     
     try:
         response = client.chat.completions.create(
@@ -1918,6 +1928,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         course = Course.objects.get(id=course_id)
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
         lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
+        gen_settings = LessonGenerationSettings.from_dict(blueprint.get('generation_settings'))
         seed_lessons = blueprint.get('seed_lessons') if isinstance(blueprint.get('seed_lessons'), list) else []
         modules_data = []
 
@@ -2004,8 +2015,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     tenant=course.tenant,
                     course=course,
                     blueprint_context=lesson_blueprint_ctx,
+                    settings=gen_settings,
                 )
-                
+
                 # Generate lesson content blocks using AI (Editor.js format)
                 lesson_content_sections = generate_ai_lesson_content(
                     client=ai_client,
@@ -2016,6 +2028,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     tenant=course.tenant,
                     course=course,
                     blueprint_context=lesson_blueprint_ctx,
+                    settings=gen_settings,
                 )
                 
                 # Convert content sections to Editor.js format
@@ -2039,7 +2052,8 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     ai_coach_actions=lesson_metadata.get('coach_actions', []),
                     # Editor.js content blocks
                     content=lesson_content,
-                    ai_generation_status='generated'
+                    ai_generation_status='generated',
+                    generation_settings=gen_settings.to_dict(),
                 )
                 lessons_created += 1
                 # Auto-generate quiz for this lesson
@@ -2298,6 +2312,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
         course = Course.objects.get(id=course_id)
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
         lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
+        gen_settings = LessonGenerationSettings.from_dict(blueprint.get('generation_settings'))
         target_module = None
         if module_id:
             target_module = Module.objects.filter(id=module_id, course=course).first()
@@ -2352,6 +2367,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 tenant=course.tenant,
                 course=course,
                 blueprint_context=lesson_blueprint_ctx,
+                settings=gen_settings,
             )
             lesson_content_sections = generate_ai_lesson_content(
                 client=ai_client,
@@ -2362,6 +2378,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 tenant=course.tenant,
                 course=course,
                 blueprint_context=lesson_blueprint_ctx,
+                settings=gen_settings,
             )
             lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
 
@@ -2382,6 +2399,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 ai_coach_actions=lesson_metadata.get('coach_actions', []),
                 content=lesson_content,
                 ai_generation_status='generated',
+                generation_settings=gen_settings.to_dict(),
             )
 
             try:
@@ -2510,6 +2528,10 @@ def dashboard_add_course(request):
         ctx = {
             'course_formats': COURSEFORGE_FORMAT_CHOICES,
             'knowledge_levels': COURSEFORGE_LEVEL_CHOICES,
+            'reading_level_choices': READING_LEVEL_CHOICES,
+            'length_choices': LENGTH_CHOICES,
+            'depth_choices': DEPTH_CHOICES,
+            'class_length_choices': CLASS_LENGTH_CHOICES,
             'show_onboarding': show_onboarding,
         }
 
@@ -2526,7 +2548,31 @@ def dashboard_add_course(request):
                         'Quick AI requires course title, short description, and full description (step 2).',
                     )
                     return render(request, 'dashboard/add_course.html', ctx)
-                blueprint_to_save = {}
+                # Pull the qa_* pacing extras and validate the same way the wizard does.
+                qa_fmt = (request.POST.get('qa_course_format') or '').strip()
+                if qa_fmt not in {c[0] for c in COURSEFORGE_FORMAT_CHOICES}:
+                    qa_fmt = 'masterclass'
+                qa_level = (request.POST.get('qa_knowledge_level') or '').strip()
+                if qa_level not in {c[0] for c in COURSEFORGE_LEVEL_CHOICES}:
+                    qa_level = 'beginner'
+                qa_class_len = (request.POST.get('qa_class_length') or '').strip()
+                if qa_class_len not in _VALID_CLASS_LENGTHS:
+                    qa_class_len = '30_min'
+                try:
+                    qa_total = max(1, min(120, int((request.POST.get('qa_total_classes') or '12').strip())))
+                except (ValueError, TypeError):
+                    qa_total = 12
+                # `topic` is the gate for _blueprint_lesson_context_block and
+                # _blueprint_structure_prompt_section; without it those helpers
+                # short-circuit and these qa_* extras would never reach the LLM.
+                blueprint_to_save = {
+                    'topic': name,
+                    'course_format': qa_fmt,
+                    'knowledge_level': qa_level,
+                    'class_length': qa_class_len,
+                    'total_classes': qa_total,
+                    'generation_settings': _parse_generation_settings(request.POST, prefix='qa_'),
+                }
             elif forge_ok:
                 if not name:
                     messages.error(
@@ -2543,8 +2589,11 @@ def dashboard_add_course(request):
                     description = structured
                 blueprint_to_save = blueprint
             elif legacy_ok:
-                # Classic three-field AI flow (same as pre-wizard): no blueprint, user description only
-                blueprint_to_save = {}
+                # Classic three-field AI flow (same as pre-wizard): no blueprint, user description only.
+                # Carry through the Step 1 cf_* controls so any selections survive into the lessons.
+                blueprint_to_save = {
+                    'generation_settings': _parse_generation_settings(request.POST, prefix='cf_'),
+                }
             else:
                 for err in bp_errors:
                     messages.error(request, err)
@@ -2611,6 +2660,10 @@ def dashboard_add_course(request):
     return render(request, 'dashboard/add_course.html', {
         'course_formats': COURSEFORGE_FORMAT_CHOICES,
         'knowledge_levels': COURSEFORGE_LEVEL_CHOICES,
+        'reading_level_choices': READING_LEVEL_CHOICES,
+        'length_choices': LENGTH_CHOICES,
+        'depth_choices': DEPTH_CHOICES,
+        'class_length_choices': CLASS_LENGTH_CHOICES,
         'show_onboarding': show_onboarding,
     })
 

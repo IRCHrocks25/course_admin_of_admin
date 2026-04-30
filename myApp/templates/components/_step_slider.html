@@ -1,0 +1,41 @@
+{% comment %}
+Reusable snap-slider control.
+Render with: include "components/_step_slider.html" with name=... value=... options=... label=... helper=...
+  - name:    form field name (str)
+  - value:   currently selected option value (str)
+  - options: list of (value, label) tuples
+  - label:   header text shown above the track
+  - helper:  one-line helper text below (optional)
+The component renders one hidden input matching `name` that submits with the form.
+{% endcomment %}
+<div class="step-slider"
+     data-name="{{ name }}"
+     data-value="{{ value }}"
+     style="--max: {{ options|length|add:'-1' }};">
+    <p class="step-slider-title">{{ label }}</p>
+    <div class="step-slider-shell">
+        <div class="step-slider-track">
+            <div class="step-slider-fill"></div>
+            {% for opt_val, opt_label in options %}
+            <span class="step-slider-tick"
+                  style="--tick-pos: {% widthratio forloop.counter0 options|length|add:'-1' 100 %}%"></span>
+            {% endfor %}
+            <div class="step-slider-thumb"
+                 role="slider"
+                 tabindex="0"
+                 aria-label="{{ label }}"
+                 aria-valuemin="0"
+                 aria-valuemax="{{ options|length|add:'-1' }}"
+                 aria-valuenow="0"></div>
+        </div>
+        <div class="step-slider-labels">
+            {% for opt_val, opt_label in options %}
+            <span class="step-slider-label"
+                  data-value="{{ opt_val }}"
+                  style="--label-pos: {% widthratio forloop.counter0 options|length|add:'-1' 100 %}%">{{ opt_label }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% if helper %}<p class="step-slider-helper">{{ helper }}</p>{% endif %}
+    <input type="hidden" name="{{ name }}" value="{{ value }}">
+</div>

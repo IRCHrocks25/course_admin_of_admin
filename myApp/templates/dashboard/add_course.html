@@ -100,11 +100,24 @@
                 <div class="grid sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-semibold mb-1">Class length <span class="text-red-400">*</span></label>
-                        <input type="text" name="cf_class_length" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g. 45 minutes">
+                        <select name="cf_class_length" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                            {% for val, label in class_length_choices %}
+                            <option value="{{ val }}" {% if val == '30_min' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-semibold mb-1">Total classes / lessons <span class="text-red-400">*</span></label>
                         <input type="number" name="cf_total_classes" min="4" max="120" value="12" class="cf-ai-req w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                    </div>
+                </div>
+                {% include "components/_step_slider_assets.html" %}
+                <div class="rounded-xl border border-cyan-electric/15 bg-[#0a0e27]/30 p-5">
+                    <p class="text-sm font-semibold text-gray-200 mb-5">Generation settings</p>
+                    <div class="space-y-7">
+                        {% include "components/_step_slider.html" with name="cf_reading_level" value="practitioner" options=reading_level_choices label="Reading level" helper="Vocabulary and assumed familiarity with the topic." %}
+                        {% include "components/_step_slider.html" with name="cf_length" value="standard" options=length_choices label="Lesson length" helper="Target word count and number of content blocks." %}
+                        {% include "components/_step_slider.html" with name="cf_depth" value="how_to" options=depth_choices label="Content depth" helper="How much theory, examples, and edge cases to include." %}
                     </div>
                 </div>
                 <div>
@@ -204,6 +217,48 @@
                 <div>
                     <label class="block text-sm font-semibold mb-2">AI Coach Name</label>
                     <input type="text" name="coach_name" value="Sprint Coach" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                </div>
+                <div id="qa-classic-extras" class="hidden space-y-4">
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Course format <span class="text-red-400">*</span></label>
+                            <select name="qa_course_format" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                                {% for val, label in course_formats %}
+                                <option value="{{ val }}" {% if val == 'masterclass' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Knowledge level <span class="text-red-400">*</span></label>
+                            <select name="qa_knowledge_level" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                                {% for val, label in knowledge_levels %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Class length <span class="text-red-400">*</span></label>
+                            <select name="qa_class_length" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                                {% for val, label in class_length_choices %}
+                                <option value="{{ val }}" {% if val == '30_min' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Total classes / lessons <span class="text-red-400">*</span></label>
+                            <input type="number" name="qa_total_classes" min="4" max="120" value="12" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50">
+                        </div>
+                    </div>
+                </div>
+                <div id="qa-gen-controls" class="hidden rounded-xl border border-cyan-electric/15 bg-[#0a0e27]/30 p-5">
+                    <p class="text-sm font-semibold text-gray-200 mb-5">Generation settings</p>
+                    <div class="space-y-7">
+                        {% include "components/_step_slider.html" with name="qa_reading_level" value="practitioner" options=reading_level_choices label="Reading level" helper="Vocabulary and assumed familiarity with the topic." %}
+                        {% include "components/_step_slider.html" with name="qa_length" value="standard" options=length_choices label="Lesson length" helper="Target word count and number of content blocks." %}
+                        {% include "components/_step_slider.html" with name="qa_depth" value="how_to" options=depth_choices label="Content depth" helper="How much theory, examples, and edge cases to include." %}
+                    </div>
                 </div>
             </div>
 
@@ -568,6 +623,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var qh = document.getElementById('quick-ai-hint');
         if (qh) qh.classList.remove('hidden');
         if (btnFullForge) btnFullForge.classList.remove('hidden');
+        var qaGen = document.getElementById('qa-gen-controls');
+        if (qaGen) qaGen.classList.remove('hidden');
+        var qaExtras = document.getElementById('qa-classic-extras');
+        if (qaExtras) qaExtras.classList.remove('hidden');
         document.querySelectorAll('.manual-req').forEach(function(el) { el.classList.remove('hidden'); });
         document.querySelectorAll('.manual-opt').forEach(function(el) { el.classList.add('hidden'); });
         document.querySelectorAll('.manual-req-field').forEach(function(el) {
@@ -583,6 +642,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var qh = document.getElementById('quick-ai-hint');
         if (qh) qh.classList.add('hidden');
         if (btnFullForge) btnFullForge.classList.add('hidden');
+        var qaGen = document.getElementById('qa-gen-controls');
+        if (qaGen) qaGen.classList.add('hidden');
+        var qaExtras = document.getElementById('qa-classic-extras');
+        if (qaExtras) qaExtras.classList.add('hidden');
         document.querySelectorAll('.manual-req').forEach(function(el) { el.classList.add('hidden'); });
         document.querySelectorAll('.manual-opt').forEach(function(el) { el.classList.remove('hidden'); });
         document.querySelectorAll('.manual-req-field').forEach(function(el) { el.required = false; });

@@ -1,0 +1,275 @@
+{# CSS + JS for the reusable .step-slider component. Include once per page that uses any sliders. #}
+<style>
+.step-slider {
+    --pos: 0;
+    --max: 2;
+    --pos-pct: calc(var(--pos) / var(--max) * 100%);
+    --thumb-size: 18px;
+    --accent: #00f0ff;
+    --accent-soft: rgba(0, 240, 255, 0.18);
+    --accent-fill: rgba(0, 240, 255, 0.10);
+    color: #cbd5e1;
+    user-select: none;
+}
+.step-slider-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e5e7eb;
+    margin: 0 0 14px;
+    letter-spacing: 0.01em;
+}
+.step-slider-shell {
+    position: relative;
+    padding: 0 calc(var(--thumb-size) / 2);
+    padding-bottom: 28px;
+}
+.step-slider-track {
+    position: relative;
+    height: 6px;
+    background: var(--accent-fill);
+    border: 1px solid var(--accent-soft);
+    border-radius: 999px;
+    cursor: pointer;
+}
+.step-slider-fill {
+    position: absolute;
+    top: -1px;
+    bottom: -1px;
+    left: 0;
+    width: var(--pos-pct);
+    background: linear-gradient(90deg, #00b4d8 0%, var(--accent) 100%);
+    border-radius: 999px;
+    transition: width 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+.step-slider-tick {
+    position: absolute;
+    top: 50%;
+    left: var(--tick-pos);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(0, 240, 255, 0.35);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 1;
+}
+.step-slider-thumb {
+    position: absolute;
+    top: 50%;
+    left: var(--pos-pct);
+    width: var(--thumb-size);
+    height: var(--thumb-size);
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid #0a0e27;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        0 0 0 1px rgba(0, 240, 255, 0.55),
+        0 0 12px rgba(0, 240, 255, 0.40);
+    cursor: grab;
+    outline: none;
+    z-index: 2;
+    transition:
+        left 240ms cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 200ms ease,
+        transform 200ms ease;
+    touch-action: none;
+}
+.step-slider-thumb:hover {
+    box-shadow:
+        0 0 0 1px rgba(0, 240, 255, 0.85),
+        0 0 0 6px rgba(0, 240, 255, 0.10),
+        0 0 16px rgba(0, 240, 255, 0.55);
+}
+.step-slider-thumb:focus-visible {
+    box-shadow:
+        0 0 0 1px rgba(0, 240, 255, 1),
+        0 0 0 6px rgba(0, 240, 255, 0.22),
+        0 0 16px rgba(0, 240, 255, 0.70);
+}
+.step-slider[data-dragging="true"] .step-slider-fill,
+.step-slider[data-dragging="true"] .step-slider-thumb {
+    transition: none;
+}
+.step-slider[data-dragging="true"] .step-slider-thumb {
+    cursor: grabbing;
+    transform: translate(-50%, -50%) scale(1.12);
+    box-shadow:
+        0 0 0 1px rgba(0, 240, 255, 1),
+        0 0 0 8px rgba(0, 240, 255, 0.18),
+        0 0 20px rgba(0, 240, 255, 0.75);
+}
+.step-slider-labels {
+    position: absolute;
+    left: calc(var(--thumb-size) / 2);
+    right: calc(var(--thumb-size) / 2);
+    bottom: 0;
+    height: 18px;
+    pointer-events: none;
+}
+.step-slider-label {
+    position: absolute;
+    top: 0;
+    left: var(--label-pos);
+    transform: translateX(-50%);
+    font-size: 11.5px;
+    color: rgba(148, 163, 184, 0.55);
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition:
+        color 220ms ease,
+        font-weight 220ms ease,
+        transform 220ms ease;
+}
+/* Edge labels anchor to the stop instead of centering on it, otherwise half the
+   text overflows the slider container at 0% and 100%. */
+.step-slider-label:first-child {
+    transform: translateX(0);
+}
+.step-slider-label:last-child {
+    transform: translateX(-100%);
+}
+.step-slider-label:hover {
+    color: rgba(0, 240, 255, 0.80);
+}
+.step-slider-label[data-active="true"] {
+    color: var(--accent);
+    font-weight: 700;
+    transform: translateX(-50%) translateY(-1px);
+    text-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+}
+.step-slider-label:first-child[data-active="true"] {
+    transform: translateX(0) translateY(-1px);
+}
+.step-slider-label:last-child[data-active="true"] {
+    transform: translateX(-100%) translateY(-1px);
+}
+.step-slider-helper {
+    font-size: 11px;
+    color: #6b7280;
+    margin: 4px 0 0;
+}
+</style>
+<script>
+(function() {
+    function activate(slider) {
+        if (slider.dataset.initialized === 'true') return;
+        slider.dataset.initialized = 'true';
+
+        var input  = slider.querySelector('input[type="hidden"]');
+        var track  = slider.querySelector('.step-slider-track');
+        var thumb  = slider.querySelector('.step-slider-thumb');
+        var labels = Array.prototype.slice.call(slider.querySelectorAll('.step-slider-label'));
+        if (!input || !track || !thumb || !labels.length) return;
+
+        var stops = labels.map(function(l) { return l.getAttribute('data-value'); });
+        var max = stops.length - 1;
+
+        function setPos(pos, opts) {
+            opts = opts || {};
+            if (pos < 0) pos = 0;
+            if (pos > max) pos = max;
+            var snapped = Math.round(pos);
+            slider.style.setProperty('--pos', opts.continuous ? pos : snapped);
+            if (opts.continuous) return;
+            var value = stops[snapped];
+            input.value = value;
+            slider.setAttribute('data-value', value);
+            thumb.setAttribute('aria-valuenow', String(snapped));
+            thumb.setAttribute('aria-valuetext', labels[snapped].textContent);
+            labels.forEach(function(l, i) {
+                l.setAttribute('data-active', i === snapped ? 'true' : 'false');
+            });
+        }
+
+        function ratioFromClient(clientX) {
+            var rect = track.getBoundingClientRect();
+            if (rect.width === 0) return 0;
+            var r = (clientX - rect.left) / rect.width;
+            if (r < 0) return 0;
+            if (r > 1) return 1;
+            return r;
+        }
+
+        // Initial state: pick the stop matching the input value, default to 0.
+        var initialIdx = stops.indexOf(input.value);
+        setPos(initialIdx >= 0 ? initialIdx : 0);
+
+        // Click on a label
+        labels.forEach(function(l, i) {
+            l.addEventListener('click', function() { setPos(i); thumb.focus(); });
+        });
+
+        // Click on the track (anywhere outside the thumb) snaps to nearest stop.
+        track.addEventListener('click', function(e) {
+            if (e.target === thumb) return;
+            setPos(Math.round(ratioFromClient(e.clientX) * max));
+            thumb.focus();
+        });
+
+        // Keyboard
+        thumb.addEventListener('keydown', function(e) {
+            var cur = parseInt(slider.style.getPropertyValue('--pos') || '0', 10);
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown')        { setPos(cur - 1); e.preventDefault(); }
+            else if (e.key === 'ArrowRight' || e.key === 'ArrowUp')    { setPos(cur + 1); e.preventDefault(); }
+            else if (e.key === 'Home')                                  { setPos(0);       e.preventDefault(); }
+            else if (e.key === 'End')                                   { setPos(max);     e.preventDefault(); }
+            else if (e.key === ' ' || e.key === 'Enter')                { e.preventDefault(); }
+        });
+
+        // Drag — pointer events cover mouse + touch + pen on modern browsers.
+        var dragging = false;
+        var dragPointerId = null;
+
+        function startDrag(e) {
+            dragging = true;
+            dragPointerId = e.pointerId;
+            slider.setAttribute('data-dragging', 'true');
+            try { thumb.setPointerCapture(e.pointerId); } catch (err) {}
+            thumb.focus();
+            setPos(ratioFromClient(e.clientX) * max, { continuous: true });
+            e.preventDefault();
+        }
+        function moveDrag(e) {
+            if (!dragging || e.pointerId !== dragPointerId) return;
+            setPos(ratioFromClient(e.clientX) * max, { continuous: true });
+        }
+        function endDrag(e) {
+            if (!dragging || e.pointerId !== dragPointerId) return;
+            dragging = false;
+            dragPointerId = null;
+            slider.removeAttribute('data-dragging');
+            try { thumb.releasePointerCapture(e.pointerId); } catch (err) {}
+            setPos(Math.round(ratioFromClient(e.clientX) * max));
+        }
+
+        if (window.PointerEvent) {
+            thumb.addEventListener('pointerdown', startDrag);
+            thumb.addEventListener('pointermove', moveDrag);
+            thumb.addEventListener('pointerup', endDrag);
+            thumb.addEventListener('pointercancel', endDrag);
+        } else {
+            // Mouse fallback (very old browsers)
+            thumb.addEventListener('mousedown', function(e) { startDrag({ pointerId: 0, clientX: e.clientX, preventDefault: function() { e.preventDefault(); } }); });
+            document.addEventListener('mousemove', function(e) { if (dragging) moveDrag({ pointerId: 0, clientX: e.clientX }); });
+            document.addEventListener('mouseup', function(e) { if (dragging) endDrag({ pointerId: 0, clientX: e.clientX }); });
+        }
+    }
+
+    function init(root) {
+        var scope = root || document;
+        scope.querySelectorAll('.step-slider').forEach(activate);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { init(); });
+    } else {
+        init();
+    }
+
+    window.StepSlider = { init: init, activate: activate };
+})();
+</script>
