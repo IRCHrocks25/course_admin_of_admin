@@ -130,6 +130,28 @@
                     <p class="text-xs text-gray-500 mb-1">Paste existing notes or outlines to repurpose into lessons.</p>
                     <textarea name="cf_reference_content" rows="4" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none"></textarea>
                 </div>
+
+                <div class="rounded-xl border border-cyan-electric/20 bg-cyan-electric/5 p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-semibold text-cyan-electric">Lesson 1 AI Preview</p>
+                            <p class="text-xs text-gray-400">Test how Lesson 1 reads before creating the full course.</p>
+                        </div>
+                        <button type="button" id="cf-preview-lesson1-btn" class="cf-preview-trigger px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/10 transition-all text-sm font-semibold">
+                            <i class="fas fa-eye mr-2"></i>Preview Lesson 1
+                        </button>
+                    </div>
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Lesson 1 title (optional)</label>
+                            <input type="text" id="cf-preview-lesson-title" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50" placeholder="Defaults to your topic">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Optional lesson source text</label>
+                            <input type="text" id="cf-preview-lesson-source" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50" placeholder="If blank, we use your wizard brief">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Step 2: About -->
@@ -260,6 +282,14 @@
                         {% include "components/_step_slider.html" with name="qa_depth" value="how_to" options=depth_choices label="Content depth" helper="How much theory, examples, and edge cases to include." %}
                     </div>
                 </div>
+                <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-xs text-gray-300">Preview Lesson 1 using Classic AI inputs and settings.</p>
+                        <button type="button" class="cf-preview-trigger px-4 py-2 rounded-lg border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/10 transition-all text-sm font-semibold">
+                            <i class="fas fa-eye mr-2"></i>Preview Lesson 1
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Step 3: Promise -->
@@ -368,6 +398,49 @@
     </div>
 </div>
 
+<div id="cf-preview-modal" class="hidden fixed inset-0 z-50 opacity-0 transition-opacity duration-200 ease-out">
+    <div id="cf-preview-backdrop" class="absolute inset-0 bg-black/70 opacity-0 transition-opacity duration-200 ease-out"></div>
+    <div class="relative z-10 min-h-full flex items-center justify-center p-4">
+        <div id="cf-preview-panel" tabindex="-1" class="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#0a0e27] border border-cyan-electric/25 rounded-2xl shadow-2xl opacity-0 translate-y-2 scale-[0.98] transition-all duration-200 ease-out">
+            <div class="sticky top-0 bg-[#0a0e27] border-b border-cyan-electric/10 px-6 py-4 flex items-center justify-between">
+                <h3 class="text-xl font-bold">Lesson 1 Preview</h3>
+                <button type="button" id="cf-preview-close-btn" class="text-gray-400 hover:text-white transition-all">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            <div class="px-6 py-5 space-y-5">
+                <p id="cf-preview-loading" class="hidden text-sm text-cyan-electric"><i class="fas fa-spinner fa-spin mr-2"></i>Generating Lesson 1 preview...</p>
+                <p id="cf-preview-error" class="hidden text-sm text-red-400"></p>
+
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-1">Lesson title</p>
+                    <h4 id="cf-preview-title" class="text-2xl font-bold text-white"></h4>
+                </section>
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Short summary</p>
+                    <p id="cf-preview-summary" class="text-gray-200 leading-relaxed"></p>
+                </section>
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Full description</p>
+                    <p id="cf-preview-description" class="text-gray-300 leading-relaxed whitespace-pre-line"></p>
+                </section>
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Outcomes</p>
+                    <ul id="cf-preview-outcomes" class="space-y-2 text-gray-300"></ul>
+                </section>
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Coach actions</p>
+                    <div id="cf-preview-actions" class="space-y-2"></div>
+                </section>
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Lesson notes</p>
+                    <div id="cf-preview-notes" class="space-y-3 text-gray-300"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('create-course-form');
@@ -409,11 +482,215 @@ document.addEventListener('DOMContentLoaded', function() {
     const seedLessonsList = document.getElementById('cf-seed-lessons-list');
     const addSeedLessonBtn = document.getElementById('cf-add-seed-lesson');
     const seedLessonsJson = document.getElementById('cf-seed-lessons-json');
+    const previewBtns = Array.from(document.querySelectorAll('.cf-preview-trigger'));
+    const previewLessonTitleInput = document.getElementById('cf-preview-lesson-title');
+    const previewLessonSourceInput = document.getElementById('cf-preview-lesson-source');
+    const previewModal = document.getElementById('cf-preview-modal');
+    const previewBackdrop = document.getElementById('cf-preview-backdrop');
+    const previewPanel = document.getElementById('cf-preview-panel');
+    const previewCloseBtn = document.getElementById('cf-preview-close-btn');
+    const previewLoading = document.getElementById('cf-preview-loading');
+    const previewError = document.getElementById('cf-preview-error');
+    const previewTitle = document.getElementById('cf-preview-title');
+    const previewSummary = document.getElementById('cf-preview-summary');
+    const previewDescription = document.getElementById('cf-preview-description');
+    const previewOutcomes = document.getElementById('cf-preview-outcomes');
+    const previewActions = document.getElementById('cf-preview-actions');
+    const previewNotes = document.getElementById('cf-preview-notes');
 
     const stepTitles = ['Course settings', 'About & positioning', 'Course promise', 'Teaching framework', 'Learning outcomes', 'Review & generate'];
 
     let current = 1;
     const total = steps.length;
+    let previewSavedScrollY = 0;
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderPreviewBlocks(content) {
+        const blocks = (content && Array.isArray(content.blocks)) ? content.blocks : [];
+        if (!blocks.length) return '<p class="text-gray-500 italic">No lesson notes generated.</p>';
+        return blocks.map(function(block) {
+            if (!block || !block.type || !block.data) return '';
+            const text = escapeHtml(block.data.text || '');
+            if (block.type === 'header') return '<h5 class="font-semibold text-white">' + text + '</h5>';
+            if (block.type === 'paragraph') return '<p class="leading-relaxed">' + text + '</p>';
+            if (block.type === 'quote') return '<blockquote class="border-l-2 border-cyan-electric/50 pl-3 italic text-gray-200">' + text + '</blockquote>';
+            if (block.type === 'list') {
+                const items = Array.isArray(block.data.items) ? block.data.items : [];
+                if (!items.length) return '';
+                return '<ul class="list-disc ml-5 space-y-1">' + items.map(function(i){ return '<li>' + escapeHtml(i) + '</li>'; }).join('') + '</ul>';
+            }
+            return '';
+        }).join('') || '<p class="text-gray-500 italic">No lesson notes generated.</p>';
+    }
+
+    function lockPreviewScroll() {
+        previewSavedScrollY = window.scrollY || window.pageYOffset || 0;
+        document.body.style.position = 'fixed';
+        document.body.style.top = '-' + previewSavedScrollY + 'px';
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+    }
+
+    function unlockPreviewScroll() {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        window.scrollTo(0, previewSavedScrollY || 0);
+    }
+
+    function openPreviewModal() {
+        if (!previewModal) return;
+        lockPreviewScroll();
+        previewModal.classList.remove('hidden');
+        requestAnimationFrame(function() {
+            if (previewModal) {
+                previewModal.classList.remove('opacity-0');
+                previewModal.classList.add('opacity-100');
+            }
+            if (previewBackdrop) {
+                previewBackdrop.classList.remove('opacity-0');
+                previewBackdrop.classList.add('opacity-100');
+            }
+            if (previewPanel) {
+                previewPanel.classList.remove('opacity-0', 'translate-y-2', 'scale-[0.98]');
+                previewPanel.classList.add('opacity-100', 'translate-y-0', 'scale-100');
+                previewPanel.focus();
+            }
+        });
+    }
+
+    function closePreviewModal() {
+        if (!previewModal) return;
+        previewModal.classList.remove('opacity-100');
+        previewModal.classList.add('opacity-0');
+        if (previewBackdrop) {
+            previewBackdrop.classList.remove('opacity-100');
+            previewBackdrop.classList.add('opacity-0');
+        }
+        if (previewPanel) {
+            previewPanel.classList.remove('opacity-100', 'translate-y-0', 'scale-100');
+            previewPanel.classList.add('opacity-0', 'translate-y-2', 'scale-[0.98]');
+        }
+        setTimeout(function() {
+            if (previewModal) previewModal.classList.add('hidden');
+            unlockPreviewScroll();
+        }, 200);
+    }
+
+    function setPreviewStateLoading(isLoading) {
+        if (previewLoading) previewLoading.classList.toggle('hidden', !isLoading);
+        previewBtns.forEach(function(btn) { btn.disabled = isLoading; });
+    }
+
+    async function generateLessonPreview() {
+        if (!form) return;
+        openPreviewModal();
+        if (previewError) {
+            previewError.classList.add('hidden');
+            previewError.textContent = '';
+        }
+        if (previewTitle) previewTitle.textContent = '';
+        if (previewSummary) previewSummary.textContent = '';
+        if (previewDescription) previewDescription.textContent = '';
+        if (previewOutcomes) previewOutcomes.innerHTML = '';
+        if (previewActions) previewActions.innerHTML = '';
+        if (previewNotes) previewNotes.innerHTML = '';
+
+        const topic = (form.querySelector('[name="cf_topic"]')?.value || '').trim();
+        const audience = (form.querySelector('[name="cf_target_audience"]')?.value || '').trim();
+        const goals = (form.querySelector('[name="cf_learning_goals"]')?.value || '').trim();
+        const promise = (form.querySelector('[name="cf_course_promise"]')?.value || '').trim();
+        const framework = (form.querySelector('[name="cf_framework_title"]')?.value || '').trim();
+        const outcomesRaw = (form.querySelector('[name="cf_outcomes"]')?.value || '').trim();
+        const classicName = (form.querySelector('[name="name"]')?.value || '').trim();
+        const classicShort = (form.querySelector('[name="short_description"]')?.value || '').trim();
+        const classicFull = (form.querySelector('[name="description"]')?.value || '').trim();
+        const isQuickClassic = !!(aiOn() && quickAiField && quickAiField.value === '1');
+        const contextName = (classicName || topic || 'Course Preview').trim();
+
+        const lessonTitle = ((previewLessonTitleInput && previewLessonTitleInput.value.trim()) || (contextName ? contextName + ' - Lesson 1' : 'Lesson 1')).trim();
+        const providedSource = (previewLessonSourceInput && previewLessonSourceInput.value.trim()) || '';
+        const composedSource = [
+            topic ? 'Topic: ' + topic : '',
+            audience ? 'Audience: ' + audience : '',
+            goals ? 'Learning goals: ' + goals : '',
+            promise ? 'Promise: ' + promise : '',
+            framework ? 'Framework: ' + framework : '',
+            outcomesRaw ? 'Outcomes: ' + outcomesRaw : ''
+        ].filter(Boolean).join('\n');
+        const classicSource = [
+            classicShort ? 'Short description: ' + classicShort : '',
+            classicFull ? 'Full description: ' + classicFull : '',
+        ].filter(Boolean).join('\n');
+        const lessonSource = (providedSource || (isQuickClassic ? classicSource : composedSource) || classicFull || 'Generate a practical first lesson with clear steps and examples.').trim();
+
+        const readingLevel = (form.querySelector(isQuickClassic ? '[name="qa_reading_level"]' : '[name="cf_reading_level"]')?.value || 'practitioner').trim();
+        const length = (form.querySelector(isQuickClassic ? '[name="qa_length"]' : '[name="cf_length"]')?.value || 'standard').trim();
+        const depth = (form.querySelector(isQuickClassic ? '[name="qa_depth"]' : '[name="cf_depth"]')?.value || 'how_to').trim();
+        const csrfField = form.querySelector('[name="csrfmiddlewaretoken"]');
+
+        setPreviewStateLoading(true);
+        try {
+            const payload = new URLSearchParams({
+                lesson_title: lessonTitle,
+                lesson_source: lessonSource,
+                lesson_video_link: '',
+                course_context: contextName,
+                reading_level: readingLevel,
+                length: length,
+                depth: depth,
+            });
+            const resp = await fetch('{% url "dashboard_generate_lesson_draft" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfField ? csrfField.value : '',
+                },
+                body: payload.toString(),
+            });
+            const data = await resp.json();
+            if (!data.success || !data.lesson) {
+                throw new Error(data.error || 'Preview generation failed.');
+            }
+            const lesson = data.lesson;
+            if (previewTitle) previewTitle.textContent = lesson.clean_title || lessonTitle;
+            if (previewSummary) previewSummary.textContent = lesson.short_summary || 'No short summary generated.';
+            if (previewDescription) previewDescription.textContent = lesson.full_description || 'No full description generated.';
+            if (previewOutcomes) {
+                const outcomes = Array.isArray(lesson.outcomes) ? lesson.outcomes : [];
+                previewOutcomes.innerHTML = outcomes.length
+                    ? outcomes.map(function(item){ return '<li class="flex items-start gap-2"><i class="fas fa-check-circle text-cyan-electric mt-1"></i><span>' + escapeHtml(item) + '</span></li>'; }).join('')
+                    : '<li class="text-gray-500 italic">No outcomes generated.</li>';
+            }
+            if (previewActions) {
+                const actions = Array.isArray(lesson.coach_actions) ? lesson.coach_actions : [];
+                previewActions.innerHTML = actions.length
+                    ? actions.map(function(item){ return '<div class="px-3 py-2 rounded-lg bg-cyan-electric/10 border border-cyan-electric/20 text-sm">' + escapeHtml(item) + '</div>'; }).join('')
+                    : '<p class="text-gray-500 italic">No coach actions generated.</p>';
+            }
+            if (previewNotes) {
+                previewNotes.innerHTML = renderPreviewBlocks(lesson.content || { blocks: [] });
+            }
+        } catch (error) {
+            if (previewError) {
+                previewError.textContent = error.message || 'Failed to generate preview.';
+                previewError.classList.remove('hidden');
+            }
+        } finally {
+            setPreviewStateLoading(false);
+        }
+    }
 
     function setActiveTopTab(tabName) {
         const showCourse = tabName !== 'lesson';
@@ -768,6 +1045,24 @@ document.addEventListener('DOMContentLoaded', function() {
             setActiveTopTab('lesson');
         });
     }
+    if (previewBtns.length) {
+        previewBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                generateLessonPreview();
+            });
+        });
+    }
+    if (previewCloseBtn) {
+        previewCloseBtn.addEventListener('click', closePreviewModal);
+    }
+    if (previewBackdrop) {
+        previewBackdrop.addEventListener('click', closePreviewModal);
+    }
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && previewModal && !previewModal.classList.contains('hidden')) {
+            closePreviewModal();
+        }
+    });
     if (seedLessonsToggle) {
         seedLessonsToggle.addEventListener('change', toggleSeedLessons);
         toggleSeedLessons();

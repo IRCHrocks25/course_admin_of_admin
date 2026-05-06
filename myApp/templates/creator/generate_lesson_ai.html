@@ -30,6 +30,16 @@
     </div>
     {% endif %}
 
+    <div class="mb-6 flex justify-end">
+        <button
+            type="button"
+            class="lesson-preview-trigger px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full text-sm font-semibold hover:bg-cyan-electric/20 transition-all"
+            onclick="if(window.openLessonPreview){window.openLessonPreview();} return false;"
+        >
+            <i class="fas fa-eye mr-2"></i> Quick Preview Lesson 1
+        </button>
+    </div>
+
     <!-- AI Chatbot Transcript Section -->
     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/20 rounded-xl p-6 mb-6" style="position: relative; z-index: 1; pointer-events: auto;">
         <div class="flex items-center justify-between mb-4">
@@ -416,6 +426,19 @@
             </div>
         </div>
 
+        <!-- Quick Lesson Preview -->
+        <div class="mt-6">
+            <button
+                type="button"
+                id="open-lesson-preview-btn"
+                class="lesson-preview-trigger w-full px-6 py-3 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full font-semibold hover:bg-cyan-electric/20 transition-all"
+                onclick="if(window.openLessonPreview){window.openLessonPreview();} return false;"
+            >
+                <i class="fas fa-eye mr-2"></i> Quick Preview Lesson 1
+            </button>
+            <p class="text-xs text-gray-500 mt-2 text-center">Preview tone and wording before saving or approving.</p>
+        </div>
+
         <!-- Action Buttons -->
         <div class="mt-8 flex gap-4">
             <button
@@ -444,6 +467,53 @@
             </button>
         </div>
     </form>
+</div>
+
+<!-- Lesson Preview Modal -->
+<div id="lesson-preview-modal" class="hidden fixed inset-0 z-50 opacity-0 transition-opacity duration-200 ease-out">
+    <div id="lesson-preview-backdrop" class="absolute inset-0 bg-black/70 opacity-0 transition-opacity duration-200 ease-out"></div>
+    <div class="relative z-10 min-h-full flex items-center justify-center p-4">
+        <div id="lesson-preview-panel" tabindex="-1" class="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#0a0e27] border border-cyan-electric/20 rounded-2xl shadow-2xl opacity-0 translate-y-2 scale-[0.98] transition-all duration-200 ease-out">
+            <div class="sticky top-0 bg-[#0a0e27] border-b border-cyan-electric/10 px-6 py-4 flex items-center justify-between">
+                <h3 class="text-xl font-bold">Lesson 1 Quick Preview</h3>
+                <button type="button" id="close-lesson-preview-btn" class="text-gray-400 hover:text-white transition-all">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-5 space-y-6">
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-1">Lesson Title</p>
+                    <h4 id="preview-title" class="text-2xl font-bold text-white"></h4>
+                </section>
+
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Short Summary</p>
+                    <p id="preview-summary" class="text-gray-200 leading-relaxed"></p>
+                </section>
+
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Full Description</p>
+                    <p id="preview-description" class="text-gray-300 leading-relaxed whitespace-pre-line"></p>
+                </section>
+
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">This Lesson Will Produce</p>
+                    <ul id="preview-outcomes" class="space-y-2 text-gray-300"></ul>
+                </section>
+
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Recommended AI Coach Actions</p>
+                    <div id="preview-coach-actions" class="space-y-2"></div>
+                </section>
+
+                <section>
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Lesson Notes</p>
+                    <div id="preview-notes" class="space-y-3 text-gray-300"></div>
+                </section>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -614,6 +684,237 @@
                     }
                 }
             });
+        });
+
+        function escapeHtml(value) {
+            return (value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function splitLines(value) {
+            return (value || '')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean);
+        }
+
+        function buildContentBlocksPreview(rawValue) {
+            if (!rawValue || !rawValue.trim()) {
+                return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+            }
+
+            try {
+                const parsed = JSON.parse(rawValue);
+                const blocks = (parsed && Array.isArray(parsed.blocks)) ? parsed.blocks : [];
+                if (!blocks.length) {
+                    return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+                }
+
+                return blocks.map(block => {
+                    if (!block || !block.type || !block.data) return '';
+                    const text = escapeHtml(block.data.text || '');
+
+                    if (block.type === 'header') {
+                        return `<h5 class="font-semibold text-white">${text}</h5>`;
+                    }
+
+                    if (block.type === 'paragraph') {
+                        return `<p class="leading-relaxed">${text}</p>`;
+                    }
+
+                    if (block.type === 'quote') {
+                        return `<blockquote class="border-l-2 border-cyan-electric/50 pl-3 italic text-gray-200">${text}</blockquote>`;
+                    }
+
+                    if (block.type === 'list') {
+                        const items = Array.isArray(block.data.items) ? block.data.items : [];
+                        if (!items.length) return '';
+                        const listItems = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+                        return `<ul class="list-disc ml-5 space-y-1">${listItems}</ul>`;
+                    }
+
+                    return '';
+                }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+            } catch (error) {
+                return '<p class="text-gray-500 italic">Lesson notes format is invalid. Please check JSON before saving.</p>';
+            }
+        }
+
+        const previewButtons = document.querySelectorAll('.lesson-preview-trigger');
+        const previewModal = document.getElementById('lesson-preview-modal');
+        const previewCloseBtn = document.getElementById('close-lesson-preview-btn');
+        const previewBackdrop = document.getElementById('lesson-preview-backdrop');
+        const previewPanel = document.getElementById('lesson-preview-panel');
+        let previewLastFocusedElement = null;
+        let previewSavedScrollY = 0;
+        let previewCloseTimer = null;
+
+        function lockBodyScroll() {
+            previewSavedScrollY = window.scrollY || window.pageYOffset || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${previewSavedScrollY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function unlockBodyScroll() {
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.classList.remove('overflow-hidden');
+            window.scrollTo(0, previewSavedScrollY || 0);
+        }
+
+        function getPreviewFocusableElements() {
+            if (!previewModal) return [];
+            return Array.from(previewModal.querySelectorAll(
+                'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )).filter(el => !el.hasAttribute('hidden') && !el.classList.contains('hidden'));
+        }
+
+        function closePreviewModal() {
+            if (previewModal) {
+                previewModal.classList.remove('opacity-100');
+                previewModal.classList.add('opacity-0');
+            }
+            if (previewBackdrop) {
+                previewBackdrop.classList.remove('opacity-100');
+                previewBackdrop.classList.add('opacity-0');
+            }
+            if (previewPanel) {
+                previewPanel.classList.remove('opacity-100', 'translate-y-0', 'scale-100');
+                previewPanel.classList.add('opacity-0', 'translate-y-2', 'scale-[0.98]');
+            }
+            if (previewCloseTimer) {
+                clearTimeout(previewCloseTimer);
+            }
+            previewCloseTimer = setTimeout(function() {
+                if (previewModal) previewModal.classList.add('hidden');
+                unlockBodyScroll();
+                if (previewLastFocusedElement && typeof previewLastFocusedElement.focus === 'function') {
+                    previewLastFocusedElement.focus();
+                }
+            }, 200);
+        }
+
+        function openPreviewModal() {
+            if (previewCloseTimer) {
+                clearTimeout(previewCloseTimer);
+                previewCloseTimer = null;
+            }
+            previewLastFocusedElement = document.activeElement;
+            const titleInput = document.getElementById('clean-title-input');
+            const summaryInput = document.getElementById('short-summary-input');
+            const descriptionInput = document.getElementById('full-description-input');
+            const outcomesInput = document.getElementById('outcomes-input');
+            const coachActionsInput = document.getElementById('coach-actions-input');
+            const contentBlocksInput = document.getElementById('content-blocks-input');
+
+            const titleValue = ((titleInput && titleInput.value) ? titleInput.value : '').trim();
+            const summaryValue = ((summaryInput && summaryInput.value) ? summaryInput.value : '').trim();
+            const descriptionValue = ((descriptionInput && descriptionInput.value) ? descriptionInput.value : '').trim();
+            const outcomesValue = (outcomesInput && outcomesInput.value) ? outcomesInput.value : '';
+            const coachActionsValue = (coachActionsInput && coachActionsInput.value) ? coachActionsInput.value : '';
+            const contentBlocksValue = (contentBlocksInput && contentBlocksInput.value) ? contentBlocksInput.value : '';
+
+            const previewTitle = document.getElementById('preview-title');
+            const previewSummary = document.getElementById('preview-summary');
+            const previewDescription = document.getElementById('preview-description');
+            const previewOutcomes = document.getElementById('preview-outcomes');
+            const previewCoachActions = document.getElementById('preview-coach-actions');
+            const previewNotes = document.getElementById('preview-notes');
+
+            if (!previewTitle || !previewSummary || !previewDescription || !previewOutcomes || !previewCoachActions || !previewNotes) {
+                return;
+            }
+
+            previewTitle.textContent = titleValue || 'Untitled Lesson';
+            previewSummary.textContent = summaryValue || 'No summary provided yet.';
+            previewDescription.textContent = descriptionValue || 'No full description provided yet.';
+
+            const outcomes = splitLines(outcomesValue);
+            previewOutcomes.innerHTML = outcomes.length
+                ? outcomes.map(item => `<li class="flex items-start gap-2"><i class="fas fa-check-circle text-cyan-electric mt-1"></i><span>${escapeHtml(item)}</span></li>`).join('')
+                : '<li class="text-gray-500 italic">No outcomes provided yet.</li>';
+
+            const coachActions = splitLines(coachActionsValue);
+            previewCoachActions.innerHTML = coachActions.length
+                ? coachActions.map(item => `<div class="px-3 py-2 rounded-lg bg-cyan-electric/10 border border-cyan-electric/20 text-sm">${escapeHtml(item)}</div>`).join('')
+                : '<p class="text-gray-500 italic">No coach actions provided yet.</p>';
+
+            previewNotes.innerHTML = buildContentBlocksPreview(contentBlocksValue);
+
+            lockBodyScroll();
+            previewModal.classList.remove('hidden');
+            requestAnimationFrame(function() {
+                if (previewModal) {
+                    previewModal.classList.remove('opacity-0');
+                    previewModal.classList.add('opacity-100');
+                }
+                if (previewBackdrop) {
+                    previewBackdrop.classList.remove('opacity-0');
+                    previewBackdrop.classList.add('opacity-100');
+                }
+                if (previewPanel) {
+                    previewPanel.classList.remove('opacity-0', 'translate-y-2', 'scale-[0.98]');
+                    previewPanel.classList.add('opacity-100', 'translate-y-0', 'scale-100');
+                    previewPanel.focus();
+                }
+            });
+        }
+
+        window.openLessonPreview = openPreviewModal;
+        window.closeLessonPreview = closePreviewModal;
+
+        previewButtons.forEach(function(btn) {
+            btn.addEventListener('click', openPreviewModal);
+        });
+
+        if (previewCloseBtn) {
+            previewCloseBtn.addEventListener('click', closePreviewModal);
+        }
+
+        if (previewBackdrop) {
+            previewBackdrop.addEventListener('click', closePreviewModal);
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (!previewModal || previewModal.classList.contains('hidden')) return;
+
+            if (event.key === 'Escape') {
+                closePreviewModal();
+                return;
+            }
+
+            if (event.key === 'Tab') {
+                const focusableElements = getPreviewFocusableElements();
+                if (!focusableElements.length) {
+                    event.preventDefault();
+                    if (previewPanel) previewPanel.focus();
+                    return;
+                }
+                const firstEl = focusableElements[0];
+                const lastEl = focusableElements[focusableElements.length - 1];
+                const activeEl = document.activeElement;
+
+                if (event.shiftKey) {
+                    if (activeEl === firstEl || activeEl === previewPanel) {
+                        event.preventDefault();
+                        lastEl.focus();
+                    }
+                } else if (activeEl === lastEl) {
+                    event.preventDefault();
+                    firstEl.focus();
+                }
+            }
         });
 
         // Transcript management

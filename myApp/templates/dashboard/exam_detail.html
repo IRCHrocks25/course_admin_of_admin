@@ -1,0 +1,163 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Exam Detail - {{ exam.title }}{% endblock %}
+{% block page_title %}Exam Detail{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="mb-2">
+        <a href="{% url 'dashboard_exams' %}" class="text-cyan-electric hover:text-cyan-electric/80 text-sm inline-flex items-center gap-2">
+            <i class="fas fa-arrow-left"></i> Back to Exams
+        </a>
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h2 class="text-2xl font-bold">{{ exam.title }}</h2>
+                <p class="text-gray-400 mt-1"><i class="fas fa-book mr-2"></i>{{ exam.course.name }}</p>
+                {% if exam.description %}
+                <p class="text-sm text-gray-300 mt-3">{{ exam.description }}</p>
+                {% endif %}
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-semibold {% if exam.is_active %}bg-green-500/20 text-green-400 border border-green-500/30{% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
+                {% if exam.is_active %}Active{% else %}Inactive{% endif %}
+            </span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                <div class="text-gray-400 text-xs">Passing Score</div>
+                <div class="font-semibold">{{ exam.passing_score }}%</div>
+            </div>
+            <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                <div class="text-gray-400 text-xs">Max Attempts</div>
+                <div class="font-semibold">{% if exam.max_attempts == 0 %}Unlimited{% else %}{{ exam.max_attempts }}{% endif %}</div>
+            </div>
+            <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                <div class="text-gray-400 text-xs">Time Limit</div>
+                <div class="font-semibold">{% if exam.time_limit_minutes %}{{ exam.time_limit_minutes }} mins{% else %}No limit{% endif %}</div>
+            </div>
+            <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                <div class="text-gray-400 text-xs">Total Questions</div>
+                <div class="font-semibold">{{ questions|length }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="bg-[#0a0e27]/60 border border-cyan-electric/10 rounded-xl p-4">
+            <div class="text-xs text-gray-400">Total Attempts</div>
+            <div class="text-2xl font-bold mt-1">{{ total_attempts }}</div>
+        </div>
+        <div class="bg-[#0a0e27]/60 border border-green-500/20 rounded-xl p-4">
+            <div class="text-xs text-gray-400">Passed Attempts</div>
+            <div class="text-2xl font-bold text-green-400 mt-1">{{ passed_attempts }}</div>
+        </div>
+        <div class="bg-[#0a0e27]/60 border border-red-500/20 rounded-xl p-4">
+            <div class="text-xs text-gray-400">Failed Attempts</div>
+            <div class="text-2xl font-bold text-red-400 mt-1">{{ failed_attempts }}</div>
+        </div>
+        <div class="bg-[#0a0e27]/60 border border-purple-accent/20 rounded-xl p-4">
+            <div class="text-xs text-gray-400">Pass Rate</div>
+            <div class="text-2xl font-bold text-purple-accent mt-1">{{ pass_rate|floatformat:1 }}%</div>
+        </div>
+        <div class="bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl p-4">
+            <div class="text-xs text-gray-400">Average Score</div>
+            <div class="text-2xl font-bold text-cyan-electric mt-1">{{ avg_score|floatformat:1 }}%</div>
+        </div>
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold">Questions and Answers</h3>
+            <span class="text-sm text-gray-400">{{ questions|length }} question{{ questions|length|pluralize }}</span>
+        </div>
+        <div class="space-y-4">
+            {% for stat in question_stats %}
+            <div class="border border-cyan-electric/15 rounded-xl p-4">
+                <div class="flex flex-wrap items-center gap-3 mb-3">
+                    <h4 class="font-semibold">Q{{ forloop.counter }}. {{ stat.question.text }}</h4>
+                    <span class="px-2 py-1 rounded-full text-xs bg-cyan-electric/10 border border-cyan-electric/20 text-cyan-electric">
+                        Correct: {{ stat.question.correct_option }}
+                    </span>
+                    <span class="px-2 py-1 rounded-full text-xs bg-purple-accent/10 border border-purple-accent/20 text-purple-accent">
+                        Correct Rate: {{ stat.correct_rate|floatformat:1 }}%
+                    </span>
+                </div>
+                <ul class="space-y-2 text-sm">
+                    <li class="flex justify-between rounded-lg px-3 py-2 {% if stat.question.correct_option == 'A' %}bg-green-500/10 border border-green-500/20{% else %}bg-[#0a0e27]/40 border border-cyan-electric/10{% endif %}">
+                        <span><strong>A.</strong> {{ stat.question.option_a }}</span>
+                        <span class="text-gray-300">{{ stat.answers.A }} selections</span>
+                    </li>
+                    <li class="flex justify-between rounded-lg px-3 py-2 {% if stat.question.correct_option == 'B' %}bg-green-500/10 border border-green-500/20{% else %}bg-[#0a0e27]/40 border border-cyan-electric/10{% endif %}">
+                        <span><strong>B.</strong> {{ stat.question.option_b }}</span>
+                        <span class="text-gray-300">{{ stat.answers.B }} selections</span>
+                    </li>
+                    {% if stat.question.option_c %}
+                    <li class="flex justify-between rounded-lg px-3 py-2 {% if stat.question.correct_option == 'C' %}bg-green-500/10 border border-green-500/20{% else %}bg-[#0a0e27]/40 border border-cyan-electric/10{% endif %}">
+                        <span><strong>C.</strong> {{ stat.question.option_c }}</span>
+                        <span class="text-gray-300">{{ stat.answers.C }} selections</span>
+                    </li>
+                    {% endif %}
+                    {% if stat.question.option_d %}
+                    <li class="flex justify-between rounded-lg px-3 py-2 {% if stat.question.correct_option == 'D' %}bg-green-500/10 border border-green-500/20{% else %}bg-[#0a0e27]/40 border border-cyan-electric/10{% endif %}">
+                        <span><strong>D.</strong> {{ stat.question.option_d }}</span>
+                        <span class="text-gray-300">{{ stat.answers.D }} selections</span>
+                    </li>
+                    {% endif %}
+                </ul>
+                <div class="mt-3 text-xs text-gray-400">
+                    {{ stat.answered_count }} answered / {{ total_attempts }} attempts
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-sm text-gray-400">No exam questions configured yet.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold">Recent Attempts</h3>
+            <span class="text-sm text-gray-400">{{ unique_students }} unique student{{ unique_students|pluralize }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-cyan-electric/10 text-gray-400">
+                        <th class="text-left py-2 pr-4">Student</th>
+                        <th class="text-left py-2 pr-4">Score</th>
+                        <th class="text-left py-2 pr-4">Status</th>
+                        <th class="text-left py-2 pr-4">Started</th>
+                        <th class="text-left py-2">Completed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in attempts %}
+                    <tr class="border-b border-cyan-electric/5">
+                        <td class="py-2 pr-4">{{ attempt.user.get_full_name|default:attempt.user.username }}</td>
+                        <td class="py-2 pr-4">{% if attempt.score is not None %}{{ attempt.score|floatformat:1 }}%{% else %}-{% endif %}</td>
+                        <td class="py-2 pr-4">
+                            {% if attempt.passed %}
+                            <span class="text-green-400 font-semibold">Passed</span>
+                            {% else %}
+                            <span class="text-red-400 font-semibold">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 pr-4">{{ attempt.started_at|date:"M d, Y H:i" }}</td>
+                        <td class="py-2">{% if attempt.completed_at %}{{ attempt.completed_at|date:"M d, Y H:i" }}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="py-4 text-gray-400">No attempts yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if latest_attempt %}
+        <p class="text-xs text-gray-500 mt-3">Latest attempt: {{ latest_attempt.started_at|timesince }} ago.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

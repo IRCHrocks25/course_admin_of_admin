@@ -730,7 +730,9 @@ def dashboard_billing(request):
     if not request.user.is_staff:
         messages.error(request, 'Only tenant admins can view billing.')
         return redirect('courses')
-    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None and request.user.is_superuser:
+        tenant = get_default_tenant()
     if tenant is None:
         messages.error(request, 'No tenant context available.')
         return redirect('dashboard_home')
@@ -754,7 +756,9 @@ def dashboard_billing_portal(request):
     if not request.user.is_staff:
         messages.error(request, 'Only tenant admins can manage billing.')
         return redirect('courses')
-    tenant = getattr(request, 'tenant', None) or get_default_tenant()
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None and request.user.is_superuser:
+        tenant = get_default_tenant()
     if tenant is None:
         messages.error(request, 'No tenant context available.')
         return redirect('dashboard_home')
@@ -887,8 +891,11 @@ def dashboard_home(request):
         return redirect('courses')
 
     scoped_courses_qs = Course.objects.all()
-    if not is_superadmin:
+    if tenant is not None:
         scoped_courses_qs = scoped_courses_qs.filter(tenant=tenant)
+    elif not is_superadmin:
+        messages.error(request, 'Tenant context is required for dashboard access.')
+        return redirect('courses')
     scoped_course_ids = scoped_courses_qs.values_list('id', flat=True)
     scoped_lessons_qs = Lesson.objects.filter(course_id__in=scoped_course_ids)
     scoped_enrollments_qs = CourseEnrollment.objects.filter(course_id__in=scoped_course_ids)
@@ -1020,6 +1027,11 @@ def dashboard_home(request):
 @staff_member_required
 def dashboard_students(request):
     """Smart student list with activity updates and filtering"""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_home')
     # Get filter parameters
     course_filter = request.GET.get('course', '')
     status_filter = request.GET.get('status', 'all')  # all, active, completed, certified
@@ -1033,6 +1045,8 @@ def dashboard_students(request):
     # Auto-enroll admin/staff users in all active courses if they don't have enrollments
     admin_users = students_query.filter(Q(is_staff=True) | Q(is_superuser=True))
     active_courses = Course.objects.filter(status='active')
+    if tenant is not None:
+        active_courses = active_courses.filter(tenant=tenant)
     
     for admin_user in admin_users:
         for course in active_courses:
@@ -1056,12 +1070,16 @@ def dashboard_students(request):
     for student in students_query:
         # Get enrollments (legacy system)
         enrollments = CourseEnrollment.objects.filter(user=student).select_related('course')
+        if tenant is not None:
+            enrollments = enrollments.filter(course__tenant=tenant)
         
         # Get course access records (new access control system)
         course_accesses = CourseAccess.objects.filter(
             user=student,
             status='unlocked'
         ).select_related('course')
+        if tenant is not None:
+            course_accesses = course_accesses.filter(course__tenant=tenant)
         
         # Combine both - get unique courses from enrollments and accesses
         enrollment_courses = set(enrollments.values_list('course_id', flat=True))
@@ -1101,9 +1119,16 @@ def dashboard_students(request):
         overall_progress = int((completed_lessons_all / total_lessons_all * 100)) if total_lessons_all > 0 else 0
         
         # Get most recent activity
-        recent_progress = UserProgress.objects.filter(user=student).order_by('-last_accessed').first()
-        recent_exam = ExamAttempt.objects.filter(user=student).order_by('-started_at').first()
-        recent_cert = Certification.objects.filter(user=student).order_by('-issued_at', '-created_at').first()
+        recent_progress_qs = UserProgress.objects.filter(user=student)
+        recent_exam_qs = ExamAttempt.objects.filter(user=student)
+        recent_cert_qs = Certification.objects.filter(user=student)
+        if tenant is not None:
+            recent_progress_qs = recent_progress_qs.filter(lesson__course__tenant=tenant)
+            recent_exam_qs = recent_exam_qs.filter(exam__course__tenant=tenant)
+            recent_cert_qs = recent_cert_qs.filter(course__tenant=tenant)
+        recent_progress = recent_progress_qs.order_by('-last_accessed').first()
+        recent_exam = recent_exam_qs.order_by('-started_at').first()
+        recent_cert = recent_cert_qs.order_by('-issued_at', '-created_at').first()
         
         # Determine most recent activity
         activities = []
@@ -1162,9 +1187,12 @@ def dashboard_students(request):
         students_data.sort(key=lambda x: x['student'].date_joined, reverse=True)
     
     # Get activity feed
-    activity_feed = get_student_activity_feed(limit=50)
+    scoped_course_ids_qs = None
+    if tenant is not None:
+        scoped_course_ids_qs = Course.objects.filter(tenant=tenant).values_list('id', flat=True)
+    activity_feed = get_student_activity_feed(limit=50, course_ids_qs=scoped_course_ids_qs)
     
-    courses = Course.objects.all()
+    courses = Course.objects.filter(tenant=tenant) if tenant is not None else Course.objects.all()
     
     return render(request, 'dashboard/students.html', {
         'students_data': students_data,
@@ -1273,11 +1301,11 @@ def dashboard_courses(request):
     tenant = _get_dashboard_tenant(request)
     is_superadmin = bool(request.user.is_superuser)
     courses_qs = Course.objects.all()
-    if not is_superadmin:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required to view courses.')
-            return redirect('courses')
+    if tenant is not None:
         courses_qs = courses_qs.filter(tenant=tenant)
+    elif not is_superadmin:
+        messages.error(request, 'Tenant context is required to view courses.')
+        return redirect('courses')
     courses = list(courses_qs.select_related('tenant').annotate(lesson_count=Count('lessons')).order_by('-created_at'))
     if is_superadmin:
         for course in courses:
@@ -1295,13 +1323,14 @@ def dashboard_courses(request):
 def dashboard_course_detail(request, course_slug):
     """Edit course details and manage resources"""
     tenant = _get_dashboard_tenant(request)
-    if request.user.is_superuser:
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    elif is_superadmin:
         course = get_object_or_404(Course, slug=course_slug)
     else:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required.')
-            return redirect('dashboard_courses')
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
 
     if request.method == 'POST':
         action = request.POST.get('action', '')
@@ -1368,13 +1397,14 @@ def dashboard_course_detail(request, course_slug):
 def dashboard_delete_course(request, course_slug):
     """Delete a course"""
     tenant = _get_dashboard_tenant(request)
-    if request.user.is_superuser:
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    elif is_superadmin:
         course = get_object_or_404(Course, slug=course_slug)
     else:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required.')
-            return redirect('dashboard_courses')
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
     course_name = course.name
     
     try:
@@ -1389,7 +1419,15 @@ def dashboard_delete_course(request, course_slug):
 @staff_member_required
 def dashboard_lesson_quiz(request, lesson_id):
     """Create and manage a simple quiz for a lesson."""
-    lesson = get_object_or_404(Lesson, id=lesson_id)
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+    elif is_superadmin:
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+    else:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_lessons')
     quiz, created = LessonQuiz.objects.get_or_create(
         lesson=lesson,
         defaults={
@@ -1467,7 +1505,15 @@ def dashboard_lesson_quiz(request, lesson_id):
 @require_http_methods(["POST"])
 def dashboard_delete_quiz(request, lesson_id):
     """Delete a quiz for a lesson"""
-    lesson = get_object_or_404(Lesson, id=lesson_id)
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+    elif is_superadmin:
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+    else:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_lessons')
     
     try:
         if hasattr(lesson, 'quiz'):
@@ -1492,11 +1538,11 @@ def dashboard_quizzes(request):
     
     # Get all quizzes with related lesson and course info
     quizzes = LessonQuiz.objects.select_related('lesson', 'lesson__course').prefetch_related('questions').all()
-    if not request.user.is_superuser:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required.')
-            return redirect('dashboard_courses')
+    if tenant is not None:
         quizzes = quizzes.filter(tenant=tenant)
+    elif not request.user.is_superuser:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
     
     # Apply course filter
     if course_filter:
@@ -1523,7 +1569,12 @@ def dashboard_quizzes(request):
             'question_count': quiz.questions.count(),
         })
     
-    courses = Course.objects.all() if request.user.is_superuser else Course.objects.filter(tenant=tenant)
+    if tenant is not None:
+        courses = Course.objects.filter(tenant=tenant)
+    elif request.user.is_superuser:
+        courses = Course.objects.all()
+    else:
+        courses = Course.objects.none()
     
     return render(request, 'dashboard/quizzes.html', {
         'quiz_data': quiz_data,
@@ -1534,16 +1585,140 @@ def dashboard_quizzes(request):
 
 
 @staff_member_required
+def dashboard_exams(request):
+    """List all final exams across courses."""
+    tenant = _get_dashboard_tenant(request)
+    course_filter = request.GET.get('course', '')
+    search_query = request.GET.get('search', '')
+
+    exams = Exam.objects.select_related('course').prefetch_related('questions').all()
+    if tenant is not None:
+        exams = exams.filter(tenant=tenant)
+    elif not request.user.is_superuser:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
+
+    if course_filter:
+        exams = exams.filter(course_id=course_filter)
+
+    if search_query:
+        exams = exams.filter(
+            Q(title__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(course__name__icontains=search_query)
+        )
+
+    exams = exams.order_by('course__name', 'id')
+    exam_data = []
+    for exam in exams:
+        attempts_qs = ExamAttempt.objects.filter(exam=exam)
+        attempt_count = attempts_qs.count()
+        passed_count = attempts_qs.filter(passed=True).count()
+        avg_score = attempts_qs.aggregate(avg=Avg('score'))['avg'] or 0
+        exam_data.append({
+            'exam': exam,
+            'course': exam.course,
+            'question_count': exam.questions.count(),
+            'attempt_count': attempt_count,
+            'passed_count': passed_count,
+            'pass_rate': (passed_count / attempt_count * 100) if attempt_count > 0 else 0,
+            'avg_score': avg_score,
+        })
+
+    if tenant is not None:
+        courses = Course.objects.filter(tenant=tenant)
+    elif request.user.is_superuser:
+        courses = Course.objects.all()
+    else:
+        courses = Course.objects.none()
+    return render(request, 'dashboard/exams.html', {
+        'exam_data': exam_data,
+        'courses': courses,
+        'course_filter': course_filter,
+        'search_query': search_query,
+    })
+
+
+@staff_member_required
+def dashboard_exam_detail(request, exam_id):
+    """Dedicated final exam detail page with questions and attempt stats."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is not None:
+        exam = get_object_or_404(Exam.objects.select_related('course'), id=exam_id, tenant=tenant)
+    elif request.user.is_superuser:
+        exam = get_object_or_404(Exam.objects.select_related('course'), id=exam_id)
+    else:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_exams')
+
+    questions = list(exam.questions.all().order_by('order', 'id'))
+    attempts_qs = ExamAttempt.objects.filter(exam=exam).select_related('user').order_by('-started_at')
+
+    total_attempts = attempts_qs.count()
+    passed_attempts = attempts_qs.filter(passed=True).count()
+    failed_attempts = max(total_attempts - passed_attempts, 0)
+    avg_score = attempts_qs.aggregate(avg=Avg('score'))['avg'] or 0
+    latest_attempt = attempts_qs.first()
+    unique_students = attempts_qs.values('user_id').distinct().count()
+
+    option_labels = ('A', 'B', 'C', 'D')
+    answer_counts = {q.id: {opt: 0 for opt in option_labels} for q in questions}
+    answered_counts = {q.id: 0 for q in questions}
+
+    for attempt in attempts_qs:
+        answers = attempt.answers if isinstance(attempt.answers, dict) else {}
+        for q in questions:
+            selected = (
+                answers.get(str(q.id))
+                or answers.get(f'q_{q.id}')
+                or answers.get(q.id)
+            )
+            if isinstance(selected, str):
+                picked = selected.strip().upper()[:1]
+                if picked in option_labels:
+                    answer_counts[q.id][picked] += 1
+                    answered_counts[q.id] += 1
+
+    question_stats = []
+    for q in questions:
+        counts = answer_counts[q.id]
+        answered = answered_counts[q.id]
+        correct_count = counts.get(q.correct_option, 0)
+        question_stats.append({
+            'question': q,
+            'answers': counts,
+            'answered_count': answered,
+            'correct_count': correct_count,
+            'correct_rate': (correct_count / answered * 100) if answered > 0 else 0,
+        })
+
+    return render(request, 'dashboard/exam_detail.html', {
+        'exam': exam,
+        'questions': questions,
+        'question_stats': question_stats,
+        'attempts': attempts_qs[:50],
+        'total_attempts': total_attempts,
+        'passed_attempts': passed_attempts,
+        'failed_attempts': failed_attempts,
+        'pass_rate': (passed_attempts / total_attempts * 100) if total_attempts > 0 else 0,
+        'avg_score': avg_score,
+        'latest_attempt': latest_attempt,
+        'unique_students': unique_students,
+    })
+
+
+@staff_member_required
 def dashboard_course_lessons(request, course_slug):
     """View all lessons for a course"""
     tenant = _get_dashboard_tenant(request)
-    if request.user.is_superuser:
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    elif is_superadmin:
         course = get_object_or_404(Course, slug=course_slug)
     else:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required.')
-            return redirect('dashboard_courses')
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
     lessons = course.lessons.all()
     modules = course.modules.all()
     
@@ -2172,6 +2347,21 @@ def dashboard_generate_lesson_draft(request):
     source_text = (request.POST.get('lesson_source') or '').strip()
     video_link = (request.POST.get('lesson_video_link') or '').strip()
     course_context = (request.POST.get('course_context') or '').strip() or 'Standalone lesson'
+    reading_level = (request.POST.get('reading_level') or 'practitioner').strip()
+    length = (request.POST.get('length') or 'standard').strip()
+    depth = (request.POST.get('depth') or 'how_to').strip()
+
+    if reading_level not in {'foundational', 'practitioner', 'expert'}:
+        reading_level = 'practitioner'
+    if length not in {'short', 'standard', 'deep'}:
+        length = 'standard'
+    if depth not in {'overview', 'how_to', 'comprehensive'}:
+        depth = 'how_to'
+    gen_settings = LessonGenerationSettings(
+        reading_level=reading_level,
+        length=length,
+        depth=depth,
+    )
 
     if not lesson_title:
         return JsonResponse({'success': False, 'error': 'Lesson title is required.'}, status=400)
@@ -2198,6 +2388,7 @@ def dashboard_generate_lesson_draft(request):
             course=None,
             lesson=None,
             blueprint_context='Generated from dashboard Lesson Generator quick tool.',
+            settings=gen_settings,
         )
         content_sections = generate_ai_lesson_content(
             client=client,
@@ -2209,6 +2400,7 @@ def dashboard_generate_lesson_draft(request):
             course=None,
             lesson=None,
             blueprint_context='Generate practical, immediately usable standalone lesson notes.',
+            settings=gen_settings,
         )
         content_data = create_editorjs_content(content_sections)
 
@@ -2673,11 +2865,11 @@ def dashboard_lessons(request):
     """List all lessons across all courses"""
     tenant = _get_dashboard_tenant(request)
     lessons = Lesson.objects.select_related('course', 'module').order_by('course__name', 'module__order', 'order', 'id')
-    if not request.user.is_superuser:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required.')
-            return redirect('dashboard_courses')
+    if tenant is not None:
         lessons = lessons.filter(tenant=tenant)
+    elif not request.user.is_superuser:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
     
     # Filtering
     status_filter = request.GET.get('status', 'all')
@@ -2688,7 +2880,12 @@ def dashboard_lessons(request):
     if course_filter:
         lessons = lessons.filter(course_id=course_filter)
     
-    courses = Course.objects.all() if request.user.is_superuser else Course.objects.filter(tenant=tenant)
+    if tenant is not None:
+        courses = Course.objects.filter(tenant=tenant)
+    elif request.user.is_superuser:
+        courses = Course.objects.all()
+    else:
+        courses = Course.objects.none()
     
     return render(request, 'dashboard/lessons.html', {
         'lessons': lessons,
@@ -2703,13 +2900,14 @@ def dashboard_lessons(request):
 def dashboard_delete_lesson(request, lesson_id):
     """Delete a lesson"""
     tenant = _get_dashboard_tenant(request)
-    if request.user.is_superuser:
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+    elif is_superadmin:
         lesson = get_object_or_404(Lesson, id=lesson_id)
     else:
-        if tenant is None:
-            messages.error(request, 'Tenant context is required.')
-            return redirect('dashboard_lessons')
-        lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_lessons')
     lesson_title = lesson.title
     course_slug = lesson.course.slug if lesson.course else None
     
@@ -2728,8 +2926,16 @@ def dashboard_delete_lesson(request, lesson_id):
 @staff_member_required
 def dashboard_upload_quiz(request):
     """Upload quiz from CSV/PDF file or generate with AI"""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_quizzes')
     courses = Course.objects.all()
     lessons = Lesson.objects.select_related('course').order_by('-created_at')
+    if tenant is not None:
+        courses = courses.filter(tenant=tenant)
+        lessons = lessons.filter(tenant=tenant)
     
     if request.method == 'POST':
         lesson_id = request.POST.get('lesson_id')
@@ -2743,7 +2949,10 @@ def dashboard_upload_quiz(request):
                 'openai_available': OPENAI_AVAILABLE,
             })
         
-        lesson = get_object_or_404(Lesson, id=lesson_id)
+        if tenant is not None:
+            lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+        else:
+            lesson = get_object_or_404(Lesson, id=lesson_id)
         
         try:
             # Get or create quiz
@@ -3613,6 +3822,24 @@ def bulk_grant_access_view(request):
 def dashboard_analytics(request):
     """Comprehensive analytics dashboard"""
     from datetime import timedelta
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_home')
+    courses_qs = Course.objects.all()
+    if tenant is not None:
+        courses_qs = courses_qs.filter(tenant=tenant)
+    course_ids_qs = courses_qs.values_list('id', flat=True)
+    enrollments_qs = CourseEnrollment.objects.filter(course_id__in=course_ids_qs)
+    accesses_qs = CourseAccess.objects.filter(course_id__in=course_ids_qs)
+    progress_qs = UserProgress.objects.filter(lesson__course_id__in=course_ids_qs)
+    certifications_qs = Certification.objects.filter(course_id__in=course_ids_qs)
+    exam_attempts_qs = ExamAttempt.objects.filter(exam__course_id__in=course_ids_qs)
+    quiz_attempts_qs = LessonQuizAttempt.objects.filter(quiz__lesson__course_id__in=course_ids_qs)
+    scoped_student_ids = set(enrollments_qs.values_list('user_id', flat=True))
+    scoped_student_ids.update(accesses_qs.values_list('user_id', flat=True))
+    students_qs = User.objects.filter(id__in=scoped_student_ids, is_staff=False, is_superuser=False)
     
     # Date ranges
     now = timezone.now()
@@ -3621,68 +3848,58 @@ def dashboard_analytics(request):
     last_90_days = now - timedelta(days=90)
     
     # Student Analytics
-    total_students = User.objects.filter(is_staff=False, is_superuser=False).count()
-    active_students = User.objects.filter(
-        is_staff=False, is_superuser=False,
-        last_login__gte=last_30_days
-    ).count()
-    new_students_7d = User.objects.filter(
-        is_staff=False, is_superuser=False,
-        date_joined__gte=last_7_days
-    ).count()
-    new_students_30d = User.objects.filter(
-        is_staff=False, is_superuser=False,
-        date_joined__gte=last_30_days
-    ).count()
-    inactive_students = User.objects.filter(
-        is_staff=False, is_superuser=False,
-        last_login__lt=last_90_days
-    ).count()
+    total_students = students_qs.count()
+    active_students = students_qs.filter(last_login__gte=last_30_days).count()
+    new_students_7d = students_qs.filter(date_joined__gte=last_7_days).count()
+    new_students_30d = students_qs.filter(date_joined__gte=last_30_days).count()
+    inactive_students = students_qs.filter(last_login__lt=last_90_days).count()
     
     # Enrollment Analytics
-    total_enrollments = CourseEnrollment.objects.count()
-    enrollments_7d = CourseEnrollment.objects.filter(enrolled_at__gte=last_7_days).count()
-    enrollments_30d = CourseEnrollment.objects.filter(enrolled_at__gte=last_30_days).count()
+    total_enrollments = enrollments_qs.count()
+    enrollments_7d = enrollments_qs.filter(enrolled_at__gte=last_7_days).count()
+    enrollments_30d = enrollments_qs.filter(enrolled_at__gte=last_30_days).count()
     
     # Access Analytics
-    total_accesses = CourseAccess.objects.filter(status='unlocked').count()
-    expired_accesses = CourseAccess.objects.filter(status='expired').count()
-    pending_accesses = CourseAccess.objects.filter(status='pending').count()
+    total_accesses = accesses_qs.filter(status='unlocked').count()
+    expired_accesses = accesses_qs.filter(status='expired').count()
+    pending_accesses = accesses_qs.filter(status='pending').count()
     
     # Progress Analytics
-    total_progress = UserProgress.objects.count()
-    completed_lessons = UserProgress.objects.filter(completed=True).count()
-    progress_7d = UserProgress.objects.filter(last_accessed__gte=last_7_days).count()
+    total_progress = progress_qs.count()
+    completed_lessons = progress_qs.filter(completed=True).count()
+    progress_7d = progress_qs.filter(last_accessed__gte=last_7_days).count()
     completion_rate = (completed_lessons / total_progress * 100) if total_progress > 0 else 0
     
     # Certification Analytics
-    total_certifications = Certification.objects.count()
-    certifications_7d = Certification.objects.filter(
+    total_certifications = certifications_qs.count()
+    certifications_7d = certifications_qs.filter(
+        issued_at__isnull=False,
         issued_at__gte=last_7_days
-    ).count() if Certification.objects.filter(issued_at__isnull=False).exists() else 0
-    certifications_30d = Certification.objects.filter(
+    ).count()
+    certifications_30d = certifications_qs.filter(
+        issued_at__isnull=False,
         issued_at__gte=last_30_days
-    ).count() if Certification.objects.filter(issued_at__isnull=False).exists() else 0
+    ).count()
     
     # Course Performance Detailed
     course_performance_detailed = []
-    for course in Course.objects.all():
-        enrollments = CourseEnrollment.objects.filter(course=course).count()
-        accesses = CourseAccess.objects.filter(course=course, status='unlocked').count()
+    for course in courses_qs:
+        enrollments = enrollments_qs.filter(course=course).count()
+        accesses = accesses_qs.filter(course=course, status='unlocked').count()
         total_students_course = enrollments + accesses
         
         total_lessons_course = course.lessons.count()
-        completed = UserProgress.objects.filter(
+        completed = progress_qs.filter(
             lesson__course=course,
             completed=True
         ).count()
         total_possible = total_lessons_course * total_students_course
         course_completion_rate = (completed / total_possible * 100) if total_possible > 0 else 0
         
-        certifications_course = Certification.objects.filter(course=course, status='passed').count()
+        certifications_course = certifications_qs.filter(course=course, status='passed').count()
         
         # Recent activity
-        recent_enrollments = CourseEnrollment.objects.filter(
+        recent_enrollments = enrollments_qs.filter(
             course=course,
             enrolled_at__gte=last_7_days
         ).count()
@@ -3704,7 +3921,7 @@ def dashboard_analytics(request):
     enrollment_trend = []
     for i in range(30, 0, -1):
         date = now - timedelta(days=i)
-        count = CourseEnrollment.objects.filter(
+        count = enrollments_qs.filter(
             enrolled_at__date=date.date()
         ).count()
         enrollment_trend.append({
@@ -3714,10 +3931,10 @@ def dashboard_analytics(request):
     
     # Certification trend (last 30 days)
     certification_trend = []
-    if Certification.objects.filter(issued_at__isnull=False).exists():
+    if certifications_qs.filter(issued_at__isnull=False).exists():
         for i in range(30, 0, -1):
             date = now - timedelta(days=i)
-            count = Certification.objects.filter(
+            count = certifications_qs.filter(
                 issued_at__date=date.date()
             ).count()
             certification_trend.append({
@@ -3729,39 +3946,35 @@ def dashboard_analytics(request):
     top_courses = sorted(course_performance_detailed, key=lambda x: x['total_students'], reverse=True)[:5]
     
     # Most active students
-    active_students_list = User.objects.filter(
-        is_staff=False, is_superuser=False
-    ).annotate(
+    active_students_list = students_qs.annotate(
         progress_count=Count('progress', filter=Q(progress__last_accessed__gte=last_7_days))
     ).filter(progress_count__gt=0).order_by('-progress_count')[:10]
     
     # Additional Phase 1 Analytics
     
     # Students with zero progress
-    students_with_progress = UserProgress.objects.values_list('user_id', flat=True).distinct()
-    students_zero_progress = User.objects.filter(
-        is_staff=False, is_superuser=False
-    ).exclude(id__in=students_with_progress).count()
+    students_with_progress = progress_qs.values_list('user_id', flat=True).distinct()
+    students_zero_progress = students_qs.exclude(id__in=students_with_progress).count()
     
     # Students who completed at least one course
-    students_with_completions = UserProgress.objects.filter(
+    students_with_completions = progress_qs.filter(
         completed=True
     ).values_list('user_id', flat=True).distinct().count()
     
     # Average lessons completed per student
-    total_lessons_completed = UserProgress.objects.filter(completed=True).count()
+    total_lessons_completed = progress_qs.filter(completed=True).count()
     avg_lessons_per_student = round(total_lessons_completed / total_students, 1) if total_students > 0 else 0
     
     # Course completion rates by course type
     course_type_stats = {}
     for course_type, _ in Course.COURSE_TYPES:
-        courses_of_type = Course.objects.filter(course_type=course_type)
-        total_enrollments_type = CourseEnrollment.objects.filter(course__in=courses_of_type).count()
-        total_accesses_type = CourseAccess.objects.filter(course__in=courses_of_type, status='unlocked').count()
+        courses_of_type = courses_qs.filter(course_type=course_type)
+        total_enrollments_type = enrollments_qs.filter(course__in=courses_of_type).count()
+        total_accesses_type = accesses_qs.filter(course__in=courses_of_type, status='unlocked').count()
         total_students_type = total_enrollments_type + total_accesses_type
         
         total_lessons_type = sum(c.lessons.count() for c in courses_of_type)
-        completed_lessons_type = UserProgress.objects.filter(
+        completed_lessons_type = progress_qs.filter(
             lesson__course__in=courses_of_type,
             completed=True
         ).count()
@@ -3775,13 +3988,13 @@ def dashboard_analytics(request):
     
     # Certification rate (certifications / eligible students)
     students_with_all_lessons = []
-    for course in Course.objects.all():
+    for course in courses_qs:
         total_lessons = course.lessons.count()
         if total_lessons > 0:
-            enrollments = CourseEnrollment.objects.filter(course=course)
-            accesses = CourseAccess.objects.filter(course=course, status='unlocked')
+            enrollments = enrollments_qs.filter(course=course)
+            accesses = accesses_qs.filter(course=course, status='unlocked')
             for enrollment in enrollments:
-                completed = UserProgress.objects.filter(
+                completed = progress_qs.filter(
                     user=enrollment.user,
                     lesson__course=course,
                     completed=True
@@ -3789,7 +4002,7 @@ def dashboard_analytics(request):
                 if completed >= total_lessons:
                     students_with_all_lessons.append((enrollment.user.id, course.id))
             for access in accesses:
-                completed = UserProgress.objects.filter(
+                completed = progress_qs.filter(
                     user=access.user,
                     lesson__course=course,
                     completed=True
@@ -3809,8 +4022,8 @@ def dashboard_analytics(request):
         'diamond': 0,  # 12 certifications
         'ultimate': 0  # 20 certifications
     }
-    for user in User.objects.filter(is_staff=False, is_superuser=False):
-        cert_count = Certification.objects.filter(user=user, status='passed').count()
+    for user in students_qs:
+        cert_count = certifications_qs.filter(user=user, status='passed').count()
         if cert_count >= 20:
             trophy_distribution['ultimate'] += 1
         elif cert_count >= 12:
@@ -3825,35 +4038,35 @@ def dashboard_analytics(request):
             trophy_distribution['bronze'] += 1
     
     # Exam & Quiz Analytics
-    total_exam_attempts = ExamAttempt.objects.count()
-    passed_exams = ExamAttempt.objects.filter(passed=True).count()
+    total_exam_attempts = exam_attempts_qs.count()
+    passed_exams = exam_attempts_qs.filter(passed=True).count()
     exam_pass_rate = (passed_exams / total_exam_attempts * 100) if total_exam_attempts > 0 else 0
-    avg_exam_score = ExamAttempt.objects.aggregate(Avg('score'))['score__avg'] or 0
+    avg_exam_score = exam_attempts_qs.aggregate(Avg('score'))['score__avg'] or 0
     
-    total_quiz_attempts = LessonQuizAttempt.objects.count()
-    passed_quizzes = LessonQuizAttempt.objects.filter(passed=True).count()
+    total_quiz_attempts = quiz_attempts_qs.count()
+    passed_quizzes = quiz_attempts_qs.filter(passed=True).count()
     quiz_pass_rate = (passed_quizzes / total_quiz_attempts * 100) if total_quiz_attempts > 0 else 0
-    avg_quiz_score = LessonQuizAttempt.objects.aggregate(Avg('score'))['score__avg'] or 0
+    avg_quiz_score = quiz_attempts_qs.aggregate(Avg('score'))['score__avg'] or 0
     
     # Access Source Analytics
     access_by_method = {
-        'enrollment': CourseEnrollment.objects.count(),
-        'course_access': CourseAccess.objects.filter(status='unlocked').count(),
-        'bundle': BundlePurchase.objects.count(),
-        'cohort': CohortMember.objects.count(),
+        'enrollment': enrollments_qs.count(),
+        'course_access': accesses_qs.filter(status='unlocked').count(),
+        'bundle': BundlePurchase.objects.filter(bundle__tenant=tenant).count() if tenant is not None else BundlePurchase.objects.count(),
+        'cohort': CohortMember.objects.filter(cohort__tenant=tenant).count() if tenant is not None else CohortMember.objects.count(),
     }
     
     # Drop-off analysis (students who started but didn't complete)
     students_who_started = set()
     students_who_completed = set()
-    for course in Course.objects.all():
-        enrollments = CourseEnrollment.objects.filter(course=course)
-        accesses = CourseAccess.objects.filter(course=course, status='unlocked')
+    for course in courses_qs:
+        enrollments = enrollments_qs.filter(course=course)
+        accesses = accesses_qs.filter(course=course, status='unlocked')
         total_lessons = course.lessons.count()
         
         for enrollment in enrollments:
             students_who_started.add(enrollment.user.id)
-            completed = UserProgress.objects.filter(
+            completed = progress_qs.filter(
                 user=enrollment.user,
                 lesson__course=course,
                 completed=True
@@ -3863,7 +4076,7 @@ def dashboard_analytics(request):
         
         for access in accesses:
             students_who_started.add(access.user.id)
-            completed = UserProgress.objects.filter(
+            completed = progress_qs.filter(
                 user=access.user,
                 lesson__course=course,
                 completed=True
@@ -3947,10 +4160,17 @@ def generate_slug(text):
 @staff_member_required
 def dashboard_bundles(request):
     """List all bundles"""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_home')
     bundles = Bundle.objects.annotate(
         course_count=Count('courses'),
         purchase_count=Count('purchases')
     ).order_by('-created_at')
+    if tenant is not None:
+        bundles = bundles.filter(tenant=tenant)
     
     return render(request, 'dashboard/bundles.html', {
         'bundles': bundles,
@@ -3960,6 +4180,11 @@ def dashboard_bundles(request):
 @staff_member_required
 def dashboard_add_bundle(request):
     """Create a new bundle"""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_bundles')
     if request.method == 'POST':
         name = request.POST.get('name')
         description = request.POST.get('description', '')
@@ -3974,7 +4199,7 @@ def dashboard_add_bundle(request):
             return redirect('dashboard_add_bundle')
         
         # Generate slug from name
-        default_tenant = get_default_tenant()
+        default_tenant = tenant or get_default_tenant()
         slug = generate_slug(name)
         # Ensure slug is unique
         base_slug = slug
@@ -3997,12 +4222,16 @@ def dashboard_add_bundle(request):
         # Add courses
         if course_ids:
             courses = Course.objects.filter(id__in=course_ids)
+            if tenant is not None:
+                courses = courses.filter(tenant=tenant)
             bundle.courses.set(courses)
         
         messages.success(request, f'Bundle "{bundle.name}" created successfully!')
         return redirect('dashboard_bundles')
     
     courses = Course.objects.filter(status='active').order_by('name')
+    if tenant is not None:
+        courses = courses.filter(tenant=tenant)
     return render(request, 'dashboard/add_bundle.html', {
         'courses': courses,
     })
@@ -4011,7 +4240,15 @@ def dashboard_add_bundle(request):
 @staff_member_required
 def dashboard_edit_bundle(request, bundle_id):
     """Edit an existing bundle"""
-    bundle = get_object_or_404(Bundle, id=bundle_id)
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        bundle = get_object_or_404(Bundle, id=bundle_id, tenant=tenant)
+    elif is_superadmin:
+        bundle = get_object_or_404(Bundle, id=bundle_id)
+    else:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_bundles')
     
     if request.method == 'POST':
         bundle.name = request.POST.get('name')
@@ -4043,6 +4280,8 @@ def dashboard_edit_bundle(request, bundle_id):
         # Update courses
         if course_ids:
             courses = Course.objects.filter(id__in=course_ids)
+            if tenant is not None:
+                courses = courses.filter(tenant=tenant)
             bundle.courses.set(courses)
         else:
             bundle.courses.clear()
@@ -4051,6 +4290,8 @@ def dashboard_edit_bundle(request, bundle_id):
         return redirect('dashboard_bundles')
     
     courses = Course.objects.filter(status='active').order_by('name')
+    if tenant is not None:
+        courses = courses.filter(tenant=tenant)
     selected_course_ids = bundle.courses.values_list('id', flat=True)
     
     return render(request, 'dashboard/edit_bundle.html', {
@@ -4064,7 +4305,15 @@ def dashboard_edit_bundle(request, bundle_id):
 @require_http_methods(["POST"])
 def dashboard_delete_bundle(request, bundle_id):
     """Delete a bundle"""
-    bundle = get_object_or_404(Bundle, id=bundle_id)
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        bundle = get_object_or_404(Bundle, id=bundle_id, tenant=tenant)
+    elif is_superadmin:
+        bundle = get_object_or_404(Bundle, id=bundle_id)
+    else:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_bundles')
     bundle_name = bundle.name
     
     # Check if bundle has purchases
@@ -4163,7 +4412,7 @@ def dashboard_domain_settings(request):
         referred_tenants = Tenant.objects.filter(referred_by=tenant).order_by('-created_at')
     all_tenant_domains = (
         TenantDomain.objects.select_related('tenant').order_by('tenant__name', '-is_primary', 'domain')
-        if is_superadmin else TenantDomain.objects.none()
+        if is_superadmin and tenant is None else TenantDomain.objects.none()
     )
     return render(request, 'dashboard/domain_settings.html', {
         'tenant': tenant,

@@ -1,0 +1,97 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}All Exams{% endblock %}
+{% block page_title %}All Exams{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h2 class="text-2xl font-bold mb-2">All Final Exams</h2>
+        <p class="text-gray-400">Review course-level final exams and open the full exam detail view.</p>
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-4">
+        <form method="GET" class="flex gap-4">
+            <div class="flex-1">
+                <select name="course" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+                    <option value="">All Courses</option>
+                    {% for course in courses %}
+                    <option value="{{ course.id }}" {% if course_filter == course.id|stringformat:"s" %}selected{% endif %}>{{ course.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-1">
+                <input type="text" name="search" value="{{ search_query }}" placeholder="Search exams or courses..."
+                    class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+            </div>
+            <button type="submit" class="px-6 py-2 bg-cyan-electric text-[#0a0e27] rounded-lg font-semibold hover:bg-cyan-electric/90 transition-all">
+                <i class="fas fa-filter mr-2"></i>Filter
+            </button>
+            {% if course_filter or search_query %}
+            <a href="{% url 'dashboard_exams' %}" class="px-6 py-2 border border-cyan-electric/30 rounded-lg font-medium hover:bg-cyan-electric/10 transition-all">
+                Clear
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="space-y-4">
+        {% for data in exam_data %}
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 hover:border-cyan-electric/30 transition-all">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <h3 class="text-xl font-bold">{{ data.exam.title }}</h3>
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold {% if data.exam.is_active %}bg-green-500/20 text-green-400 border border-green-500/30{% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
+                            {% if data.exam.is_active %}Active{% else %}Inactive{% endif %}
+                        </span>
+                    </div>
+                    <div class="text-sm text-gray-400 mb-3">
+                        <i class="fas fa-book mr-2"></i>{{ data.course.name }}
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                        <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                            <div class="text-gray-400 text-xs">Questions</div>
+                            <div class="font-semibold">{{ data.question_count }}</div>
+                        </div>
+                        <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                            <div class="text-gray-400 text-xs">Attempts</div>
+                            <div class="font-semibold">{{ data.attempt_count }}</div>
+                        </div>
+                        <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                            <div class="text-gray-400 text-xs">Pass Rate</div>
+                            <div class="font-semibold">{{ data.pass_rate|floatformat:1 }}%</div>
+                        </div>
+                        <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                            <div class="text-gray-400 text-xs">Avg Score</div>
+                            <div class="font-semibold">{{ data.avg_score|floatformat:1 }}%</div>
+                        </div>
+                        <div class="bg-[#0a0e27]/40 border border-cyan-electric/10 rounded-lg px-3 py-2">
+                            <div class="text-gray-400 text-xs">Passing Score</div>
+                            <div class="font-semibold">{{ data.exam.passing_score }}%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-shrink-0">
+                    <a href="{% url 'dashboard_exam_detail' data.exam.id %}" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-sm font-medium hover:bg-cyan-electric/20 transition-all whitespace-nowrap">
+                        <i class="fas fa-eye mr-2"></i>View Exam
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-12 text-center">
+            <i class="fas fa-file-signature text-6xl text-gray-600 mb-4"></i>
+            <h3 class="text-xl font-semibold mb-2">No Exams Found</h3>
+            <p class="text-gray-400">
+                {% if course_filter or search_query %}
+                Try adjusting your filters.
+                {% else %}
+                Final exams will appear here once course generation creates them.
+                {% endif %}
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

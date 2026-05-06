@@ -59,6 +59,8 @@ urlpatterns = [
     path('dashboard/lessons/<int:lesson_id>/quiz/', dashboard_views.dashboard_lesson_quiz, name='dashboard_lesson_quiz'),
     path('dashboard/lessons/<int:lesson_id>/quiz/delete/', dashboard_views.dashboard_delete_quiz, name='dashboard_delete_quiz'),
     path('dashboard/quizzes/', dashboard_views.dashboard_quizzes, name='dashboard_quizzes'),
+    path('dashboard/exams/', dashboard_views.dashboard_exams, name='dashboard_exams'),
+    path('dashboard/exams/<int:exam_id>/', dashboard_views.dashboard_exam_detail, name='dashboard_exam_detail'),
     
     # Student Progress Monitoring
     path('dashboard/students/', dashboard_views.dashboard_students, name='dashboard_students'),
