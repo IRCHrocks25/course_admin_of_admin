@@ -378,6 +378,12 @@ LANDING_HTML_SAMPLE = """<!DOCTYPE html>
     .grid { margin-top:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
     .card { background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; }
     .card h3 { margin:0 0 8px; font-size:16px; }
+    .course-panel { margin-top:16px; background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; }
+    .course-panel h3 { margin:0 0 8px; font-size:16px; }
+    .course-panel p { font-size:13px; margin:0 0 10px; color:#9db0e4; }
+    .course-list { margin:0; padding-left:18px; display:grid; gap:6px; }
+    .course-list a { color:#9fefff; text-decoration:none; }
+    .course-list a:hover { text-decoration:underline; }
   </style>
 </head>
 <body>
@@ -406,6 +412,13 @@ LANDING_HTML_SAMPLE = """<!DOCTYPE html>
         <div class="card"><h3>Structured Programs</h3><p>Organize modules, lessons, and progress in one place.</p></div>
         <div class="card"><h3>Student Payments</h3><p>Accept payments directly with your connected Stripe account.</p></div>
         <div class="card"><h3>Branded Experience</h3><p>Use your own domain and customize copy, logo, and visuals.</p></div>
+      </div>
+      <div class="course-panel">
+        <h3>Current Courses</h3>
+        <p>Live from your tenant: __TENANT_COURSE_COUNT__ active courses.</p>
+        <ul class="course-list">
+          __TENANT_COURSES_LIST__
+        </ul>
       </div>
     </section>
   </div>
@@ -780,18 +793,22 @@ def dashboard_billing_portal(request):
         return redirect('dashboard_billing')
 
 
-def _sanitize_uploaded_html(raw_html):
+def _sanitize_uploaded_html(raw_html, page_kind='generic'):
     """
-    Keep tenant custom landing HTML safe enough for admin-uploaded content.
-    Removes scripts/iframes/object/embed and strips Django template delimiters.
+    Sanitize tenant-provided custom HTML.
+    - landing: preserve full HTML/CSS/JS so branded pages render correctly.
+    - signup/login/generic: strip active embeds/scripts for safer auth surfaces.
+    Always strips Django template delimiters to avoid template injection.
     """
     if not raw_html:
         return ''
     html = str(raw_html)
-    html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'<iframe[\s\S]*?</iframe>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'<object[\s\S]*?</object>', '', html, flags=re.IGNORECASE)
-    html = re.sub(r'<embed[\s\S]*?>', '', html, flags=re.IGNORECASE)
+    normalized_kind = (page_kind or 'generic').strip().lower()
+    if normalized_kind != 'landing':
+        html = re.sub(r'<script[\s\S]*?</script>', '', html, flags=re.IGNORECASE)
+        html = re.sub(r'<iframe[\s\S]*?</iframe>', '', html, flags=re.IGNORECASE)
+        html = re.sub(r'<object[\s\S]*?</object>', '', html, flags=re.IGNORECASE)
+        html = re.sub(r'<embed[\s\S]*?>', '', html, flags=re.IGNORECASE)
     html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
     return html.strip()
 
@@ -4582,7 +4599,7 @@ def dashboard_branding_settings(request):
             return redirect('dashboard_branding_settings')
 
         if html_text:
-            custom_pages['landing_html'] = _sanitize_uploaded_html(html_text)
+            custom_pages['landing_html'] = _sanitize_uploaded_html(html_text, page_kind='landing')
             # If admin provided HTML, auto-enable custom mode to avoid confusion.
             custom_pages['landing_mode'] = 'custom'
         if clear_html:
@@ -4591,7 +4608,7 @@ def dashboard_branding_settings(request):
                 custom_pages['landing_mode'] = 'default'
                 messages.info(request, 'Custom HTML was cleared, so landing mode was switched back to default.')
         if signup_html_text:
-            custom_pages['signup_html'] = _sanitize_uploaded_html(signup_html_text)
+            custom_pages['signup_html'] = _sanitize_uploaded_html(signup_html_text, page_kind='signup')
             custom_pages['signup_mode'] = 'custom'
         if clear_signup_html:
             custom_pages.pop('signup_html', None)
@@ -4599,7 +4616,7 @@ def dashboard_branding_settings(request):
                 custom_pages['signup_mode'] = 'default'
                 messages.info(request, 'Sign-up custom HTML was cleared, so sign-up mode was switched to default.')
         if login_html_text:
-            custom_pages['login_html'] = _sanitize_uploaded_html(login_html_text)
+            custom_pages['login_html'] = _sanitize_uploaded_html(login_html_text, page_kind='login')
             custom_pages['login_mode'] = 'custom'
         if clear_login_html:
             custom_pages.pop('login_html', None)

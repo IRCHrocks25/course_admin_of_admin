@@ -17,6 +17,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.html import escape
 from django.utils.text import slugify
 from datetime import datetime
 import importlib.util
@@ -248,6 +249,25 @@ def _render_tenant_custom_html(request, tenant, custom_html):
         tenant_logo_url = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Crect width='160' height='160' rx='24' fill='%230a0f25'/%3E%3Crect x='18' y='18' width='124' height='124' rx='20' fill='%23101735' stroke='%2322d3ee' stroke-opacity='0.35'/%3E%3Ctext x='80' y='92' text-anchor='middle' font-family='Arial,sans-serif' font-size='30' font-weight='700' fill='%2322d3ee'%3ELOGO%3C/text%3E%3C/svg%3E"
     custom_html = custom_html.replace('__TENANT_LOGO_URL__', tenant_logo_url)
     custom_html = custom_html.replace('__TENANT_BRAND_NAME__', tenant_brand_name)
+    tenant_course_count = 0
+    tenant_course_items_html = '<li><a href="/courses/">No active courses yet. Check back soon.</a></li>'
+    if tenant is not None:
+        active_courses = list(
+            Course.objects.filter(tenant=tenant, status='active')
+            .only('name', 'slug')
+            .order_by('name')[:24]
+        )
+        tenant_course_count = len(active_courses)
+        if active_courses:
+            tenant_course_items_html = ''.join(
+                (
+                    f'<li><a href="/courses/{escape(course.slug)}/">'
+                    f'{escape((course.name or "").strip() or "Untitled Course")}</a></li>'
+                )
+                for course in active_courses
+            )
+    custom_html = custom_html.replace('__TENANT_COURSE_COUNT__', str(tenant_course_count))
+    custom_html = custom_html.replace('__TENANT_COURSES_LIST__', tenant_course_items_html)
 
     def _normalize_img_src(match):
         src = (match.group(2) or '').strip()
