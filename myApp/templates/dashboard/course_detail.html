@@ -26,8 +26,19 @@
                     <input type="text" name="short_description" value="{{ course.short_description }}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50" required>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold mb-2">Full Description</label>
-                    <textarea name="description" rows="6" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50 resize-none" required>{{ course.description }}</textarea>
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <label class="block text-sm font-semibold">Full Description</label>
+                        <button
+                            type="button"
+                            id="improve-description-ai-btn"
+                            data-url="{% url 'dashboard_improve_course_description' course.slug %}"
+                            class="px-3 py-1.5 rounded-lg border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition"
+                        >
+                            Improve with AI
+                        </button>
+                    </div>
+                    <textarea id="course-description-field" name="description" rows="6" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50 resize-none" required>{{ course.description }}</textarea>
+                    <p id="improve-description-ai-status" class="mt-2 text-xs text-gray-400 hidden"></p>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -229,5 +240,75 @@
     <p class="text-gray-500 text-sm italic">No resources yet. Add your first resource above.</p>
     {% endif %}
 </div>
+
+<script>
+    (function () {
+        const improveBtn = document.getElementById('improve-description-ai-btn');
+        const descriptionField = document.getElementById('course-description-field');
+        const shortDescriptionField = document.querySelector('input[name="short_description"]');
+        const statusEl = document.getElementById('improve-description-ai-status');
+        if (!improveBtn || !descriptionField) return;
+
+        function getCsrfToken() {
+            const csrfInput = document.querySelector('form input[name="csrfmiddlewaretoken"]');
+            if (csrfInput && csrfInput.value) return csrfInput.value;
+            const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : '';
+        }
+
+        function showStatus(message, isError) {
+            if (!statusEl) return;
+            statusEl.classList.remove('hidden', 'text-red-400', 'text-emerald-300', 'text-gray-400');
+            statusEl.classList.add(isError ? 'text-red-400' : 'text-emerald-300');
+            statusEl.textContent = message;
+        }
+
+        improveBtn.addEventListener('click', async function () {
+            const description = (descriptionField.value || '').trim();
+            if (!description) {
+                showStatus('Add your draft/transcript in Full Description first.', true);
+                return;
+            }
+
+            const csrfToken = getCsrfToken();
+            if (!csrfToken) {
+                showStatus('Missing CSRF token. Refresh and try again.', true);
+                return;
+            }
+
+            const previousText = improveBtn.textContent;
+            improveBtn.disabled = true;
+            improveBtn.textContent = 'Improving...';
+            showStatus('AI is polishing your description...', false);
+
+            try {
+                const payload = new URLSearchParams();
+                payload.set('description', descriptionField.value);
+                payload.set('short_description', shortDescriptionField ? shortDescriptionField.value : '');
+
+                const response = await fetch(improveBtn.dataset.url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    },
+                    body: payload.toString(),
+                    credentials: 'same-origin',
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Could not improve description.');
+                }
+                descriptionField.value = data.improved_description || descriptionField.value;
+                showStatus('Improved successfully. Review and click Save Changes.', false);
+            } catch (err) {
+                showStatus(err.message || 'AI improvement failed. Try again.', true);
+            } finally {
+                improveBtn.disabled = false;
+                improveBtn.textContent = previousText;
+            }
+        });
+    })();
+</script>
 {% endblock %}
 

@@ -1427,6 +1427,72 @@ def dashboard_course_detail(request, course_slug):
 
 @staff_member_required
 @require_http_methods(["POST"])
+def dashboard_improve_course_description(request, course_slug):
+    """AI polish for long/raw course descriptions (e.g. pasted transcripts)."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    elif is_superadmin:
+        course = get_object_or_404(Course, slug=course_slug)
+    else:
+        return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
+
+    if not OPENAI_AVAILABLE:
+        return JsonResponse({'success': False, 'error': 'OpenAI package is not installed on this server.'}, status=500)
+
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        return JsonResponse({'success': False, 'error': 'OPENAI_API_KEY is missing. Configure it to use AI improvements.'}, status=500)
+
+    raw_description = (request.POST.get('description') or '').strip()
+    short_description = (request.POST.get('short_description') or course.short_description or '').strip()
+    if not raw_description:
+        return JsonResponse({'success': False, 'error': 'Please add a description first.'}, status=400)
+
+    source_text = raw_description[:30000]
+    prompt = (
+        "You are improving a course sales/overview description for an online academy.\n"
+        "Rewrite the source text to be clear, structured, and professional while preserving meaning.\n"
+        "If the source looks like a transcript, convert it into polished course copy.\n"
+        "Keep the tone confident and practical. Avoid hype and fake claims.\n"
+        "Output plain text only (no markdown code fences).\n\n"
+        f"Course name: {course.name}\n"
+        f"Course type: {course.course_type}\n"
+        f"Short description context: {short_description}\n\n"
+        "Source description:\n"
+        f"{source_text}"
+    )
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert course copy editor."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.45,
+            max_tokens=1200,
+        )
+        _log_openai_usage(
+            feature='course_description_improve',
+            response=response,
+            tenant=course.tenant,
+            course=course,
+            lesson=None,
+            model_name='gpt-4o-mini',
+        )
+        improved = (response.choices[0].message.content or '').strip()
+        if not improved:
+            return JsonResponse({'success': False, 'error': 'AI returned empty output. Please try again.'}, status=500)
+        return JsonResponse({'success': True, 'improved_description': improved})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'AI improvement failed: {str(e)}'}, status=500)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
 def dashboard_delete_course(request, course_slug):
     """Delete a course"""
     tenant = _get_dashboard_tenant(request)
