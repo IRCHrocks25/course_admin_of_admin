@@ -1755,6 +1755,9 @@ def enroll_course(request, course_slug):
             defaults={'tenant': course.tenant}
         )
         messages.success(request, f'You have been enrolled in {course.name}.')
+        first_lesson = course.lessons.order_by('order', 'id').first()
+        if first_lesson:
+            return redirect('lesson_detail', course_slug=course.slug, lesson_slug=first_lesson.slug)
         return redirect('course_detail', course_slug=course_slug)
 
     # Cannot self-enroll - show message and go to course detail
@@ -1793,16 +1796,23 @@ def course_detail(request, course_slug):
     if orphan_lessons:
         syllabus.append({'type': 'module', 'obj': None, 'lessons': orphan_lessons})
 
-    if has_access:
-        first_lesson = course.lessons.order_by('order', 'id').first()
-        if first_lesson:
-            return lesson_detail(request, course_slug, first_lesson.slug)
-        return render(request, 'course_detail.html', {
-            'course': course,
-            'has_access': True,
-            'can_self_enroll': False,
-            'syllabus': syllabus,
-        })
+    ordered_lessons = list(course.lessons.order_by('order', 'id'))
+    first_lesson = ordered_lessons[0] if ordered_lessons else None
+    continue_lesson = first_lesson
+    user_lessons_done = 0
+    user_progress_pct = 0
+    if has_access and ordered_lessons:
+        completed_ids = set(
+            UserProgress.objects.filter(
+                user=user,
+                lesson__course=course,
+                completed=True
+            ).values_list('lesson_id', flat=True)
+        )
+        user_lessons_done = len(completed_ids)
+        total_lessons = len(ordered_lessons)
+        user_progress_pct = int((user_lessons_done / total_lessons) * 100) if total_lessons else 0
+        continue_lesson = next((lesson for lesson in ordered_lessons if lesson.id not in completed_ids), first_lesson)
 
     # No access - show overview with enroll option if applicable
     prereqs_met, missing_prereqs = check_course_prerequisites(user, course)
@@ -1824,7 +1834,7 @@ def course_detail(request, course_slug):
 
     return render(request, 'course_detail.html', {
         'course': course,
-        'has_access': False,
+        'has_access': has_access,
         'can_self_enroll': can_self_enroll,
         'prereqs_met': prereqs_met,
         'missing_prereqs': missing_prereqs,
@@ -1832,6 +1842,10 @@ def course_detail(request, course_slug):
         'can_purchase': can_purchase,
         'stripe_ready': stripe_ready,
         'syllabus': syllabus,
+        'first_lesson': first_lesson,
+        'continue_lesson': continue_lesson,
+        'user_lessons_done': user_lessons_done,
+        'user_progress_pct': user_progress_pct,
     })
 
 

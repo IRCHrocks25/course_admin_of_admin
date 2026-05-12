@@ -10,6 +10,19 @@
   .cd-back:hover { color: #e2e8f0; }
   .cd-grid { display: grid; grid-template-columns: 1fr 300px; gap: 2.25rem; align-items: start; }
   @media (max-width: 700px) { .cd-grid { grid-template-columns: 1fr; } }
+  .cd-hero {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(56,189,248,.2);
+    background: radial-gradient(circle at 5% 0%, rgba(56,189,248,.18), transparent 40%), linear-gradient(135deg, rgba(11,16,40,.95), rgba(16,23,53,.9));
+    padding: 1.2rem 1.2rem 1rem;
+  }
+  .cd-hero-title { font-size: 28px; line-height: 1.2; font-weight: 800; color: #f8fafc; margin: 0 0 .4rem; }
+  .cd-hero-copy { color: #a5b4d8; margin: 0 0 .9rem; font-size: 14px; line-height: 1.6; }
+  .cd-hero-stats { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .cd-stat { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.03); color: #cbd5e1; border-radius: 999px; padding: .35rem .7rem; font-size: 12px; }
 
   /* Thumbnail */
   .cd-thumb { width: 100%; height: 210px; border-radius: 12px; object-fit: cover; display: block; margin-bottom: 1.5rem; }
@@ -107,6 +120,13 @@
 
   .brand-theme-light .cd-back { color: #64748b; }
   .brand-theme-light .cd-back:hover { color: #0f172a; }
+  .brand-theme-light .cd-hero {
+    background: radial-gradient(circle at 0% 0%, rgba(6,182,212,.15), transparent 45%), linear-gradient(135deg, #ffffff, #f8fafc);
+    border-color: rgba(15,23,42,.12);
+  }
+  .brand-theme-light .cd-hero-title { color: #0f172a; }
+  .brand-theme-light .cd-hero-copy { color: #475569; }
+  .brand-theme-light .cd-stat { color: #334155; border-color: rgba(15,23,42,.12); background: rgba(15,23,42,.03); }
   .brand-theme-light .cd-title { color: #0f172a; }
   .brand-theme-light .cd-short-desc,
   .brand-theme-light .cd-about-body,
@@ -142,6 +162,17 @@
     Back to courses
   </a>
 
+  <section class="cd-hero">
+    <h1 class="cd-hero-title">{{ course.name }}</h1>
+    <p class="cd-hero-copy">{{ course.short_description }}</p>
+    <div class="cd-hero-stats">
+      <span class="cd-stat">{{ course.get_lesson_count }} lesson{{ course.get_lesson_count|pluralize }}</span>
+      {% if course.coach_name %}<span class="cd-stat">Coach: {{ course.coach_name }}</span>{% endif %}
+      {% if has_access %}<span class="cd-stat">Progress: {{ user_progress_pct|default:0 }}%</span>{% endif %}
+      {% if course.is_accredible_certified %}<span class="cd-stat">Certificate included</span>{% endif %}
+    </div>
+  </section>
+
   <div class="cd-grid">
 
     <!-- ── Left: course info ── -->
@@ -149,9 +180,6 @@
       {% if course.thumbnail %}
         <img src="{{ course.thumbnail.url }}" alt="{{ course.name }}" class="cd-thumb">
       {% endif %}
-
-      <h1 class="cd-title">{{ course.name }}</h1>
-      <p class="cd-short-desc">{{ course.short_description }}</p>
 
       {% if course.description %}
       <div class="cd-about">
@@ -237,20 +265,24 @@
             You have access
           </div>
 
-          {% if course.user_lesson_progress %}
+          {% if course.get_lesson_count %}
           <div class="cd-progress-label">
             <span>Progress</span>
-            <span>{{ course.user_lessons_done|default:0 }} / {{ course.get_lesson_count }} lessons</span>
+            <span>{{ user_lessons_done|default:0 }} / {{ course.get_lesson_count }} lessons</span>
           </div>
           <div class="cd-progress-track">
-            <div class="cd-progress-fill" style="width: {{ course.user_progress_pct|default:0 }}%"></div>
+            <div class="cd-progress-fill" style="width: {{ user_progress_pct|default:0 }}%"></div>
           </div>
           {% endif %}
 
-          <a href="{% url 'course_detail' course.slug %}" class="cd-btn-primary">
+          {% if continue_lesson %}
+          <a href="{% url 'lesson_detail' course.slug continue_lesson.slug %}" class="cd-btn-primary">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="4,3 13,8 4,13" fill="currentColor" stroke="none"/></svg>
-            {% if course.user_lessons_done %}Continue learning{% else %}Start learning{% endif %}
+            {% if user_lessons_done %}Continue learning{% else %}Start learning{% endif %}
           </a>
+          {% else %}
+          <button type="button" class="cd-btn-primary" disabled>No lessons yet</button>
+          {% endif %}
 
         {% else %}
 
