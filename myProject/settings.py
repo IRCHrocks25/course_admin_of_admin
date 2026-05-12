@@ -44,6 +44,8 @@ if platform_base_domain:
 if DEBUG:
     ALLOWED_HOSTS.add('lvh.me')
     ALLOWED_HOSTS.add('.lvh.me')
+    ALLOWED_HOSTS.add('courseforge.lvl')
+    ALLOWED_HOSTS.add('.courseforge.lvl')
 
 # Optional escape hatch for highly dynamic host setups.
 # Use ONLY behind a trusted proxy / load balancer.
@@ -57,6 +59,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://localhost',
     'http://*.lvh.me:8000',
     'https://*.lvh.me',
+    'http://*.courseforge.lvl:8000',
+    'https://*.courseforge.lvl',
     'https://kane-sproject-production.up.railway.app',
     'https://danielwoodcourses-production.up.railway.app',
     'https://sop-master-production.up.railway.app',

@@ -102,8 +102,8 @@
       {% endif %}
       <a href="{% url 'dashboard_course_detail' course.slug %}" class="act-btn act-cyan">Manage</a>
       <a href="{% url 'dashboard_course_lessons' course.slug %}" class="act-btn act-purple">Lessons</a>
-      {% if is_superadmin and course.owner_site_url %}
-      <a href="{{ course.owner_site_url }}courses/{{ course.slug }}/" class="act-btn act-emerald" target="_blank" rel="noopener noreferrer">
+      {% if is_superadmin and course.owner_course_preview_url %}
+      <a href="{{ course.owner_course_preview_url }}" class="act-btn act-emerald" target="_blank" rel="noopener noreferrer">
         <i class="fas fa-external-link-alt text-[9px]"></i> Site
       </a>
       {% endif %}

@@ -122,12 +122,19 @@
         font-size: 34px; font-weight: 900; line-height: 1;
         color: #fff; letter-spacing: -1px; margin-bottom: 6px;
     }
+    .stat-sub {
+        font-size: 18px;
+        color: rgba(255,255,255,0.35);
+    }
     .stat-label { font-size: 12px; color: var(--muted); font-weight: 500; }
     .stat-card .bg-num {
         position: absolute; bottom: -8px; right: 12px;
         font-family: 'Barlow', sans-serif; font-size: 70px; font-weight: 900;
         color: rgba(255,255,255,0.025); line-height: 1; pointer-events: none;
     }
+    .brand-theme-light .stat-value { color: #0f172a; }
+    .brand-theme-light .stat-sub { color: #475569; }
+    .brand-theme-light .stat-card .bg-num { color: rgba(15,23,42,0.08); }
 
     /* ── PROGRESS BANNER ── */
     .progress-banner {
@@ -136,7 +143,7 @@
         margin-bottom: 40px;
         display: flex; align-items: center; gap: 28px;
     }
-    .pb-label { font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; }
+    .pb-label { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; }
     .pb-bar-wrap { flex: 1; }
     .pb-track {
         width: 100%; height: 8px; border-radius: 99px;
@@ -152,6 +159,21 @@
         font-family: 'Barlow', sans-serif;
         font-size: 22px; font-weight: 900; letter-spacing: -0.5px;
         color: var(--blue2); white-space: nowrap;
+    }
+    .brand-theme-light .pb-track,
+    .brand-theme-light .c-prog-track,
+    .brand-theme-light .prog-track {
+        background: rgba(15,23,42,0.14);
+        border: 1px solid rgba(15,23,42,0.12);
+    }
+    .brand-theme-light .pb-fill,
+    .brand-theme-light .c-prog-fill,
+    .brand-theme-light .prog-fill {
+        background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+        box-shadow: 0 0 0 1px rgba(29,78,216,0.1);
+    }
+    .brand-theme-light .prog-fill.full {
+        background: linear-gradient(90deg, #16a34a, #10b981);
     }
 
     /* ── SECTION HEADER ── */
@@ -620,12 +642,12 @@
         </div>
         <div class="stat-card reveal" style="transition-delay:.15s">
             <div class="stat-icon si-purple"><i class="fas fa-play"></i></div>
-            <div class="stat-value">{{ completed_lessons_all }}<span style="font-size:18px;color:rgba(255,255,255,0.3)">/{{ total_lessons_all }}</span></div>
+            <div class="stat-value">{{ completed_lessons_all }}<span class="stat-sub">/{{ total_lessons_all }}</span></div>
             <div class="stat-label">Lessons Done</div>
         </div>
         <div class="stat-card reveal" style="transition-delay:.2s">
             <div class="stat-icon si-yellow"><i class="fas fa-chart-line"></i></div>
-            <div class="stat-value">{{ overall_progress }}<span style="font-size:18px;color:rgba(255,255,255,0.35)">%</span></div>
+            <div class="stat-value">{{ overall_progress }}<span class="stat-sub">%</span></div>
             <div class="stat-label">Overall Progress</div>
         </div>
     </div>

@@ -1308,11 +1308,27 @@ def dashboard_courses(request):
         return redirect('courses')
     courses = list(courses_qs.select_related('tenant').annotate(lesson_count=Count('lessons')).order_by('-created_at'))
     if is_superadmin:
+        current_host = (request.get_host() or '').split(':')[0].lower()
+        is_local_host = (
+            current_host in {'localhost', '127.0.0.1'}
+            or current_host.startswith('127.')
+            or current_host.endswith('.local')
+        )
+        request_base = f"{request.scheme}://{request.get_host()}"
         for course in courses:
             owner_tenant = getattr(course, 'tenant', None)
             course.owner_name = owner_tenant.name if owner_tenant else 'Unassigned'
             course.owner_slug = owner_tenant.slug if owner_tenant else ''
             course.owner_site_url = get_tenant_public_home_url(request, owner_tenant) if owner_tenant else ''
+            if owner_tenant:
+                if is_local_host:
+                    course.owner_course_preview_url = f"{request_base}/courses/{course.slug}/?tenant={owner_tenant.slug}"
+                elif course.owner_site_url:
+                    course.owner_course_preview_url = f"{course.owner_site_url.rstrip('/')}/courses/{course.slug}/"
+                else:
+                    course.owner_course_preview_url = ''
+            else:
+                course.owner_course_preview_url = ''
     return render(request, 'dashboard/courses.html', {
         'courses': courses,
         'is_superadmin': is_superadmin,
@@ -4338,6 +4354,9 @@ def _get_dashboard_tenant(request):
     # Superadmins can select a tenant once and keep that context across
     # dashboard navigation on platform hosts (where request.tenant is None).
     if request.user.is_superuser:
+        if (request.GET.get('clear_tenant') or '').strip() in {'1', 'true', 'yes', 'on'}:
+            request.session.pop('superadmin_tenant_id', None)
+            return None
         tenant_query = (request.GET.get('tenant') or '').strip().lower()
         if tenant_query == 'clear':
             request.session.pop('superadmin_tenant_id', None)
