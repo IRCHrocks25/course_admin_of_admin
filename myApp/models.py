@@ -338,9 +338,19 @@ class Lesson(models.Model):
         return f"{self.course.name} - {self.title}"
     
     def get_vimeo_embed_url(self):
-        """Convert Vimeo URL to embed format"""
+        """Convert Vimeo URL/id to embed format with URL fallback."""
         if self.vimeo_id:
             return f"https://player.vimeo.com/video/{self.vimeo_id}"
+
+        # Backfill-safe fallback for legacy records that only stored vimeo_url.
+        raw_url = (self.vimeo_url or '').strip()
+        if raw_url:
+            match = re.search(
+                r'(?:vimeo\.com/(?:video/|channels/[^/]+/|groups/[^/]+/videos/|album/\d+/video/|ondemand/[^/]+/|manage/videos/)?|player\.vimeo\.com/video/)(\d+)',
+                raw_url,
+            )
+            if match:
+                return f"https://player.vimeo.com/video/{match.group(1)}"
         return ""
     
     def get_video_embed_url(self):

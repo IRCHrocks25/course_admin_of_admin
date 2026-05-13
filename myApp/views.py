@@ -2630,11 +2630,18 @@ def extract_vimeo_id(url):
     """Extract Vimeo video ID from URL"""
     if not url:
         return None
-    
-    # Pattern: https://vimeo.com/123456789 or https://vimeo.com/123456789?param=value
-    pattern = r'vimeo\.com/(\d+)'
-    match = re.search(pattern, url)
-    
+
+    # Supports common Vimeo URL shapes:
+    # - vimeo.com/123456789
+    # - player.vimeo.com/video/123456789
+    # - vimeo.com/manage/videos/123456789
+    # - vimeo.com/channels/<name>/123456789
+    pattern = (
+        r'(?:vimeo\.com/(?:video/|channels/[^/]+/|groups/[^/]+/videos/|album/\d+/video/|'
+        r'ondemand/[^/]+/|manage/videos/)?|player\.vimeo\.com/video/)(\d+)'
+    )
+    match = re.search(pattern, str(url).strip())
+
     if match:
         return match.group(1)
     return None
