@@ -1056,9 +1056,29 @@ def dashboard_students(request):
     search_query = request.GET.get('search', '')
     sort_by = request.GET.get('sort', 'recent')  # recent, progress, name, enrolled
     
-    # Get all users including admin/staff
-    # Show all users who have activity OR all users if none have activity
+    # Scope visible users strictly to the active tenant for tenant-admin views.
+    # Superadmin global view can still inspect platform-wide users.
     students_query = User.objects.all()
+    if tenant is not None:
+        scoped_user_ids = set(
+            TenantMembership.objects.filter(tenant=tenant, is_active=True).values_list('user_id', flat=True)
+        )
+        scoped_user_ids.update(
+            CourseEnrollment.objects.filter(course__tenant=tenant).values_list('user_id', flat=True)
+        )
+        scoped_user_ids.update(
+            CourseAccess.objects.filter(course__tenant=tenant).values_list('user_id', flat=True)
+        )
+        scoped_user_ids.update(
+            UserProgress.objects.filter(lesson__course__tenant=tenant).values_list('user_id', flat=True)
+        )
+        scoped_user_ids.update(
+            ExamAttempt.objects.filter(exam__course__tenant=tenant).values_list('user_id', flat=True)
+        )
+        scoped_user_ids.update(
+            Certification.objects.filter(course__tenant=tenant).values_list('user_id', flat=True)
+        )
+        students_query = User.objects.filter(id__in=scoped_user_ids)
     
     # Auto-enroll admin/staff users in all active courses if they don't have enrollments
     admin_users = students_query.filter(Q(is_staff=True) | Q(is_superuser=True))
