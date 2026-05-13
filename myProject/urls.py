@@ -85,6 +85,7 @@ urlpatterns = [
     path('dashboard/students/<int:user_id>/grant-bundle/', dashboard_views.grant_bundle_access_view, name='dashboard_grant_bundle'),
     path('dashboard/students/<int:user_id>/add-cohort/', dashboard_views.add_to_cohort_view, name='dashboard_add_cohort'),
     path('dashboard/domain-settings/', dashboard_views.dashboard_domain_settings, name='dashboard_domain_settings'),
+    path('dashboard/affiliate-program/', dashboard_views.dashboard_affiliate_program, name='dashboard_affiliate_program'),
     path('dashboard/billing/', dashboard_views.dashboard_billing, name='dashboard_billing'),
     path('dashboard/billing/portal/', dashboard_views.dashboard_billing_portal, name='dashboard_billing_portal'),
     path('dashboard/payments/stripe/connect/', dashboard_views.dashboard_connect_stripe, name='dashboard_connect_stripe'),

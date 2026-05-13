@@ -4,7 +4,44 @@
 {% block title %}Generate AI Content - {{ lesson.working_title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
+<style>
+    .brand-theme-light .lesson-ai-page .backdrop-blur-sm {
+        background-color: #ffffff !important;
+        border-color: rgba(15, 23, 42, 0.12) !important;
+        backdrop-filter: none !important;
+    }
+    .brand-theme-light .lesson-ai-page [class*="bg-[#0a0e27"] {
+        background-color: #f8fafc !important;
+    }
+    .brand-theme-light .lesson-ai-page input[type="text"],
+    .brand-theme-light .lesson-ai-page input[type="url"],
+    .brand-theme-light .lesson-ai-page textarea {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: rgba(15, 23, 42, 0.18) !important;
+    }
+    .brand-theme-light .lesson-ai-page input::placeholder,
+    .brand-theme-light .lesson-ai-page textarea::placeholder {
+        color: #64748b !important;
+    }
+    .brand-theme-light .lesson-ai-page .text-gray-200 {
+        color: #334155 !important;
+    }
+    .brand-theme-light .lesson-ai-page .bg-purple-accent,
+    .brand-theme-light .lesson-ai-page #test-chatbot-send-btn {
+        color: #ffffff !important;
+    }
+    .brand-theme-light #lesson-preview-backdrop {
+        background-color: rgba(15, 23, 42, 0.35) !important;
+    }
+    .brand-theme-light #lesson-preview-panel,
+    .brand-theme-light #lesson-preview-panel > .sticky {
+        background-color: #ffffff !important;
+        border-color: rgba(15, 23, 42, 0.14) !important;
+    }
+</style>
+
+<div class="max-w-5xl mx-auto lesson-ai-page">
     <!-- Header -->
     <div class="mb-8">
         <a href="{% url 'course_lessons' course.slug %}" class="text-cyan-electric hover:text-cyan-electric/80 text-sm mb-4 inline-block">

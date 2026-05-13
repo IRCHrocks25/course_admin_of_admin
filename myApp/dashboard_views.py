@@ -4640,6 +4640,57 @@ def dashboard_domain_settings(request):
 
 
 @staff_member_required
+def dashboard_affiliate_program(request):
+    """Affiliate dashboard: referral link + signup attribution tracking."""
+    is_superadmin = bool(request.user.is_superuser)
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required to access Affiliate Program.')
+        return redirect('dashboard_home')
+
+    referral_signup_url = ''
+    referred_tenants = Tenant.objects.none()
+    if tenant and tenant.referral_code:
+        referral_signup_url = f"{request.scheme}://{request.get_host()}/start-academy/?ref={tenant.referral_code}"
+        referred_tenants = Tenant.objects.filter(referred_by=tenant).order_by('-created_at')
+
+    total_referred = referred_tenants.count()
+    active_referred = referred_tenants.filter(is_active=True, is_archived=False).count()
+    inactive_referred = max(total_referred - active_referred, 0)
+
+    platform_referrals = Tenant.objects.none()
+    top_affiliates = Tenant.objects.none()
+    platform_total_referred = 0
+    if is_superadmin:
+        platform_referrals = (
+            Tenant.objects
+            .filter(referred_by__isnull=False)
+            .select_related('referred_by')
+            .order_by('-created_at')
+        )
+        platform_total_referred = platform_referrals.count()
+        top_affiliates = (
+            Tenant.objects
+            .annotate(affiliate_signups=Count('referred_tenants'))
+            .filter(affiliate_signups__gt=0)
+            .order_by('-affiliate_signups', 'name')
+        )
+
+    return render(request, 'dashboard/affiliate_program.html', {
+        'tenant': tenant,
+        'is_superadmin': is_superadmin,
+        'referral_signup_url': referral_signup_url,
+        'referred_tenants': referred_tenants,
+        'total_referred': total_referred,
+        'active_referred': active_referred,
+        'inactive_referred': inactive_referred,
+        'platform_referrals': platform_referrals,
+        'platform_total_referred': platform_total_referred,
+        'top_affiliates': top_affiliates,
+    })
+
+
+@staff_member_required
 @require_http_methods(["POST"])
 def dashboard_verify_domain(request, domain_id):
     """Mark a tenant domain as verified (manual verify for now)."""

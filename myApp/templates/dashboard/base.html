@@ -137,6 +137,10 @@
                     <i class="fas fa-globe w-5"></i>
                     <span>Domains</span>
                 </a>
+                <a href="{% url 'dashboard_affiliate_program' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'affiliate' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-200 border-l-2 border-amber-200{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-200{% endif %}">
+                    <i class="fas fa-handshake w-5"></i>
+                    <span>Affiliate Program</span>
+                </a>
                 <a href="{% url 'dashboard_billing' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'billing' in request.resolver_match.url_name %}bg-emerald-500/20 text-emerald-300 border-l-2 border-emerald-300{% else %}text-gray-300 hover:bg-emerald-500/10 hover:text-emerald-300{% endif %}">
                     <i class="fas fa-credit-card w-5"></i>
                     <span>Billing</span>

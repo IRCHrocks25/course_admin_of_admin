@@ -1,0 +1,171 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Affiliate Program{% endblock %}
+{% block page_title %}Affiliate Program{% endblock %}
+
+{% block content %}
+<div class="mb-6 rounded-xl border border-amber-300/20 bg-amber-500/5 p-4">
+    <div class="font-semibold text-amber-200 mb-1">Grow CourseForge with referral links</div>
+    <p class="text-sm text-gray-300">
+        Share your personal signup link to invite creators. Every academy created through your link is tracked here.
+        {% if is_superadmin %}
+        Superadmin view also includes platform-wide affiliate activity.
+        {% endif %}
+    </p>
+</div>
+
+{% if tenant %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="rounded-xl border border-cyan-electric/20 bg-cyan-electric/5 p-4">
+        <div class="text-xs text-gray-400 uppercase tracking-wide">Total Signups</div>
+        <div class="text-3xl font-bold text-cyan-electric mt-1">{{ total_referred }}</div>
+        <div class="text-xs text-gray-500 mt-1">Academies created via your code</div>
+    </div>
+    <div class="rounded-xl border border-green-400/20 bg-green-500/5 p-4">
+        <div class="text-xs text-gray-400 uppercase tracking-wide">Active</div>
+        <div class="text-3xl font-bold text-green-300 mt-1">{{ active_referred }}</div>
+        <div class="text-xs text-gray-500 mt-1">Activated academies</div>
+    </div>
+    <div class="rounded-xl border border-yellow-400/20 bg-yellow-500/5 p-4">
+        <div class="text-xs text-gray-400 uppercase tracking-wide">Pending / Inactive</div>
+        <div class="text-3xl font-bold text-yellow-300 mt-1">{{ inactive_referred }}</div>
+        <div class="text-xs text-gray-500 mt-1">Not active yet</div>
+    </div>
+</div>
+
+<div class="rounded-xl border border-white/10 bg-white/5 p-5 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Your referral code</label>
+            <input type="text" readonly value="{{ tenant.referral_code }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Your affiliate signup link</label>
+            <input type="text" readonly value="{{ referral_signup_url }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+    </div>
+    <p class="text-xs text-gray-500 mt-3">
+        Share this link to creators who want to launch their own CourseForge academy.
+    </p>
+</div>
+
+<div class="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+    <div class="px-4 py-3 border-b border-white/10 font-semibold">
+        Signups Attributed to {{ tenant.name }}
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-white/5 text-gray-300">
+                <tr>
+                    <th class="text-left px-4 py-3">Academy</th>
+                    <th class="text-left px-4 py-3">Slug</th>
+                    <th class="text-left px-4 py-3">Status</th>
+                    <th class="text-left px-4 py-3">Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for referred in referred_tenants %}
+                <tr class="border-t border-white/10">
+                    <td class="px-4 py-3 font-medium text-white">{{ referred.name }}</td>
+                    <td class="px-4 py-3 text-gray-400">{{ referred.slug }}</td>
+                    <td class="px-4 py-3">
+                        {% if referred.is_active and not referred.is_archived %}
+                        <span class="px-2 py-0.5 rounded bg-green-500/20 text-green-400">Active</span>
+                        {% elif referred.is_archived %}
+                        <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-300">Archived</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-400">{{ referred.created_at|date:"M d, Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td class="px-4 py-6 text-gray-400" colspan="4">No signups attributed to your affiliate link yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if is_superadmin %}
+<div class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="rounded-xl border border-amber-300/20 bg-amber-500/5 overflow-hidden">
+        <div class="px-4 py-3 border-b border-amber-300/15 flex items-center justify-between">
+            <span class="font-semibold text-amber-200">Top Affiliates (All Tenants)</span>
+            <span class="text-xs text-amber-100/80">{{ top_affiliates|length }} shown</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-white/5 text-gray-300">
+                    <tr>
+                        <th class="text-left px-4 py-3">Tenant</th>
+                        <th class="text-left px-4 py-3">Referral Code</th>
+                        <th class="text-left px-4 py-3">Signups</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for affiliate in top_affiliates|slice:":20" %}
+                    <tr class="border-t border-white/10">
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-white">{{ affiliate.name }}</div>
+                            <div class="text-xs text-gray-500">{{ affiliate.slug }}</div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-300">{{ affiliate.referral_code }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-0.5 rounded bg-cyan-electric/20 text-cyan-electric">{{ affiliate.affiliate_signups }}</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="px-4 py-6 text-gray-400" colspan="3">No affiliate signups recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+        <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <span class="font-semibold">Recent Affiliate Signups</span>
+            <span class="text-xs text-gray-400">Total: {{ platform_total_referred }}</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-white/5 text-gray-300">
+                    <tr>
+                        <th class="text-left px-4 py-3">New Tenant</th>
+                        <th class="text-left px-4 py-3">Referred By</th>
+                        <th class="text-left px-4 py-3">Recorded</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in platform_referrals|slice:":30" %}
+                    <tr class="border-t border-white/10">
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-white">{{ item.name }}</div>
+                            <div class="text-xs text-gray-500">{{ item.slug }}</div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="text-gray-200">{{ item.referred_by.name }}</div>
+                            <div class="text-xs text-gray-500">{{ item.referred_by.referral_code }}</div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-400">
+                            {{ item.referral_recorded_at|default:item.created_at|date:"M d, Y H:i" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td class="px-4 py-6 text-gray-400" colspan="3">No referred tenant signups yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
