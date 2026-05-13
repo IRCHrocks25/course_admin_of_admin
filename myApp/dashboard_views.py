@@ -1061,7 +1061,11 @@ def dashboard_students(request):
     students_query = User.objects.all()
     if tenant is not None:
         scoped_user_ids = set(
-            TenantMembership.objects.filter(tenant=tenant, is_active=True).values_list('user_id', flat=True)
+            TenantMembership.objects.filter(
+                tenant=tenant,
+                is_active=True,
+                role='student'
+            ).values_list('user_id', flat=True)
         )
         scoped_user_ids.update(
             CourseEnrollment.objects.filter(course__tenant=tenant).values_list('user_id', flat=True)
@@ -1078,7 +1082,11 @@ def dashboard_students(request):
         scoped_user_ids.update(
             Certification.objects.filter(course__tenant=tenant).values_list('user_id', flat=True)
         )
-        students_query = User.objects.filter(id__in=scoped_user_ids)
+        students_query = User.objects.filter(
+            id__in=scoped_user_ids,
+            is_staff=False,
+            is_superuser=False
+        )
     
     # Auto-enroll admin/staff users in all active courses if they don't have enrollments
     admin_users = students_query.filter(Q(is_staff=True) | Q(is_superuser=True))
@@ -1123,6 +1131,9 @@ def dashboard_students(request):
         enrollment_courses = set(enrollments.values_list('course_id', flat=True))
         access_courses = set(course_accesses.values_list('course_id', flat=True))
         all_course_ids = enrollment_courses | access_courses
+        if tenant is not None and not all_course_ids:
+            # In tenant mode we only display learners with tenant-linked course data.
+            continue
         
         # Apply course filter
         if course_filter:
