@@ -1,5 +1,6 @@
 from .utils.branding import get_tenant_branding
 from .utils.domains import get_tenant_public_home_url
+from .utils.tenancy import get_default_tenant
 from .models import TenantMembership, Tenant
 
 
@@ -22,6 +23,7 @@ def tenant_context(request):
     tenant = getattr(request, 'tenant', None)
     dashboard_available_tenants = []
     dashboard_impersonating = False
+    dashboard_default_tenant_slug = ''
     is_superadmin = bool(getattr(request, 'user', None) and request.user.is_authenticated and request.user.is_superuser)
 
     if tenant is None and is_superadmin:
@@ -55,6 +57,9 @@ def tenant_context(request):
         dashboard_available_tenants = list(
             Tenant.objects.order_by('name').only('id', 'name', 'slug', 'is_archived')
         )
+        default_tenant = get_default_tenant()
+        if default_tenant and default_tenant.is_active and not default_tenant.is_archived:
+            dashboard_default_tenant_slug = default_tenant.slug
 
     return {
         'tenant': tenant,
@@ -62,4 +67,5 @@ def tenant_context(request):
         'tenant_site_url': get_tenant_public_home_url(request, tenant),
         'dashboard_available_tenants': dashboard_available_tenants,
         'dashboard_impersonating': dashboard_impersonating,
+        'dashboard_default_tenant_slug': dashboard_default_tenant_slug,
     }

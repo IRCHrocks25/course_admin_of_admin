@@ -161,7 +161,7 @@
                     <i class="fas fa-external-link-alt w-5"></i>
                     <span>View Site</span>
                 </a>
-                <a href="{% if tenant_site_url %}{{ tenant_site_url }}my-dashboard/{% elif tenant %}{% url 'student_dashboard' %}?tenant={{ tenant.slug }}{% else %}{% url 'student_dashboard' %}{% endif %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
+                <a href="{% if tenant_site_url %}{{ tenant_site_url }}courses/{% elif tenant %}{% url 'courses' %}?tenant={{ tenant.slug }}{% elif user.is_superuser and dashboard_default_tenant_slug %}{% url 'courses' %}?tenant={{ dashboard_default_tenant_slug }}{% else %}{% url 'student_dashboard' %}{% endif %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
                     <i class="fas fa-graduation-cap w-5"></i>
                     <span>View Course Dashboard</span>
                 </a>

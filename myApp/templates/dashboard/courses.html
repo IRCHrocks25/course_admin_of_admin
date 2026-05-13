@@ -98,16 +98,16 @@
 
     <div class="flex items-center gap-1.5 flex-wrap">
       {% if is_superadmin %}
-      <a href="{% url 'dashboard_course_detail' course.slug %}" class="act-btn act-indigo">Super Admin</a>
+      <a href="{% url 'dashboard_course_detail' course.slug %}{% if course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-indigo">Super Admin</a>
       {% endif %}
-      <a href="{% url 'dashboard_course_detail' course.slug %}" class="act-btn act-cyan">Manage</a>
-      <a href="{% url 'dashboard_course_lessons' course.slug %}" class="act-btn act-purple">Lessons</a>
+      <a href="{% url 'dashboard_course_detail' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-cyan">Manage</a>
+      <a href="{% url 'dashboard_course_lessons' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-purple">Lessons</a>
       {% if is_superadmin and course.owner_course_preview_url %}
       <a href="{{ course.owner_course_preview_url }}" class="act-btn act-emerald" target="_blank" rel="noopener noreferrer">
         <i class="fas fa-external-link-alt text-[9px]"></i> Site
       </a>
       {% endif %}
-      <form method="POST" action="{% url 'dashboard_delete_course' course.slug %}" class="inline ml-auto" onsubmit="return confirm('Delete this course? All lessons, enrollments, and data will be permanently removed.');">
+      <form method="POST" action="{% url 'dashboard_delete_course' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="inline ml-auto" onsubmit="return confirm('Delete this course? All lessons, enrollments, and data will be permanently removed.');">
         {% csrf_token %}
         <button type="submit" class="act-btn act-red act-btn-icon">
           <i class="fas fa-trash text-[10px]"></i>

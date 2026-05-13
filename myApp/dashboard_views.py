@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import user_passes_test
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
 from django.conf import settings
@@ -1356,12 +1356,8 @@ def dashboard_courses(request):
 def dashboard_course_detail(request, course_slug):
     """Edit course details and manage resources"""
     tenant = _get_dashboard_tenant(request)
-    is_superadmin = bool(request.user.is_superuser)
-    if tenant is not None:
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
-    elif is_superadmin:
-        course = get_object_or_404(Course, slug=course_slug)
-    else:
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_courses')
 
@@ -1430,12 +1426,8 @@ def dashboard_course_detail(request, course_slug):
 def dashboard_improve_course_description(request, course_slug):
     """AI polish for long/raw course descriptions (e.g. pasted transcripts)."""
     tenant = _get_dashboard_tenant(request)
-    is_superadmin = bool(request.user.is_superuser)
-    if tenant is not None:
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
-    elif is_superadmin:
-        course = get_object_or_404(Course, slug=course_slug)
-    else:
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
         return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
 
     if not OPENAI_AVAILABLE:
@@ -1496,12 +1488,8 @@ def dashboard_improve_course_description(request, course_slug):
 def dashboard_delete_course(request, course_slug):
     """Delete a course"""
     tenant = _get_dashboard_tenant(request)
-    is_superadmin = bool(request.user.is_superuser)
-    if tenant is not None:
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
-    elif is_superadmin:
-        course = get_object_or_404(Course, slug=course_slug)
-    else:
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_courses')
     course_name = course.name
@@ -1810,12 +1798,8 @@ def dashboard_exam_detail(request, exam_id):
 def dashboard_course_lessons(request, course_slug):
     """View all lessons for a course"""
     tenant = _get_dashboard_tenant(request)
-    is_superadmin = bool(request.user.is_superuser)
-    if tenant is not None:
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
-    elif is_superadmin:
-        course = get_object_or_404(Course, slug=course_slug)
-    else:
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_courses')
     lessons = course.lessons.all()
@@ -2732,12 +2716,9 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
 def dashboard_course_add_seed_lessons(request, course_slug):
     """Append multiple AI-generated lessons to an existing course."""
     tenant = _get_dashboard_tenant(request)
-    if request.user.is_superuser:
-        course = get_object_or_404(Course, slug=course_slug)
-    else:
-        if tenant is None:
-            return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
-        course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
+        return JsonResponse({'success': False, 'error': 'Tenant context is required.'}, status=400)
 
     seed_lessons = _parse_seed_lessons(request.POST.get('lessons_json'))
     if not seed_lessons:
@@ -4464,6 +4445,45 @@ def _get_dashboard_tenant(request):
         is_active=True
     ).select_related('tenant').first()
     return membership.tenant if membership else None
+
+
+def _resolve_dashboard_course(request, course_slug, tenant=None):
+    """
+    Resolve a course for dashboard actions with superadmin-safe fallback.
+    Avoids MultipleObjectsReturned when slugs repeat across tenants.
+    """
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        return get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    if not is_superadmin:
+        return None
+
+    courses_qs = Course.objects.filter(slug=course_slug).select_related('tenant').order_by('-created_at', '-id')
+    if not courses_qs.exists():
+        raise Http404("No Course matches the given query.")
+
+    # Prefer explicit tenant hint from query/post first.
+    tenant_hint = (request.GET.get('tenant') or request.POST.get('tenant') or '').strip().lower()
+    if tenant_hint:
+        hinted = courses_qs.filter(tenant__slug=tenant_hint).first()
+        if hinted is not None:
+            request.session['superadmin_tenant_id'] = hinted.tenant_id
+            return hinted
+
+    # Then prefer platform default tenant if it owns this slug.
+    default_tenant = get_default_tenant()
+    if default_tenant is not None:
+        default_match = courses_qs.filter(tenant=default_tenant).first()
+        if default_match is not None:
+            return default_match
+
+    # Final fallback: deterministic newest record.
+    if courses_qs.count() > 1:
+        messages.info(
+            request,
+            'Multiple tenants have this course slug. Select Tenant View for exact tenant context.'
+        )
+    return courses_qs.first()
 
 
 @staff_member_required
