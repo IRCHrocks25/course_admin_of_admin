@@ -25,8 +25,14 @@ def tenant_context(request):
     dashboard_impersonating = False
     dashboard_default_tenant_slug = ''
     is_superadmin = bool(getattr(request, 'user', None) and request.user.is_authenticated and request.user.is_superuser)
+    clear_tenant_requested = (request.GET.get('clear_tenant') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+    clear_tenant_requested = clear_tenant_requested or ((request.GET.get('tenant') or '').strip().lower() == 'clear')
 
-    if tenant is None and is_superadmin:
+    if is_superadmin and clear_tenant_requested:
+        request.session.pop('superadmin_tenant_id', None)
+        tenant = None
+
+    if tenant is None and is_superadmin and not clear_tenant_requested:
         selected_id = request.session.get('superadmin_tenant_id')
         if selected_id:
             selected = Tenant.objects.filter(id=selected_id).first()

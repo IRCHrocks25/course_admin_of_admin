@@ -65,6 +65,7 @@ urlpatterns = [
     
     # Student Progress Monitoring
     path('dashboard/students/', dashboard_views.dashboard_students, name='dashboard_students'),
+    path('dashboard/students/ip-monitor/', dashboard_views.dashboard_student_ip_monitor, name='dashboard_student_ip_monitor'),
     path('dashboard/students/progress/', dashboard_views.dashboard_student_progress, name='dashboard_student_progress'),
     path('dashboard/students/<int:user_id>/', dashboard_views.dashboard_student_detail, name='dashboard_student_detail'),
     path('dashboard/students/<int:user_id>/<slug:course_slug>/', dashboard_views.dashboard_student_detail, name='dashboard_student_detail_course'),

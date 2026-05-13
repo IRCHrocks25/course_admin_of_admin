@@ -59,6 +59,7 @@ from .models import (
     TenantMembership,
     TenantDomain,
     AIUsageLog,
+    StudentIPLog,
 )
 from django.contrib import messages
 from django.core.cache import cache
@@ -1219,6 +1220,61 @@ def dashboard_students(request):
         'status_filter': status_filter,
         'search_query': search_query,
         'sort_by': sort_by,
+    })
+
+
+@staff_member_required
+def dashboard_student_ip_monitor(request):
+    """Tenant-scoped monitor for student IP activity."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and is_superadmin:
+        tenant = get_default_tenant()
+    if tenant is None:
+        messages.error(request, 'Tenant context is required to monitor student IP activity.')
+        return redirect('dashboard_students')
+
+    base_qs = StudentIPLog.objects.filter(tenant=tenant).select_related('user')
+    search_query = (request.GET.get('search') or '').strip()
+    country_filter = (request.GET.get('country') or '').strip()
+    date_filter = (request.GET.get('date') or '').strip()
+
+    filtered_qs = base_qs
+    if search_query:
+        filtered_qs = filtered_qs.filter(
+            Q(user__username__icontains=search_query)
+            | Q(user__email__icontains=search_query)
+            | Q(user__first_name__icontains=search_query)
+            | Q(user__last_name__icontains=search_query)
+            | Q(ip_address__icontains=search_query)
+            | Q(country__icontains=search_query)
+            | Q(region__icontains=search_query)
+            | Q(city__icontains=search_query)
+            | Q(last_path__icontains=search_query)
+        )
+    if country_filter:
+        filtered_qs = filtered_qs.filter(country__iexact=country_filter)
+    if date_filter:
+        filtered_qs = filtered_qs.filter(last_seen__date=date_filter)
+
+    ip_logs = filtered_qs.order_by('-last_seen')[:700]
+    countries = list(
+        base_qs.exclude(country='')
+        .values_list('country', flat=True)
+        .distinct()
+        .order_by('country')
+    )
+
+    return render(request, 'dashboard/student_ip_monitor.html', {
+        'ip_logs': ip_logs,
+        'countries': countries,
+        'search_query': search_query,
+        'country_filter': country_filter,
+        'date_filter': date_filter,
+        'total_logs': filtered_qs.count(),
+        'unique_students': filtered_qs.values('user_id').distinct().count(),
+        'unique_ips': filtered_qs.values('ip_address').distinct().count(),
+        'private_ip_logs': filtered_qs.filter(is_private_ip=True).count(),
     })
 
 
@@ -4409,6 +4465,15 @@ def dashboard_delete_bundle(request, bundle_id):
 
 def _get_dashboard_tenant(request):
     """Resolve active tenant for tenant-admin dashboard context."""
+    if request.user.is_superuser:
+        if (request.GET.get('clear_tenant') or '').strip() in {'1', 'true', 'yes', 'on'}:
+            request.session.pop('superadmin_tenant_id', None)
+            return None
+        tenant_query = (request.GET.get('tenant') or '').strip().lower()
+        if tenant_query == 'clear':
+            request.session.pop('superadmin_tenant_id', None)
+            return None
+
     tenant = getattr(request, 'tenant', None)
     if tenant is not None:
         if request.user.is_superuser:
@@ -4418,13 +4483,6 @@ def _get_dashboard_tenant(request):
     # Superadmins can select a tenant once and keep that context across
     # dashboard navigation on platform hosts (where request.tenant is None).
     if request.user.is_superuser:
-        if (request.GET.get('clear_tenant') or '').strip() in {'1', 'true', 'yes', 'on'}:
-            request.session.pop('superadmin_tenant_id', None)
-            return None
-        tenant_query = (request.GET.get('tenant') or '').strip().lower()
-        if tenant_query == 'clear':
-            request.session.pop('superadmin_tenant_id', None)
-            return None
         if tenant_query:
             selected = Tenant.objects.filter(slug=tenant_query, is_archived=False).first()
             if selected:

@@ -911,6 +911,36 @@ class TenantMembership(models.Model):
         return f"{self.user.username} @ {self.tenant.slug} ({self.role})"
 
 
+class StudentIPLog(models.Model):
+    """Tenant-scoped student IP activity rollup."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='student_ip_logs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='student_ip_logs')
+    ip_address = models.CharField(max_length=64)
+    country = models.CharField(max_length=120, blank=True, default='')
+    region = models.CharField(max_length=120, blank=True, default='')
+    city = models.CharField(max_length=120, blank=True, default='')
+    is_private_ip = models.BooleanField(default=False)
+    last_path = models.CharField(max_length=500, blank=True, default='')
+    hit_count = models.PositiveIntegerField(default=1)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_seen']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'user', 'ip_address'], name='uniq_student_iplog_tenant_user_ip')
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'last_seen']),
+            models.Index(fields=['tenant', 'ip_address']),
+            models.Index(fields=['tenant', 'is_private_ip']),
+            models.Index(fields=['tenant', 'country']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.tenant.slug} ({self.ip_address})"
+
+
 class AIUsageLog(models.Model):
     """Per-call OpenAI usage log for tenant/course cost analytics."""
     PROVIDER_CHOICES = [

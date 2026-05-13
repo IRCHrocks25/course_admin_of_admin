@@ -1,12 +1,14 @@
 import os
 import re
 import time
+import ipaddress
 
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
-from .models import Tenant, TenantDomain, TenantMembership
+from django.db.models import F
+from .models import Tenant, TenantDomain, TenantMembership, StudentIPLog
 
 
 class ProtectiveThrottleMiddleware:
@@ -167,6 +169,83 @@ class TenantMiddleware:
 
         request.tenant = tenant
         return self.get_response(request)
+
+
+class StudentIPTrackingMiddleware:
+    """Track student IP activity per tenant for dashboard auditing."""
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def _client_ip(self, request):
+        forwarded = (request.META.get('HTTP_X_FORWARDED_FOR') or '').split(',')[0].strip()
+        if forwarded:
+            return forwarded
+        real_ip = (request.META.get('HTTP_X_REAL_IP') or '').strip()
+        if real_ip:
+            return real_ip
+        return (request.META.get('REMOTE_ADDR') or '').strip()
+
+    def _is_private_ip(self, ip_text):
+        try:
+            parsed = ipaddress.ip_address(ip_text)
+            return bool(parsed.is_private or parsed.is_loopback or parsed.is_link_local or parsed.is_reserved)
+        except Exception:
+            return False
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        try:
+            tenant = getattr(request, 'tenant', None)
+            user = getattr(request, 'user', None)
+            if tenant is None or not user or not user.is_authenticated or user.is_staff or user.is_superuser:
+                return response
+            if request.method not in {'GET', 'HEAD'}:
+                return response
+            path = (request.path or '').strip()
+            if path.startswith('/static/') or path.startswith('/media/') or path.startswith('/admin/'):
+                return response
+
+            ip_address = self._client_ip(request)
+            if not ip_address:
+                return response
+
+            country = (request.META.get('HTTP_CF_IPCOUNTRY') or '').strip()
+            if country.upper() in {'XX', 'T1'}:
+                country = ''
+            region = (request.META.get('HTTP_X_REGION') or request.META.get('HTTP_CF_REGION') or '').strip()
+            city = (request.META.get('HTTP_X_CITY') or request.META.get('HTTP_CF_CITY') or '').strip()
+            is_private_ip = self._is_private_ip(ip_address)
+
+            log, created = StudentIPLog.objects.get_or_create(
+                tenant=tenant,
+                user=user,
+                ip_address=ip_address,
+                defaults={
+                    'country': country[:120],
+                    'region': region[:120],
+                    'city': city[:120],
+                    'is_private_ip': is_private_ip,
+                    'last_path': path[:500],
+                    'hit_count': 1,
+                }
+            )
+            if not created:
+                updates = {
+                    'last_path': path[:500],
+                    'is_private_ip': is_private_ip,
+                    'hit_count': F('hit_count') + 1,
+                }
+                if country:
+                    updates['country'] = country[:120]
+                if region:
+                    updates['region'] = region[:120]
+                if city:
+                    updates['city'] = city[:120]
+                StudentIPLog.objects.filter(pk=log.pk).update(**updates)
+        except Exception:
+            # Never break the response flow due to monitoring telemetry.
+            pass
+        return response
 
 
 class ForcePasswordChangeMiddleware:
