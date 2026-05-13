@@ -1779,7 +1779,7 @@ def course_detail(request, course_slug):
             _Prefetch('modules', queryset=Module.objects.order_by('order', 'id').prefetch_related(
                 _Prefetch('lessons', queryset=Lesson.objects.order_by('order', 'id'))
             )),
-            _Prefetch('lessons', queryset=Lesson.objects.filter(module__isnull=True).order_by('order', 'id')),
+            _Prefetch('lessons', queryset=Lesson.objects.order_by('order', 'id')),
         )
     )
     user = request.user
@@ -1789,14 +1789,13 @@ def course_detail(request, course_slug):
 
     # Build syllabus: modules with their lessons, then orphan (no-module) lessons
     modules_qs = list(course.modules.all())
-    orphan_lessons = list(course.lessons.filter(module__isnull=True).order_by('order', 'id'))
+    ordered_lessons = list(course.lessons.all())
+    orphan_lessons = [lesson for lesson in ordered_lessons if lesson.module_id is None]
     syllabus = []
     for mod in modules_qs:
         syllabus.append({'type': 'module', 'obj': mod, 'lessons': list(mod.lessons.all())})
     if orphan_lessons:
         syllabus.append({'type': 'module', 'obj': None, 'lessons': orphan_lessons})
-
-    ordered_lessons = list(course.lessons.order_by('order', 'id'))
     first_lesson = ordered_lessons[0] if ordered_lessons else None
     continue_lesson = first_lesson
     user_lessons_done = 0
