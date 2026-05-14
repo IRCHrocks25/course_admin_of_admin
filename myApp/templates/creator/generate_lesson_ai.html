@@ -1,43 +1,54 @@
-{% extends 'base.html' %}
+{% extends 'dashboard/base.html' %}
 {% load static %}
 
 {% block title %}Generate AI Content - {{ lesson.working_title }}{% endblock %}
+{% block page_title %}Generate Lesson AI{% endblock %}
 
 {% block content %}
 <style>
-    .brand-theme-light .lesson-ai-page .backdrop-blur-sm {
-        background-color: #ffffff !important;
-        border-color: rgba(15, 23, 42, 0.12) !important;
-        backdrop-filter: none !important;
+    .notes-preview h2,
+    .notes-preview h3,
+    .notes-preview h4 {
+        color: #f8fafc;
+        font-weight: 700;
     }
-    .brand-theme-light .lesson-ai-page [class*="bg-[#0a0e27"] {
-        background-color: #f8fafc !important;
+    .notes-preview p {
+        line-height: 1.7;
     }
-    .brand-theme-light .lesson-ai-page input[type="text"],
-    .brand-theme-light .lesson-ai-page input[type="url"],
-    .brand-theme-light .lesson-ai-page textarea {
-        background-color: #ffffff !important;
-        color: #0f172a !important;
-        border-color: rgba(15, 23, 42, 0.18) !important;
+    .notes-preview ul,
+    .notes-preview ol {
+        margin-left: 1.25rem;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
     }
-    .brand-theme-light .lesson-ai-page input::placeholder,
-    .brand-theme-light .lesson-ai-page textarea::placeholder {
-        color: #64748b !important;
+    .notes-preview ul {
+        list-style-type: disc;
     }
-    .brand-theme-light .lesson-ai-page .text-gray-200 {
-        color: #334155 !important;
+    .notes-preview ol {
+        list-style-type: decimal;
     }
-    .brand-theme-light .lesson-ai-page .bg-purple-accent,
-    .brand-theme-light .lesson-ai-page #test-chatbot-send-btn {
-        color: #ffffff !important;
+    .notes-preview blockquote {
+        border-left: 3px solid rgba(0, 240, 255, 0.55);
+        padding-left: 0.9rem;
+        color: #d1d5db;
+        font-style: italic;
     }
-    .brand-theme-light #lesson-preview-backdrop {
-        background-color: rgba(15, 23, 42, 0.35) !important;
+    .notes-editor-card {
+        border: 1px solid rgba(0, 240, 255, 0.18);
+        border-radius: 0.75rem;
+        background: rgba(10, 14, 39, 0.35);
+        padding: 0.85rem;
     }
-    .brand-theme-light #lesson-preview-panel,
-    .brand-theme-light #lesson-preview-panel > .sticky {
-        background-color: #ffffff !important;
-        border-color: rgba(15, 23, 42, 0.14) !important;
+    .notes-editor-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #9ca3af;
+        margin-bottom: 0.3rem;
+        display: block;
+    }
+    .notes-done-primary {
+        box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.15), 0 10px 24px rgba(0, 240, 255, 0.18);
     }
 </style>
 
@@ -58,10 +69,6 @@
             <img src="{{ lesson.vimeo_thumbnail }}" alt="Video thumbnail" class="w-48 h-32 object-cover rounded">
             <div class="flex-1">
                 <div class="font-bold text-lg mb-2">{{ lesson.working_title }}</div>
-                <div class="text-sm text-gray-400">
-                    <i class="fas fa-clock mr-2"></i>
-                    {{ lesson.get_formatted_duration }}
-                </div>
             </div>
         </div>
     </div>
@@ -255,17 +262,35 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold mb-2">Google Drive Embed URL</label>
-                    <input type="url" name="google_drive_url" value="{{ lesson.google_drive_url }}"
+                    <input type="url" name="google_drive_url" id="google-drive-url-input" value="{{ lesson.google_drive_url }}"
                         placeholder="https://drive.google.com/file/d/.../preview"
                         class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
                     <p class="text-xs text-gray-500 mt-1">Use Share → Embed link for the video</p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold mb-2">Generic Video URL (YouTube, etc.)</label>
-                    <input type="url" name="video_url" value="{{ lesson.video_url }}"
+                    <input type="url" name="video_url" id="generic-video-url-input" value="{{ lesson.video_url }}"
                         placeholder="https://www.youtube.com/embed/VIDEO_ID or youtube.com/watch?v=..."
                         class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
                     <p class="text-xs text-gray-500 mt-1">Use embed URL (youtube.com/embed/...) or paste watch URL — both work</p>
+                </div>
+                <div id="video-preview-wrap" class="hidden rounded-xl border border-cyan-electric/20 bg-[#0a0e27]/40 p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm font-semibold text-cyan-electric">Video Preview</p>
+                        <span id="video-preview-source" class="text-xs px-2 py-1 rounded-full bg-cyan-electric/10 border border-cyan-electric/30 text-cyan-electric"></span>
+                    </div>
+                    <div class="relative rounded-lg overflow-hidden bg-black" style="padding-top:56.25%;">
+                        <iframe
+                            id="video-preview-iframe"
+                            src=""
+                            frameborder="0"
+                            allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen
+                            style="position:absolute;top:0;left:0;width:100%;height:100%;"
+                            title="Lesson video preview"
+                        ></iframe>
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -424,20 +449,53 @@
                         <i class="fas fa-edit mr-1"></i> Edit
                     </button>
                 </div>
-                <p class="text-sm text-gray-400 mb-4">Structured content shown to students (paragraphs, headers, lists, quotes). JSON format with blocks.</p>
+                <p class="text-sm text-gray-400 mb-4">Edit lesson notes in a readable block editor. Changes are saved as structured blocks for the student lesson page.</p>
                 <div class="space-y-3">
-                    <div id="content-blocks-display" class="text-gray-300 text-sm max-h-48 overflow-y-auto">
+                    <div id="content-blocks-display" class="notes-preview text-gray-300 text-sm space-y-3 max-h-[32rem] overflow-y-auto pr-1">
                         {% if lesson.content and lesson.content.blocks %}
                             {% for block in lesson.content.blocks %}
-                                {% if block.type == 'paragraph' %}<p class="mb-2">{{ block.data.text|truncatewords:30 }}</p>
-                                {% elif block.type == 'header' %}<p class="font-semibold mb-1">Header: {{ block.data.text }}</p>
-                                {% elif block.type == 'list' %}<p class="mb-1">List: {{ block.data.items|length }} items</p>
-                                {% elif block.type == 'quote' %}<p class="italic mb-1">Quote: {{ block.data.text|truncatewords:15 }}</p>
+                                {% if block.type == 'paragraph' %}<p>{{ block.data.text|linebreaksbr }}</p>
+                                {% elif block.type == 'header' %}<h3>{{ block.data.text }}</h3>
+                                {% elif block.type == 'list' %}
+                                    {% if block.data.style == 'ordered' %}<ol>{% else %}<ul>{% endif %}
+                                    {% for item in block.data.items %}<li>{{ item }}</li>{% endfor %}
+                                    {% if block.data.style == 'ordered' %}</ol>{% else %}</ul>{% endif %}
+                                {% elif block.type == 'quote' %}<blockquote>{{ block.data.text }}</blockquote>
                                 {% endif %}
                             {% endfor %}
                         {% else %}
                             <p class="text-gray-500 italic">No lesson notes yet. Add content in Edit mode or regenerate AI content.</p>
                         {% endif %}
+                    </div>
+                    <div id="content-blocks-editor" class="hidden border border-cyan-electric/20 rounded-xl p-4 space-y-4 bg-[#0a0e27]/30">
+                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-cyan-electric/30 bg-cyan-electric/5 px-3 py-2">
+                            <p class="text-sm text-cyan-electric font-medium">
+                                <i class="fas fa-pen-to-square mr-1"></i> You are editing Lesson Notes
+                            </p>
+                            <button
+                                type="button"
+                                class="content-blocks-done-btn notes-done-primary px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-bold hover:bg-cyan-electric/90 transition-all"
+                                aria-label="Done editing lesson notes"
+                            >
+                                <i class="fas fa-check mr-1"></i> Done Editing Notes
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" id="add-note-paragraph" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Paragraph</button>
+                            <button type="button" id="add-note-header" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Header</button>
+                            <button type="button" id="add-note-list" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Bullet/Numbered List</button>
+                            <button type="button" id="add-note-quote" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Quote</button>
+                        </div>
+                        <p class="text-xs text-gray-500">Tip: use blank lines to separate paragraphs, one list item per line, and drag your focus between blocks with the arrow buttons.</p>
+                        <div id="content-blocks-block-list" class="space-y-3"></div>
+                        <div class="pt-1 flex justify-end">
+                            <button
+                                type="button"
+                                class="content-blocks-done-btn notes-done-primary px-5 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-bold hover:bg-cyan-electric/90 transition-all"
+                            >
+                                <i class="fas fa-check mr-1"></i> Done Editing Notes
+                            </button>
+                        </div>
                     </div>
                     <textarea 
                         name="content_blocks" 
@@ -636,7 +694,7 @@
                 return false;
             }
             const transcript = transcriptInput.value.trim();
-            const lessonId = {{ lesson.id }};
+            const lessonId = Number('{{ lesson.id }}');
             console.log('Transcript length:', transcript.length, 'Lesson ID:', lessonId);
             if (!transcript) {
                 alert('Please provide a transcript before training the chatbot.');
@@ -705,17 +763,47 @@
             }
         }
         
+        const notesDisplay = document.getElementById('content-blocks-display');
+        const notesInput = document.getElementById('content-blocks-input');
+        const notesEditor = document.getElementById('content-blocks-editor');
+        const notesToggleBtn = document.querySelector('.edit-field-btn[data-field="content_blocks"]');
+
+        function setNotesEditorOpen(opening) {
+            if (!notesDisplay || !notesInput || !notesEditor || !notesToggleBtn) return;
+            notesEditor.classList.toggle('hidden', !opening);
+            notesDisplay.classList.toggle('hidden', opening);
+            notesInput.classList.add('hidden');
+            notesToggleBtn.innerHTML = opening
+                ? '<i class="fas fa-check mr-1"></i> Done'
+                : '<i class="fas fa-edit mr-1"></i> Edit';
+            if (!opening) {
+                notesDisplay.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
         // Edit field functionality
         document.querySelectorAll('.edit-field-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const field = this.dataset.field;
                 const display = document.getElementById(`${field.replace('_', '-')}-display`);
                 const input = document.getElementById(`${field.replace('_', '-')}-input`);
+                const editIcon = this.querySelector('i');
                 
                 if (display && input) {
+                    if (field === 'content_blocks') {
+                        const opening = notesEditor ? notesEditor.classList.contains('hidden') : false;
+                        setNotesEditorOpen(opening);
+                        return;
+                    }
+
                     display.classList.toggle('hidden');
                     input.classList.toggle('hidden');
-                    
+                    if (editIcon) {
+                        this.innerHTML = input.classList.contains('hidden')
+                            ? '<i class="fas fa-edit mr-1"></i> Edit'
+                            : '<i class="fas fa-check mr-1"></i> Done';
+                    }
+
                     if (!input.classList.contains('hidden')) {
                         input.focus();
                     }
@@ -739,46 +827,243 @@
                 .filter(Boolean);
         }
 
+        function parseContentBlocks(rawValue) {
+            try {
+                const parsed = JSON.parse(rawValue || '{"blocks": []}');
+                if (parsed && Array.isArray(parsed.blocks)) return parsed.blocks;
+                if (Array.isArray(parsed)) return parsed;
+            } catch (error) {}
+            return [];
+        }
+
+        function buildContentBlocksPreviewFromBlocks(blocks) {
+            if (!Array.isArray(blocks) || !blocks.length) {
+                return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+            }
+            return blocks.map(block => {
+                if (!block || !block.type || !block.data) return '';
+                const text = escapeHtml(block.data.text || '');
+                if (block.type === 'header') {
+                    const level = Number(block.data.level) || 3;
+                    const safeLevel = Math.min(Math.max(level, 2), 4);
+                    return `<h${safeLevel}>${text}</h${safeLevel}>`;
+                }
+                if (block.type === 'paragraph') {
+                    return `<p>${text.replace(/\n/g, '<br>')}</p>`;
+                }
+                if (block.type === 'quote') {
+                    const caption = escapeHtml(block.data.caption || '');
+                    return `<blockquote>${text}${caption ? `<div class="text-xs text-gray-400 mt-2 not-italic">- ${caption}</div>` : ''}</blockquote>`;
+                }
+                if (block.type === 'list') {
+                    const items = Array.isArray(block.data.items) ? block.data.items : [];
+                    if (!items.length) return '';
+                    const listItems = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+                    if ((block.data.style || 'unordered') === 'ordered') {
+                        return `<ol>${listItems}</ol>`;
+                    }
+                    return `<ul>${listItems}</ul>`;
+                }
+                return '';
+            }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+        }
+
         function buildContentBlocksPreview(rawValue) {
             if (!rawValue || !rawValue.trim()) {
                 return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
             }
-
             try {
-                const parsed = JSON.parse(rawValue);
-                const blocks = (parsed && Array.isArray(parsed.blocks)) ? parsed.blocks : [];
-                if (!blocks.length) {
-                    return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
-                }
-
-                return blocks.map(block => {
-                    if (!block || !block.type || !block.data) return '';
-                    const text = escapeHtml(block.data.text || '');
-
-                    if (block.type === 'header') {
-                        return `<h5 class="font-semibold text-white">${text}</h5>`;
-                    }
-
-                    if (block.type === 'paragraph') {
-                        return `<p class="leading-relaxed">${text}</p>`;
-                    }
-
-                    if (block.type === 'quote') {
-                        return `<blockquote class="border-l-2 border-cyan-electric/50 pl-3 italic text-gray-200">${text}</blockquote>`;
-                    }
-
-                    if (block.type === 'list') {
-                        const items = Array.isArray(block.data.items) ? block.data.items : [];
-                        if (!items.length) return '';
-                        const listItems = items.map(item => `<li>${escapeHtml(item)}</li>`).join('');
-                        return `<ul class="list-disc ml-5 space-y-1">${listItems}</ul>`;
-                    }
-
-                    return '';
-                }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+                const blocks = parseContentBlocks(rawValue);
+                return buildContentBlocksPreviewFromBlocks(blocks);
             } catch (error) {
                 return '<p class="text-gray-500 italic">Lesson notes format is invalid. Please check JSON before saving.</p>';
             }
+        }
+
+        function normalizeBlock(block) {
+            if (!block || typeof block !== 'object') {
+                return { type: 'paragraph', data: { text: '' } };
+            }
+            const type = block.type || 'paragraph';
+            const data = block.data || {};
+            if (type === 'header') {
+                return { type: 'header', data: { text: data.text || '', level: Number(data.level) || 2 } };
+            }
+            if (type === 'list') {
+                return {
+                    type: 'list',
+                    data: {
+                        style: (data.style || 'unordered') === 'ordered' ? 'ordered' : 'unordered',
+                        items: Array.isArray(data.items) ? data.items : [],
+                    },
+                };
+            }
+            if (type === 'quote') {
+                return { type: 'quote', data: { text: data.text || '', caption: data.caption || '' } };
+            }
+            return { type: 'paragraph', data: { text: data.text || '' } };
+        }
+
+        let contentBlocksState = [];
+        const contentBlocksInput = document.getElementById('content-blocks-input');
+        const contentBlocksDisplay = document.getElementById('content-blocks-display');
+        const notesEditorList = document.getElementById('content-blocks-block-list');
+
+        function syncContentBlocksState() {
+            if (!contentBlocksInput) return;
+            const payload = { blocks: contentBlocksState };
+            contentBlocksInput.value = JSON.stringify(payload, null, 2);
+            if (contentBlocksDisplay) {
+                contentBlocksDisplay.innerHTML = buildContentBlocksPreviewFromBlocks(contentBlocksState);
+            }
+        }
+
+        function renderNotesEditor() {
+            if (!notesEditorList) return;
+            notesEditorList.innerHTML = '';
+            if (!contentBlocksState.length) {
+                notesEditorList.innerHTML = '<p class="text-sm text-gray-500 italic">No blocks yet. Add your first paragraph or heading.</p>';
+                return;
+            }
+
+            contentBlocksState.forEach((block, index) => {
+                const card = document.createElement('div');
+                card.className = 'notes-editor-card';
+
+                let bodyHtml = '';
+                if (block.type === 'header') {
+                    bodyHtml = `
+                        <label class="notes-editor-label">Header level</label>
+                        <select data-role="header-level" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm mb-3">
+                            <option value="2" ${Number(block.data.level) === 2 ? 'selected' : ''}>H2</option>
+                            <option value="3" ${Number(block.data.level) === 3 ? 'selected' : ''}>H3</option>
+                            <option value="4" ${Number(block.data.level) === 4 ? 'selected' : ''}>H4</option>
+                        </select>
+                        <label class="notes-editor-label">Header text</label>
+                        <input data-role="header-text" type="text" value="${escapeHtml(block.data.text || '')}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm" />
+                    `;
+                } else if (block.type === 'list') {
+                    bodyHtml = `
+                        <label class="notes-editor-label">List style</label>
+                        <select data-role="list-style" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm mb-3">
+                            <option value="unordered" ${(block.data.style || 'unordered') === 'unordered' ? 'selected' : ''}>Bulleted</option>
+                            <option value="ordered" ${(block.data.style || 'unordered') === 'ordered' ? 'selected' : ''}>Numbered</option>
+                        </select>
+                        <label class="notes-editor-label">List items (one item per line)</label>
+                        <textarea data-role="list-items" rows="4" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm resize-y">${escapeHtml((block.data.items || []).join('\n'))}</textarea>
+                    `;
+                } else if (block.type === 'quote') {
+                    bodyHtml = `
+                        <label class="notes-editor-label">Quote text</label>
+                        <textarea data-role="quote-text" rows="3" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm resize-y mb-3">${escapeHtml(block.data.text || '')}</textarea>
+                        <label class="notes-editor-label">Caption (optional)</label>
+                        <input data-role="quote-caption" type="text" value="${escapeHtml(block.data.caption || '')}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm" />
+                    `;
+                } else {
+                    bodyHtml = `
+                        <label class="notes-editor-label">Paragraph text</label>
+                        <textarea data-role="paragraph-text" rows="4" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm resize-y">${escapeHtml(block.data.text || '')}</textarea>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-cyan-electric/15 border border-cyan-electric/30 uppercase">${escapeHtml(block.type)}</span>
+                        <div class="flex gap-2">
+                            <button type="button" data-action="up" class="px-2 py-1 text-xs border border-cyan-electric/30 rounded hover:bg-cyan-electric/20">Up</button>
+                            <button type="button" data-action="down" class="px-2 py-1 text-xs border border-cyan-electric/30 rounded hover:bg-cyan-electric/20">Down</button>
+                            <button type="button" data-action="delete" class="px-2 py-1 text-xs border border-red-400/50 text-red-300 rounded hover:bg-red-500/10">Delete</button>
+                        </div>
+                    </div>
+                    ${bodyHtml}
+                `;
+
+                card.querySelectorAll('button[data-action]').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const action = this.dataset.action;
+                        if (action === 'delete') {
+                            contentBlocksState.splice(index, 1);
+                        } else if (action === 'up' && index > 0) {
+                            [contentBlocksState[index - 1], contentBlocksState[index]] = [contentBlocksState[index], contentBlocksState[index - 1]];
+                        } else if (action === 'down' && index < contentBlocksState.length - 1) {
+                            [contentBlocksState[index + 1], contentBlocksState[index]] = [contentBlocksState[index], contentBlocksState[index + 1]];
+                        }
+                        syncContentBlocksState();
+                        renderNotesEditor();
+                    });
+                });
+
+                const bindInput = (selector, cb) => {
+                    const el = card.querySelector(selector);
+                    if (!el) return;
+                    el.addEventListener('input', function() {
+                        cb(this.value);
+                        syncContentBlocksState();
+                    });
+                    if (el.tagName === 'SELECT') {
+                        el.addEventListener('change', function() {
+                            cb(this.value);
+                            syncContentBlocksState();
+                        });
+                    }
+                };
+
+                bindInput('[data-role="paragraph-text"]', value => {
+                    contentBlocksState[index].data.text = value;
+                });
+                bindInput('[data-role="header-text"]', value => {
+                    contentBlocksState[index].data.text = value;
+                });
+                bindInput('[data-role="header-level"]', value => {
+                    contentBlocksState[index].data.level = Number(value) || 2;
+                });
+                bindInput('[data-role="list-style"]', value => {
+                    contentBlocksState[index].data.style = value === 'ordered' ? 'ordered' : 'unordered';
+                });
+                bindInput('[data-role="list-items"]', value => {
+                    contentBlocksState[index].data.items = value.split('\n').map(item => item.trim()).filter(Boolean);
+                });
+                bindInput('[data-role="quote-text"]', value => {
+                    contentBlocksState[index].data.text = value;
+                });
+                bindInput('[data-role="quote-caption"]', value => {
+                    contentBlocksState[index].data.caption = value;
+                });
+
+                notesEditorList.appendChild(card);
+            });
+        }
+
+        function addContentBlock(type) {
+            const presets = {
+                paragraph: { type: 'paragraph', data: { text: '' } },
+                header: { type: 'header', data: { text: '', level: 2 } },
+                list: { type: 'list', data: { style: 'unordered', items: [] } },
+                quote: { type: 'quote', data: { text: '', caption: '' } },
+            };
+            contentBlocksState.push(presets[type] || presets.paragraph);
+            syncContentBlocksState();
+            renderNotesEditor();
+        }
+
+        function initContentBlocksEditor() {
+            const initialBlocks = parseContentBlocks(contentBlocksInput ? contentBlocksInput.value : '{"blocks": []}');
+            contentBlocksState = initialBlocks.map(normalizeBlock);
+            syncContentBlocksState();
+            renderNotesEditor();
+
+            const addParagraphBtn = document.getElementById('add-note-paragraph');
+            const addHeaderBtn = document.getElementById('add-note-header');
+            const addListBtn = document.getElementById('add-note-list');
+            const addQuoteBtn = document.getElementById('add-note-quote');
+            const doneButtons = document.querySelectorAll('.content-blocks-done-btn');
+            if (addParagraphBtn) addParagraphBtn.addEventListener('click', () => addContentBlock('paragraph'));
+            if (addHeaderBtn) addHeaderBtn.addEventListener('click', () => addContentBlock('header'));
+            if (addListBtn) addListBtn.addEventListener('click', () => addContentBlock('list'));
+            if (addQuoteBtn) addQuoteBtn.addEventListener('click', () => addContentBlock('quote'));
+            doneButtons.forEach(btn => {
+                btn.addEventListener('click', () => setNotesEditorOpen(false));
+            });
         }
 
         const previewButtons = document.querySelectorAll('.lesson-preview-trigger');
@@ -1114,9 +1399,10 @@
         console.log('Chatbot buttons initialized');
         
         // Test chatbot interface (only if trained)
-        {% if lesson.ai_chatbot_training_status == 'trained' %}
-        initTestChatbot();
-        {% endif %}
+        if ('{{ lesson.ai_chatbot_training_status|escapejs }}' === 'trained') {
+            initTestChatbot();
+        }
+        initContentBlocksEditor();
     }
     
     // Test Chatbot Interface
@@ -1291,6 +1577,69 @@
     // Vimeo Verify button
     const verifyVimeoBtn = document.getElementById('verify-vimeo-btn');
     const vimeoStatus = document.getElementById('vimeo-verify-status');
+    const vimeoUrlInput = document.getElementById('vimeo-url-input');
+    const googleDriveUrlInput = document.getElementById('google-drive-url-input');
+    const genericVideoUrlInput = document.getElementById('generic-video-url-input');
+    const videoPreviewWrap = document.getElementById('video-preview-wrap');
+    const videoPreviewIframe = document.getElementById('video-preview-iframe');
+    const videoPreviewSource = document.getElementById('video-preview-source');
+
+    function extractVimeoId(url) {
+        const value = (url || '').trim();
+        if (!value) return '';
+        const match = value.match(/(?:vimeo\.com\/(?:video\/|channels\/[^/]+\/|groups\/[^/]+\/videos\/|album\/\d+\/video\/|ondemand\/[^/]+\/|manage\/videos\/)?|player\.vimeo\.com\/video\/)(\d+)/i);
+        return match ? match[1] : '';
+    }
+
+    function buildEmbedUrl(rawUrl) {
+        const url = (rawUrl || '').trim();
+        if (!url) return '';
+        const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+        if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+        return url;
+    }
+
+    function updateVideoPreview() {
+        if (!videoPreviewWrap || !videoPreviewIframe || !videoPreviewSource) return;
+        const vimeoUrl = vimeoUrlInput ? vimeoUrlInput.value.trim() : '';
+        const driveUrl = googleDriveUrlInput ? googleDriveUrlInput.value.trim() : '';
+        const genericUrl = genericVideoUrlInput ? genericVideoUrlInput.value.trim() : '';
+
+        let sourceLabel = '';
+        let embedUrl = '';
+
+        const vimeoId = extractVimeoId(vimeoUrl);
+        if (vimeoId) {
+            sourceLabel = 'Vimeo';
+            embedUrl = `https://player.vimeo.com/video/${vimeoId}`;
+        } else if (driveUrl) {
+            sourceLabel = 'Google Drive';
+            embedUrl = driveUrl;
+        } else if (genericUrl) {
+            sourceLabel = 'Generic URL';
+            embedUrl = buildEmbedUrl(genericUrl);
+        }
+
+        if (embedUrl) {
+            videoPreviewIframe.src = embedUrl;
+            videoPreviewSource.textContent = sourceLabel;
+            videoPreviewWrap.classList.remove('hidden');
+        } else {
+            videoPreviewIframe.src = '';
+            videoPreviewSource.textContent = '';
+            videoPreviewWrap.classList.add('hidden');
+        }
+    }
+
+    [vimeoUrlInput, googleDriveUrlInput, genericVideoUrlInput].forEach((el) => {
+        if (el) {
+            el.addEventListener('input', updateVideoPreview);
+            el.addEventListener('blur', updateVideoPreview);
+        }
+    });
+
+    updateVideoPreview();
+
     if (verifyVimeoBtn) {
         verifyVimeoBtn.addEventListener('click', function() {
             const urlInput = document.getElementById('vimeo-url-input');
@@ -1315,6 +1664,7 @@
                     document.getElementById('vimeo-thumbnail').value = data.thumbnail || '';
                     document.getElementById('vimeo-duration-seconds').value = data.duration || 0;
                     if (vimeoStatus) vimeoStatus.textContent = '✓ Verified: ' + (data.duration_formatted || '');
+                    updateVideoPreview();
                 } else {
                     if (vimeoStatus) vimeoStatus.textContent = 'Error: ' + (data.error || 'Could not verify');
                 }

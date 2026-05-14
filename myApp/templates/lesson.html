@@ -56,10 +56,6 @@
             
             <!-- Video Info Chips -->
             <div class="flex flex-wrap gap-3 mb-6">
-                <span class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/20 rounded-full text-xs flex items-center gap-2">
-                    <i class="fas fa-clock text-cyan-electric"></i>
-                    {{ lesson.get_formatted_duration }}
-                </span>
                 {% if current_lesson_progress and video_watch_percentage > 0 %}
                 <span class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/20 rounded-full text-xs flex items-center gap-2">
                     <i class="fas fa-eye text-cyan-electric"></i>

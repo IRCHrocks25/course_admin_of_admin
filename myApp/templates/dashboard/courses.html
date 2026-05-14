@@ -36,6 +36,10 @@
   .act-emerald:hover { background: rgba(110,231,183,0.08); }
   .act-red { color: #f87171; border-color: rgba(248,113,113,0.25); }
   .act-red:hover { background: rgba(248,113,113,0.07); }
+  .lesson-preview-modal-backdrop {
+    background: rgba(2, 6, 23, 0.74);
+    backdrop-filter: blur(3px);
+  }
 </style>
 
 <div class="flex items-center justify-between mb-7">
@@ -102,6 +106,13 @@
       {% endif %}
       <a href="{% url 'dashboard_course_detail' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-cyan">Manage</a>
       <a href="{% url 'dashboard_course_lessons' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-purple">Lessons</a>
+      <button
+        type="button"
+        class="act-btn act-emerald preview-lesson-btn"
+        data-course-id="{{ course.id }}"
+      >
+        <i class="fas fa-eye text-[10px]"></i> Preview Lesson
+      </button>
       {% if is_superadmin and course.owner_course_preview_url %}
       <a href="{{ course.owner_course_preview_url }}" class="act-btn act-emerald" target="_blank" rel="noopener noreferrer">
         <i class="fas fa-external-link-alt text-[9px]"></i> Site
@@ -125,4 +136,197 @@
   </div>
   {% endfor %}
 </div>
+{{ lesson_preview_payloads|json_script:"lesson-preview-payloads" }}
+
+<div id="lesson-preview-modal" class="hidden fixed inset-0 z-50">
+  <div id="lesson-preview-backdrop" class="lesson-preview-modal-backdrop absolute inset-0"></div>
+  <div class="relative z-10 h-full overflow-y-auto p-4 sm:p-8">
+    <div class="max-w-3xl mx-auto bg-[#0a0e27] border border-cyan-electric/20 rounded-2xl shadow-2xl">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-cyan-electric/15">
+        <h3 class="text-lg sm:text-xl font-semibold">Lesson Preview</h3>
+        <button type="button" id="lesson-preview-close-btn" class="w-8 h-8 rounded-full border border-cyan-electric/20 text-gray-300 hover:text-white hover:bg-cyan-electric/10 transition-all">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-5">
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Course</p>
+          <p id="lp-course-name" class="text-sm text-gray-200"></p>
+        </div>
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Lesson</p>
+          <p id="lp-lesson-title" class="text-xl font-semibold text-white"></p>
+        </div>
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Short Summary</p>
+          <p id="lp-summary" class="text-sm text-gray-300 leading-relaxed whitespace-pre-line"></p>
+        </div>
+        <div id="lp-video-wrap" class="hidden">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80">Video</p>
+            <span id="lp-video-source" class="text-[11px] px-2 py-1 rounded-full bg-cyan-electric/10 border border-cyan-electric/30 text-cyan-electric"></span>
+          </div>
+          <div class="relative rounded-lg overflow-hidden bg-black" style="padding-top:56.25%;">
+            <iframe
+              id="lp-video-iframe"
+              src=""
+              title="Lesson preview video"
+              frameborder="0"
+              allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+              style="position:absolute;top:0;left:0;width:100%;height:100%;"
+            ></iframe>
+          </div>
+        </div>
+        <div id="lp-no-video" class="hidden rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-400">
+          No video link found for this lesson yet.
+        </div>
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Full Description</p>
+          <p id="lp-description" class="text-sm text-gray-300 leading-relaxed whitespace-pre-line"></p>
+        </div>
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">This Lesson Will Produce</p>
+          <ul id="lp-outcomes" class="space-y-2 text-sm text-gray-300"></ul>
+        </div>
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Recommended AI Coach Actions</p>
+          <div id="lp-coach-actions" class="space-y-2"></div>
+        </div>
+        <div>
+          <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Lesson Notes</p>
+          <div id="lp-notes" class="space-y-3 text-sm text-gray-300"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const modal = document.getElementById('lesson-preview-modal');
+    const backdrop = document.getElementById('lesson-preview-backdrop');
+    const closeBtn = document.getElementById('lesson-preview-close-btn');
+    const payloadEl = document.getElementById('lesson-preview-payloads');
+    const previewPayloads = payloadEl ? JSON.parse(payloadEl.textContent || '{}') : {};
+    const courseNameEl = document.getElementById('lp-course-name');
+    const lessonTitleEl = document.getElementById('lp-lesson-title');
+    const summaryEl = document.getElementById('lp-summary');
+    const descriptionEl = document.getElementById('lp-description');
+    const outcomesEl = document.getElementById('lp-outcomes');
+    const coachActionsEl = document.getElementById('lp-coach-actions');
+    const notesEl = document.getElementById('lp-notes');
+    const videoWrap = document.getElementById('lp-video-wrap');
+    const noVideo = document.getElementById('lp-no-video');
+    const videoSource = document.getElementById('lp-video-source');
+    const iframe = document.getElementById('lp-video-iframe');
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderNotes(blocks) {
+      if (!Array.isArray(blocks) || !blocks.length) {
+        return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+      }
+      return blocks.map(function(block) {
+        if (!block || !block.type || !block.data) return '';
+        if (block.type === 'header') {
+          return '<h5 class="font-semibold text-white">' + escapeHtml(block.data.text || '') + '</h5>';
+        }
+        if (block.type === 'paragraph') {
+          return '<p>' + escapeHtml(block.data.text || '').replace(/\n/g, '<br>') + '</p>';
+        }
+        if (block.type === 'quote') {
+          const caption = escapeHtml(block.data.caption || '');
+          return '<blockquote class="border-l-2 border-cyan-electric/40 pl-3 italic text-gray-200">' +
+            escapeHtml(block.data.text || '') +
+            (caption ? '<div class="text-xs text-gray-400 mt-2 not-italic">- ' + caption + '</div>' : '') +
+            '</blockquote>';
+        }
+        if (block.type === 'list') {
+          const items = Array.isArray(block.data.items) ? block.data.items : [];
+          if (!items.length) return '';
+          const listItems = items.map(function(item) {
+            return '<li>' + escapeHtml(item) + '</li>';
+          }).join('');
+          if ((block.data.style || 'unordered') === 'ordered') {
+            return '<ol class="list-decimal ml-5 space-y-1">' + listItems + '</ol>';
+          }
+          return '<ul class="list-disc ml-5 space-y-1">' + listItems + '</ul>';
+        }
+        return '';
+      }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+    }
+
+    function closeModal() {
+      if (!modal) return;
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+      if (iframe) iframe.src = '';
+    }
+
+    function openModal(button) {
+      if (!modal || !button) return;
+      const courseId = button.getAttribute('data-course-id') || '';
+      const payload = previewPayloads[courseId] || {};
+      const courseName = payload.course_name || '';
+      const lessonTitle = payload.lesson_title || '';
+      const lessonSummary = payload.summary || '';
+      const fullDescription = payload.full_description || '';
+      const lessonSource = payload.video_source || '';
+      const lessonEmbed = payload.video_embed_url || '';
+      const outcomes = Array.isArray(payload.outcomes) ? payload.outcomes : [];
+      const coachActions = Array.isArray(payload.coach_actions) ? payload.coach_actions : [];
+      const contentBlocks = Array.isArray(payload.content_blocks) ? payload.content_blocks : [];
+
+      courseNameEl.textContent = courseName || 'Untitled course';
+      lessonTitleEl.textContent = lessonTitle || 'No lesson available yet';
+      summaryEl.textContent = lessonSummary || 'No summary available yet.';
+      descriptionEl.textContent = fullDescription || 'No full description available yet.';
+      outcomesEl.innerHTML = outcomes.length
+        ? outcomes.map(function(item) { return '<li class="flex items-start gap-2"><i class="fas fa-check-circle text-cyan-electric mt-0.5"></i><span>' + escapeHtml(item) + '</span></li>'; }).join('')
+        : '<li class="text-gray-500 italic">No outcomes available yet.</li>';
+      coachActionsEl.innerHTML = coachActions.length
+        ? coachActions.map(function(item) { return '<div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/10 px-3 py-2 text-sm">' + escapeHtml(item) + '</div>'; }).join('')
+        : '<p class="text-gray-500 italic text-sm">No coach actions available yet.</p>';
+      notesEl.innerHTML = renderNotes(contentBlocks);
+
+      if (lessonEmbed) {
+        iframe.src = lessonEmbed;
+        videoSource.textContent = lessonSource || 'Video';
+        videoWrap.classList.remove('hidden');
+        noVideo.classList.add('hidden');
+      } else {
+        iframe.src = '';
+        videoWrap.classList.add('hidden');
+        noVideo.classList.remove('hidden');
+      }
+
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    document.querySelectorAll('.preview-lesson-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        openModal(btn);
+      });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (backdrop) backdrop.addEventListener('click', closeModal);
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+        closeModal();
+      }
+    });
+  })();
+</script>
 {% endblock %}

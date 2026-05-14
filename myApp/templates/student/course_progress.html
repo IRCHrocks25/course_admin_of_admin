@@ -204,9 +204,8 @@
                             <div class="min-w-0">
                                 <div class="font-medium truncate">{{ lp.lesson.title }}</div>
                                 <div class="text-xs text-gray-400 mt-0.5">
-                                    {{ lp.lesson.get_formatted_duration }}
                                     {% if lp.last_accessed %}
-                                    · Last: {{ lp.last_accessed|date:"M d" }}
+                                    Last: {{ lp.last_accessed|date:"M d" }}
                                     {% endif %}
                                 </div>
                             </div>

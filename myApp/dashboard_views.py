@@ -82,6 +82,56 @@ staff_member_required = user_passes_test(
     login_url='login'
 )
 
+
+def _extract_vimeo_id_from_url(url):
+    """Extract Vimeo ID from common Vimeo URL formats."""
+    raw = (url or '').strip()
+    if not raw:
+        return ''
+    match = re.search(
+        r'(?:vimeo\.com/(?:video/|channels/[^/]+/|groups/[^/]+/videos/|album/\d+/video/|ondemand/[^/]+/|manage/videos/)?|player\.vimeo\.com/video/)(\d+)',
+        raw,
+        flags=re.IGNORECASE,
+    )
+    return match.group(1) if match else ''
+
+
+def _derive_video_fields(video_link):
+    """
+    Normalize video fields and fetch Vimeo duration when possible.
+    Returns kwargs safe to pass into Lesson.objects.create/update.
+    """
+    link = (video_link or '').strip()
+    fields = {
+        'video_url': link,
+        'vimeo_url': '',
+        'vimeo_id': '',
+        'vimeo_duration_seconds': 0,
+        'video_duration': 0,
+    }
+    if not link:
+        return fields
+
+    vimeo_id = _extract_vimeo_id_from_url(link)
+    if not vimeo_id:
+        return fields
+
+    fields['vimeo_url'] = link
+    fields['vimeo_id'] = vimeo_id
+    try:
+        oembed_url = f"https://vimeo.com/api/oembed.json?url=https://vimeo.com/{vimeo_id}"
+        response = requests.get(oembed_url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            duration_seconds = int(data.get('duration') or 0)
+            if duration_seconds > 0:
+                fields['vimeo_duration_seconds'] = duration_seconds
+                fields['video_duration'] = duration_seconds // 60
+    except Exception:
+        pass
+
+    return fields
+
 COURSEFORGE_FORMAT_CHOICES = (
     ('mini_course', 'Mini Course (20–60 min total)'),
     ('masterclass', 'Masterclass (2–24 hours)'),
@@ -1411,6 +1461,51 @@ def dashboard_courses(request):
         messages.error(request, 'Tenant context is required to view courses.')
         return redirect('courses')
     courses = list(courses_qs.select_related('tenant').annotate(lesson_count=Count('lessons')).order_by('-created_at'))
+    lesson_preview_payloads = {}
+    for course in courses:
+        preview_lesson = Lesson.objects.filter(course=course).order_by('order', 'id').first()
+        course.preview_lesson = preview_lesson
+        course.preview_lesson_title = preview_lesson.title if preview_lesson else ''
+        course.preview_lesson_summary = (
+            (preview_lesson.ai_short_summary or preview_lesson.ai_full_description or preview_lesson.description or '').strip()
+            if preview_lesson else ''
+        )
+        course.preview_lesson_embed_url = ''
+        course.preview_lesson_source = ''
+        if preview_lesson:
+            if (preview_lesson.google_drive_url or '').strip():
+                course.preview_lesson_embed_url = preview_lesson.google_drive_url.strip()
+                course.preview_lesson_source = 'Google Drive'
+            else:
+                vimeo_embed = (preview_lesson.get_vimeo_embed_url() or '').strip()
+                generic_embed = (preview_lesson.get_video_embed_url() or '').strip()
+                if vimeo_embed:
+                    course.preview_lesson_embed_url = vimeo_embed
+                    course.preview_lesson_source = 'Vimeo'
+                elif generic_embed:
+                    course.preview_lesson_embed_url = generic_embed
+                    course.preview_lesson_source = 'Video'
+        preview_payload = {
+            'course_name': course.name,
+            'lesson_title': course.preview_lesson_title,
+            'summary': course.preview_lesson_summary,
+            'full_description': '',
+            'video_embed_url': course.preview_lesson_embed_url,
+            'video_source': course.preview_lesson_source,
+            'outcomes': [],
+            'coach_actions': [],
+            'content_blocks': [],
+        }
+        if preview_lesson:
+            preview_payload['full_description'] = (
+                (preview_lesson.ai_full_description or preview_lesson.description or '').strip()
+            )
+            preview_payload['outcomes'] = preview_lesson.get_outcomes_list() or []
+            preview_payload['coach_actions'] = preview_lesson.get_coach_actions_list() or []
+            lesson_content = preview_lesson.content if isinstance(preview_lesson.content, dict) else {}
+            preview_payload['content_blocks'] = lesson_content.get('blocks', []) if isinstance(lesson_content.get('blocks', []), list) else []
+        lesson_preview_payloads[str(course.id)] = preview_payload
+
     if is_superadmin:
         current_host = (request.get_host() or '').split(':')[0].lower()
         is_local_host = (
@@ -1436,6 +1531,7 @@ def dashboard_courses(request):
     return render(request, 'dashboard/courses.html', {
         'courses': courses,
         'is_superadmin': is_superadmin,
+        'lesson_preview_payloads': lesson_preview_payloads,
     })
 
 
@@ -1891,11 +1987,41 @@ def dashboard_course_lessons(request, course_slug):
         return redirect('dashboard_courses')
     lessons = course.lessons.all()
     modules = course.modules.all()
+    lesson_preview_payloads = {}
+    for lesson in lessons:
+        embed_url = ''
+        source = ''
+        if (lesson.google_drive_url or '').strip():
+            embed_url = lesson.google_drive_url.strip()
+            source = 'Google Drive'
+        else:
+            vimeo_embed = (lesson.get_vimeo_embed_url() or '').strip()
+            generic_embed = (lesson.get_video_embed_url() or '').strip()
+            if vimeo_embed:
+                embed_url = vimeo_embed
+                source = 'Vimeo'
+            elif generic_embed:
+                embed_url = generic_embed
+                source = 'Video'
+
+        content = lesson.content if isinstance(lesson.content, dict) else {}
+        lesson_preview_payloads[str(lesson.id)] = {
+            'course_name': course.name,
+            'lesson_title': lesson.title,
+            'summary': (lesson.ai_short_summary or '').strip(),
+            'full_description': (lesson.ai_full_description or lesson.description or '').strip(),
+            'video_embed_url': embed_url,
+            'video_source': source,
+            'outcomes': lesson.get_outcomes_list() or [],
+            'coach_actions': lesson.get_coach_actions_list() or [],
+            'content_blocks': content.get('blocks', []) if isinstance(content.get('blocks', []), list) else [],
+        }
     
     return render(request, 'dashboard/course_lessons.html', {
         'course': course,
         'lessons': lessons,
         'modules': modules,
+        'lesson_preview_payloads': lesson_preview_payloads,
     })
 
 
@@ -2378,6 +2504,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 
                 # Convert content sections to Editor.js format
                 lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
+                video_fields = _derive_video_fields(lesson_video_link)
                 
                 lesson = Lesson.objects.create(
                     tenant=course.tenant,
@@ -2386,7 +2513,11 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     title=lesson_title,
                     slug=lesson_slug,
                     description=lesson_description,
-                    video_url=lesson_video_link,
+                    video_url=video_fields['video_url'],
+                    vimeo_url=video_fields['vimeo_url'],
+                    vimeo_id=video_fields['vimeo_id'],
+                    vimeo_duration_seconds=video_fields['vimeo_duration_seconds'],
+                    video_duration=video_fields['video_duration'],
                     order=lesson_data.get('order', 0),
                     working_title=lesson_title,
                     # AI-generated metadata fields
@@ -2743,6 +2874,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 settings=gen_settings,
             )
             lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
+            video_fields = _derive_video_fields(lesson_video_link)
 
             lesson = Lesson.objects.create(
                 tenant=course.tenant,
@@ -2751,7 +2883,11 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 title=lesson_title,
                 slug=lesson_slug,
                 description=lesson_description_for_ai,
-                video_url=lesson_video_link,
+                video_url=video_fields['video_url'],
+                vimeo_url=video_fields['vimeo_url'],
+                vimeo_id=video_fields['vimeo_id'],
+                vimeo_duration_seconds=video_fields['vimeo_duration_seconds'],
+                video_duration=video_fields['video_duration'],
                 order=next_order,
                 working_title=lesson_title,
                 ai_clean_title=lesson_metadata.get('clean_title', lesson_title),

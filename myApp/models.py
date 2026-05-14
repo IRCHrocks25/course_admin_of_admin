@@ -373,7 +373,7 @@ class Lesson(models.Model):
             return f"{minutes}:{seconds:02d}"
         elif self.video_duration:
             return f"{self.video_duration}:00"
-        return "0:00"
+        return "Not set"
     
     def get_outcomes_list(self):
         """Return outcomes as a list"""

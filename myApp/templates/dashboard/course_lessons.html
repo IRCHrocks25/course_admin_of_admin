@@ -4,6 +4,12 @@
 {% block page_title %}{{ course.name }} - Lessons{% endblock %}
 
 {% block content %}
+<style>
+    .lesson-preview-modal-backdrop {
+        background: rgba(2, 6, 23, 0.74);
+        backdrop-filter: blur(3px);
+    }
+</style>
 <div class="mb-6">
     <div class="flex items-center justify-between">
         <a href="{% url 'dashboard_course_detail' course.slug %}" class="text-cyan-electric hover:text-cyan-electric/80 text-sm mb-4 inline-block">
@@ -58,8 +64,7 @@
                     <div class="flex-1">
                         <div class="font-semibold">{{ lesson.title }}</div>
                         <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
-                            <span><i class="fas fa-clock mr-1"></i> {{ lesson.get_formatted_duration }}</span>
-                            {% if lesson.vimeo_id %}
+                            {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
                             <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i> Video Ready</span>
                             {% endif %}
                         </div>
@@ -72,6 +77,9 @@
                     </span>
                 </div>
                 <div class="flex gap-2 ml-4">
+                    <button type="button" class="px-4 py-2 bg-emerald-500/10 border border-emerald-400/30 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-all text-emerald-300 preview-lesson-btn" data-lesson-id="{{ lesson.id }}">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-sm font-medium hover:bg-cyan-electric/20 transition-all">
                         Edit
                     </a>
@@ -100,8 +108,7 @@
                     <div class="flex-1">
                         <div class="font-semibold">{{ lesson.title }}</div>
                         <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
-                            <span><i class="fas fa-clock mr-1"></i> {{ lesson.get_formatted_duration }}</span>
-                            {% if lesson.vimeo_id %}
+                            {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
                             <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i> Video Ready</span>
                             {% endif %}
                         </div>
@@ -114,6 +121,9 @@
                     </span>
                 </div>
                 <div class="flex gap-2 ml-4">
+                    <button type="button" class="px-4 py-2 bg-emerald-500/10 border border-emerald-400/30 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-all text-emerald-300 preview-lesson-btn" data-lesson-id="{{ lesson.id }}">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-sm font-medium hover:bg-cyan-electric/20 transition-all">
                         Edit
                     </a>
@@ -138,6 +148,72 @@
         </a>
     </div>
     {% endif %}
+</div>
+{{ lesson_preview_payloads|json_script:"lesson-preview-payloads" }}
+
+<div id="lesson-preview-modal" class="hidden fixed inset-0 z-50">
+    <div id="lesson-preview-backdrop" class="lesson-preview-modal-backdrop absolute inset-0"></div>
+    <div class="relative z-10 h-full overflow-y-auto p-4 sm:p-8">
+        <div class="max-w-3xl mx-auto bg-[#0a0e27] border border-cyan-electric/20 rounded-2xl shadow-2xl">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-cyan-electric/15">
+                <h3 class="text-lg sm:text-xl font-semibold">Lesson Preview</h3>
+                <button type="button" id="lesson-preview-close-btn" class="w-8 h-8 rounded-full border border-cyan-electric/20 text-gray-300 hover:text-white hover:bg-cyan-electric/10 transition-all">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-5">
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Course</p>
+                    <p id="lp-course-name" class="text-sm text-gray-200"></p>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Lesson</p>
+                    <p id="lp-lesson-title" class="text-xl font-semibold text-white"></p>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Short Summary</p>
+                    <p id="lp-summary" class="text-sm text-gray-300 leading-relaxed whitespace-pre-line"></p>
+                </div>
+                <div id="lp-video-wrap" class="hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80">Video</p>
+                        <span id="lp-video-source" class="text-[11px] px-2 py-1 rounded-full bg-cyan-electric/10 border border-cyan-electric/30 text-cyan-electric"></span>
+                    </div>
+                    <div class="relative rounded-lg overflow-hidden bg-black" style="padding-top:56.25%;">
+                        <iframe
+                            id="lp-video-iframe"
+                            src=""
+                            title="Lesson preview video"
+                            frameborder="0"
+                            allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen
+                            style="position:absolute;top:0;left:0;width:100%;height:100%;"
+                        ></iframe>
+                    </div>
+                </div>
+                <div id="lp-no-video" class="hidden rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-400">
+                    No video link found for this lesson yet.
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Full Description</p>
+                    <p id="lp-description" class="text-sm text-gray-300 leading-relaxed whitespace-pre-line"></p>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">This Lesson Will Produce</p>
+                    <ul id="lp-outcomes" class="space-y-2 text-sm text-gray-300"></ul>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Recommended AI Coach Actions</p>
+                    <div id="lp-coach-actions" class="space-y-2"></div>
+                </div>
+                <div>
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Lesson Notes</p>
+                    <div id="lp-notes" class="space-y-3 text-sm text-gray-300"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -247,6 +323,117 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    const previewPayloadEl = document.getElementById('lesson-preview-payloads');
+    const previewPayloads = previewPayloadEl ? JSON.parse(previewPayloadEl.textContent || '{}') : {};
+    const previewModal = document.getElementById('lesson-preview-modal');
+    const previewBackdrop = document.getElementById('lesson-preview-backdrop');
+    const previewCloseBtn = document.getElementById('lesson-preview-close-btn');
+    const previewCourseName = document.getElementById('lp-course-name');
+    const previewLessonTitle = document.getElementById('lp-lesson-title');
+    const previewSummary = document.getElementById('lp-summary');
+    const previewDescription = document.getElementById('lp-description');
+    const previewOutcomes = document.getElementById('lp-outcomes');
+    const previewCoachActions = document.getElementById('lp-coach-actions');
+    const previewNotes = document.getElementById('lp-notes');
+    const previewVideoWrap = document.getElementById('lp-video-wrap');
+    const previewNoVideo = document.getElementById('lp-no-video');
+    const previewVideoSource = document.getElementById('lp-video-source');
+    const previewVideoIframe = document.getElementById('lp-video-iframe');
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function renderNotes(blocks) {
+        if (!Array.isArray(blocks) || !blocks.length) {
+            return '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+        }
+        return blocks.map(function(block) {
+            if (!block || !block.type || !block.data) return '';
+            if (block.type === 'header') {
+                return '<h5 class="font-semibold text-white">' + escapeHtml(block.data.text || '') + '</h5>';
+            }
+            if (block.type === 'paragraph') {
+                return '<p>' + escapeHtml(block.data.text || '').replace(/\n/g, '<br>') + '</p>';
+            }
+            if (block.type === 'quote') {
+                const caption = escapeHtml(block.data.caption || '');
+                return '<blockquote class="border-l-2 border-cyan-electric/40 pl-3 italic text-gray-200">' +
+                    escapeHtml(block.data.text || '') +
+                    (caption ? '<div class="text-xs text-gray-400 mt-2 not-italic">- ' + caption + '</div>' : '') +
+                    '</blockquote>';
+            }
+            if (block.type === 'list') {
+                const items = Array.isArray(block.data.items) ? block.data.items : [];
+                if (!items.length) return '';
+                const listItems = items.map(function(item) { return '<li>' + escapeHtml(item) + '</li>'; }).join('');
+                if ((block.data.style || 'unordered') === 'ordered') {
+                    return '<ol class="list-decimal ml-5 space-y-1">' + listItems + '</ol>';
+                }
+                return '<ul class="list-disc ml-5 space-y-1">' + listItems + '</ul>';
+            }
+            return '';
+        }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
+    }
+
+    function closePreviewModal() {
+        if (!previewModal) return;
+        previewModal.classList.add('hidden');
+        document.body.style.overflow = '';
+        if (previewVideoIframe) previewVideoIframe.src = '';
+    }
+
+    function openPreviewModal(lessonId) {
+        const payload = previewPayloads[String(lessonId)] || {};
+        previewCourseName.textContent = payload.course_name || '{{ course.name|escapejs }}';
+        previewLessonTitle.textContent = payload.lesson_title || 'Untitled lesson';
+        previewSummary.textContent = payload.summary || 'No summary available yet.';
+        previewDescription.textContent = payload.full_description || 'No full description available yet.';
+        const outcomes = Array.isArray(payload.outcomes) ? payload.outcomes : [];
+        previewOutcomes.innerHTML = outcomes.length
+            ? outcomes.map(function(item) { return '<li class="flex items-start gap-2"><i class="fas fa-check-circle text-cyan-electric mt-0.5"></i><span>' + escapeHtml(item) + '</span></li>'; }).join('')
+            : '<li class="text-gray-500 italic">No outcomes available yet.</li>';
+        const coachActions = Array.isArray(payload.coach_actions) ? payload.coach_actions : [];
+        previewCoachActions.innerHTML = coachActions.length
+            ? coachActions.map(function(item) { return '<div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/10 px-3 py-2 text-sm">' + escapeHtml(item) + '</div>'; }).join('')
+            : '<p class="text-gray-500 italic text-sm">No coach actions available yet.</p>';
+        previewNotes.innerHTML = renderNotes(Array.isArray(payload.content_blocks) ? payload.content_blocks : []);
+
+        if (payload.video_embed_url) {
+            previewVideoIframe.src = payload.video_embed_url;
+            previewVideoSource.textContent = payload.video_source || 'Video';
+            previewVideoWrap.classList.remove('hidden');
+            previewNoVideo.classList.add('hidden');
+        } else {
+            previewVideoIframe.src = '';
+            previewVideoWrap.classList.add('hidden');
+            previewNoVideo.classList.remove('hidden');
+        }
+
+        previewModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    document.querySelectorAll('.preview-lesson-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const lessonId = btn.getAttribute('data-lesson-id');
+            openPreviewModal(lessonId);
+        });
+    });
+
+    if (previewCloseBtn) previewCloseBtn.addEventListener('click', closePreviewModal);
+    if (previewBackdrop) previewBackdrop.addEventListener('click', closePreviewModal);
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && previewModal && !previewModal.classList.contains('hidden')) {
+            closePreviewModal();
+        }
+    });
 });
 </script>
 {% endblock %}
