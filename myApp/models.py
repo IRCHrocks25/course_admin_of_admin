@@ -129,6 +129,8 @@ class Course(models.Model):
     name = models.CharField(max_length=200)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
     slug = models.SlugField(max_length=200)
+    category = models.CharField(max_length=120, null=True, blank=True)
+    display_order = models.PositiveIntegerField(default=0, help_text="Lower numbers appear first in course listings.")
     course_type = models.CharField(max_length=20, choices=COURSE_TYPES, default='sprint')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     description = models.TextField()
@@ -487,6 +489,23 @@ class UserProgress(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.lesson.title}"
+
+    def save(self, *args, **kwargs):
+        # Defensive tenancy guard: some legacy code paths may miss tenant.
+        if self.tenant_id is None:
+            self.tenant = (
+                getattr(self.lesson, 'tenant', None)
+                or getattr(getattr(self.lesson, 'course', None), 'tenant', None)
+                or Tenant.objects.get_or_create(
+                    slug='default',
+                    defaults={
+                        'name': 'Default Tenant',
+                        'primary_color': '#3B82F6',
+                        'is_active': True,
+                    },
+                )[0]
+            )
+        super().save(*args, **kwargs)
     
     def update_status(self):
         """Automatically update status based on progress"""

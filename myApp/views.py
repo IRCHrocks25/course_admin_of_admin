@@ -59,6 +59,7 @@ from .utils.transcription import transcribe_video
 from .utils.access import has_course_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
+from .utils.tenancy import get_default_tenant
 # Reuse the LLM helpers from dashboard_views so the per-lesson Regenerate button
 # uses the same prompts and OpenAI wiring as the course-creation pipeline.
 from .dashboard_views import (
@@ -124,6 +125,20 @@ def _attach_orphan_lessons_to_first_module(course):
     if to_update:
         Lesson.objects.bulk_update(to_update, ['module', 'order'])
     return len(to_update)
+
+
+def _resolve_progress_tenant(request, lesson, course=None):
+    """
+    Resolve a tenant for lesson progress records.
+    Falls back to the default tenant to avoid null tenant_id inserts.
+    """
+    resolved_course = course or getattr(lesson, 'course', None)
+    return (
+        getattr(lesson, 'tenant', None)
+        or getattr(resolved_course, 'tenant', None)
+        or getattr(request, 'tenant', None)
+        or get_default_tenant()
+    )
 
 PLATFORM_PLANS = {
     'lean': {'name': 'Lean', 'amount_env': 'STRIPE_PLAN_AMOUNT_LEAN_USD', 'default_amount_cents': 2900},
@@ -1504,11 +1519,16 @@ def _courses_guest(request):
     """Catalog view for logged-out users"""
     tenant = getattr(request, 'tenant', None)
     search_query = request.GET.get('search', '')
+    sort_by = request.GET.get('sort', 'custom')
     courses_qs = Course.objects.prefetch_related('lessons').filter(status='active')
     if tenant is not None:
         courses_qs = courses_qs.filter(tenant=tenant)
     if search_query:
         courses_qs = courses_qs.filter(name__icontains=search_query)
+    if sort_by == 'name':
+        courses_qs = courses_qs.order_by('name', '-created_at')
+    else:
+        courses_qs = courses_qs.order_by('display_order', 'name', '-created_at')
     courses_list = list(courses_qs)
     courses_data = [{'course': c, 'has_any_progress': False, 'progress_percentage': 0, 'is_favorited': False} for c in courses_list]
     return render(request, 'learning_hub.html', {
@@ -1523,7 +1543,7 @@ def _courses_guest(request):
         'completed_lessons_all': 0,
         'overall_progress': 0,
         'filter_favorites': '',
-        'sort_by': 'progress',
+        'sort_by': sort_by,
         'search_query': search_query,
         'guest_catalog': courses_data,
         'is_guest_view': True,
@@ -1685,15 +1705,32 @@ def _courses_authenticated(request):
 
     # Filter/sort
     filter_favorites = request.GET.get('favorites', '')
-    sort_by = request.GET.get('sort', 'progress')
+    sort_by = request.GET.get('sort', 'custom')
     if filter_favorites == 'true':
         my_courses_data = [c for c in my_courses_data if c.get('is_favorited', False)]
     if sort_by == 'favorites':
         my_courses_data.sort(key=lambda x: (not x.get('is_favorited', False), -x['progress_percentage']))
+    elif sort_by == 'progress':
+        my_courses_data.sort(key=lambda x: x['progress_percentage'], reverse=True)
+    elif sort_by == 'category':
+        my_courses_data.sort(
+            key=lambda x: (
+                1 if not (x['course'].category or '').strip() else 0,
+                (x['course'].category or '').strip().lower(),
+                x['course'].name.lower(),
+            )
+        )
     elif sort_by == 'name':
         my_courses_data.sort(key=lambda x: x['course'].name.lower())
     else:
-        my_courses_data.sort(key=lambda x: x['progress_percentage'], reverse=True)
+        my_courses_data.sort(
+            key=lambda x: (
+                1 if not (x['course'].category or '').strip() else 0,
+                (x['course'].category or '').strip().lower(),
+                x['course'].display_order,
+                x['course'].name.lower(),
+            )
+        )
 
     # Stats
     total_courses = len(my_courses_data)
@@ -2048,6 +2085,7 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
     course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     _attach_orphan_lessons_to_first_module(course)
     lesson = get_object_or_404(Lesson, course=course, slug=lesson_slug)
+    progress_tenant = _resolve_progress_tenant(request, lesson, course=course)
 
     # Require that a quiz exists for this lesson
     try:
@@ -2066,6 +2104,7 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
     # Get user's completed lessons to check accessibility
     completed_lessons = list(
         UserProgress.objects.filter(
+            tenant=progress_tenant,
             user=request.user,
             lesson__course=course,
             completed=True
@@ -2128,6 +2167,7 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
         passed = score >= quiz.passing_score
 
         LessonQuizAttempt.objects.create(
+            tenant=progress_tenant,
             user=request.user,
             quiz=quiz,
             score=score,
@@ -2137,9 +2177,11 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
         # If quiz is passed and lesson is required, auto-complete the lesson
         if passed and quiz.is_required:
             UserProgress.objects.update_or_create(
+                tenant=progress_tenant,
                 user=request.user,
                 lesson=lesson,
                 defaults={
+                    'tenant': progress_tenant,
                     'completed': True,
                     'status': 'completed',
                 }
@@ -2151,6 +2193,7 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
         if passed:
             total_lessons = course.lessons.count()
             completed_lessons = UserProgress.objects.filter(
+                tenant=progress_tenant,
                 user=request.user,
                 lesson__course=course,
                 completed=True
@@ -2708,6 +2751,7 @@ def format_duration(seconds):
 def update_video_progress(request, lesson_id):
     """Update video watch progress for a lesson"""
     lesson = get_object_or_404(Lesson, id=lesson_id)
+    progress_tenant = _resolve_progress_tenant(request, lesson)
     
     try:
         data = json.loads(request.body)
@@ -2716,9 +2760,11 @@ def update_video_progress(request, lesson_id):
         
         # Get or create UserProgress
         user_progress, created = UserProgress.objects.get_or_create(
+            tenant=progress_tenant,
             user=request.user,
             lesson=lesson,
             defaults={
+                'tenant': progress_tenant,
                 'video_watch_percentage': watch_percentage,
                 'last_watched_timestamp': timestamp,
                 'progress_percentage': int(watch_percentage)
@@ -2752,6 +2798,7 @@ def complete_lesson(request, lesson_id):
     If the lesson has a quiz, it must be passed before the lesson can be completed.
     """
     lesson = get_object_or_404(Lesson, id=lesson_id)
+    progress_tenant = _resolve_progress_tenant(request, lesson)
     
     # Check if lesson has a required quiz
     try:
@@ -2777,8 +2824,10 @@ def complete_lesson(request, lesson_id):
     
     # Get or create UserProgress
     user_progress, created = UserProgress.objects.get_or_create(
+        tenant=progress_tenant,
         user=request.user,
-        lesson=lesson
+        lesson=lesson,
+        defaults={'tenant': progress_tenant},
     )
 
     # Mark as completed

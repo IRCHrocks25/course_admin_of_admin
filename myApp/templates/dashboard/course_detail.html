@@ -63,6 +63,17 @@
                     <label class="block text-sm font-semibold mb-2">AI Coach Name</label>
                     <input type="text" name="coach_name" value="{{ course.coach_name }}" placeholder="e.g., Sprint Coach" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
                 </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Category <span class="text-gray-500 font-normal">(optional)</span></label>
+                        <input type="text" name="category" value="{{ course.category|default:'' }}" placeholder="e.g., Leadership" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Display Order</label>
+                        <input type="number" name="display_order" min="0" value="{{ course.display_order|default:0 }}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
+                        <p class="text-xs text-gray-500 mt-1">Lower numbers show first in student/client hub.</p>
+                    </div>
+                </div>
 
                 <!-- Pricing -->
                 <div>
@@ -146,6 +157,14 @@
                 <div class="flex items-center justify-between">
                     <span class="text-gray-400">Created</span>
                     <span class="text-sm">{{ course.created_at|date:"M d, Y" }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Category</span>
+                    <span class="text-sm">{{ course.category|default:"Uncategorized" }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Display Order</span>
+                    <span class="text-sm">{{ course.display_order|default:0 }}</span>
                 </div>
             </div>
         </div>

@@ -1460,7 +1460,51 @@ def dashboard_courses(request):
     elif not is_superadmin:
         messages.error(request, 'Tenant context is required to view courses.')
         return redirect('courses')
-    courses = list(courses_qs.select_related('tenant').annotate(lesson_count=Count('lessons')).order_by('-created_at'))
+
+    if request.method == 'POST':
+        bulk_action = (request.POST.get('bulk_action') or '').strip()
+        selected_ids = request.POST.getlist('selected_course_ids')
+        selected_courses_qs = courses_qs.filter(id__in=selected_ids)
+
+        if not selected_ids:
+            messages.error(request, 'Select at least one course first.')
+            return redirect('dashboard_courses')
+
+        if bulk_action == 'set_category':
+            new_category = (request.POST.get('bulk_category_value') or '').strip() or None
+            updated_count = selected_courses_qs.update(category=new_category)
+            if new_category:
+                messages.success(request, f'Updated category to "{new_category}" for {updated_count} course(s).')
+            else:
+                messages.success(request, f'Cleared category for {updated_count} course(s).')
+            return redirect('dashboard_courses')
+
+        if bulk_action == 'set_display_order':
+            raw_start = (request.POST.get('bulk_order_start') or '').strip()
+            try:
+                start_order = max(0, int(raw_start or 0))
+            except (TypeError, ValueError):
+                messages.error(request, 'Display order start must be a whole number.')
+                return redirect('dashboard_courses')
+
+            selected_courses = list(selected_courses_qs.order_by('name', 'id'))
+            for idx, course in enumerate(selected_courses):
+                course.display_order = start_order + idx
+            if selected_courses:
+                Course.objects.bulk_update(selected_courses, ['display_order'])
+            messages.success(request, f'Updated display order for {len(selected_courses)} course(s).')
+            return redirect('dashboard_courses')
+
+        messages.error(request, 'Invalid bulk action.')
+        return redirect('dashboard_courses')
+
+    courses = list(
+        courses_qs
+        .select_related('tenant')
+        .annotate(lesson_count=Count('lessons'))
+        .order_by('display_order', 'name', '-created_at')
+    )
+    course_categories = sorted({(course.category or '').strip() for course in courses if (course.category or '').strip()}, key=str.lower)
     lesson_preview_payloads = {}
     for course in courses:
         preview_lesson = Lesson.objects.filter(course=course).order_by('order', 'id').first()
@@ -1530,6 +1574,7 @@ def dashboard_courses(request):
                 course.owner_course_preview_url = ''
     return render(request, 'dashboard/courses.html', {
         'courses': courses,
+        'course_categories': course_categories,
         'is_superadmin': is_superadmin,
         'lesson_preview_payloads': lesson_preview_payloads,
     })
@@ -1585,6 +1630,12 @@ def dashboard_course_detail(request, course_slug):
             course.status = request.POST.get('status', course.status)
             course.course_type = request.POST.get('course_type', course.course_type)
             course.coach_name = request.POST.get('coach_name', course.coach_name)
+            course.category = (request.POST.get('category') or '').strip() or None
+            raw_display_order = (request.POST.get('display_order') or '').strip()
+            try:
+                course.display_order = max(0, int(raw_display_order or 0))
+            except (TypeError, ValueError):
+                course.display_order = course.display_order or 0
             raw_price = request.POST.get('price', '').strip()
             try:
                 price = round(float(raw_price), 2) if raw_price else None
@@ -3010,6 +3061,12 @@ def dashboard_add_course(request):
         course_type = request.POST.get('course_type', 'sprint')
         status = request.POST.get('status', 'active')
         coach_name = request.POST.get('coach_name', 'Sprint Coach')
+        category = (request.POST.get('category') or '').strip() or None
+        raw_display_order = (request.POST.get('display_order') or '').strip()
+        try:
+            display_order = max(0, int(raw_display_order or 0))
+        except (TypeError, ValueError):
+            display_order = 0
         use_ai = request.POST.get('use_ai') == 'on'
         raw_price = request.POST.get('price', '').strip()
         try:
@@ -3125,6 +3182,8 @@ def dashboard_add_course(request):
             course_type=course_type,
             status=status,
             coach_name=coach_name,
+            category=category,
+            display_order=display_order,
             creation_blueprint=blueprint_to_save,
             price=price,
             enrollment_method=enrollment_method,
@@ -4679,7 +4738,32 @@ def _resolve_dashboard_course(request, course_slug, tenant=None):
     """
     is_superadmin = bool(request.user.is_superuser)
     if tenant is not None:
-        return get_object_or_404(Course, slug=course_slug, tenant=tenant)
+        scoped_match = Course.objects.filter(slug=course_slug, tenant=tenant).select_related('tenant').first()
+        if scoped_match is not None:
+            return scoped_match
+        if not is_superadmin:
+            raise Http404("No Course matches the given query.")
+
+        # Superadmin recovery path: tenant context may be stale after tenant
+        # slug changes or manual query-string edits. If exactly one owner exists,
+        # auto-switch context to that tenant to avoid a hard 404.
+        slug_matches = Course.objects.filter(slug=course_slug).select_related('tenant').order_by('-created_at', '-id')
+        if not slug_matches.exists():
+            raise Http404("No Course matches the given query.")
+        if slug_matches.count() == 1:
+            recovered = slug_matches.first()
+            if recovered and recovered.tenant_id:
+                request.session['superadmin_tenant_id'] = recovered.tenant_id
+                messages.info(
+                    request,
+                    f'Tenant context updated to "{recovered.tenant.name}" for this course.'
+                )
+            return recovered
+        messages.error(
+            request,
+            'This course slug exists in multiple tenants. Select the correct Tenant View and try again.'
+        )
+        raise Http404("No Course matches the given query.")
     if not is_superadmin:
         return None
 

@@ -533,6 +533,10 @@
                 <i class="fas fa-search"></i>
                 <input type="text" name="search" value="{{ search_query|default:'' }}" placeholder="Search courses…" class="ctrl-input" id="courseSearch" oninput="filterCourses(this.value)">
             </div>
+            <select name="sort" class="sort-select" onchange="this.form.submit()">
+                <option value="custom" {% if sort_by == 'custom' %}selected{% endif %}>By Category + Order</option>
+                <option value="name" {% if sort_by == 'name' %}selected{% endif %}>By Name</option>
+            </select>
         </form>
     </div>
 
@@ -548,7 +552,7 @@
     <div id="catalogList">
     {% for data in guest_catalog %}
     {% with course=data.course %}
-    <div class="c-card" data-name="{{ course.name|lower }}">
+    <div class="c-card" data-name="{{ course.name|lower }}" data-search="{{ course.name|lower }} {{ course.category|default:''|lower }}">
         <div class="c-thumb">
             {% if course.thumbnail %}
             <img src="{{ course.thumbnail.url }}" alt="{{ course.name }}" loading="lazy">
@@ -576,6 +580,7 @@
                 <p class="c-short">{{ course.short_description }}</p>
                 <p class="c-desc">{{ course.description|truncatewords:28 }}</p>
                 <div class="pill-row">
+                    <span class="f-pill"><i class="fas fa-tag"></i> {{ course.category|default:"Uncategorized" }}</span>
                     {% if course.coach_name %}<span class="f-pill"><i class="fas fa-robot"></i> AI Lesson Coach</span>{% endif %}
                     {% if course.is_accredible_certified %}<span class="f-pill"><i class="fas fa-certificate"></i> Accredible Certified</span>{% endif %}
                     {% if course.has_asset_templates %}<span class="f-pill"><i class="fas fa-layer-group"></i> Asset Templates</span>{% endif %}
@@ -679,7 +684,9 @@
                 <a href="?sort={{ sort_by }}" class="chip {% if filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
                     All Courses
                 </a>
-                <select id="sortSelect" onchange="window.location.href='?sort='+this.value+'&favorites={{ filter_favorites }}'" class="sort-select">
+                <select id="sortSelect" onchange="window.location.href='?sort='+encodeURIComponent(this.value)+'&favorites={{ filter_favorites }}'" class="sort-select">
+                    <option value="custom" {% if sort_by == 'custom' %}selected{% endif %}>By Category + Order</option>
+                    <option value="category" {% if sort_by == 'category' %}selected{% endif %}>By Category</option>
                     <option value="progress" {% if sort_by == 'progress' %}selected{% endif %}>By Progress</option>
                     <option value="favorites" {% if sort_by == 'favorites' %}selected{% endif %}>By Favorites</option>
                     <option value="name" {% if sort_by == 'name' %}selected{% endif %}>By Name</option>
@@ -714,6 +721,10 @@
                 </div>
 
                 <div class="meta-row">
+                    <span class="meta-item">
+                        <i class="fas fa-tag" style="color:#f5a800;"></i>
+                        {{ data.course.category|default:"Uncategorized" }}
+                    </span>
                     <span class="meta-item">
                         <i class="fas fa-circle-check" style="color:#22d47b;"></i>
                         {{ data.completed_lessons }}/{{ data.total_lessons }} Lessons
@@ -865,8 +876,8 @@ document.querySelectorAll('.c-card').forEach((el, i) => {
 function filterCourses(query) {
     const q = (typeof query === 'string' ? query : (query && query.value) || '').toLowerCase().trim();
     document.querySelectorAll('.c-card').forEach(card => {
-        const name = card.dataset.name || '';
-        card.style.display = (!q || name.includes(q)) ? '' : 'none';
+        const searchBlob = card.dataset.search || card.dataset.name || '';
+        card.style.display = (!q || searchBlob.includes(q)) ? '' : 'none';
     });
 }
 

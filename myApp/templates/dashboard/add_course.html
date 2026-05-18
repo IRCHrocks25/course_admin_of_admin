@@ -191,6 +191,29 @@
                         </select>
                     </div>
                 </div>
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Category <span class="text-gray-500 font-normal">(optional)</span></label>
+                        <input
+                            type="text"
+                            name="category"
+                            class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50"
+                            placeholder="e.g. Leadership, Sales, Onboarding"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Display Order</label>
+                        <input
+                            type="number"
+                            name="display_order"
+                            min="0"
+                            value="0"
+                            class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50"
+                            placeholder="0"
+                        >
+                        <p class="text-xs text-gray-500 mt-1">Lower numbers show first in the learning hub.</p>
+                    </div>
+                </div>
 
                 <!-- Pricing -->
                 <div class="pt-2">

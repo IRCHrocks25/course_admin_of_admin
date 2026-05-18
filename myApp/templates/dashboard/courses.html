@@ -64,18 +64,75 @@
 </div>
 {% endif %}
 
+<form id="bulk-course-form" method="POST" class="mb-5 p-4 rounded-xl border border-cyan-electric/20 bg-[#0a0e27]/50">
+  {% csrf_token %}
+  <input type="hidden" name="bulk_action" id="bulk-action-input" value="">
+  <div class="flex flex-wrap items-end gap-3">
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Bulk Category Value</label>
+      <input
+        type="text"
+        name="bulk_category_value"
+        id="bulk-category-value"
+        placeholder="Leave blank to clear category"
+        class="bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50 min-w-[220px]"
+      >
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Display Order Start</label>
+      <input
+        type="number"
+        name="bulk_order_start"
+        id="bulk-order-start"
+        min="0"
+        value="0"
+        class="bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50 w-[120px]"
+      >
+    </div>
+    <div>
+      <label class="block text-xs text-gray-400 mb-1">Select By Category</label>
+      <select id="bulk-select-category" class="bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50 min-w-[180px]">
+        <option value="">All Categories</option>
+        <option value="__uncategorized__">Uncategorized</option>
+        {% for category_name in course_categories %}
+        <option value="{{ category_name|lower }}">{{ category_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="button" id="bulk-select-by-category-btn" class="act-btn act-indigo">Select Listed</button>
+    <button type="button" id="bulk-select-all-btn" class="act-btn act-purple">Select All</button>
+    <button type="button" id="bulk-clear-selection-btn" class="act-btn act-red">Clear Selection</button>
+    <button type="submit" onclick="return submitBulkAction('set_category');" class="act-btn act-cyan">Apply Category</button>
+    <button type="submit" onclick="return submitBulkAction('set_display_order');" class="act-btn act-emerald">Apply Display Order</button>
+  </div>
+  <p class="text-xs text-gray-500 mt-3">Tip: pick a category above, click “Select Listed”, then apply category or display order to all selected courses.</p>
+</form>
+
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
   {% for course in courses %}
   <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-5 hover:border-cyan-electric/25 transition-colors h-full flex flex-col">
 
     <div class="flex items-start justify-between gap-2 mb-2">
-      <h3 class="text-base font-medium leading-snug">{{ course.name }}</h3>
-      <span class="px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0
-          {% if course.status == 'active' %}bg-green-500/10 text-green-400 border border-green-500/20
-          {% elif course.status == 'locked' %}bg-red-500/10 text-red-400 border border-red-500/20
-          {% else %}bg-yellow-500/10 text-yellow-400 border border-yellow-500/20{% endif %}">
-        {{ course.get_status_display }}
-      </span>
+      <div class="flex items-start gap-2">
+        <input
+          type="checkbox"
+          name="selected_course_ids"
+          value="{{ course.id }}"
+          form="bulk-course-form"
+          class="bulk-course-checkbox mt-1 w-4 h-4 text-cyan-electric bg-[#0a0e27]/40 border-cyan-electric/40 rounded"
+          data-course-category="{% if course.category %}{{ course.category|lower }}{% else %}__uncategorized__{% endif %}"
+        >
+        <h3 class="text-base font-medium leading-snug">{{ course.name }}</h3>
+      </div>
+      <div class="flex flex-col items-end gap-1">
+        <span class="px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0
+            {% if course.status == 'active' %}bg-green-500/10 text-green-400 border border-green-500/20
+            {% elif course.status == 'locked' %}bg-red-500/10 text-red-400 border border-red-500/20
+            {% else %}bg-yellow-500/10 text-yellow-400 border border-yellow-500/20{% endif %}">
+          {{ course.get_status_display }}
+        </span>
+        <span class="text-[11px] text-gray-500">Order: {{ course.display_order|default:0 }}</span>
+      </div>
     </div>
 
     {% if is_superadmin %}
@@ -87,6 +144,11 @@
     {% endif %}
 
     <p class="text-xs text-gray-400 mb-3 line-clamp-2 leading-relaxed min-h-[34px]">{{ course.short_description }}</p>
+    <div class="mb-3">
+      <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-cyan-electric/10 text-cyan-electric border border-cyan-electric/30 text-[11px]">
+        {{ course.category|default:"Uncategorized" }}
+      </span>
+    </div>
 
     <div class="flex items-center gap-3 text-[11px] text-gray-500 mb-4">
       <span><i class="fas fa-video mr-1"></i>{{ course.get_lesson_count }} lessons</span>
@@ -327,6 +389,51 @@
         closeModal();
       }
     });
+  })();
+
+  function submitBulkAction(actionName) {
+    const actionInput = document.getElementById('bulk-action-input');
+    const checkedCourses = document.querySelectorAll('.bulk-course-checkbox:checked');
+    if (!actionInput) return false;
+    if (!checkedCourses.length) {
+      alert('Select at least one course first.');
+      return false;
+    }
+    actionInput.value = actionName;
+    return true;
+  }
+
+  (function() {
+    const selectCategory = document.getElementById('bulk-select-category');
+    const selectBtn = document.getElementById('bulk-select-by-category-btn');
+    const selectAllBtn = document.getElementById('bulk-select-all-btn');
+    const clearBtn = document.getElementById('bulk-clear-selection-btn');
+    const checkboxes = Array.from(document.querySelectorAll('.bulk-course-checkbox'));
+
+    function applyCategorySelection() {
+      const category = (selectCategory && selectCategory.value) || '';
+      checkboxes.forEach(function(cb) {
+        if (!category || cb.dataset.courseCategory === category) {
+          cb.checked = true;
+        } else {
+          cb.checked = false;
+        }
+      });
+    }
+
+    if (selectBtn) {
+      selectBtn.addEventListener('click', applyCategorySelection);
+    }
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', function() {
+        checkboxes.forEach(function(cb) { cb.checked = true; });
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function() {
+        checkboxes.forEach(function(cb) { cb.checked = false; });
+      });
+    }
   })();
 </script>
 {% endblock %}
