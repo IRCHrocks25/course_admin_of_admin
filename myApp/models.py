@@ -305,6 +305,14 @@ class Lesson(models.Model):
     ai_full_description = models.TextField(blank=True, help_text="AI-generated full description for student page")
     ai_outcomes = models.JSONField(default=list, blank=True, help_text="List of outcomes this lesson will produce")
     ai_coach_actions = models.JSONField(default=list, blank=True, help_text="Recommended AI Coach actions for this lesson")
+    ai_hero_image_url = models.URLField(
+        blank=True, default='',
+        help_text="Cloudinary URL of the AI-generated hero image for this lesson"
+    )
+    ai_hero_image_prompt = models.TextField(
+        blank=True, default='',
+        help_text="The DALL-E prompt used to generate the hero image"
+    )
     generation_settings = models.JSONField(default=dict, blank=True, help_text="LessonGenerationSettings dict captured at last AI generation")
 
     # Editor.js Content
@@ -980,6 +988,7 @@ class AIUsageLog(models.Model):
         ('course_structure', 'Course Structure'),
         ('lesson_metadata', 'Lesson Metadata'),
         ('lesson_content', 'Lesson Content'),
+        ('lesson_image', 'Lesson Image'),
         ('lesson_quiz', 'Lesson Quiz'),
         ('course_exam', 'Course Exam'),
     ]

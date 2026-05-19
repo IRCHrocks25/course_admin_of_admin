@@ -7,7 +7,13 @@
       "Bash(python manage.py makemigrations --check --dry-run myApp)",
       "Bash(python manage.py migrate myApp)",
       "Bash(python manage.py check)",
-      "Bash(python manage.py makemigrations --check --dry-run)"
+      "Bash(python manage.py makemigrations --check --dry-run)",
+      "Bash(Get-ChildItem -Path \"E:/New Downloads/New_clone_projects/course_admin_of_admin\" -Depth 2)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(python manage.py makemigrations myApp --name add_lesson_ai_image_fields)",
+      "PowerShell(py *)",
+      "PowerShell(Get-ChildItem -Directory | Where-Object { $_.Name -in @\\('venv','.venv','env','.env-py','virtualenv'\\) } | Format-Table Name -AutoSize)",
+      "PowerShell(where.exe python 2>&1; \"---\"; where.exe py 2>&1)"
     ]
   }
 }

@@ -66,6 +66,7 @@ from .dashboard_views import (
     OPENAI_AVAILABLE,
     generate_ai_lesson_metadata,
     generate_ai_lesson_content,
+    generate_ai_lesson_image,
     create_editorjs_content,
     _blueprint_lesson_context_block,
     _parse_generation_settings,
@@ -2491,10 +2492,36 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                         lesson.generation_settings = settings_obj.to_dict()
                         lesson.ai_generation_status = 'generated'
                         lesson.save()
+
+                        # Match the bulk pipeline: also generate a hero image
+                        # when the settings flag is on. Non-blocking — never raises.
+                        if getattr(settings_obj, 'generate_image', True):
+                            generate_ai_lesson_image(client, lesson, settings_obj)
+
                         messages.success(request, 'AI content generated.')
                     except Exception as e:
                         messages.error(request, f'AI generation failed: {e}')
-            
+
+        elif action == 'regenerate_image':
+            if not OPENAI_AVAILABLE:
+                messages.error(request, 'OpenAI package is not installed on this server.')
+            else:
+                api_key = os.getenv('OPENAI_API_KEY')
+                if not api_key:
+                    messages.error(request, 'OPENAI_API_KEY is not configured.')
+                else:
+                    settings_obj = _resolve_lesson_generation_settings(request, lesson, course)
+                    try:
+                        from openai import OpenAI
+                        client = OpenAI(api_key=api_key)
+                        new_url = generate_ai_lesson_image(client, lesson, settings_obj)
+                        if new_url:
+                            messages.success(request, 'Hero image regenerated.')
+                        else:
+                            messages.error(request, 'Hero image generation failed. Check server logs and Cloudinary config.')
+                    except Exception as e:
+                        messages.error(request, f'Hero image generation failed: {e}')
+
         elif action == 'approve':
             # Save video & links from form (in case not saved via Edit first)
             _save_lesson_media_and_content(lesson, request)

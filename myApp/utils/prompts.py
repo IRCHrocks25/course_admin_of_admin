@@ -26,6 +26,7 @@ class LessonGenerationSettings:
     creativity: str = 'balanced'               # precise | balanced | inventive
     enabled_block_types: Tuple[str, ...] = ('paragraph', 'header', 'list', 'quote')
     audience_override: str = ''
+    generate_image: bool = True
 
     @classmethod
     def from_dict(cls, data):
@@ -43,6 +44,7 @@ class LessonGenerationSettings:
                 creativity=data.get('creativity', defaults.creativity),
                 enabled_block_types=tuple(data.get('enabled_block_types', defaults.enabled_block_types)),
                 audience_override=data.get('audience_override', defaults.audience_override),
+                generate_image=bool(data.get('generate_image', defaults.generate_image)),
             )
         except (TypeError, ValueError):
             return cls()
@@ -181,3 +183,136 @@ Return the content in JSON format with Editor.js compatible blocks:
 
 Make the content educational, practical, and engaging. Match the lesson-length directive above for the number of blocks.
 Only return valid JSON, no additional text."""
+def build_lesson_image_prompt(
+    clean_title: str,
+    short_summary: str,
+    reading_level: str = "practitioner"
+) -> str:
+    """
+    Build a DALL-E 3 image generation prompt for a premium lesson hero image.
+    Style: cinematic, corporate edtech, AI-business transformation, photorealistic.
+    """
+
+    level_map = {
+        "foundational": "approachable for beginner learners, clear, encouraging, and easy to understand",
+        "practitioner": "designed for business professionals, confident, strategic, and aspirational",
+        "expert": "designed for senior leaders, sophisticated, executive, and authoritative",
+    }
+
+    audience_style = level_map.get(
+        reading_level,
+        "designed for business professionals, confident, strategic, and aspirational"
+    )
+
+    summary_snippet = short_summary[:350].strip() if short_summary else clean_title
+
+    return (
+        f"Create a premium cinematic 16:9 hero banner image for an online business and AI course lesson.\n\n"
+        f"Lesson title: {clean_title}\n"
+        f"Lesson context: {summary_snippet}\n\n"
+
+        f"Core visual idea:\n"
+        f"Show the real-world business meaning of this lesson through a polished, professional scene. "
+        f"The image should feel like a high-end corporate AI transformation campaign, similar to a premium "
+        f"course platform header, executive training module, or modern SaaS brand visual.\n\n"
+
+        f"Scene direction:\n"
+        f"Use a modern office, boardroom, strategy room, glass-walled workspace, city-view executive setting, "
+        f"or collaborative business environment. Include one or more realistic professionals who appear thoughtful, "
+        f"focused, strategic, and actively analyzing business challenges or opportunities. "
+        f"The scene should visually suggest business diagnosis, operational clarity, decision-making, AI support, "
+        f"process improvement, and future-ready systems.\n\n"
+
+        f"AI and business transformation cues:\n"
+        f"Subtle digital intelligence elements may appear as soft holographic glows, abstract data patterns, "
+        f"transparent dashboards, network lines, process maps, or analytical light structures — but they must feel "
+        f"integrated into the environment, not like flat icons or fake UI. Keep these elements elegant, minimal, "
+        f"and cinematic.\n\n"
+
+        f"Composition:\n"
+        f"Cinematic widescreen layout, rule of thirds, strong depth of field, premium spacing, clean visual hierarchy. "
+        f"Leave some natural negative space on one side or upper area so the platform can overlay lesson text later. "
+        f"The image should work as a header background and should not feel cluttered.\n\n"
+
+        f"Style and lighting:\n"
+        f"Photorealistic, ultra high resolution, warm-to-neutral corporate color grade. "
+        f"Use deep navy, soft cyan, warm amber, glass reflections, natural window light, soft shadows, "
+        f"and rich professional textures. Mood should feel intelligent, aspirational, calm, and premium.\n\n"
+
+        f"Audience fit:\n"
+        f"Suitable for {audience_style}.\n\n"
+
+        f"Strict rules:\n"
+        f"No readable text. No letters. No numbers. No labels. No logos. No watermarks. "
+        f"No cartoon style. No flat illustration. No childish avatar look. No messy UI mockups. "
+        f"No obvious stock photo cheesiness. No exaggerated sci-fi. No split-screen before-and-after layout. "
+        f"The image must look like a real cinematic business moment enhanced by subtle AI intelligence.\n\n"
+
+        f"Output:\n"
+        f"Aspect ratio 16:9, premium course platform hero image, polished corporate edtech aesthetic."
+    )
+
+
+def _audience_phrase_for(reading_level: str) -> str:
+    return {
+        'foundational': 'approachable, encouraging, beginner-friendly',
+        'practitioner': 'confident, strategic, aspirational',
+        'expert': 'sophisticated, executive, authoritative',
+    }.get(reading_level, 'confident, strategic, aspirational')
+
+
+def build_image_brief_meta_prompt(course_name: str,
+                                  course_category: str,
+                                  course_topic: str,
+                                  lesson_title: str,
+                                  lesson_summary: str,
+                                  lesson_description: str,
+                                  lesson_outcomes: list,
+                                  reading_level: str = 'practitioner') -> str:
+    """Meta-prompt: instructs gpt-4o-mini to write a tailored image brief
+    for a specific lesson. The brief it returns is then fed to gpt-image-1.
+
+    This is what makes the image context-aware: the LLM reads the actual
+    lesson (subject, outcomes, audience) and designs a visual concept that
+    fits it, instead of forcing every lesson into one hard-coded aesthetic.
+    """
+    outcomes_text = '\n'.join(f'- {o}' for o in (lesson_outcomes or [])[:5]) or '(none provided)'
+    category_line = f"Course category: {course_category}" if course_category else ''
+    topic_line = f"Course topic (creator-supplied): {course_topic}" if course_topic else ''
+    context_lines = '\n'.join(filter(None, [category_line, topic_line]))
+
+    return f"""You are a senior creative director designing hero images for an online course platform.
+
+Read the lesson below, understand what it is REALLY about, then write a vivid image brief that an AI image generator (gpt-image-1) will use to produce a 16:9 hero banner.
+
+Match the SUBJECT MATTER. Do not default to "business / corporate / boardroom / AI dashboards" unless the lesson is genuinely about those things. Examples of fitting tone:
+- A fitness lesson → physical, energetic, sweat, motion, gym or outdoors
+- A mindfulness / life-mastery lesson → still, luminous, natural light, journals, tea, nature
+- A coding lesson → focused, technical, screens, keyboards, ambient code glow
+- A cooking lesson → warm, tactile, ingredients, kitchen, steam
+- A music lesson → instruments, stage light, intimate performance
+- A parenting / relationship lesson → human warmth, candid moments, soft light
+- A business / strategy lesson → sharp, strategic, modern workspaces
+
+Your brief MUST specify, in concrete language:
+1. The scene (place, objects, people if any, what's happening)
+2. Mood and atmosphere (in 1-2 adjectives)
+3. Color palette and lighting (e.g. "warm amber, deep teal, golden-hour light")
+4. Composition notes (16:9 landscape; where to leave negative space for a title overlay)
+5. Style (photorealistic / cinematic / editorial — pick what fits the subject)
+6. Hard constraints to repeat verbatim:
+   - "No text, letters, numbers, labels, logos, or watermarks."
+   - "Premium course-platform aesthetic, suitable for a hero banner."
+
+Audience: {reading_level} ({_audience_phrase_for(reading_level)}).
+
+LESSON CONTEXT
+Course: {course_name}
+{context_lines}
+Lesson title: {lesson_title}
+Lesson summary: {lesson_summary or '(none)'}
+Lesson description: {(lesson_description or '')[:800]}
+Key outcomes:
+{outcomes_text}
+
+Write the image brief now. Output ONLY the brief — no preamble, no headings, no JSON, no quotes. 3-5 paragraphs of dense, concrete visual direction the image model can execute on."""

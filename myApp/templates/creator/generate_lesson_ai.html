@@ -308,7 +308,38 @@
                 </div>
             </div>
         </div>
-        
+
+        <!-- AI Hero Image -->
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fas fa-image text-cyan-electric"></i>
+                    Hero Image
+                </h3>
+                <button type="submit" name="action" value="regenerate_image"
+                    class="px-3 py-1 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-xs font-medium hover:bg-purple-accent/30 transition-all text-purple-accent">
+                    <i class="fas fa-wand-magic-sparkles mr-1"></i>
+                    {% if lesson.ai_hero_image_url %}Regenerate Image{% else %}Generate Image{% endif %}
+                </button>
+            </div>
+            {% if lesson.ai_hero_image_url %}
+                <figure class="rounded-lg overflow-hidden border border-cyan-electric/10">
+                    <img src="{{ lesson.ai_hero_image_url }}"
+                         alt="{{ lesson.ai_clean_title|default:lesson.title }}"
+                         class="w-full h-auto block"
+                         loading="lazy" />
+                </figure>
+                {% if lesson.ai_hero_image_prompt %}
+                    <details class="mt-3 text-xs text-gray-400">
+                        <summary class="cursor-pointer hover:text-gray-300">View prompt used</summary>
+                        <p class="mt-2 p-3 bg-[#0a0e27]/40 border border-cyan-electric/10 rounded">{{ lesson.ai_hero_image_prompt }}</p>
+                    </details>
+                {% endif %}
+            {% else %}
+                <p class="text-sm text-gray-400">No hero image yet. Click <span class="text-purple-accent">Generate Image</span> to create one with DALL-E. It will appear above the lesson title on the student page.</p>
+            {% endif %}
+        </div>
+
         <!-- AI Generated Content Sections -->
         <div class="space-y-6">
             <!-- 1. Clean Lesson Title -->

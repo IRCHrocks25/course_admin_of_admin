@@ -57,11 +57,17 @@
         <div class="space-y-3">
             {% for lesson in module.lessons.all %}
             <div class="flex items-center justify-between p-4 bg-[#0a0e27]/40 rounded-lg hover:bg-[#0a0e27]/60 transition-all">
-                <div class="flex items-center gap-4 flex-1">
-                    <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold">
+                <div class="flex items-center gap-4 flex-1 min-w-0">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold flex-shrink-0">
                         {{ lesson.order|default:forloop.counter }}
                     </div>
-                    <div class="flex-1">
+                    {% if not lesson.google_drive_url and not lesson.get_vimeo_embed_url and not lesson.video_url and lesson.ai_hero_image_url %}
+                    <img src="{{ lesson.ai_hero_image_url }}"
+                         alt=""
+                         class="w-24 h-14 object-cover rounded-md border border-cyan-electric/20 flex-shrink-0"
+                         loading="lazy" />
+                    {% endif %}
+                    <div class="flex-1 min-w-0">
                         <div class="font-semibold">{{ lesson.title }}</div>
                         <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
                             {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
@@ -101,11 +107,17 @@
         {% if not lesson.module %}
         <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
             <div class="flex items-center justify-between p-4 bg-[#0a0e27]/40 rounded-lg">
-                <div class="flex items-center gap-4 flex-1">
-                    <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold">
+                <div class="flex items-center gap-4 flex-1 min-w-0">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold flex-shrink-0">
                         {{ lesson.order|default:forloop.counter }}
                     </div>
-                    <div class="flex-1">
+                    {% if not lesson.google_drive_url and not lesson.get_vimeo_embed_url and not lesson.video_url and lesson.ai_hero_image_url %}
+                    <img src="{{ lesson.ai_hero_image_url }}"
+                         alt=""
+                         class="w-24 h-14 object-cover rounded-md border border-cyan-electric/20 flex-shrink-0"
+                         loading="lazy" />
+                    {% endif %}
+                    <div class="flex-1 min-w-0">
                         <div class="font-semibold">{{ lesson.title }}</div>
                         <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
                             {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
@@ -191,6 +203,12 @@
                             style="position:absolute;top:0;left:0;width:100%;height:100%;"
                         ></iframe>
                     </div>
+                </div>
+                <div id="lp-no-video-image" class="hidden">
+                    <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-2">Hero Image</p>
+                    <figure class="rounded-xl overflow-hidden border border-cyan-electric/20">
+                        <img id="lp-no-video-image-src" src="" alt="" class="w-full h-auto block" />
+                    </figure>
                 </div>
                 <div id="lp-no-video" class="hidden rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-400">
                     No video link found for this lesson yet.
@@ -405,15 +423,25 @@ document.addEventListener('DOMContentLoaded', function() {
             : '<p class="text-gray-500 italic text-sm">No coach actions available yet.</p>';
         previewNotes.innerHTML = renderNotes(Array.isArray(payload.content_blocks) ? payload.content_blocks : []);
 
+        const previewNoVideoImage = document.getElementById('lp-no-video-image');
+        const previewNoVideoImageSrc = document.getElementById('lp-no-video-image-src');
         if (payload.video_embed_url) {
             previewVideoIframe.src = payload.video_embed_url;
             previewVideoSource.textContent = payload.video_source || 'Video';
             previewVideoWrap.classList.remove('hidden');
             previewNoVideo.classList.add('hidden');
+            if (previewNoVideoImage) previewNoVideoImage.classList.add('hidden');
+        } else if (payload.hero_image_url) {
+            previewVideoIframe.src = '';
+            previewVideoWrap.classList.add('hidden');
+            previewNoVideo.classList.add('hidden');
+            if (previewNoVideoImageSrc) previewNoVideoImageSrc.src = payload.hero_image_url;
+            if (previewNoVideoImage) previewNoVideoImage.classList.remove('hidden');
         } else {
             previewVideoIframe.src = '';
             previewVideoWrap.classList.add('hidden');
             previewNoVideo.classList.remove('hidden');
+            if (previewNoVideoImage) previewNoVideoImage.classList.add('hidden');
         }
 
         previewModal.classList.remove('hidden');

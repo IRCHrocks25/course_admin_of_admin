@@ -15,6 +15,16 @@
     <!-- Mobile/Tablet: Full width -->
     <div class="w-full pt-6 center-content-rail">
         <div class="w-full center-content-inner">
+        <!-- AI-Generated Hero Banner (only show if image exists) -->
+        {% if lesson.ai_hero_image_url %}
+        <figure class="mb-6 rounded-xl overflow-hidden border border-cyan-electric/10">
+            <img src="{{ lesson.ai_hero_image_url }}"
+                 alt="{{ lesson.ai_clean_title|default:lesson.title }}"
+                 class="w-full h-auto block"
+                 loading="lazy" />
+        </figure>
+        {% endif %}
+
         <!-- Lesson Title -->
         <h1 class="text-4xl lg:text-2xl font-semibold mb-6">{{ lesson.title }}</h1>
         

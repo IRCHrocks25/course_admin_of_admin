@@ -2066,8 +2066,9 @@ def dashboard_course_lessons(request, course_slug):
             'outcomes': lesson.get_outcomes_list() or [],
             'coach_actions': lesson.get_coach_actions_list() or [],
             'content_blocks': content.get('blocks', []) if isinstance(content.get('blocks', []), list) else [],
+            'hero_image_url': (lesson.ai_hero_image_url or '').strip(),
         }
-    
+
     return render(request, 'dashboard/course_lessons.html', {
         'course': course,
         'lessons': lessons,
@@ -2257,6 +2258,150 @@ def generate_ai_lesson_content(client, lesson_title, lesson_description, course_
     except Exception as e:
         # Return empty content if generation fails
         return []
+
+
+def generate_image_brief(client, lesson, settings_obj):
+    """
+    Call gpt-4o-mini with a meta-prompt to produce a tailored image brief
+    for this specific lesson. Returns the brief string, or '' on any failure.
+
+    Never raises — caller falls back to the static prompt template on empty.
+    """
+    try:
+        from myApp.utils.prompts import build_image_brief_meta_prompt
+
+        course = lesson.course
+        blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+        meta_prompt = build_image_brief_meta_prompt(
+            course_name=course.name or '',
+            course_category=course.category or '',
+            course_topic=blueprint.get('topic', '') or '',
+            lesson_title=lesson.ai_clean_title or lesson.title or '',
+            lesson_summary=lesson.ai_short_summary or '',
+            lesson_description=lesson.ai_full_description or lesson.description or '',
+            lesson_outcomes=lesson.ai_outcomes if isinstance(lesson.ai_outcomes, list) else [],
+            reading_level=getattr(settings_obj, 'reading_level', 'practitioner'),
+        )
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a senior creative director. Output only the requested image brief, nothing else."},
+                {"role": "user", "content": meta_prompt},
+            ],
+            temperature=0.9,   # high — we want creative variation per lesson
+            max_tokens=600,
+        )
+        _log_openai_usage(
+            feature='lesson_image',
+            response=response,
+            tenant=lesson.tenant,
+            course=lesson.course,
+            lesson=lesson,
+            model_name='gpt-4o-mini',
+        )
+        brief = (response.choices[0].message.content or '').strip()
+        # Strip accidental wrapping quotes/fences
+        if brief.startswith('```'):
+            brief = brief.strip('`').lstrip('json').strip()
+        return brief
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Image brief generation failed for lesson %s: %s",
+            getattr(lesson, 'id', '?'), e
+        )
+        return ''
+
+
+def generate_ai_lesson_image(client, lesson, settings_obj):
+    """
+    Generate a hero image for a lesson (via OpenAI gpt-image-1) and upload
+    to Cloudinary. Returns the Cloudinary URL, or '' on any failure.
+
+    Never raises — image generation must not break the lesson pipeline.
+    """
+    try:
+        import base64
+        import cloudinary.uploader
+        from myApp.utils.prompts import build_lesson_image_prompt
+
+        # Stage 1: ask gpt-4o-mini to write a custom image brief for THIS lesson.
+        # Falls back to the static template if the meta-call fails or returns empty.
+        prompt = generate_image_brief(client, lesson, settings_obj)
+        if not prompt:
+            prompt = build_lesson_image_prompt(
+                clean_title=lesson.ai_clean_title or lesson.title,
+                short_summary=lesson.ai_short_summary or '',
+                reading_level=getattr(settings_obj, 'reading_level', 'practitioner'),
+            )
+
+        # Generate image via gpt-image-1. We use this instead of dall-e-3
+        # because dall-e-3 is gated on many OpenAI accounts and returns
+        # a 400 "model does not exist" for keys without explicit access.
+        response = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size="1536x1024",   # gpt-image-1 supports 1024x1024 / 1536x1024 / 1024x1536
+            quality="medium",   # low | medium | high | auto
+            n=1,
+        )
+
+        # gpt-image-1 returns base64-encoded bytes inline (no URL field).
+        image_b64 = response.data[0].b64_json
+        if not image_b64:
+            return ''
+        image_bytes = base64.b64decode(image_b64)
+
+        # Upload to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            image_bytes,
+            folder="lesson_hero_images",
+            public_id=f"lesson_{lesson.id}_{lesson.slug or 'img'}",
+            resource_type="image",
+            overwrite=True,
+            format="webp",
+            transformation=[{"width": 1536, "height": 1024, "crop": "fill"}],
+        )
+        cloudinary_url = upload_result.get('secure_url', '')
+
+        if cloudinary_url:
+            lesson.ai_hero_image_url = cloudinary_url
+            lesson.ai_hero_image_prompt = prompt
+            lesson.save(update_fields=['ai_hero_image_url', 'ai_hero_image_prompt'])
+
+            # Log cost directly to AIUsageLog.
+            # _log_openai_usage() reads tokens off the OpenAI usage object and
+            # short-circuits when usage is None, so it can't be used for image
+            # calls. gpt-image-1 medium 1536x1024 ≈ $0.063/image.
+            try:
+                AIUsageLog.objects.create(
+                    tenant=lesson.tenant,
+                    course=lesson.course,
+                    lesson=lesson,
+                    provider='openai',
+                    feature='lesson_image',
+                    model_name='gpt-image-1',
+                    request_id='',
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0,
+                    input_rate_per_million=0,
+                    output_rate_per_million=0,
+                    cost_usd=Decimal('0.063'),
+                )
+            except Exception:
+                pass  # cost logging must not break image generation
+
+        return cloudinary_url
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Image generation failed for lesson %s: %s",
+            getattr(lesson, 'id', '?'), e
+        )
+        return ''
 
 
 def generate_ai_course_structure(course_name, description, course_type='sprint', coach_name='Sprint Coach', tenant=None, course=None, blueprint=None):
@@ -2583,6 +2728,14 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     generation_settings=gen_settings.to_dict(),
                 )
                 lessons_created += 1
+
+                # --- AI Hero Image (non-blocking) ---
+                # Populates lesson.ai_hero_image_url; the lesson template
+                # renders it as a dedicated banner above the title.
+                if getattr(gen_settings, 'generate_image', True):
+                    generate_ai_lesson_image(ai_client, lesson, gen_settings)
+                # --- end AI Hero Image ---
+
                 # Auto-generate quiz for this lesson
                 try:
                     quiz, _ = LessonQuiz.objects.get_or_create(
