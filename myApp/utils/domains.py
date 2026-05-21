@@ -27,19 +27,41 @@ def ensure_temporary_domain(tenant):
     domain = build_temporary_domain(tenant.slug)
     if not domain:
         return None
-    td, _ = TenantDomain.objects.get_or_create(
-        domain=domain,
-        defaults={
-            'tenant': tenant,
-            'is_temporary': True,
-            'is_primary': True,
-            'is_verified': True,
-            'verification_notes': 'System temporary domain',
-        }
+    tenant_temp_domains = list(
+        TenantDomain.objects.filter(tenant=tenant, is_temporary=True).order_by('-is_primary', 'id')
     )
-    if td.tenant_id != tenant.id:
-        return None
-    # Keep temporary domain stable and verified.
+    td = next((row for row in tenant_temp_domains if row.domain == domain), None)
+    if td is None and tenant_temp_domains:
+        # Reuse the current temporary-domain row so slug updates reflect immediately.
+        td = tenant_temp_domains[0]
+
+    if td is None:
+        td, _ = TenantDomain.objects.get_or_create(
+            domain=domain,
+            defaults={
+                'tenant': tenant,
+                'is_temporary': True,
+                'is_primary': True,
+                'is_verified': True,
+                'verification_notes': 'System temporary domain',
+            }
+        )
+        if td.tenant_id != tenant.id:
+            return None
+    else:
+        if td.domain != domain:
+            if TenantDomain.objects.exclude(id=td.id).filter(domain=domain).exists():
+                return None
+            td.domain = domain
+
+    has_verified_custom_primary = TenantDomain.objects.filter(
+        tenant=tenant,
+        is_temporary=False,
+        is_primary=True,
+        is_verified=True,
+    ).exists()
+    should_be_primary = not has_verified_custom_primary
+
     changed = False
     if not td.is_temporary:
         td.is_temporary = True
@@ -47,11 +69,32 @@ def ensure_temporary_domain(tenant):
     if not td.is_verified:
         td.is_verified = True
         changed = True
-    if not td.is_primary:
-        td.is_primary = True
+    if td.is_primary != should_be_primary:
+        td.is_primary = should_be_primary
+        changed = True
+    if td.verification_notes != 'System temporary domain':
+        td.verification_notes = 'System temporary domain'
         changed = True
     if changed:
         td.save()
+
+    stale_temp_domains = TenantDomain.objects.filter(
+        tenant=tenant,
+        is_temporary=True,
+    ).exclude(id=td.id)
+    for stale in stale_temp_domains:
+        stale_changed = False
+        if stale.is_primary:
+            stale.is_primary = False
+            stale_changed = True
+        if stale.is_verified:
+            stale.is_verified = False
+            stale_changed = True
+        if stale.verification_notes != 'Superseded temporary domain':
+            stale.verification_notes = 'Superseded temporary domain'
+            stale_changed = True
+        if stale_changed:
+            stale.save(update_fields=['is_primary', 'is_verified', 'verification_notes', 'updated_at'])
     return td
 
 

@@ -678,19 +678,20 @@
                 {% endif %}
             </div>
             <div class="filter-row">
-                <a href="?favorites=true&sort={{ sort_by }}" class="chip {% if filter_favorites == 'true' %}chip-active-yellow{% else %}chip-idle{% endif %}">
+                <a href="?favorites=true{% if filter_category %}&category={{ filter_category|urlencode }}{% endif %}" class="chip {% if filter_favorites == 'true' %}chip-active-yellow{% else %}chip-idle{% endif %}">
                     <i class="fas fa-heart"></i> Favorites
                 </a>
-                <a href="?sort={{ sort_by }}" class="chip {% if filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
+                <a href="?{% if filter_category %}category={{ filter_category|urlencode }}{% endif %}" class="chip {% if filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
                     All Courses
                 </a>
-                <select id="sortSelect" onchange="window.location.href='?sort='+encodeURIComponent(this.value)+'&favorites={{ filter_favorites }}'" class="sort-select">
-                    <option value="custom" {% if sort_by == 'custom' %}selected{% endif %}>By Category + Order</option>
-                    <option value="category" {% if sort_by == 'category' %}selected{% endif %}>By Category</option>
-                    <option value="progress" {% if sort_by == 'progress' %}selected{% endif %}>By Progress</option>
-                    <option value="favorites" {% if sort_by == 'favorites' %}selected{% endif %}>By Favorites</option>
-                    <option value="name" {% if sort_by == 'name' %}selected{% endif %}>By Name</option>
-                </select>
+                <a href="?{% if filter_favorites == 'true' %}favorites=true{% endif %}" class="chip {% if not filter_category %}chip-active-blue{% else %}chip-idle{% endif %}">
+                    All Categories
+                </a>
+                {% for category_name in available_categories %}
+                <a href="?category={{ category_name|urlencode }}{% if filter_favorites == 'true' %}&favorites=true{% endif %}" class="chip {% if filter_category == category_name %}chip-active-blue{% else %}chip-idle{% endif %}">
+                    {{ category_name }}
+                </a>
+                {% endfor %}
             </div>
         </div>
 

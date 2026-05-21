@@ -1704,34 +1704,37 @@ def _courses_authenticated(request):
             'can_self_enroll': can_self_enroll,
         })
 
-    # Filter/sort
-    filter_favorites = request.GET.get('favorites', '')
-    sort_by = request.GET.get('sort', 'custom')
+    # Filter controls (sorting intentionally removed for this view).
+    filter_favorites = (request.GET.get('favorites', '') or '').strip().lower()
+    filter_category_raw = (request.GET.get('category', '') or '').strip()
+
+    my_courses_data.sort(
+        key=lambda x: (
+            1 if not (x['course'].category or '').strip() else 0,
+            (x['course'].category or '').strip().lower(),
+            x['course'].display_order,
+            x['course'].name.lower(),
+        )
+    )
+
+    available_categories = sorted(
+        {
+            (item['course'].category or '').strip() or 'Uncategorized'
+            for item in my_courses_data
+        },
+        key=lambda value: value.lower(),
+    )
+    category_lookup = {category.lower(): category for category in available_categories}
+    filter_category = category_lookup.get(filter_category_raw.lower(), '') if filter_category_raw else ''
+
+    if filter_category:
+        my_courses_data = [
+            item for item in my_courses_data
+            if (((item['course'].category or '').strip() or 'Uncategorized').lower() == filter_category.lower())
+        ]
+
     if filter_favorites == 'true':
         my_courses_data = [c for c in my_courses_data if c.get('is_favorited', False)]
-    if sort_by == 'favorites':
-        my_courses_data.sort(key=lambda x: (not x.get('is_favorited', False), -x['progress_percentage']))
-    elif sort_by == 'progress':
-        my_courses_data.sort(key=lambda x: x['progress_percentage'], reverse=True)
-    elif sort_by == 'category':
-        my_courses_data.sort(
-            key=lambda x: (
-                1 if not (x['course'].category or '').strip() else 0,
-                (x['course'].category or '').strip().lower(),
-                x['course'].name.lower(),
-            )
-        )
-    elif sort_by == 'name':
-        my_courses_data.sort(key=lambda x: x['course'].name.lower())
-    else:
-        my_courses_data.sort(
-            key=lambda x: (
-                1 if not (x['course'].category or '').strip() else 0,
-                (x['course'].category or '').strip().lower(),
-                x['course'].display_order,
-                x['course'].name.lower(),
-            )
-        )
 
     # Stats
     total_courses = len(my_courses_data)
@@ -1756,7 +1759,9 @@ def _courses_authenticated(request):
         'completed_lessons_all': completed_lessons_all,
         'overall_progress': overall_progress,
         'filter_favorites': filter_favorites,
-        'sort_by': sort_by,
+        'sort_by': 'custom',
+        'available_categories': available_categories,
+        'filter_category': filter_category,
         'search_query': search_query,
         'guest_catalog': None,
         'is_guest_view': False,
