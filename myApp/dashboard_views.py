@@ -1306,21 +1306,28 @@ def dashboard_students(request):
 
 @staff_member_required
 def dashboard_student_ip_monitor(request):
-    """Tenant-scoped monitor for student IP activity."""
+    """Monitor student IP activity. Superadmin sees all tenants; tenant-admin sees own tenant."""
     tenant = _get_dashboard_tenant(request)
     is_superadmin = bool(request.user.is_superuser)
-    if tenant is None and is_superadmin:
-        tenant = get_default_tenant()
-    if tenant is None:
+    if tenant is None and not is_superadmin:
         messages.error(request, 'Tenant context is required to monitor student IP activity.')
         return redirect('dashboard_students')
 
-    base_qs = StudentIPLog.objects.filter(tenant=tenant).select_related('user')
+    show_all_tenants = is_superadmin and tenant is None
+
+    if show_all_tenants:
+        base_qs = StudentIPLog.objects.select_related('user', 'tenant').all()
+    else:
+        base_qs = StudentIPLog.objects.filter(tenant=tenant).select_related('user', 'tenant')
+
     search_query = (request.GET.get('search') or '').strip()
     country_filter = (request.GET.get('country') or '').strip()
     date_filter = (request.GET.get('date') or '').strip()
+    tenant_filter = (request.GET.get('tenant_filter') or '').strip()
 
     filtered_qs = base_qs
+    if tenant_filter and show_all_tenants:
+        filtered_qs = filtered_qs.filter(tenant__slug=tenant_filter)
     if search_query:
         filtered_qs = filtered_qs.filter(
             Q(user__username__icontains=search_query)
@@ -1345,6 +1352,13 @@ def dashboard_student_ip_monitor(request):
         .distinct()
         .order_by('country')
     )
+    tenants_list = []
+    if show_all_tenants:
+        tenants_list = list(
+            base_qs.values_list('tenant__slug', 'tenant__name')
+            .distinct()
+            .order_by('tenant__name')
+        )
 
     return render(request, 'dashboard/student_ip_monitor.html', {
         'ip_logs': ip_logs,
@@ -1352,10 +1366,13 @@ def dashboard_student_ip_monitor(request):
         'search_query': search_query,
         'country_filter': country_filter,
         'date_filter': date_filter,
+        'tenant_filter': tenant_filter,
         'total_logs': filtered_qs.count(),
         'unique_students': filtered_qs.values('user_id').distinct().count(),
         'unique_ips': filtered_qs.values('ip_address').distinct().count(),
         'private_ip_logs': filtered_qs.filter(is_private_ip=True).count(),
+        'show_all_tenants': show_all_tenants,
+        'tenants_list': tenants_list,
     })
 
 
