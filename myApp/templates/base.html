@@ -588,6 +588,133 @@
         });
     </script>
     
+    <!-- Superadmin Notification Modal -->
+    {% if pending_notification %}
+    <style>
+    @keyframes nfFadeIn { from { opacity:0 } to { opacity:1 } }
+    @keyframes nfSlideUp { from { opacity:0; transform:translateY(24px) scale(.96) } to { opacity:1; transform:translateY(0) scale(1) } }
+    .nf-card {
+        background: rgba(16,18,36,.82);
+        backdrop-filter: blur(32px) saturate(1.4);
+        -webkit-backdrop-filter: blur(32px) saturate(1.4);
+        border: 1px solid rgba(0,240,255,.12);
+        box-shadow:
+            0 0 0 1px rgba(0,240,255,.06),
+            0 24px 80px rgba(0,0,0,.55),
+            0 0 60px -10px rgba(0,240,255,.10),
+            inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .nf-glow-top { background: linear-gradient(90deg, transparent, #00f0ff 20%, #a855f7 50%, #00f0ff 80%, transparent); }
+    .nf-icon-box {
+        background: linear-gradient(135deg, rgba(0,240,255,.15), rgba(168,85,247,.18));
+        border: 1px solid rgba(0,240,255,.15);
+        box-shadow: 0 0 20px rgba(0,240,255,.08);
+    }
+    .nf-body p { margin-bottom: .85rem; color: rgba(210,215,230,.8); }
+    .nf-body p:last-child { margin-bottom: 0; }
+    .nf-body ul, .nf-body ol { margin: .5rem 0 .85rem 1.25rem; color: rgba(210,215,230,.8); }
+    .nf-body li { margin-bottom: .3rem; }
+    .nf-body strong { color: #e8eaff; font-weight: 600; }
+    .nf-btn-primary {
+        background: linear-gradient(135deg, #00f0ff, #a855f7);
+        color: #0a0e1a;
+        font-weight: 700;
+        box-shadow: 0 4px 20px rgba(0,240,255,.25), 0 0 40px rgba(168,85,247,.12);
+        transition: all .2s ease;
+    }
+    .nf-btn-primary:hover { box-shadow: 0 6px 28px rgba(0,240,255,.35), 0 0 50px rgba(168,85,247,.18); transform: translateY(-1px); }
+    .nf-btn-primary:active { transform: translateY(0) scale(.98); }
+    .nf-btn-secondary {
+        background: transparent;
+        border: 1px solid rgba(168,85,247,.35);
+        color: rgba(200,190,255,.85);
+        box-shadow: 0 0 16px rgba(168,85,247,.06);
+        transition: all .2s ease;
+    }
+    .nf-btn-secondary:hover { border-color: rgba(168,85,247,.55); color: #fff; box-shadow: 0 0 24px rgba(168,85,247,.12); }
+    .nf-btn-ghost {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,.08);
+        color: rgba(200,200,210,.7);
+        transition: all .2s ease;
+    }
+    .nf-btn-ghost:hover { border-color: rgba(255,255,255,.18); color: #fff; }
+    </style>
+    <div id="notification-modal-overlay" class="fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(6,8,20,.7); backdrop-filter:blur(6px); animation:nfFadeIn .3s ease">
+        <div class="w-full max-w-[480px] nf-card rounded-2xl overflow-hidden" style="animation:nfSlideUp .35s ease">
+            <div class="nf-glow-top h-[3px] w-full opacity-80"></div>
+            <div class="px-7 pt-7 pb-2 sm:px-9 sm:pt-9">
+                <div class="flex items-start gap-4">
+                    <div class="w-14 h-14 rounded-2xl nf-icon-box flex items-center justify-center flex-shrink-0">
+                        {% if pending_notification.notification.cta_type == 'setup_fee' %}
+                        <i class="fas fa-file-invoice-dollar text-xl" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                        {% elif pending_notification.notification.cta_type == 'upgrade' %}
+                        <i class="fas fa-arrow-up-right-dots text-xl" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                        {% else %}
+                        <i class="fas fa-bell text-xl" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                        {% endif %}
+                    </div>
+                    <h3 class="flex-1 text-xl font-bold leading-snug pt-1" style="color:#e8eaff">{{ pending_notification.notification.title }}</h3>
+                    <button onclick="dismissNotification(false)" class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style="color:rgba(160,165,185,.5)" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(160,165,185,.5)'">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="px-7 sm:px-9">
+                <div class="my-5 border-t" style="border-color:rgba(255,255,255,.06)"></div>
+                <div class="text-sm leading-relaxed nf-body">
+                    {{ pending_notification.notification.body|safe }}
+                </div>
+            </div>
+            <div class="px-7 pb-7 pt-5 sm:px-9 sm:pb-9">
+                <div class="flex flex-wrap gap-3">
+                    {% if pending_notification.notification.cta_type != 'none' and pending_notification.notification.cta_label %}
+                    <button onclick="dismissNotification(true)" class="nf-btn-primary px-7 py-3 rounded-full text-sm">
+                        {{ pending_notification.notification.cta_label }}
+                    </button>
+                    <button onclick="dismissNotification(false)" class="nf-btn-secondary px-6 py-3 rounded-full text-sm">
+                        Maybe later
+                    </button>
+                    {% else %}
+                    <button onclick="dismissNotification(false)" class="nf-btn-ghost px-7 py-3 rounded-full text-sm">
+                        Got it
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    function dismissNotification(clicked) {
+        var overlay = document.getElementById('notification-modal-overlay');
+        overlay.style.display = 'none';
+        var csrfToken = '{{ csrf_token }}';
+        fetch('{% url "dismiss_notification" pending_notification.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({clicked: clicked}),
+        });
+        {% if pending_notification.notification.cta_type == 'upgrade' and pending_notification.notification.cta_tier %}
+        if (clicked) {
+            window.location.href = '/upgrade/{{ pending_notification.notification.cta_tier.code }}/?delivery_id={{ pending_notification.id }}';
+        }
+        {% elif pending_notification.notification.cta_type == 'setup_fee' and pending_notification.notification.cta_tier %}
+        if (clicked) {
+            window.location.href = '/setup-fee/{{ pending_notification.notification.cta_tier.code }}/?delivery_id={{ pending_notification.id }}';
+        }
+        {% elif pending_notification.notification.cta_type == 'url' and pending_notification.notification.cta_custom_url %}
+        if (clicked) {
+            window.location.href = '{{ pending_notification.notification.cta_custom_url }}';
+        }
+        {% endif %}
+    }
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

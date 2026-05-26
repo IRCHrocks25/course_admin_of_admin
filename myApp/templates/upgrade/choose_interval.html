@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load pricing_tags %}
+
+{% block title %}Choose Your Plan — {{ tier.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-12">
+    <div class="text-center mb-10">
+        <h1 class="text-3xl font-bold mb-3">Upgrade to {{ tier.name }}</h1>
+        {% if tier.description %}
+        <p class="text-gray-400">{{ tier.description }}</p>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+        <!-- Monthly -->
+        <a href="{% url 'upgrade_checkout' tier.code 'monthly' %}{% if delivery_id %}?delivery_id={{ delivery_id }}{% endif %}"
+           class="group block rounded-xl border border-white/10 bg-white/5 p-6 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 transition-all">
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-sm font-medium text-gray-400 uppercase tracking-wider">Monthly</span>
+                <span class="w-5 h-5 rounded-full border-2 border-white/20 group-hover:border-cyan-electric transition-colors"></span>
+            </div>
+            <div class="mb-1">
+                <span class="text-4xl font-bold text-white">{{ tier.monthly_cents|cents_to_dollars }}</span>
+                <span class="text-gray-400 text-sm">/month</span>
+            </div>
+            {% if tier.charge_setup_fee and tier.setup_fee_cents %}
+            <p class="text-xs text-gray-500 mt-2">+ {{ tier.setup_fee_cents|cents_to_dollars }} one-time setup fee</p>
+            {% endif %}
+        </a>
+
+        <!-- Yearly -->
+        <a href="{% url 'upgrade_checkout' tier.code 'yearly' %}{% if delivery_id %}?delivery_id={{ delivery_id }}{% endif %}"
+           class="group block rounded-xl border border-cyan-electric/30 bg-cyan-electric/5 p-6 hover:border-cyan-electric/50 hover:bg-cyan-electric/10 transition-all relative">
+            {% if yearly_savings > 0 %}
+            <div class="absolute -top-3 right-4 px-3 py-0.5 rounded-full bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] text-xs font-bold">
+                Save {{ yearly_savings|cents_to_dollars }}/yr
+            </div>
+            {% endif %}
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-sm font-medium text-cyan-electric uppercase tracking-wider">Yearly</span>
+                <span class="w-5 h-5 rounded-full border-2 border-cyan-electric/40 group-hover:border-cyan-electric transition-colors"></span>
+            </div>
+            <div class="mb-1">
+                <span class="text-4xl font-bold text-white">{{ tier.yearly_cents|cents_to_dollars }}</span>
+                <span class="text-gray-400 text-sm">/year</span>
+            </div>
+            {% if tier.charge_setup_fee and tier.setup_fee_cents %}
+            <p class="text-xs text-gray-500 mt-2">+ {{ tier.setup_fee_cents|cents_to_dollars }} one-time setup fee</p>
+            {% endif %}
+        </a>
+    </div>
+
+    <div class="text-center">
+        <a href="{% url 'dashboard_home' %}" class="text-sm text-gray-500 hover:text-gray-300 transition">
+            &larr; Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

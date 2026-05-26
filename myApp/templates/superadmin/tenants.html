@@ -38,6 +38,7 @@
                         <th class="text-left px-4 py-3">Courses</th>
                         <th class="text-left px-4 py-3">Lessons</th>
                         <th class="text-left px-4 py-3">Enrollments</th>
+                        <th class="text-center px-4 py-3">Setup Fee</th>
                         <th class="text-left px-4 py-3">Status</th>
                         <th class="text-left px-4 py-3">Actions</th>
                     </tr>
@@ -54,6 +55,13 @@
                         <td class="px-4 py-3">{{ tenant.course_count }}</td>
                         <td class="px-4 py-3">{{ tenant.lesson_count }}</td>
                         <td class="px-4 py-3">{{ tenant.enrollment_count }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if tenant.setup_fee_paid %}
+                            <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Paid</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs">Unpaid</span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3">
                             {% if tenant.is_archived %}
                             <span class="px-2 py-1 rounded bg-gray-500/20 text-gray-300">Archived</span>
@@ -96,7 +104,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td class="px-4 py-6 text-gray-400" colspan="9">No tenants yet.</td></tr>
+                    <tr><td class="px-4 py-6 text-gray-400" colspan="10">No tenants yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

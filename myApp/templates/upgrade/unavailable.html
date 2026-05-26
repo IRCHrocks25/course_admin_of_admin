@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Plan Unavailable{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto text-center py-16">
+    <div class="w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-exclamation-triangle text-3xl text-amber-400"></i>
+    </div>
+    <h1 class="text-3xl font-bold mb-4">Plan Not Available</h1>
+    {% if reason == 'not_synced' %}
+    <p class="text-gray-400 mb-2">
+        {% if tier %}The <strong class="text-white">{{ tier.name }}</strong> plan{% else %}This plan{% endif %}
+        hasn't been fully configured yet.
+    </p>
+    <p class="text-gray-500 text-sm mb-8">
+        Please contact support — we'll get this sorted quickly.
+    </p>
+    {% else %}
+    <p class="text-gray-400 mb-2">
+        We couldn't find the plan you're looking for.
+    </p>
+    <p class="text-gray-500 text-sm mb-8">
+        It may have been removed or is not currently available. Please contact support for help.
+    </p>
+    {% endif %}
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="{% url 'dashboard_home' %}"
+           class="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 text-sm hover:bg-white/5 transition">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

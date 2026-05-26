@@ -2,14 +2,15 @@ from django.contrib import admin
 from .models import (
     Tenant, TenantConfig, TenantMembership, TenantDomain,
     Course, CourseResource, Module, Lesson, UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
-    Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse
+    Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse,
+    PricingTier, TenantNotification, TenantNotificationDelivery,
 )
 
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
-    list_display = ['name', 'slug', 'custom_domain', 'is_active', 'created_at']
-    list_filter = ['is_active', 'created_at']
+    list_display = ['name', 'slug', 'custom_domain', 'plan_code', 'billing_status', 'setup_fee_paid', 'is_active', 'created_at']
+    list_filter = ['is_active', 'setup_fee_paid', 'billing_status', 'plan_code', 'created_at']
     search_fields = ['name', 'slug', 'custom_domain']
 
 
@@ -206,3 +207,27 @@ class LearningPathCourseAdmin(admin.ModelAdmin):
     list_filter = ['learning_path', 'is_required']
     search_fields = ['learning_path__name', 'course__name']
     ordering = ['learning_path', 'order']
+
+
+# ========== PRICING & NOTIFICATIONS ==========
+
+@admin.register(PricingTier)
+class PricingTierAdmin(admin.ModelAdmin):
+    list_display = ['name', 'code', 'setup_fee_cents', 'monthly_cents', 'yearly_cents', 'is_active', 'stripe_synced_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'code']
+    prepopulated_fields = {'code': ('name',)}
+
+
+class TenantNotificationDeliveryInline(admin.TabularInline):
+    model = TenantNotificationDelivery
+    extra = 0
+    readonly_fields = ['tenant', 'email_sent_at', 'seen_at', 'clicked_at', 'email_error']
+
+
+@admin.register(TenantNotification)
+class TenantNotificationAdmin(admin.ModelAdmin):
+    list_display = ['title', 'cta_type', 'send_email', 'show_modal', 'created_by', 'created_at']
+    list_filter = ['cta_type', 'send_email', 'show_modal']
+    search_fields = ['title', 'body']
+    inlines = [TenantNotificationDeliveryInline]

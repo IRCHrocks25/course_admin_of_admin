@@ -159,6 +159,14 @@
                     <i class="fas fa-building w-5"></i>
                     <span>Tenants</span>
                 </a>
+                <a href="{% url 'superadmin_pricing' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'pricing' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
+                    <i class="fas fa-tags w-5"></i>
+                    <span>Pricing</span>
+                </a>
+                <a href="{% url 'superadmin_notifications' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'notification' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
+                    <i class="fas fa-bell w-5"></i>
+                    <span>Notifications</span>
+                </a>
                 {% else %}
                 <div class="px-4 py-3 rounded-lg border border-cyan-electric/15 bg-cyan-electric/5 text-xs text-cyan-electric/90">
                     Superadmin cross-tenant pages are hidden while tenant view is active.
@@ -431,6 +439,109 @@
     })();
     </script>
     {% endif %}
+
+    <!-- Superadmin Notification Modal (tenant admin dashboard) -->
+    {% if pending_notification %}
+    <style>
+    @keyframes nfFadeIn2 { from { opacity:0 } to { opacity:1 } }
+    @keyframes nfSlideUp2 { from { opacity:0; transform:translateY(24px) scale(.96) } to { opacity:1; transform:translateY(0) scale(1) } }
+    .nf-card2 {
+        background: rgba(16,18,36,.82);
+        backdrop-filter: blur(32px) saturate(1.4);
+        -webkit-backdrop-filter: blur(32px) saturate(1.4);
+        border: 1px solid rgba(0,240,255,.12);
+        box-shadow: 0 0 0 1px rgba(0,240,255,.06), 0 24px 80px rgba(0,0,0,.55), 0 0 60px -10px rgba(0,240,255,.10), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .nf-glow-top2 { background: linear-gradient(90deg, transparent, #00f0ff 20%, #a855f7 50%, #00f0ff 80%, transparent); }
+    .nf-icon2 { background: linear-gradient(135deg, rgba(0,240,255,.15), rgba(168,85,247,.18)); border: 1px solid rgba(0,240,255,.15); box-shadow: 0 0 20px rgba(0,240,255,.08); }
+    .nf-body2 p { margin-bottom: .85rem; color: rgba(210,215,230,.8); }
+    .nf-body2 p:last-child { margin-bottom: 0; }
+    .nf-body2 ul, .nf-body2 ol { margin: .5rem 0 .85rem 1.25rem; color: rgba(210,215,230,.8); }
+    .nf-body2 li { margin-bottom: .3rem; }
+    .nf-body2 strong { color: #e8eaff; font-weight: 600; }
+    .nf-cta2 { background:linear-gradient(135deg,#00f0ff,#a855f7); color:#0a0e1a; font-weight:700; box-shadow:0 4px 20px rgba(0,240,255,.25),0 0 40px rgba(168,85,247,.12); transition:all .2s ease; }
+    .nf-cta2:hover { box-shadow:0 6px 28px rgba(0,240,255,.35),0 0 50px rgba(168,85,247,.18); transform:translateY(-1px); }
+    .nf-cta2:active { transform:translateY(0) scale(.98); }
+    .nf-sec2 { border:1px solid rgba(168,85,247,.35); color:rgba(200,190,255,.85); box-shadow:0 0 16px rgba(168,85,247,.06); transition:all .2s ease; }
+    .nf-sec2:hover { border-color:rgba(168,85,247,.55); color:#fff; box-shadow:0 0 24px rgba(168,85,247,.12); }
+    .nf-ghost2 { border:1px solid rgba(255,255,255,.08); color:rgba(200,200,210,.7); transition:all .2s ease; }
+    .nf-ghost2:hover { border-color:rgba(255,255,255,.18); color:#fff; }
+    </style>
+    <div id="notification-modal-overlay" class="fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(6,8,20,.7); backdrop-filter:blur(6px); animation:nfFadeIn2 .3s ease">
+        <div class="w-full max-w-[480px] nf-card2 rounded-2xl overflow-hidden" style="animation:nfSlideUp2 .35s ease">
+            <div class="nf-glow-top2 h-[3px] w-full opacity-80"></div>
+            <div class="px-7 pt-7 pb-2 sm:px-9 sm:pt-9">
+                <div class="flex items-start gap-4">
+                    <div class="w-14 h-14 rounded-2xl nf-icon2 flex items-center justify-center flex-shrink-0">
+                        {% if pending_notification.notification.cta_type == 'setup_fee' %}
+                        <i class="fas fa-file-invoice-dollar text-xl" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                        {% elif pending_notification.notification.cta_type == 'upgrade' %}
+                        <i class="fas fa-arrow-up-right-dots text-xl" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                        {% else %}
+                        <i class="fas fa-bell text-xl" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                        {% endif %}
+                    </div>
+                    <h3 class="flex-1 text-xl font-bold leading-snug pt-1" style="color:#e8eaff">{{ pending_notification.notification.title }}</h3>
+                    <button onclick="dismissNotification(false)" class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style="color:rgba(160,165,185,.5)" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(160,165,185,.5)'">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="px-7 sm:px-9">
+                <div class="my-5 border-t" style="border-color:rgba(255,255,255,.06)"></div>
+                <div class="text-sm leading-relaxed nf-body2">
+                    {{ pending_notification.notification.body|safe }}
+                </div>
+            </div>
+            <div class="px-7 pb-7 pt-5 sm:px-9 sm:pb-9">
+                <div class="flex flex-wrap gap-3">
+                    {% if pending_notification.notification.cta_type != 'none' and pending_notification.notification.cta_label %}
+                    <button onclick="dismissNotification(true)" class="nf-cta2 px-7 py-3 rounded-full text-sm">
+                        {{ pending_notification.notification.cta_label }}
+                    </button>
+                    <button onclick="dismissNotification(false)" class="nf-sec2 px-6 py-3 rounded-full text-sm">
+                        Maybe later
+                    </button>
+                    {% else %}
+                    <button onclick="dismissNotification(false)" class="nf-ghost2 px-7 py-3 rounded-full text-sm">
+                        Got it
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    function dismissNotification(clicked) {
+        var overlay = document.getElementById('notification-modal-overlay');
+        overlay.style.display = 'none';
+        var csrfToken = '{{ csrf_token }}';
+        fetch('{% url "dismiss_notification" pending_notification.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({clicked: clicked}),
+        });
+        {% if pending_notification.notification.cta_type == 'upgrade' and pending_notification.notification.cta_tier %}
+        if (clicked) {
+            window.location.href = '/upgrade/{{ pending_notification.notification.cta_tier.code }}/?delivery_id={{ pending_notification.id }}';
+        }
+        {% elif pending_notification.notification.cta_type == 'setup_fee' and pending_notification.notification.cta_tier %}
+        if (clicked) {
+            window.location.href = '/setup-fee/{{ pending_notification.notification.cta_tier.code }}/?delivery_id={{ pending_notification.id }}';
+        }
+        {% elif pending_notification.notification.cta_type == 'url' and pending_notification.notification.cta_custom_url %}
+        if (clicked) {
+            window.location.href = '{{ pending_notification.notification.cta_custom_url }}';
+        }
+        {% endif %}
+    }
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Already Subscribed{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto text-center py-16">
+    <div class="w-20 h-20 rounded-full bg-cyan-electric/20 flex items-center justify-center mx-auto mb-6">
+        <i class="fas fa-check-circle text-3xl text-cyan-electric"></i>
+    </div>
+    <h1 class="text-3xl font-bold mb-4">You're Already Subscribed</h1>
+    <p class="text-gray-400 mb-2">
+        Your academy <strong class="text-white">{{ tenant.name }}</strong> is on an active plan
+        {% if tenant.plan_code %}(<span class="text-cyan-electric">{{ tenant.plan_code }}</span>){% endif %}.
+    </p>
+    <p class="text-gray-500 text-sm mb-8">
+        Plan changes and upgrades are coming soon. For now, please contact support if you'd like to switch plans.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="{% url 'dashboard_billing' %}"
+           class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] font-semibold text-sm hover:opacity-90 transition">
+            View Billing
+        </a>
+        <a href="{% url 'dashboard_home' %}"
+           class="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 text-sm hover:bg-white/5 transition">
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

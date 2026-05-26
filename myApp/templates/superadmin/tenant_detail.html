@@ -10,13 +10,30 @@
     <a href="{% url 'student_dashboard' %}?tenant={{ tenant.slug }}" class="px-4 py-2 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 hover:bg-indigo-500/30 transition">View Course Dashboard</a>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Courses</div><div class="text-2xl font-bold">{{ stats.courses }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Lessons</div><div class="text-2xl font-bold">{{ stats.lessons }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Enrollments</div><div class="text-2xl font-bold">{{ stats.enrollments }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Active Accesses</div><div class="text-2xl font-bold">{{ stats.active_accesses }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Certifications</div><div class="text-2xl font-bold">{{ stats.certifications }}</div></div>
     <div class="p-4 rounded-xl bg-white/5 border border-white/10"><div class="text-xs text-gray-400">Bundles</div><div class="text-2xl font-bold">{{ stats.bundles }}</div></div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-xs text-gray-400">Setup Fee</div>
+        <div class="text-2xl font-bold">
+            {% if tenant.setup_fee_paid %}
+            <span class="text-green-400">Paid</span>
+            {% else %}
+            <span class="text-amber-400">Unpaid</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+        <div class="text-xs text-gray-400">Plan / Billing</div>
+        <div class="text-lg font-bold">{{ tenant.plan_code|default:"—" }}</div>
+        <div class="text-xs mt-0.5 {% if tenant.billing_status == 'active' %}text-green-400{% elif tenant.billing_status == 'past_due' %}text-amber-400{% elif tenant.billing_status == 'canceled' %}text-red-400{% else %}text-gray-400{% endif %}">
+            {{ tenant.get_billing_status_display }}
+        </div>
+    </div>
 </div>
 
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">

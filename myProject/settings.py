@@ -87,6 +87,8 @@ INSTALLED_APPS = [
     'myApp',
     'cloudinary',
     'cloudinary_storage',
+    'django_tasks',
+    'django_tasks_db',
 ]
 
 MIDDLEWARE = [
@@ -232,6 +234,18 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/my-dashboard/'
 LOGOUT_REDIRECT_URL = '/login/'
 
+
+# ─── Background task queue (django-tasks) ───
+TASKS = {
+    "default": {
+        "BACKEND": "django_tasks_db.DatabaseBackend",
+    },
+}
+
+# ─── Email (Resend) ───
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_BACKEND = "resend.django.EmailBackend"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "CourseForge <noreply@courseforge.katek-ai.com>")
 
 cache_backend = (os.getenv('CACHE_BACKEND', 'locmem') or 'locmem').strip().lower()
 

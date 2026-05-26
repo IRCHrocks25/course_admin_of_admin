@@ -1,0 +1,86 @@
+{% extends "dashboard/base.html" %}
+{% load pricing_tags %}
+
+{% block title %}Pricing Management{% endblock %}
+{% block page_title %}Pricing Management{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap gap-3">
+    <a href="{% url 'superadmin_home' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition">&larr; Super Admin</a>
+    <a href="{% url 'superadmin_pricing_add' %}" class="px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
+        <i class="fas fa-plus mr-1"></i> Add Tier
+    </a>
+    <form method="post" action="{% url 'superadmin_pricing_sync_all' %}" class="inline">
+        {% csrf_token %}
+        <button type="submit" class="px-4 py-2 rounded-lg bg-purple-accent/20 border border-purple-accent/40 text-purple-accent hover:bg-purple-accent/30 transition">
+            <i class="fas fa-sync mr-1"></i> Sync All to Stripe
+        </button>
+    </form>
+</div>
+
+<div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-white/5 text-gray-300">
+                <tr>
+                    <th class="text-left px-4 py-3">Tier</th>
+                    <th class="text-left px-4 py-3">Code</th>
+                    <th class="text-right px-4 py-3">Setup Fee</th>
+                    <th class="text-right px-4 py-3">Monthly</th>
+                    <th class="text-right px-4 py-3">Yearly</th>
+                    <th class="text-center px-4 py-3">Setup?</th>
+                    <th class="text-center px-4 py-3">Active</th>
+                    <th class="text-center px-4 py-3">Stripe Sync</th>
+                    <th class="text-left px-4 py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tier in tiers %}
+                <tr class="border-t border-white/10">
+                    <td class="px-4 py-3 font-medium">{{ tier.name }}</td>
+                    <td class="px-4 py-3 text-gray-400">{{ tier.code }}</td>
+                    <td class="px-4 py-3 text-right">{{ tier.setup_fee_cents|cents_to_dollars }}</td>
+                    <td class="px-4 py-3 text-right">{{ tier.monthly_cents|cents_to_dollars }}/mo</td>
+                    <td class="px-4 py-3 text-right">{{ tier.yearly_cents|cents_to_dollars }}/yr</td>
+                    <td class="px-4 py-3 text-center">
+                        {% if tier.charge_setup_fee %}<i class="fas fa-check text-green-400"></i>{% else %}<i class="fas fa-minus text-gray-600"></i>{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if tier.is_active %}
+                        <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Active</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if tier.needs_sync %}
+                        <span class="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs">Needs sync</span>
+                        {% else %}
+                        <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Synced</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            <a href="{% url 'superadmin_pricing_edit' tier.id %}" class="text-cyan-electric hover:underline">Edit</a>
+                            <form method="post" action="{% url 'superadmin_pricing_sync' tier.id %}" class="inline" data-no-loader>
+                                {% csrf_token %}
+                                <button type="submit" class="text-purple-accent hover:underline">Sync</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td class="px-4 py-6 text-gray-400" colspan="9">No pricing tiers found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if tiers %}
+<div class="mt-4 text-xs text-gray-500">
+    Setup fee is one-time. Monthly and yearly are recurring Stripe subscriptions.
+    Syncing creates new Stripe Prices and archives old ones (Prices are immutable in Stripe).
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,484 @@
+{% extends "dashboard/base.html" %}
+{% load pricing_tags %}
+
+{% block title %}Create Notification{% endblock %}
+{% block page_title %}Create Notification{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'superadmin_notifications' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition">&larr; Back to Notifications</a>
+</div>
+
+<!-- ========== TEMPLATE PICKER ========== -->
+<div class="mb-6">
+    <label class="block text-xs uppercase tracking-wider text-gray-500 mb-2 font-semibold">Quick Templates</label>
+    <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="applyTemplate('setup_fee_reminder')"
+                class="px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs hover:bg-amber-500/20 transition">
+            <i class="fas fa-file-invoice-dollar mr-1"></i> Setup Fee Reminder
+        </button>
+        <button type="button" onclick="applyTemplate('upgrade_promo')"
+                class="px-3 py-1.5 rounded-lg bg-cyan-electric/10 border border-cyan-electric/30 text-cyan-electric text-xs hover:bg-cyan-electric/20 transition">
+            <i class="fas fa-arrow-up-right-dots mr-1"></i> Upgrade Promo
+        </button>
+        <button type="button" onclick="applyTemplate('new_feature')"
+                class="px-3 py-1.5 rounded-lg bg-purple-accent/10 border border-purple-accent/30 text-purple-accent text-xs hover:bg-purple-accent/20 transition">
+            <i class="fas fa-sparkles mr-1"></i> New Feature
+        </button>
+        <button type="button" onclick="applyTemplate('maintenance')"
+                class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-xs hover:bg-white/10 transition">
+            <i class="fas fa-wrench mr-1"></i> Maintenance Notice
+        </button>
+        <button type="button" onclick="applyTemplate('welcome')"
+                class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs hover:bg-emerald-500/20 transition">
+            <i class="fas fa-hand-wave mr-1"></i> Welcome / Onboarding
+        </button>
+    </div>
+</div>
+
+<div class="flex flex-col xl:flex-row gap-6">
+
+    <!-- ========== LEFT: FORM ========== -->
+    <form method="post" class="flex-1 min-w-0 max-w-3xl" id="notif-form">
+        {% csrf_token %}
+        <div class="rounded-xl bg-white/5 border border-white/10 p-6 space-y-5">
+
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Title</label>
+                <input type="text" name="title" id="field-title" required maxlength="200"
+                       class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none"
+                       placeholder="e.g. Upgrade to Premium — unlock advanced features">
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-sm font-medium text-gray-300">Body (HTML supported)</label>
+                    <button type="button" id="ai-improve-btn" onclick="aiImprove()"
+                            class="px-3 py-1 rounded-lg bg-purple-accent/15 border border-purple-accent/30 text-purple-accent text-xs hover:bg-purple-accent/25 transition flex items-center gap-1.5">
+                        <i class="fas fa-wand-magic-sparkles"></i> Improve with AI
+                    </button>
+                </div>
+                <textarea name="body" id="field-body" rows="6" required
+                          class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none font-mono text-sm"
+                          placeholder="<p>We've just launched Premium tier features...</p>"></textarea>
+                <div id="ai-status" class="hidden mt-1 text-xs text-purple-accent flex items-center gap-1.5">
+                    <i class="fas fa-spinner animate-spin"></i> <span>Improving with AI...</span>
+                </div>
+            </div>
+
+            <!-- CTA Configuration -->
+            <div class="border-t border-white/10 pt-5">
+                <label class="block text-sm font-medium text-gray-300 mb-3">Call to Action</label>
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="cta_type" value="none" checked onchange="toggleCTA(); updatePreview();"> No CTA
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="cta_type" value="upgrade" onchange="toggleCTA(); updatePreview();"> Upgrade to tier
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="cta_type" value="setup_fee" onchange="toggleCTA(); updatePreview();"> Pay setup fee
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="cta_type" value="url" onchange="toggleCTA(); updatePreview();"> Custom URL
+                    </label>
+                </div>
+
+                <div id="cta-upgrade" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Tier</label>
+                        <select name="cta_tier" class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none">
+                            <option value="">Select tier...</option>
+                            {% for t in tiers %}
+                            <option value="{{ t.id }}">{{ t.name }} ({{ t.monthly_cents|cents_to_dollars }}/mo or {{ t.yearly_cents|cents_to_dollars }}/yr)</option>
+                            {% endfor %}
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">The tenant will choose monthly or yearly on the upgrade page.</p>
+                    </div>
+                </div>
+
+                <div id="cta-setup-fee" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Tier (for setup fee amount)</label>
+                        <select name="cta_setup_fee_tier" class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none">
+                            <option value="">Select tier...</option>
+                            {% for t in tiers %}
+                            <option value="{{ t.id }}">{{ t.name }} — {{ t.setup_fee_cents|cents_to_dollars }} setup fee</option>
+                            {% endfor %}
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">One-time payment checkout for the setup fee only.</p>
+                    </div>
+                </div>
+
+                <div id="cta-url" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">URL</label>
+                        <input type="url" name="cta_custom_url"
+                               class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none"
+                               placeholder="https://...">
+                    </div>
+                </div>
+
+                <div id="cta-label-row" class="hidden mt-3">
+                    <label class="block text-xs text-gray-400 mb-1">Button label</label>
+                    <input type="text" name="cta_label" id="field-cta-label" maxlength="100"
+                           class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none"
+                           placeholder="e.g. Upgrade Now">
+                </div>
+            </div>
+
+            <!-- Delivery Options -->
+            <div class="border-t border-white/10 pt-5 flex flex-wrap gap-6">
+                <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                    <input type="checkbox" name="send_email" checked
+                           class="rounded bg-[#0a0e27] border-white/20 text-cyan-electric focus:ring-cyan-electric/30">
+                    Send email to tenant admins
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                    <input type="checkbox" name="show_modal" checked
+                           class="rounded bg-[#0a0e27] border-white/20 text-cyan-electric focus:ring-cyan-electric/30">
+                    Show modal on next visit
+                </label>
+            </div>
+
+            <!-- Recipient Selection -->
+            <div class="border-t border-white/10 pt-5">
+                <label class="block text-sm font-medium text-gray-300 mb-3">Recipients</label>
+
+                <div class="flex flex-wrap gap-4 mb-4">
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="recipient_mode" value="all" checked onchange="toggleRecipients()"> All tenants
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="recipient_mode" value="single" onchange="toggleRecipients()"> Single tenant
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="recipient_mode" value="multi" onchange="toggleRecipients()"> Multi-select
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="recipient_mode" value="plan" onchange="toggleRecipients()"> Filter by plan
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="recipient_mode" value="unpaid_setup" onchange="toggleRecipients()"> Unpaid setup fee
+                    </label>
+                </div>
+
+                <div id="recipient-single" class="hidden">
+                    <select name="single_tenant" class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none">
+                        <option value="">Select tenant...</option>
+                        {% for t in tenants %}
+                        <option value="{{ t.id }}">{{ t.name }} ({{ t.slug }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="recipient-multi" class="hidden max-h-64 overflow-y-auto rounded-lg border border-white/10 p-3 space-y-1">
+                    {% for t in tenants %}
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer hover:bg-white/5 px-2 py-1 rounded">
+                        <input type="checkbox" name="tenant_ids" value="{{ t.id }}"
+                               class="rounded bg-[#0a0e27] border-white/20 text-cyan-electric focus:ring-cyan-electric/30">
+                        {{ t.name }} <span class="text-gray-500 text-xs">({{ t.plan_code|default:"starter" }})</span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <div id="recipient-plan" class="hidden">
+                    <select name="filter_plan" class="w-full bg-[#0a0e27] border border-white/20 rounded-lg px-4 py-2 text-white focus:border-cyan-electric/50 focus:outline-none">
+                        <option value="">Select plan code...</option>
+                        {% for code in plan_codes %}
+                        <option value="{{ code }}">{{ code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-6 flex gap-3">
+            <button type="submit"
+                    class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] font-semibold hover:opacity-90 transition">
+                <i class="fas fa-paper-plane mr-1"></i> Send Notification
+            </button>
+            <a href="{% url 'superadmin_notifications' %}"
+               class="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 hover:bg-white/5 transition">
+                Cancel
+            </a>
+        </div>
+    </form>
+
+    <!-- ========== RIGHT: LIVE PREVIEW ========== -->
+    <div class="xl:w-[420px] flex-shrink-0">
+        <div class="xl:sticky xl:top-24 space-y-6">
+
+            <!-- Preview tab switcher -->
+            <div class="flex gap-1 bg-white/5 rounded-lg p-1">
+                <button type="button" onclick="switchPreviewTab('modal')" id="tab-modal"
+                        class="flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition bg-cyan-electric/20 text-cyan-electric">
+                    <i class="fas fa-window-maximize mr-1"></i> Modal Preview
+                </button>
+                <button type="button" onclick="switchPreviewTab('email')" id="tab-email"
+                        class="flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition text-gray-400 hover:text-white">
+                    <i class="fas fa-envelope mr-1"></i> Email Preview
+                </button>
+            </div>
+
+            <!-- Modal preview -->
+            <div id="preview-modal">
+                <style>
+                .pv-card { background:rgba(16,18,36,.82); backdrop-filter:blur(32px) saturate(1.4); border:1px solid rgba(0,240,255,.12); box-shadow:0 0 0 1px rgba(0,240,255,.06),0 24px 80px rgba(0,0,0,.55),0 0 60px -10px rgba(0,240,255,.10),inset 0 1px 0 rgba(255,255,255,.04); }
+                .pv-glow { background:linear-gradient(90deg,transparent,#00f0ff 20%,#a855f7 50%,#00f0ff 80%,transparent); }
+                .pv-icon { background:linear-gradient(135deg,rgba(0,240,255,.15),rgba(168,85,247,.18)); border:1px solid rgba(0,240,255,.15); box-shadow:0 0 20px rgba(0,240,255,.08); }
+                .pv-body p { margin-bottom:.75rem; color:rgba(210,215,230,.8); }
+                .pv-body p:last-child { margin-bottom:0; }
+                .pv-body ul,.pv-body ol { margin:.5rem 0 .75rem 1.25rem; color:rgba(210,215,230,.8); }
+                .pv-body li { margin-bottom:.25rem; }
+                .pv-body strong { color:#e8eaff; font-weight:600; }
+                </style>
+                <div class="pv-card rounded-2xl overflow-hidden">
+                    <div class="pv-glow h-[3px] w-full opacity-80"></div>
+                    <div class="px-6 pt-6 pb-1">
+                        <div class="flex items-start gap-3">
+                            <div class="w-12 h-12 rounded-2xl pv-icon flex items-center justify-center flex-shrink-0" id="preview-modal-icon">
+                                <i class="fas fa-bell text-lg" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>
+                            </div>
+                            <h3 class="flex-1 text-lg font-bold leading-snug pt-0.5" style="color:#e8eaff" id="preview-modal-title">Notification Title</h3>
+                            <span style="color:rgba(160,165,185,.4)"><i class="fas fa-times text-sm"></i></span>
+                        </div>
+                    </div>
+                    <div class="px-6">
+                        <div class="my-4 border-t" style="border-color:rgba(255,255,255,.06)"></div>
+                        <div class="text-sm leading-relaxed pv-body" id="preview-modal-body">
+                            <p style="color:rgba(160,165,185,.5); font-style:italic;">Your message will appear here...</p>
+                        </div>
+                    </div>
+                    <div class="px-6 pb-6 pt-4">
+                        <div id="preview-modal-cta" class="flex flex-wrap gap-2.5">
+                            <span class="px-6 py-2.5 rounded-full text-sm" style="border:1px solid rgba(255,255,255,.08); color:rgba(200,200,210,.7);">Got it</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email preview -->
+            <div id="preview-email" class="hidden">
+                <div class="rounded-xl overflow-hidden shadow-lg" style="background:#f4f4f5; padding: 14px;">
+                    <div style="background:#ffffff; border-radius:12px; overflow:hidden; max-width:100%;">
+                        <div style="background:linear-gradient(135deg,#00f0ff,#a855f7); padding:20px 24px;">
+                            <div class="text-white font-bold text-base" id="preview-email-title">Notification Title</div>
+                        </div>
+                        <div style="padding:24px;">
+                            <p style="color:#374151; font-size:14px; margin-bottom:14px;">Hi there,</p>
+                            <div style="color:#374151; font-size:14px; line-height:1.7;" id="preview-email-body">
+                                <p style="color:#9ca3af; font-style:italic;">Your message will appear here...</p>
+                            </div>
+                            <div id="preview-email-cta" class="mt-5"></div>
+                            <hr style="border:none; border-top:1px solid #e5e7eb; margin:20px 0 12px;">
+                            <p style="color:#9ca3af; font-size:11px; margin:0;">Sent from CourseForge platform.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+var TEMPLATES = {
+    setup_fee_reminder: {
+        title: 'Action Required — Complete Your Setup Fee',
+        body: '<p>Hi there,</p>\n<p>We noticed your one-time setup fee is still outstanding. This fee covers your initial platform configuration, custom branding setup, and onboarding support.</p>\n<p>Please complete your payment at your earliest convenience to ensure uninterrupted access to all platform features.</p>',
+        cta_type: 'setup_fee',
+        cta_label: 'Pay Setup Fee Now',
+        recipient_mode: 'unpaid_setup',
+    },
+    upgrade_promo: {
+        title: 'Unlock More Power — Upgrade Your Plan',
+        body: '<p>You\'ve been doing great with your current plan! Ready to take it further?</p>\n<p>Upgrading gives you access to:</p>\n<ul>\n<li><strong>Advanced analytics</strong> and reporting</li>\n<li><strong>Priority support</strong> and onboarding</li>\n<li><strong>Premium integrations</strong> and custom branding</li>\n</ul>\n<p>Choose the plan that fits your growth.</p>',
+        cta_type: 'upgrade',
+        cta_label: 'See Upgrade Options',
+        recipient_mode: 'all',
+    },
+    new_feature: {
+        title: 'New Feature Available',
+        body: '<p>We\'ve just shipped something exciting!</p>\n<p><strong>[Feature Name]</strong> is now live on your academy. Here\'s what it does:</p>\n<ul>\n<li>Benefit one</li>\n<li>Benefit two</li>\n<li>Benefit three</li>\n</ul>\n<p>Check it out in your dashboard.</p>',
+        cta_type: 'none',
+        cta_label: '',
+        recipient_mode: 'all',
+    },
+    maintenance: {
+        title: 'Scheduled Maintenance Notice',
+        body: '<p>We\'ll be performing scheduled maintenance on <strong>[Date, Time]</strong>.</p>\n<p>During this window (approximately [duration]), the platform may be briefly unavailable. Your data is safe — no action needed on your end.</p>\n<p>Thank you for your patience.</p>',
+        cta_type: 'none',
+        cta_label: '',
+        recipient_mode: 'all',
+    },
+    welcome: {
+        title: 'Welcome to CourseForge!',
+        body: '<p>Welcome aboard! We\'re thrilled to have you.</p>\n<p>Here are a few things to get you started:</p>\n<ul>\n<li><strong>Create your first course</strong> from the dashboard</li>\n<li><strong>Customize your branding</strong> to match your brand</li>\n<li><strong>Invite your students</strong> and start teaching</li>\n</ul>\n<p>If you need help, we\'re just a message away.</p>',
+        cta_type: 'url',
+        cta_label: 'Go to Dashboard',
+        recipient_mode: 'all',
+    },
+};
+
+function applyTemplate(key) {
+    var t = TEMPLATES[key];
+    if (!t) return;
+
+    document.getElementById('field-title').value = t.title;
+    document.getElementById('field-body').value = t.body;
+    document.getElementById('field-cta-label').value = t.cta_label;
+
+    var radios = document.querySelectorAll('input[name="cta_type"]');
+    radios.forEach(function(r) { r.checked = r.value === t.cta_type; });
+    toggleCTA();
+
+    if (t.recipient_mode) {
+        var rRadios = document.querySelectorAll('input[name="recipient_mode"]');
+        rRadios.forEach(function(r) { r.checked = r.value === t.recipient_mode; });
+        toggleRecipients();
+    }
+
+    updatePreview();
+}
+
+function toggleCTA() {
+    var val = document.querySelector('input[name="cta_type"]:checked').value;
+    document.getElementById('cta-upgrade').classList.toggle('hidden', val !== 'upgrade');
+    document.getElementById('cta-setup-fee').classList.toggle('hidden', val !== 'setup_fee');
+    document.getElementById('cta-url').classList.toggle('hidden', val !== 'url');
+    document.getElementById('cta-label-row').classList.toggle('hidden', val === 'none');
+}
+
+function toggleRecipients() {
+    var val = document.querySelector('input[name="recipient_mode"]:checked').value;
+    document.getElementById('recipient-single').classList.toggle('hidden', val !== 'single');
+    document.getElementById('recipient-multi').classList.toggle('hidden', val !== 'multi');
+    document.getElementById('recipient-plan').classList.toggle('hidden', val !== 'plan');
+}
+
+function switchPreviewTab(tab) {
+    var isModal = tab === 'modal';
+    document.getElementById('preview-modal').classList.toggle('hidden', !isModal);
+    document.getElementById('preview-email').classList.toggle('hidden', isModal);
+    var tabModal = document.getElementById('tab-modal');
+    var tabEmail = document.getElementById('tab-email');
+    tabModal.className = 'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition ' +
+        (isModal ? 'bg-cyan-electric/20 text-cyan-electric' : 'text-gray-400 hover:text-white');
+    tabEmail.className = 'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition ' +
+        (!isModal ? 'bg-cyan-electric/20 text-cyan-electric' : 'text-gray-400 hover:text-white');
+}
+
+function escapeHtml(text) {
+    var d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+function updatePreview() {
+    var title = document.getElementById('field-title').value.trim() || 'Notification Title';
+    var bodyRaw = document.getElementById('field-body').value.trim();
+    var ctaLabel = (document.getElementById('field-cta-label').value || '').trim();
+    var ctaType = document.querySelector('input[name="cta_type"]:checked').value;
+    var hasCta = ctaType !== 'none' && ctaLabel;
+
+    var bodyHtml = bodyRaw || '<p style="color:#9ca3af; font-style:italic;">Your message will appear here...</p>';
+    var isPlainText = !bodyRaw.includes('<');
+    if (isPlainText && bodyRaw) {
+        bodyHtml = '<p>' + escapeHtml(bodyRaw).replace(/\n/g, '<br>') + '</p>';
+    }
+
+    // Icon based on CTA type
+    var iconMap = {setup_fee: 'fa-file-invoice-dollar', upgrade: 'fa-arrow-up-right-dots', url: 'fa-link', none: 'fa-bell'};
+    var iconEl = document.getElementById('preview-modal-icon');
+    iconEl.innerHTML = '<i class="fas ' + (iconMap[ctaType] || 'fa-bell') + ' text-lg" style="background:linear-gradient(135deg,#00f0ff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent"></i>';
+
+    document.getElementById('preview-modal-title').textContent = title;
+    document.getElementById('preview-modal-body').innerHTML = bodyHtml;
+
+    var modalCta = document.getElementById('preview-modal-cta');
+    if (hasCta) {
+        modalCta.innerHTML =
+            '<span class="px-6 py-2.5 rounded-full text-sm" style="background:linear-gradient(135deg,#00f0ff,#a855f7); color:#0a0e1a; font-weight:700; box-shadow:0 4px 20px rgba(0,240,255,.25);">' +
+            escapeHtml(ctaLabel) + '</span>' +
+            '<span class="px-5 py-2.5 rounded-full text-sm" style="border:1px solid rgba(168,85,247,.35); color:rgba(200,190,255,.85);">Maybe later</span>';
+    } else {
+        modalCta.innerHTML = '<span class="px-6 py-2.5 rounded-full text-sm" style="border:1px solid rgba(255,255,255,.08); color:rgba(200,200,210,.7);">Got it</span>';
+    }
+
+    document.getElementById('preview-email-title').textContent = title;
+    document.getElementById('preview-email-body').innerHTML = bodyHtml;
+
+    var emailCta = document.getElementById('preview-email-cta');
+    if (hasCta) {
+        emailCta.innerHTML =
+            '<span style="display:inline-block; padding:11px 26px; border-radius:10px; background:linear-gradient(135deg,#00f0ff,#a855f7); color:#0a0e27; font-size:14px; font-weight:700;">' +
+            escapeHtml(ctaLabel) + '</span>';
+    } else {
+        emailCta.innerHTML = '';
+    }
+}
+
+function aiImprove() {
+    var title = document.getElementById('field-title').value.trim();
+    var body = document.getElementById('field-body').value.trim();
+    if (!title && !body) {
+        alert('Add a title or body first, then improve with AI.');
+        return;
+    }
+
+    var btn = document.getElementById('ai-improve-btn');
+    var status = document.getElementById('ai-status');
+    btn.disabled = true;
+    btn.classList.add('opacity-50');
+    status.classList.remove('hidden');
+
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch('{% url "superadmin_notification_ai_improve" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({title: title, body: body}),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('field-title').value = data.title;
+            document.getElementById('field-body').value = data.body;
+            updatePreview();
+            status.querySelector('span').textContent = 'Done!';
+            status.querySelector('i').className = 'fas fa-check';
+            setTimeout(function() { status.classList.add('hidden'); }, 2000);
+        } else {
+            status.querySelector('span').textContent = data.error || 'Failed';
+            status.querySelector('i').className = 'fas fa-exclamation-triangle';
+            setTimeout(function() { status.classList.add('hidden'); }, 3000);
+        }
+    })
+    .catch(function() {
+        status.querySelector('span').textContent = 'Network error';
+        status.querySelector('i').className = 'fas fa-exclamation-triangle';
+        setTimeout(function() { status.classList.add('hidden'); }, 3000);
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var fields = ['field-title', 'field-body', 'field-cta-label'];
+    fields.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', updatePreview);
+        }
+    });
+    updatePreview();
+});
+</script>
+{% endblock %}

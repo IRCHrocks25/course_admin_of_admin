@@ -49,6 +49,8 @@ from .models import (
     Bundle,
     BundlePurchase,
     StripeEventLog,
+    PricingTier,
+    TenantNotificationDelivery,
 )
 from django.db.models import Avg, Count, Q
 from django.db import models
@@ -925,7 +927,13 @@ def stripe_webhook(request):
             tenant_id = metadata.get('tenant_id')
             tenant = Tenant.objects.filter(id=tenant_id).first() if tenant_id else None
 
-            if mode in ('subscription', 'payment') and tenant and payment_flow != 'bundle_checkout':
+            if payment_flow == 'tier_upgrade' and tenant:
+                _activate_tier_upgrade(session)
+
+            elif payment_flow == 'setup_fee' and tenant:
+                _activate_setup_fee_payment(session)
+
+            elif mode in ('subscription', 'payment') and tenant and payment_flow != 'bundle_checkout':
                 _activate_signup_from_checkout_session(session)
 
             if payment_flow == 'bundle_checkout':
@@ -3707,3 +3715,417 @@ def lesson_chatbot(request, lesson_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# ========== TENANT NOTIFICATION DISMISS ==========
+
+@login_required
+@require_http_methods(["POST"])
+def dismiss_notification(request, delivery_id):
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        return JsonResponse({'success': False, 'error': 'No tenant context'}, status=400)
+    delivery = get_object_or_404(
+        TenantNotificationDelivery,
+        id=delivery_id,
+        tenant=tenant,
+    )
+    delivery.seen_at = timezone.now()
+    body = {}
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        pass
+    if body.get('clicked'):
+        delivery.clicked_at = timezone.now()
+    delivery.save(update_fields=['seen_at', 'clicked_at'])
+    return JsonResponse({'success': True})
+
+
+# ========== UPGRADE CHECKOUT FLOW ==========
+
+@login_required
+def upgrade_choose_interval(request, tier_code):
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        messages.error(request, 'No tenant context found.')
+        return redirect('dashboard_home')
+
+    tier = PricingTier.objects.filter(code=tier_code, is_active=True).first()
+    if not tier:
+        return render(request, 'upgrade/unavailable.html', {'reason': 'tier_not_found'})
+
+    if tenant.billing_status == 'active' and tenant.stripe_subscription_id:
+        return render(request, 'upgrade/already_subscribed.html', {
+            'tenant': tenant, 'tier': tier,
+        })
+
+    if not tier.stripe_product_id:
+        return render(request, 'upgrade/unavailable.html', {
+            'reason': 'not_synced', 'tier': tier,
+        })
+
+    delivery_id = (request.GET.get('delivery_id') or '').strip()
+    if delivery_id:
+        delivery = TenantNotificationDelivery.objects.filter(
+            id=delivery_id, tenant=tenant,
+        ).first()
+        if delivery and not delivery.clicked_at:
+            delivery.clicked_at = timezone.now()
+            delivery.save(update_fields=['clicked_at'])
+
+    yearly_savings = (tier.monthly_cents * 12) - tier.yearly_cents
+
+    return render(request, 'upgrade/choose_interval.html', {
+        'tier': tier,
+        'tenant': tenant,
+        'delivery_id': delivery_id,
+        'yearly_savings': yearly_savings,
+    })
+
+
+@login_required
+def upgrade_checkout(request, tier_code, interval):
+    if interval not in ('monthly', 'yearly'):
+        messages.error(request, 'Invalid billing interval.')
+        return redirect('dashboard_home')
+
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        messages.error(request, 'No tenant context found.')
+        return redirect('dashboard_home')
+
+    tier = PricingTier.objects.filter(code=tier_code, is_active=True).first()
+    if not tier:
+        return render(request, 'upgrade/unavailable.html', {
+            'reason': 'tier_not_found',
+        })
+
+    if tenant.billing_status == 'active' and tenant.stripe_subscription_id:
+        return render(request, 'upgrade/already_subscribed.html', {
+            'tenant': tenant,
+            'tier': tier,
+        })
+
+    if not tier.stripe_product_id:
+        return render(request, 'upgrade/unavailable.html', {
+            'reason': 'not_synced',
+            'tier': tier,
+        })
+
+    if not _stripe_client_configured():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_home')
+
+    recurring_price_id = tier.stripe_price_monthly_id if interval == 'monthly' else tier.stripe_price_yearly_id
+    if not recurring_price_id:
+        return render(request, 'upgrade/unavailable.html', {
+            'reason': 'not_synced',
+            'tier': tier,
+        })
+
+    line_items = [{'price': recurring_price_id, 'quantity': 1}]
+    if tier.charge_setup_fee and tier.stripe_price_setup_id:
+        line_items.append({'price': tier.stripe_price_setup_id, 'quantity': 1})
+
+    delivery_id = (request.GET.get('delivery_id') or '').strip()
+    if delivery_id:
+        delivery = TenantNotificationDelivery.objects.filter(
+            id=delivery_id, tenant=tenant,
+        ).first()
+        if delivery and not delivery.clicked_at:
+            delivery.clicked_at = timezone.now()
+            delivery.save(update_fields=['clicked_at'])
+
+    success_url = f"{request.scheme}://{request.get_host()}/upgrade/success/?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = request.META.get('HTTP_REFERER') or f"{request.scheme}://{request.get_host()}/dashboard/"
+
+    metadata = {
+        'tenant_id': str(tenant.id),
+        'tier_code': tier.code,
+        'interval': interval,
+        'flow': 'tier_upgrade',
+    }
+    if delivery_id:
+        metadata['notification_delivery_id'] = delivery_id
+
+    session_kwargs = {
+        'mode': 'subscription',
+        'payment_method_types': ['card'],
+        'line_items': line_items,
+        'success_url': success_url,
+        'cancel_url': cancel_url,
+        'metadata': metadata,
+        'client_reference_id': str(tenant.id),
+    }
+    if tenant.stripe_customer_id:
+        session_kwargs['customer'] = tenant.stripe_customer_id
+    else:
+        admin_membership = TenantMembership.objects.filter(
+            tenant=tenant, role='tenant_admin', is_active=True,
+        ).select_related('user').first()
+        if admin_membership and admin_membership.user.email:
+            session_kwargs['customer_email'] = admin_membership.user.email
+
+    try:
+        session = stripe.checkout.Session.create(**session_kwargs)
+        response = redirect(session.url, permanent=False)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response
+    except Exception as exc:
+        messages.error(request, f'Unable to create checkout session: {exc}')
+        return redirect('dashboard_billing')
+
+
+@login_required
+@never_cache
+def upgrade_success(request):
+    if not _stripe_client_configured():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_home')
+
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing checkout session.')
+        return redirect('dashboard_home')
+
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        messages.error(request, 'No tenant context found.')
+        return redirect('dashboard_home')
+
+    try:
+        session = stripe.checkout.Session.retrieve(
+            session_id,
+            expand=['subscription', 'line_items'],
+        )
+    except Exception as exc:
+        messages.error(request, f'Unable to verify checkout: {exc}')
+        return redirect('dashboard_billing')
+
+    session_tenant_id = (session.metadata or {}).get('tenant_id') or session.client_reference_id
+    if str(tenant.id) != str(session_tenant_id):
+        messages.error(request, 'This checkout session does not belong to your account.')
+        return redirect('dashboard_home')
+
+    tier_code = (session.metadata or {}).get('tier_code', '')
+    tier = PricingTier.objects.filter(code=tier_code).first()
+    interval = (session.metadata or {}).get('interval', 'monthly')
+
+    subscription = session.subscription
+    next_billing_date = None
+    if subscription and hasattr(subscription, 'current_period_end'):
+        next_billing_date = datetime.fromtimestamp(
+            subscription.current_period_end, tz=timezone.utc,
+        )
+
+    setup_fee_paid = False
+    recurring_amount = 0
+    if session.line_items and session.line_items.data:
+        for item in session.line_items.data:
+            price = item.get('price', {}) if isinstance(item, dict) else getattr(item, 'price', None)
+            if price:
+                recurring_obj = getattr(price, 'recurring', None) or (price.get('recurring') if isinstance(price, dict) else None)
+                if not recurring_obj:
+                    setup_fee_paid = True
+                else:
+                    amount = getattr(price, 'unit_amount', 0) or (price.get('unit_amount', 0) if isinstance(price, dict) else 0)
+                    recurring_amount = amount
+
+    if tenant.billing_status != 'active' and session.payment_status == 'paid':
+        _activate_tier_upgrade(session)
+
+    return render(request, 'upgrade/success.html', {
+        'tier': tier,
+        'interval': interval,
+        'setup_fee_paid': setup_fee_paid,
+        'recurring_amount': recurring_amount,
+        'next_billing_date': next_billing_date,
+        'tenant': tenant,
+    })
+
+
+def _activate_tier_upgrade(session):
+    """Activate a tier upgrade from a completed checkout session.
+    Works with both Stripe API objects (attribute access) and webhook dicts."""
+    def _get(obj, key, default=''):
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    metadata = _get(session, 'metadata') or {}
+    if _get(metadata, 'flow') != 'tier_upgrade':
+        return None
+
+    tenant_id = _get(metadata, 'tenant_id') or _get(session, 'client_reference_id')
+    tenant = Tenant.objects.filter(id=tenant_id).first() if tenant_id else None
+    if not tenant:
+        return None
+
+    tier_code = _get(metadata, 'tier_code', '')
+    subscription_id = _get(session, 'subscription')
+    if hasattr(subscription_id, 'id'):
+        subscription_id = subscription_id.id
+    customer_id = _get(session, 'customer')
+    if hasattr(customer_id, 'id'):
+        customer_id = customer_id.id
+
+    update_fields = ['plan_code', 'billing_status', 'updated_at']
+    tenant.plan_code = tier_code
+    tenant.billing_status = 'active'
+    if subscription_id:
+        tenant.stripe_subscription_id = subscription_id
+        update_fields.append('stripe_subscription_id')
+    if customer_id and not tenant.stripe_customer_id:
+        tenant.stripe_customer_id = customer_id
+        update_fields.append('stripe_customer_id')
+    tenant.save(update_fields=update_fields)
+    return tenant
+
+
+# ========== SETUP FEE CHECKOUT FLOW ==========
+
+@login_required
+def setup_fee_checkout(request, tier_code):
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        messages.error(request, 'No tenant context found.')
+        return redirect('dashboard_home')
+
+    if tenant.setup_fee_paid:
+        messages.info(request, 'Your setup fee has already been paid.')
+        return redirect('dashboard_home')
+
+    tier = PricingTier.objects.filter(code=tier_code, is_active=True).first()
+    if not tier:
+        return render(request, 'upgrade/unavailable.html', {'reason': 'tier_not_found'})
+
+    if not tier.stripe_price_setup_id:
+        return render(request, 'upgrade/unavailable.html', {
+            'reason': 'not_synced', 'tier': tier,
+        })
+
+    if not _stripe_client_configured():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_home')
+
+    delivery_id = (request.GET.get('delivery_id') or '').strip()
+    if delivery_id:
+        delivery = TenantNotificationDelivery.objects.filter(
+            id=delivery_id, tenant=tenant,
+        ).first()
+        if delivery and not delivery.clicked_at:
+            delivery.clicked_at = timezone.now()
+            delivery.save(update_fields=['clicked_at'])
+
+    success_url = f"{request.scheme}://{request.get_host()}/setup-fee/success/?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = request.META.get('HTTP_REFERER') or f"{request.scheme}://{request.get_host()}/dashboard/"
+
+    metadata = {
+        'tenant_id': str(tenant.id),
+        'tier_code': tier.code,
+        'flow': 'setup_fee',
+    }
+    if delivery_id:
+        metadata['notification_delivery_id'] = delivery_id
+
+    session_kwargs = {
+        'mode': 'payment',
+        'payment_method_types': ['card'],
+        'line_items': [{'price': tier.stripe_price_setup_id, 'quantity': 1}],
+        'success_url': success_url,
+        'cancel_url': cancel_url,
+        'metadata': metadata,
+        'client_reference_id': str(tenant.id),
+    }
+    if tenant.stripe_customer_id:
+        session_kwargs['customer'] = tenant.stripe_customer_id
+    else:
+        admin_membership = TenantMembership.objects.filter(
+            tenant=tenant, role='tenant_admin', is_active=True,
+        ).select_related('user').first()
+        if admin_membership and admin_membership.user.email:
+            session_kwargs['customer_email'] = admin_membership.user.email
+
+    try:
+        session = stripe.checkout.Session.create(**session_kwargs)
+        response = redirect(session.url, permanent=False)
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response
+    except Exception as exc:
+        messages.error(request, f'Unable to create checkout session: {exc}')
+        return redirect('dashboard_billing')
+
+
+@login_required
+@never_cache
+def setup_fee_success(request):
+    if not _stripe_client_configured():
+        messages.error(request, 'Stripe is not configured.')
+        return redirect('dashboard_home')
+
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing checkout session.')
+        return redirect('dashboard_home')
+
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        messages.error(request, 'No tenant context found.')
+        return redirect('dashboard_home')
+
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as exc:
+        messages.error(request, f'Unable to verify checkout: {exc}')
+        return redirect('dashboard_billing')
+
+    session_tenant_id = (session.metadata or {}).get('tenant_id') or session.client_reference_id
+    if str(tenant.id) != str(session_tenant_id):
+        messages.error(request, 'This checkout session does not belong to your account.')
+        return redirect('dashboard_home')
+
+    tier_code = (session.metadata or {}).get('tier_code', '')
+    tier = PricingTier.objects.filter(code=tier_code).first()
+
+    if not tenant.setup_fee_paid and session.payment_status == 'paid':
+        _activate_setup_fee_payment(session)
+        tenant.refresh_from_db()
+
+    return render(request, 'upgrade/setup_fee_success.html', {
+        'tier': tier,
+        'tenant': tenant,
+    })
+
+
+def _activate_setup_fee_payment(session):
+    """Mark a tenant's setup fee as paid from a completed checkout session."""
+    def _get(obj, key, default=''):
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+    metadata = _get(session, 'metadata') or {}
+    if _get(metadata, 'flow') != 'setup_fee':
+        return None
+
+    tenant_id = _get(metadata, 'tenant_id') or _get(session, 'client_reference_id')
+    tenant = Tenant.objects.filter(id=tenant_id).first() if tenant_id else None
+    if not tenant:
+        return None
+
+    customer_id = _get(session, 'customer')
+    if hasattr(customer_id, 'id'):
+        customer_id = customer_id.id
+
+    update_fields = ['setup_fee_paid', 'updated_at']
+    tenant.setup_fee_paid = True
+    if customer_id and not tenant.stripe_customer_id:
+        tenant.stripe_customer_id = customer_id
+        update_fields.append('stripe_customer_id')
+    tenant.save(update_fields=update_fields)
+    return tenant

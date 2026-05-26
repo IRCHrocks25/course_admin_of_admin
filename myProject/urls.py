@@ -131,7 +131,33 @@ urlpatterns = [
     path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/verify/', superadmin_views.superadmin_verify_tenant_domain, name='superadmin_verify_tenant_domain'),
     path('superadmin/tenants/<int:tenant_id>/domains/<int:domain_id>/set-primary/', superadmin_views.superadmin_set_primary_tenant_domain, name='superadmin_set_primary_tenant_domain'),
     path('superadmin/tenants/<int:tenant_id>/stripe-keys/', superadmin_views.superadmin_set_tenant_stripe_keys, name='superadmin_set_tenant_stripe_keys'),
-    
+
+    # Pricing Management
+    path('superadmin/pricing/', superadmin_views.superadmin_pricing, name='superadmin_pricing'),
+    path('superadmin/pricing/add/', superadmin_views.superadmin_pricing_add, name='superadmin_pricing_add'),
+    path('superadmin/pricing/<int:tier_id>/edit/', superadmin_views.superadmin_pricing_edit, name='superadmin_pricing_edit'),
+    path('superadmin/pricing/<int:tier_id>/sync/', superadmin_views.superadmin_pricing_sync, name='superadmin_pricing_sync'),
+    path('superadmin/pricing/sync-all/', superadmin_views.superadmin_pricing_sync, name='superadmin_pricing_sync_all'),
+
+    # Tenant Notifications
+    path('superadmin/notifications/', superadmin_views.superadmin_notifications, name='superadmin_notifications'),
+    path('superadmin/notifications/create/', superadmin_views.superadmin_notification_create, name='superadmin_notification_create'),
+    path('superadmin/notifications/<int:notification_id>/preview/', superadmin_views.superadmin_notification_preview, name='superadmin_notification_preview'),
+    path('superadmin/notifications/<int:notification_id>/reshow/', superadmin_views.superadmin_notification_reshow, name='superadmin_notification_reshow'),
+    path('superadmin/notifications/ai-improve/', superadmin_views.superadmin_notification_ai_improve, name='superadmin_notification_ai_improve'),
+
+    # Tenant-side notification dismiss
+    path('api/notifications/<int:delivery_id>/dismiss/', views.dismiss_notification, name='dismiss_notification'),
+
+    # Upgrade checkout flow
+    path('upgrade/success/', views.upgrade_success, name='upgrade_success'),
+    path('upgrade/<slug:tier_code>/', views.upgrade_choose_interval, name='upgrade_choose_interval'),
+    path('upgrade/<slug:tier_code>/<slug:interval>/', views.upgrade_checkout, name='upgrade_checkout'),
+
+    # Setup fee checkout flow
+    path('setup-fee/success/', views.setup_fee_success, name='setup_fee_success'),
+    path('setup-fee/<slug:tier_code>/', views.setup_fee_checkout, name='setup_fee_checkout'),
+
     # Admin (optional - can be removed if not needed)
     path('admin/', admin.site.urls),
 ]

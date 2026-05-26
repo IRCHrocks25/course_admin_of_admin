@@ -26,6 +26,7 @@ class Tenant(models.Model):
     billing_status = models.CharField(max_length=20, choices=BILLING_STATUS_CHOICES, default='active')
     stripe_customer_id = models.CharField(max_length=120, blank=True, default='')
     stripe_subscription_id = models.CharField(max_length=120, blank=True, default='')
+    setup_fee_paid = models.BooleanField(default=False)
     referral_code = models.CharField(max_length=24, unique=True, blank=True, default='')
     referred_by = models.ForeignKey(
         'self',
@@ -1053,4 +1054,92 @@ class StripeEventLog(models.Model):
 
     def __str__(self):
         return f"{self.event_type or 'event'}:{self.event_id}"
+
+
+# ========== PRICING & NOTIFICATIONS ==========
+
+class PricingTier(models.Model):
+    """Editable pricing tier, manually synced to Stripe."""
+    code = models.SlugField(unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    setup_fee_cents = models.PositiveIntegerField()
+    monthly_cents = models.PositiveIntegerField()
+    yearly_cents = models.PositiveIntegerField()
+    stripe_product_id = models.CharField(max_length=100, blank=True)
+    stripe_price_setup_id = models.CharField(max_length=100, blank=True)
+    stripe_price_monthly_id = models.CharField(max_length=100, blank=True)
+    stripe_price_yearly_id = models.CharField(max_length=100, blank=True)
+    stripe_synced_at = models.DateTimeField(null=True, blank=True)
+    charge_setup_fee = models.BooleanField(
+        default=True,
+        help_text="If False, setup fee is skipped at checkout for this tier.",
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def needs_sync(self):
+        return self.stripe_synced_at is None or self.updated_at > self.stripe_synced_at
+
+
+class TenantNotification(models.Model):
+    """Superadmin-created notification: modal + email."""
+    CTA_TYPES = [
+        ('none', 'No CTA'),
+        ('upgrade', 'Upgrade to tier'),
+        ('setup_fee', 'Pay setup fee'),
+        ('url', 'Custom URL'),
+    ]
+
+    title = models.CharField(max_length=200)
+    body = models.TextField(help_text="Supports HTML")
+    cta_type = models.CharField(max_length=20, choices=CTA_TYPES, default='none')
+    cta_label = models.CharField(max_length=100, blank=True)
+    cta_tier = models.ForeignKey(
+        PricingTier, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='notifications',
+    )
+    cta_billing_interval = models.CharField(
+        max_length=10, blank=True,
+        choices=[('monthly', 'Monthly'), ('yearly', 'Yearly')],
+    )
+    cta_custom_url = models.URLField(blank=True)
+    send_email = models.BooleanField(default=True)
+    show_modal = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+
+class TenantNotificationDelivery(models.Model):
+    """Per-tenant tracking row."""
+    notification = models.ForeignKey(
+        TenantNotification, on_delete=models.CASCADE, related_name='deliveries',
+    )
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='notification_deliveries')
+    email_sent_at = models.DateTimeField(null=True, blank=True)
+    email_error = models.TextField(blank=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+    clicked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [('notification', 'tenant')]
+        ordering = ['-notification__created_at']
+
+    def __str__(self):
+        return f"{self.notification.title} → {self.tenant.name}"
 

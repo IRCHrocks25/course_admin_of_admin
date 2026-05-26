@@ -13,7 +13,23 @@
       "PowerShell(python manage.py makemigrations myApp --name add_lesson_ai_image_fields)",
       "PowerShell(py *)",
       "PowerShell(Get-ChildItem -Directory | Where-Object { $_.Name -in @\\('venv','.venv','env','.env-py','virtualenv'\\) } | Format-Table Name -AutoSize)",
-      "PowerShell(where.exe python 2>&1; \"---\"; where.exe py 2>&1)"
+      "PowerShell(where.exe python 2>&1; \"---\"; where.exe py 2>&1)",
+      "Bash(find E:\\\\New Downloads\\\\New_clone_projects\\\\course_admin_of_admin *)",
+      "Bash(cd *)",
+      "Bash(xargs grep -l \"stripe\\\\|payment\\\\|checkout\\\\|billing\")",
+      "Bash(pip install *)",
+      "Bash(python -c \"import django_tasks; print\\(django_tasks.__version__\\)\")",
+      "Bash(pip show *)",
+      "Bash(python *)",
+      "Bash(pip list *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(findstr /i \"django-tasks\")",
+      "PowerShell(python -c \"import sys; print\\(sys.executable\\)\")",
+      "PowerShell(python -c \"from django_tasks import global_settings; print\\(dir\\(global_settings\\)\\)\")",
+      "PowerShell(python -c \"from django_tasks import task_backends; print\\(task_backends.settings_name\\)\")",
+      "PowerShell(pip check *)",
+      "PowerShell(pip install *)",
+      "PowerShell(pip uninstall *)"
     ]
   }
 }

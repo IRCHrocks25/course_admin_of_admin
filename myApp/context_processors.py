@@ -1,7 +1,7 @@
 from .utils.branding import get_tenant_branding
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import get_default_tenant
-from .models import TenantMembership, Tenant
+from .models import TenantMembership, Tenant, TenantNotificationDelivery
 
 
 def ai_generation_context(request):
@@ -27,6 +27,8 @@ def tenant_context(request):
     is_superadmin = bool(getattr(request, 'user', None) and request.user.is_authenticated and request.user.is_superuser)
     clear_tenant_requested = (request.GET.get('clear_tenant') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
     clear_tenant_requested = clear_tenant_requested or ((request.GET.get('tenant') or '').strip().lower() == 'clear')
+    if not clear_tenant_requested and 'tenant' in request.GET and not request.GET.get('tenant', '').strip():
+        clear_tenant_requested = True
 
     if is_superadmin and clear_tenant_requested:
         request.session.pop('superadmin_tenant_id', None)
@@ -67,6 +69,20 @@ def tenant_context(request):
         if default_tenant and default_tenant.is_active and not default_tenant.is_archived:
             dashboard_default_tenant_slug = default_tenant.slug
 
+    pending_notification = None
+    if tenant and getattr(request, 'user', None) and request.user.is_authenticated:
+        pending_notification = (
+            TenantNotificationDelivery.objects
+            .filter(
+                tenant=tenant,
+                seen_at__isnull=True,
+                notification__show_modal=True,
+            )
+            .select_related('notification', 'notification__cta_tier')
+            .order_by('notification__created_at')
+            .first()
+        )
+
     return {
         'tenant': tenant,
         'tenant_branding': get_tenant_branding(tenant),
@@ -74,4 +90,5 @@ def tenant_context(request):
         'dashboard_available_tenants': dashboard_available_tenants,
         'dashboard_impersonating': dashboard_impersonating,
         'dashboard_default_tenant_slug': dashboard_default_tenant_slug,
+        'pending_notification': pending_notification,
     }

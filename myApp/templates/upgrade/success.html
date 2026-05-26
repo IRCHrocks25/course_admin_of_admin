@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load pricing_tags %}
+
+{% block title %}Upgrade Complete{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-16">
+    <div class="text-center mb-10">
+        <div class="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-6">
+            <i class="fas fa-rocket text-3xl text-green-400"></i>
+        </div>
+        <h1 class="text-3xl font-bold mb-3">You're All Set!</h1>
+        <p class="text-gray-400">
+            Your academy <strong class="text-white">{{ tenant.name }}</strong> has been upgraded
+            {% if tier %}to <span class="text-cyan-electric font-semibold">{{ tier.name }}</span>{% endif %}.
+        </p>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-white/10 bg-white/5">
+            <h2 class="font-semibold">Subscription Details</h2>
+        </div>
+        <div class="p-6 space-y-4">
+            {% if tier %}
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400">Plan</span>
+                <span class="font-semibold">{{ tier.name }}</span>
+            </div>
+            {% if tier.description %}
+            <div class="flex justify-between items-start">
+                <span class="text-gray-400">Description</span>
+                <span class="text-sm text-gray-300 text-right max-w-xs">{{ tier.description }}</span>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            {% if setup_fee_paid and tier %}
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400">Setup fee (one-time)</span>
+                <span class="font-semibold">{{ tier.setup_fee_cents|cents_to_dollars }}</span>
+            </div>
+            {% endif %}
+
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400">Recurring</span>
+                <span class="font-semibold">
+                    {% if recurring_amount %}
+                        {{ recurring_amount|cents_to_dollars }}/{{ interval }}
+                    {% elif tier %}
+                        {% if interval == 'yearly' %}{{ tier.yearly_cents|cents_to_dollars }}/yr{% else %}{{ tier.monthly_cents|cents_to_dollars }}/mo{% endif %}
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400">Billing interval</span>
+                <span class="capitalize">{{ interval }}</span>
+            </div>
+
+            {% if next_billing_date %}
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400">Next billing date</span>
+                <span>{{ next_billing_date|date:"M j, Y" }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="{% url 'dashboard_home' %}"
+           class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] font-semibold text-sm hover:opacity-90 transition text-center">
+            Go to Dashboard
+        </a>
+        <a href="{% url 'dashboard_billing' %}"
+           class="px-6 py-2.5 rounded-lg border border-white/20 text-gray-300 text-sm hover:bg-white/5 transition text-center">
+            View Billing
+        </a>
+    </div>
+</div>
+{% endblock %}

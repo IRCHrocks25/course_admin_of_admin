@@ -1,13 +1,22 @@
+import json
+import os
 from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Count, Q, Sum
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 from .models import (
     Bundle,
@@ -17,10 +26,13 @@ from .models import (
     CourseEnrollment,
     Lesson,
     AIUsageLog,
+    PricingTier,
     Tenant,
     TenantConfig,
     TenantDomain,
     TenantMembership,
+    TenantNotification,
+    TenantNotificationDelivery,
     UserProgress,
 )
 from .utils.domains import ensure_temporary_domain, normalize_domain, get_platform_base_domain
@@ -99,9 +111,12 @@ def superadmin_home(request):
         else:
             tenant.display_domain_url = ''
 
+    unpaid_setup_fees = tenants.filter(setup_fee_paid=False).count()
+
     return render(request, 'superadmin/home.html', {
         'total_tenants': total_tenants,
         'active_tenants': active_tenants,
+        'unpaid_setup_fees': unpaid_setup_fees,
         'total_courses': total_courses,
         'total_lessons': total_lessons,
         'total_enrollments': total_enrollments,
@@ -558,4 +573,340 @@ def superadmin_set_tenant_stripe_keys(request, tenant_id):
     config.save(update_fields=['stripe_own_secret_key', 'stripe_own_publishable_key', 'stripe_own_webhook_secret', 'updated_at'])
     messages.success(request, f'Stripe keys saved for "{tenant.name}". They can now accept payments.')
     return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+
+
+# ========== PRICING MANAGEMENT ==========
+
+@superadmin_required
+def superadmin_pricing(request):
+    tiers = PricingTier.objects.all()
+    return render(request, 'superadmin/pricing.html', {'tiers': tiers})
+
+
+@superadmin_required
+def superadmin_pricing_add(request):
+    if request.method == 'POST':
+        code = (request.POST.get('code') or '').strip().lower()
+        name = (request.POST.get('name') or '').strip()
+        if not code or not name:
+            messages.error(request, 'Code and name are required.')
+            return redirect('superadmin_pricing')
+        if PricingTier.objects.filter(code=code).exists():
+            messages.error(request, f'Tier code "{code}" already exists.')
+            return redirect('superadmin_pricing')
+        try:
+            PricingTier.objects.create(
+                code=code,
+                name=name,
+                description=(request.POST.get('description') or '').strip(),
+                setup_fee_cents=int(request.POST.get('setup_fee_cents') or 0),
+                monthly_cents=int(request.POST.get('monthly_cents') or 0),
+                yearly_cents=int(request.POST.get('yearly_cents') or 0),
+                sort_order=int(request.POST.get('sort_order') or 0),
+                charge_setup_fee=request.POST.get('charge_setup_fee') == 'on',
+                is_active=request.POST.get('is_active') == 'on',
+            )
+            messages.success(request, f'Tier "{name}" created.')
+        except (ValueError, TypeError):
+            messages.error(request, 'Invalid numeric value.')
+        return redirect('superadmin_pricing')
+    return render(request, 'superadmin/pricing_form.html', {'tier': None})
+
+
+@superadmin_required
+def superadmin_pricing_edit(request, tier_id):
+    tier = get_object_or_404(PricingTier, id=tier_id)
+    if request.method == 'POST':
+        tier.name = (request.POST.get('name') or tier.name).strip()
+        tier.description = (request.POST.get('description') or '').strip()
+        try:
+            tier.setup_fee_cents = int(request.POST.get('setup_fee_cents') or tier.setup_fee_cents)
+            tier.monthly_cents = int(request.POST.get('monthly_cents') or tier.monthly_cents)
+            tier.yearly_cents = int(request.POST.get('yearly_cents') or tier.yearly_cents)
+            tier.sort_order = int(request.POST.get('sort_order') or tier.sort_order)
+        except (ValueError, TypeError):
+            messages.error(request, 'Invalid numeric value.')
+            return redirect('superadmin_pricing_edit', tier_id=tier.id)
+        tier.charge_setup_fee = request.POST.get('charge_setup_fee') == 'on'
+        tier.is_active = request.POST.get('is_active') == 'on'
+        tier.save()
+        messages.success(request, f'Tier "{tier.name}" updated.')
+        return redirect('superadmin_pricing')
+    return render(request, 'superadmin/pricing_form.html', {'tier': tier})
+
+
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_pricing_sync(request, tier_id=None):
+    """Sync one tier (if tier_id given) or all unsynchronised tiers to Stripe."""
+    import os
+    try:
+        import stripe
+    except ImportError:
+        messages.error(request, 'Stripe library not installed.')
+        return redirect('superadmin_pricing')
+
+    secret_key = os.getenv('STRIPE_SECRET_KEY', '')
+    if not secret_key:
+        messages.error(request, 'STRIPE_SECRET_KEY is not configured.')
+        return redirect('superadmin_pricing')
+    stripe.api_key = secret_key
+
+    if tier_id:
+        tiers = PricingTier.objects.filter(id=tier_id)
+    else:
+        tiers = PricingTier.objects.filter(is_active=True)
+
+    synced, errors = 0, 0
+    for tier in tiers:
+        try:
+            _sync_tier_to_stripe(stripe, tier)
+            synced += 1
+        except Exception as e:
+            messages.error(request, f'Error syncing "{tier.name}": {e}')
+            errors += 1
+
+    if synced:
+        messages.success(request, f'Synced {synced} tier(s) to Stripe.')
+    if not synced and not errors:
+        messages.info(request, 'No tiers to sync.')
+    return redirect('superadmin_pricing')
+
+
+def _sync_tier_to_stripe(stripe, tier):
+    if tier.stripe_product_id:
+        stripe.Product.modify(tier.stripe_product_id, name=tier.name, description=tier.description or None)
+        product_id = tier.stripe_product_id
+    else:
+        product = stripe.Product.create(
+            name=tier.name,
+            description=tier.description or None,
+            metadata={'pricing_tier_code': tier.code},
+        )
+        product_id = product.id
+
+    old_setup = tier.stripe_price_setup_id
+    old_monthly = tier.stripe_price_monthly_id
+    old_yearly = tier.stripe_price_yearly_id
+
+    new_setup = stripe.Price.create(
+        product=product_id,
+        unit_amount=tier.setup_fee_cents,
+        currency='usd',
+        metadata={'tier': tier.code, 'type': 'setup'},
+    )
+    new_monthly = stripe.Price.create(
+        product=product_id,
+        unit_amount=tier.monthly_cents,
+        currency='usd',
+        recurring={'interval': 'month'},
+        metadata={'tier': tier.code, 'type': 'monthly'},
+    )
+    new_yearly = stripe.Price.create(
+        product=product_id,
+        unit_amount=tier.yearly_cents,
+        currency='usd',
+        recurring={'interval': 'year'},
+        metadata={'tier': tier.code, 'type': 'yearly'},
+    )
+
+    for old_id in [old_setup, old_monthly, old_yearly]:
+        if old_id:
+            try:
+                stripe.Price.modify(old_id, active=False)
+            except Exception:
+                pass
+
+    tier.stripe_product_id = product_id
+    tier.stripe_price_setup_id = new_setup.id
+    tier.stripe_price_monthly_id = new_monthly.id
+    tier.stripe_price_yearly_id = new_yearly.id
+    tier.stripe_synced_at = timezone.now()
+    tier.save()
+
+
+# ========== TENANT NOTIFICATIONS ==========
+
+@superadmin_required
+def superadmin_notifications(request):
+    notifications = TenantNotification.objects.annotate(
+        total_deliveries=Count('deliveries'),
+        emails_sent=Count('deliveries', filter=Q(deliveries__email_sent_at__isnull=False)),
+        modals_seen=Count('deliveries', filter=Q(deliveries__seen_at__isnull=False)),
+        ctas_clicked=Count('deliveries', filter=Q(deliveries__clicked_at__isnull=False)),
+    )
+    return render(request, 'superadmin/notifications.html', {'notifications': notifications})
+
+
+@superadmin_required
+def superadmin_notification_create(request):
+    if request.method == 'POST':
+        title = (request.POST.get('title') or '').strip()
+        body = (request.POST.get('body') or '').strip()
+        if not title or not body:
+            messages.error(request, 'Title and body are required.')
+            return redirect('superadmin_notification_create')
+
+        cta_type = request.POST.get('cta_type', 'none')
+        cta_label = (request.POST.get('cta_label') or '').strip()
+        cta_custom_url = (request.POST.get('cta_custom_url') or '').strip()
+
+        cta_tier_id = None
+        if cta_type == 'upgrade':
+            cta_tier_id = request.POST.get('cta_tier') or None
+        elif cta_type == 'setup_fee':
+            cta_tier_id = request.POST.get('cta_setup_fee_tier') or None
+
+        notification = TenantNotification.objects.create(
+            title=title,
+            body=body,
+            cta_type=cta_type,
+            cta_label=cta_label,
+            cta_tier_id=cta_tier_id,
+            cta_billing_interval='',
+            cta_custom_url=cta_custom_url if cta_type == 'url' else '',
+            send_email=request.POST.get('send_email') == 'on',
+            show_modal=request.POST.get('show_modal') == 'on',
+            created_by=request.user,
+        )
+
+        recipient_mode = request.POST.get('recipient_mode', 'all')
+        if recipient_mode == 'single':
+            tenant_id = request.POST.get('single_tenant')
+            if tenant_id:
+                tenant_ids = [int(tenant_id)]
+            else:
+                tenant_ids = []
+        elif recipient_mode == 'multi':
+            tenant_ids = []
+            for raw_id in request.POST.getlist('tenant_ids'):
+                try:
+                    tenant_ids.append(int(raw_id))
+                except (TypeError, ValueError):
+                    continue
+        elif recipient_mode == 'plan':
+            plan_code = (request.POST.get('filter_plan') or '').strip()
+            tenant_ids = list(
+                Tenant.objects.filter(is_archived=False, plan_code=plan_code).values_list('id', flat=True)
+            )
+        elif recipient_mode == 'unpaid_setup':
+            tenant_ids = list(
+                Tenant.objects.filter(is_archived=False, setup_fee_paid=False).values_list('id', flat=True)
+            )
+        else:
+            tenant_ids = list(
+                Tenant.objects.filter(is_archived=False).values_list('id', flat=True)
+            )
+
+        if not tenant_ids:
+            messages.warning(request, 'No tenants matched — notification created with no recipients.')
+            return redirect('superadmin_notifications')
+
+        deliveries = [
+            TenantNotificationDelivery(notification=notification, tenant_id=tid)
+            for tid in tenant_ids
+        ]
+        TenantNotificationDelivery.objects.bulk_create(deliveries, ignore_conflicts=True)
+
+        if notification.send_email:
+            from .tasks import send_notification_emails
+            send_notification_emails.enqueue(notification.id)
+
+        messages.success(
+            request,
+            f'Notification "{title}" sent to {len(tenant_ids)} tenant(s).'
+            + (' Emails queued.' if notification.send_email else ''),
+        )
+        return redirect('superadmin_notifications')
+
+    tenants = Tenant.objects.filter(is_archived=False).order_by('name')
+    tiers = PricingTier.objects.filter(is_active=True)
+    plan_codes = list(
+        Tenant.objects.filter(is_archived=False)
+        .values_list('plan_code', flat=True)
+        .distinct()
+        .order_by('plan_code')
+    )
+    return render(request, 'superadmin/notification_form.html', {
+        'tenants': tenants,
+        'tiers': tiers,
+        'plan_codes': plan_codes,
+    })
+
+
+@superadmin_required
+def superadmin_notification_preview(request, notification_id):
+    notification = get_object_or_404(TenantNotification, id=notification_id)
+    return render(request, 'superadmin/notification_preview.html', {
+        'notification': notification,
+    })
+
+
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_notification_reshow(request, notification_id):
+    notification = get_object_or_404(TenantNotification, id=notification_id)
+    reset_count = notification.deliveries.filter(seen_at__isnull=False).update(
+        seen_at=None, clicked_at=None,
+    )
+    if reset_count:
+        messages.success(request, f'Modal re-queued for {reset_count} tenant(s) who already dismissed it.')
+    else:
+        messages.info(request, 'No tenants had dismissed this notification yet.')
+    return redirect('superadmin_notifications')
+
+
+@superadmin_required
+@require_http_methods(["POST"])
+def superadmin_notification_ai_improve(request):
+    if not OPENAI_AVAILABLE:
+        return JsonResponse({'success': False, 'error': 'OpenAI package is not installed.'}, status=500)
+    api_key = os.getenv('OPENAI_API_KEY', '')
+    if not api_key:
+        return JsonResponse({'success': False, 'error': 'OPENAI_API_KEY is not configured.'}, status=500)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
+
+    title = (data.get('title') or '').strip()
+    body = (data.get('body') or '').strip()
+    if not title and not body:
+        return JsonResponse({'success': False, 'error': 'Provide a title or body to improve.'}, status=400)
+
+    prompt = (
+        "You are writing a short notification for SaaS platform tenants (course academy owners).\n"
+        "Rewrite the title and body to be clear, compelling, and professional.\n"
+        "Keep the tone friendly and action-oriented. Be concise — this appears in a modal popup and email.\n"
+        "Output the body as clean HTML (use <p>, <strong>, <ul>/<li> only). No markdown.\n"
+        "Return JSON with exactly two keys: \"title\" and \"body\".\n\n"
+        f"Current title: {title}\n"
+        f"Current body: {body}"
+    )
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert SaaS copywriter. Always return valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.5,
+            max_tokens=800,
+        )
+        raw = (response.choices[0].message.content or '').strip()
+        if raw.startswith('```'):
+            raw = raw.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+        result = json.loads(raw)
+        return JsonResponse({
+            'success': True,
+            'title': (result.get('title') or title).strip(),
+            'body': (result.get('body') or body).strip(),
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'AI returned invalid format. Try again.'}, status=500)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)[:200]}, status=500)
 
