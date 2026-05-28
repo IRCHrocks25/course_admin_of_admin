@@ -39,10 +39,49 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background: var(--brand-bg-gradient);
+            color: var(--brand-text-primary);
+        }
+        .brand-theme-dark {
+            --brand-bg-gradient: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #000000 100%);
+            --brand-bg-solid: #0a0e27;
+            --brand-surface: #0a0e27;
+            --brand-text-primary: #ffffff;
+            --brand-text-muted: #d1d5db;
+            --brand-border: rgba(0, 240, 255, 0.4);
+        }
+        .brand-theme-light {
+            --brand-bg-gradient: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #ffffff 100%);
+            --brand-bg-solid: #ffffff;
+            --brand-surface: #ffffff;
+            --brand-text-primary: #0f172a;
+            --brand-text-muted: #475569;
+            --brand-border: rgba(15, 23, 42, 0.12);
+        }
+        .brand-theme-light .text-white { color: #0f172a !important; }
+        .brand-theme-light .text-gray-400,
+        .brand-theme-light .text-gray-300,
+        .brand-theme-light .text-gray-500 { color: #475569 !important; }
+        .brand-theme-light .bg-\[\#0a0e27\]\/95,
+        .brand-theme-light .bg-\[\#0a0e27\]\/80,
+        .brand-theme-light .bg-\[\#0a0e27\],
+        .brand-theme-light .bg-\[\#1a1f3a\] { background-color: #ffffff !important; }
+        .brand-theme-light .border-cyan-electric\/20,
+        .brand-theme-light .border-cyan-electric\/30 { border-color: rgba(15, 23, 42, 0.12) !important; }
+        .brand-theme-light .bg-cyan-electric\/20 { background-color: rgba(59, 130, 246, 0.1) !important; }
+        .brand-theme-light .text-cyan-electric { color: #2563eb !important; }
+        .brand-theme-light .hover\:bg-cyan-electric\/10:hover { background-color: rgba(59, 130, 246, 0.08) !important; }
+        .brand-theme-light .bg-red-500\/20 { background-color: rgba(239, 68, 68, 0.1) !important; }
+        .brand-theme-light .bg-green-500\/20 { background-color: rgba(34, 197, 94, 0.1) !important; }
+        .theme-transitioning,
+        .theme-transitioning *,
+        .theme-transitioning *::before,
+        .theme-transitioning *::after {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#000000] min-h-screen text-white">
+<body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'dark' }}">
     <!-- Mobile Menu Overlay -->
     <div id="mobile-sidebar-overlay" class="fixed inset-0 bg-black/60 z-40 hidden md:hidden"></div>
     
@@ -129,6 +168,10 @@
                     <i class="fas fa-network-wired w-5"></i>
                     <span>Student IP Monitor</span>
                 </a>
+                <a href="{% url 'dashboard_forum_moderation' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'forum' in request.resolver_match.url_name or 'community' in request.path %}bg-teal-500/20 text-teal-300 border-l-2 border-teal-300{% else %}text-gray-300 hover:bg-teal-500/10 hover:text-teal-300{% endif %}">
+                    <i class="fas fa-comments w-5"></i>
+                    <span>Community</span>
+                </a>
                 <a href="{% url 'dashboard_bundles' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'bundle' in request.resolver_match.url_name %}bg-purple-accent/20 text-purple-accent border-l-2 border-purple-accent{% else %}text-gray-300 hover:bg-purple-accent/10 hover:text-purple-accent{% endif %}">
                     <i class="fas fa-gift w-5"></i>
                     <span>Bundles</span>
@@ -201,6 +244,10 @@
                         <i class="fas fa-user-circle mr-2"></i>
                         {{ user.get_full_name|default:user.username }}
                     </div>
+                    <button onclick="toggleTheme()" class="p-2 rounded-lg transition-colors hover:bg-cyan-electric/10" title="Toggle theme" aria-label="Toggle theme">
+                        <i class="fas fa-moon text-sm" id="theme-icon-moon" style="display:{% if effective_theme_mode == 'light' %}inline{% else %}none{% endif %}"></i>
+                        <i class="fas fa-sun text-sm" id="theme-icon-sun" style="display:{% if effective_theme_mode != 'light' %}inline{% else %}none{% endif %}"></i>
+                    </button>
                     <a href="{% url 'logout' %}" class="px-3 sm:px-4 py-2 rounded-full border border-cyan-electric/30 text-xs sm:text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/50 transition-all">
                         <span class="hidden sm:inline">Log Out</span>
                         <i class="fas fa-sign-out-alt sm:hidden"></i>
@@ -441,6 +488,31 @@
     {% endif %}
 
     <!-- Superadmin Notification Modal (tenant admin dashboard) -->
+    <script>
+    function toggleTheme() {
+        var csrfToken = '{{ csrf_token }}';
+        fetch('{% url "toggle_theme" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var body = document.body;
+            body.classList.add('theme-transitioning');
+            body.classList.remove('brand-theme-dark', 'brand-theme-light');
+            body.classList.add('brand-theme-' + data.theme);
+            body.dataset.theme = data.theme;
+            var moon = document.getElementById('theme-icon-moon');
+            var sun = document.getElementById('theme-icon-sun');
+            if (moon) moon.style.display = data.theme === 'light' ? 'inline' : 'none';
+            if (sun) sun.style.display = data.theme === 'dark' ? 'inline' : 'none';
+            setTimeout(function() { body.classList.remove('theme-transitioning'); }, 350);
+        });
+    }
+    </script>
+
     {% if pending_notification %}
     <style>
     @keyframes nfFadeIn2 { from { opacity:0 } to { opacity:1 } }

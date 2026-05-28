@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% load forum_tags %}
+
+{% block title %}Post by {{ post.author.get_full_name|default:post.author.username }} — Community{% endblock %}
+
+{% block content %}
+<!-- Community-specific LinkedIn-inspired styles -->
+<style>
+    .forum-page {
+        --forum-bg: #f4f2ee;
+        --forum-card: #ffffff;
+        --forum-card-border: rgba(0,0,0,0.08);
+        --forum-text: #191919;
+        --forum-text-muted: #666666;
+        --forum-blue: #0a66c2;
+        --forum-blue-hover: #004182;
+        --forum-comment-bg: #f3f2ef;
+        --forum-input-bg: #ffffff;
+        --forum-input-border: #d1d1d1;
+        --forum-divider: #e8e8e8;
+    }
+    .forum-page { background: var(--forum-bg); border-radius: 16px; padding: 24px; margin: -12px -4px; }
+    @media (min-width: 640px) { .forum-page { margin: -24px -8px; padding: 28px; } }
+    .forum-card { background: var(--forum-card); border: 1px solid var(--forum-card-border); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .forum-text-primary { color: var(--forum-text) !important; }
+    .forum-text-muted { color: var(--forum-text-muted) !important; }
+    .forum-border { border-color: var(--forum-divider) !important; }
+    .forum-comment-bg { background: var(--forum-comment-bg); border-radius: 12px; }
+    .forum-input {
+        background: var(--forum-input-bg);
+        border: 1px solid var(--forum-input-border);
+        color: var(--forum-text);
+    }
+    .forum-input::placeholder { color: var(--forum-text-muted); }
+    .forum-input:focus { border-color: var(--forum-blue); }
+</style>
+
+<div class="forum-page">
+<div class="max-w-2xl mx-auto">
+    <!-- Back to Feed -->
+    <a href="{% url 'forum_feed' %}" class="inline-flex items-center gap-2 text-sm font-medium mb-4 transition-colors forum-text-muted hover:text-[#0a66c2]">
+        <i class="fas fa-arrow-left"></i> Back to Community
+    </a>
+
+    <!-- Post -->
+    {% with author_name=post.author.get_full_name|default:post.author.username role=role_map|dictget:post.author_id post_reactions=user_reactions|dictget:post.id post_counts=reaction_counts|dictget:post.id %}
+    <div class="forum-card rounded-xl p-6 mb-5">
+        <!-- Author Header -->
+        <div class="flex items-start gap-3 mb-4">
+            <div class="w-12 h-12 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-lg shadow-sm overflow-hidden">
+                {% if role == 'Instructor' and tenant_branding.logo_url %}
+                <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+                {% else %}
+                {{ author_name|initial }}
+                {% endif %}
+            </div>
+            <div class="flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold forum-text-primary">{{ author_name }}</span>
+                    {% if role %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide {% if role == 'Instructor' %}bg-[#0a66c2]/10 text-[#0a66c2]{% else %}bg-emerald-500/10 text-emerald-600{% endif %}">{{ role }}</span>
+                    {% endif %}
+                    {% if post.is_pinned %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600">
+                        <i class="fas fa-thumbtack text-[8px]"></i> Pinned
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-xs mt-0.5 forum-text-muted">
+                    <span>{{ post.created_at|short_timesince }} ago</span>
+                    {% if post.is_edited %}<span>&middot; edited</span>{% endif %}
+                    {% if post.category %}
+                    <span>&middot;</span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0a66c2]/8 text-[#0a66c2]">{{ post.category.name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if post.author == request.user or membership.role == 'tenant_admin' %}
+            <div class="relative">
+                <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="p-1.5 rounded-lg hover:bg-black/5 transition-colors forum-text-muted">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+                <div class="hidden absolute right-0 top-8 w-36 rounded-lg shadow-xl z-10 py-1 forum-card">
+                    {% if post.author == request.user %}
+                    <a href="{% url 'forum_create_post' %}?edit={{ post.id }}" class="flex items-center gap-2 px-3 py-2 text-xs forum-text-primary hover:bg-black/5 transition-colors">
+                        <i class="fas fa-pen w-4"></i> Edit
+                    </a>
+                    {% endif %}
+                    <form method="post" action="{% url 'forum_delete_post' post_id=post.id %}" onsubmit="return confirm('Delete this post?')">
+                        {% csrf_token %}
+                        <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors">
+                            <i class="fas fa-trash w-4"></i> Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Content -->
+        <div class="text-sm leading-relaxed mb-4 forum-text-primary">
+            {{ post.content|linebreaksbr }}
+        </div>
+        {% if post.image %}
+        <div class="mb-4 rounded-lg overflow-hidden">
+            <img src="{{ post.image.url }}" alt="Post image" class="w-full max-h-[500px] object-cover rounded-lg" loading="lazy">
+        </div>
+        {% endif %}
+
+        <!-- Reactions -->
+        <div class="border-t pt-3 forum-border">
+            {% with target_type="post" target_id=post.id active_reactions=post_reactions counts=post_counts %}
+            {% include "forum/_reaction_bar.html" %}
+            {% endwith %}
+        </div>
+    </div>
+    {% endwith %}
+
+    <!-- Add Comment -->
+    <div class="forum-card rounded-xl p-4 mb-5">
+        <form method="post" action="{% url 'forum_add_comment' post_id=post.id %}">
+            {% csrf_token %}
+            <div class="flex gap-3">
+                <div class="w-9 h-9 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-xs shadow-sm overflow-hidden">
+                    {% if membership.role == 'tenant_admin' and tenant_branding.logo_url %}
+                    <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+                    {% else %}
+                    {{ request.user.get_full_name|default:request.user.username|initial }}
+                    {% endif %}
+                </div>
+                <div class="flex-1">
+                    <textarea name="content" rows="2" placeholder="Add a comment..." required
+                        class="w-full px-4 py-2.5 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-input"></textarea>
+                    <div class="flex justify-end mt-2">
+                        <button type="submit" class="px-4 py-2 rounded-full bg-[#0a66c2] text-white text-xs font-semibold hover:bg-[#004182] transition-colors shadow-sm">
+                            Comment
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Comments Section -->
+    {% if comments %}
+    <div class="space-y-4">
+        <h3 class="text-sm font-semibold forum-text-muted">
+            <i class="fas fa-comments mr-1.5"></i>Comments
+        </h3>
+        {% for comment in comments %}
+        {% with is_reply=False %}
+        {% include "forum/_comment.html" %}
+        {% endwith %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+</div>
+
+<!-- Scripts -->
+<script>
+function showReplyForm(postId, commentId) {
+    var form = document.getElementById('reply-form-' + postId + '-' + commentId);
+    if (form) {
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
+            form.querySelector('input[name="content"]').focus();
+        }
+    }
+}
+
+function toggleReaction(targetType, targetId, reactionType, btn) {
+    var csrfToken = '{{ csrf_token }}';
+    fetch('{% url "forum_toggle_reaction" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ target_type: targetType, target_id: targetId, reaction_type: reactionType }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) return;
+        if (data.action === 'added') {
+            btn.classList.add('border-[#0a66c2]/40', 'bg-[#0a66c2]/10', 'text-[#0a66c2]');
+            btn.classList.remove('border-transparent', 'forum-text-muted');
+        } else {
+            btn.classList.remove('border-[#0a66c2]/40', 'bg-[#0a66c2]/10', 'text-[#0a66c2]');
+            btn.classList.add('border-transparent', 'forum-text-muted');
+        }
+        var countEl = btn.querySelector('.reaction-count');
+        if (data.count > 0) {
+            if (!countEl) {
+                countEl = document.createElement('span');
+                countEl.className = 'reaction-count';
+                btn.appendChild(countEl);
+            }
+            countEl.textContent = data.count;
+        } else if (countEl) {
+            countEl.remove();
+        }
+    });
+}
+</script>
+{% endblock %}

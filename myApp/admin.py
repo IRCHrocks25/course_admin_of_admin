@@ -4,6 +4,7 @@ from .models import (
     Course, CourseResource, Module, Lesson, UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
     Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse,
     PricingTier, TenantNotification, TenantNotificationDelivery,
+    ForumCategory, ForumPost, ForumComment, ForumReaction,
 )
 
 
@@ -231,3 +232,34 @@ class TenantNotificationAdmin(admin.ModelAdmin):
     list_filter = ['cta_type', 'send_email', 'show_modal']
     search_fields = ['title', 'body']
     inlines = [TenantNotificationDeliveryInline]
+
+
+# ========== COMMUNITY FORUM ==========
+
+@admin.register(ForumCategory)
+class ForumCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'slug', 'order', 'is_active']
+    list_filter = ['tenant', 'is_active']
+    search_fields = ['name', 'tenant__name']
+    prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(ForumPost)
+class ForumPostAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'category', 'is_pinned', 'created_at']
+    list_filter = ['tenant', 'is_pinned', 'created_at']
+    search_fields = ['content', 'author__username']
+
+
+@admin.register(ForumComment)
+class ForumCommentAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'post', 'created_at']
+    list_filter = ['tenant', 'created_at']
+    search_fields = ['content', 'author__username']
+
+
+@admin.register(ForumReaction)
+class ForumReactionAdmin(admin.ModelAdmin):
+    list_display = ['user', 'reaction_type', 'post', 'comment', 'created_at']
+    list_filter = ['reaction_type', 'tenant']
+    search_fields = ['user__username']

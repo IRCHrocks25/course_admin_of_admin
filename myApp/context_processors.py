@@ -83,9 +83,19 @@ def tenant_context(request):
             .first()
         )
 
+    tenant_branding = get_tenant_branding(tenant)
+    effective_theme_mode = tenant_branding.get('theme_mode', 'dark')
+    if tenant and getattr(request, 'user', None) and request.user.is_authenticated:
+        membership = TenantMembership.objects.filter(
+            tenant=tenant, user=request.user, is_active=True,
+        ).only('theme_preference').first()
+        if membership and membership.theme_preference:
+            effective_theme_mode = membership.theme_preference
+
     return {
         'tenant': tenant,
-        'tenant_branding': get_tenant_branding(tenant),
+        'tenant_branding': tenant_branding,
+        'effective_theme_mode': effective_theme_mode,
         'tenant_site_url': get_tenant_public_home_url(request, tenant),
         'dashboard_available_tenants': dashboard_available_tenants,
         'dashboard_impersonating': dashboard_impersonating,

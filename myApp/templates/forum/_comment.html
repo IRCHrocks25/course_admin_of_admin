@@ -1,0 +1,61 @@
+{% load forum_tags %}
+{% with author_name=comment.author.get_full_name|default:comment.author.username role=role_map|dictget:comment.author_id active_reactions=comment_reaction_map|dictget:comment.id counts=comment_rcounts|dictget:comment.id %}
+<div class="flex gap-3 {% if is_reply %}ml-12{% endif %}" id="comment-{{ comment.id }}">
+    <div class="w-8 h-8 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-xs shadow-sm overflow-hidden">
+        {% if role == 'Instructor' and tenant_branding.logo_url %}
+        <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+        {% else %}
+        {{ author_name|initial }}
+        {% endif %}
+    </div>
+    <div class="flex-1 min-w-0">
+        <div class="rounded-xl px-4 py-3 forum-comment-bg">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-xs forum-text-primary">{{ author_name }}</span>
+                {% if role %}
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wide {% if role == 'Instructor' %}bg-[#0a66c2]/10 text-[#0a66c2]{% else %}bg-emerald-500/10 text-emerald-600{% endif %}">{{ role }}</span>
+                {% endif %}
+                <span class="text-[10px] forum-text-muted">{{ comment.created_at|short_timesince }} ago{% if comment.is_edited %} &middot; edited{% endif %}</span>
+            </div>
+            <div class="text-sm leading-relaxed forum-text-primary">{{ comment.content|linebreaksbr }}</div>
+        </div>
+        <div class="flex items-center gap-3 mt-1.5 ml-1">
+            {% if not is_reply %}
+            <button onclick="showReplyForm({{ post.id }}, {{ comment.id }})" class="text-[11px] font-medium forum-text-muted hover:text-[#0a66c2] hover:underline">Reply</button>
+            {% endif %}
+            {% if comment.author == request.user or membership.role == 'tenant_admin' %}
+            <form method="post" action="{% url 'forum_delete_comment' comment_id=comment.id %}" class="inline" onsubmit="return confirm('Delete this comment?')">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#post-{{ post.id }}">
+                <button type="submit" class="text-[11px] font-medium text-red-400/70 hover:text-red-500 hover:underline">Delete</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="ml-1 mt-1.5">
+            {% with target_type="comment" target_id=comment.id %}
+            {% include "forum/_reaction_bar.html" %}
+            {% endwith %}
+        </div>
+        {% if not is_reply %}
+        <!-- Reply form (hidden) -->
+        <div id="reply-form-{{ post.id }}-{{ comment.id }}" class="hidden mt-2 ml-1">
+            <form method="post" action="{% url 'forum_add_comment' post_id=post.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#post-{{ post.id }}">
+                <div class="flex gap-2">
+                    <input type="text" name="content" placeholder="Write a reply..." class="flex-1 px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 focus:border-[#0a66c2]/40 forum-input">
+                    <button type="submit" class="px-3 py-2 rounded-lg border border-[#0a66c2] bg-white text-[#0a66c2] text-xs font-semibold hover:bg-[#eef5fd] transition-colors">Reply</button>
+                </div>
+            </form>
+        </div>
+        <!-- Nested replies -->
+        {% for reply in comment.replies.all %}
+        {% with comment=reply is_reply=True %}
+        {% include "forum/_comment.html" %}
+        {% endwith %}
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endwith %}

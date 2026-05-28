@@ -1,0 +1,113 @@
+{% load forum_tags %}
+{% with author_name=post.author.get_full_name|default:post.author.username role=role_map|dictget:post.author_id post_reactions=user_reactions|dictget:post.id post_counts=reaction_counts|dictget:post.id %}
+<div class="forum-card rounded-xl p-4 mb-3" id="post-{{ post.id }}">
+    <!-- Author Header -->
+    <div class="flex items-start gap-3 mb-3">
+        <div class="w-12 h-12 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-sm overflow-hidden">
+            {% if role == 'Instructor' and tenant_branding.logo_url %}
+            <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+            {% else %}
+            {{ author_name|initial }}
+            {% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-semibold text-[15px] forum-text-primary">{{ author_name }}</span>
+                {% if role %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide {% if role == 'Instructor' %}bg-[#0a66c2]/10 text-[#0a66c2]{% else %}bg-emerald-500/10 text-emerald-600{% endif %}">{{ role }}</span>
+                {% endif %}
+                {% if post.is_pinned %}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600">
+                    <i class="fas fa-thumbtack text-[8px]"></i> Pinned
+                </span>
+                {% endif %}
+            </div>
+            <div class="flex items-center gap-2 text-xs mt-0.5 forum-text-muted">
+                <span>{{ post.created_at|short_timesince }} ago</span>
+                {% if post.is_edited %}<span>&middot; edited</span>{% endif %}
+                {% if post.category %}
+                <span>&middot;</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#0a66c2]/8 text-[#0a66c2]">{{ post.category.name }}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if post.author == request.user or membership.role == 'tenant_admin' %}
+        <div class="relative">
+            <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="p-1.5 rounded-lg hover:bg-black/5 transition-colors forum-text-muted">
+                <i class="fas fa-ellipsis-h text-sm"></i>
+            </button>
+            <div class="hidden absolute right-0 top-8 w-36 rounded-lg border shadow-xl z-10 py-1 forum-card">
+                {% if post.author == request.user %}
+                <a href="{% url 'forum_create_post' %}?edit={{ post.id }}" class="flex items-center gap-2 px-3 py-2 text-xs forum-text-primary hover:bg-black/5 transition-colors">
+                    <i class="fas fa-pen w-4"></i> Edit
+                </a>
+                {% endif %}
+                <form method="post" action="{% url 'forum_delete_post' post_id=post.id %}" onsubmit="return confirm('Delete this post?')">
+                    {% csrf_token %}
+                    <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors">
+                        <i class="fas fa-trash w-4"></i> Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Post Content -->
+    <div class="text-[15px] leading-relaxed mb-3 forum-text-primary">
+        {{ post.content|linebreaksbr }}
+    </div>
+    {% if post.image %}
+    <div class="mb-3 rounded-lg overflow-hidden">
+        <img src="{{ post.image.url }}" alt="Post image" class="w-full max-h-96 object-cover rounded-lg" loading="lazy">
+    </div>
+    {% endif %}
+
+    <!-- Divider -->
+    <div class="border-t my-2 forum-border"></div>
+
+    <!-- Reactions + Comments Footer -->
+    <div class="flex items-center justify-between gap-2">
+        <div class="flex-1">
+            {% with target_type="post" target_id=post.id active_reactions=post_reactions counts=post_counts %}
+            {% include "forum/_reaction_bar.html" %}
+            {% endwith %}
+        </div>
+        <button type="button" onclick="toggleCommentThread({{ post.id }})" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold transition-all forum-text-muted hover:text-[#1f1f1f] hover:bg-[#f3f2ef]">
+            <i class="fas fa-comment"></i>
+            <span>{{ post.comment_count|default:"0" }}</span>
+        </button>
+    </div>
+
+    <!-- Inline comments -->
+    {% with post_comments=comments_by_post|dictget:post.id %}
+    <div id="post-comments-{{ post.id }}" class="hidden border-t mt-3 pt-3 forum-border">
+        <form method="post" action="{% url 'forum_add_comment' post_id=post.id %}" class="mb-4">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}#post-{{ post.id }}">
+            <div class="flex gap-2">
+                <input type="text" name="content" placeholder="Add a comment..." required
+                       class="flex-1 px-3 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-input">
+                <button type="submit" class="px-4 py-2 rounded-full border border-[#0a66c2] bg-white text-[#0a66c2] text-xs font-semibold hover:bg-[#eef5fd] transition-colors">Comment</button>
+            </div>
+        </form>
+
+        {% if post_comments %}
+        <div class="space-y-3">
+            {% for comment in post_comments %}
+            {% with is_reply=False %}
+            {% include "forum/_comment.html" %}
+            {% endwith %}
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-xs forum-text-muted">No comments yet. Start the conversation.</p>
+        {% endif %}
+
+        <div class="mt-3">
+            <a href="{% url 'forum_post_detail' post_id=post.id %}" class="text-[11px] forum-text-muted hover:text-[#0a66c2] hover:underline">Open full thread</a>
+        </div>
+    </div>
+    {% endwith %}
+</div>
+{% endwith %}

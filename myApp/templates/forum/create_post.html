@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load forum_tags %}
+
+{% block title %}{% if editing_post %}Edit Post{% else %}New Post{% endif %} — Community{% endblock %}
+
+{% block content %}
+<!-- Community-specific LinkedIn-inspired styles -->
+<style>
+    .forum-page {
+        --forum-bg: #f4f2ee;
+        --forum-card: #ffffff;
+        --forum-card-border: rgba(0,0,0,0.08);
+        --forum-text: #191919;
+        --forum-text-muted: #666666;
+        --forum-blue: #0a66c2;
+        --forum-blue-hover: #004182;
+        --forum-input-bg: #ffffff;
+        --forum-input-border: #d1d1d1;
+        --forum-divider: #e8e8e8;
+    }
+    .forum-page { background: var(--forum-bg); border-radius: 16px; padding: 24px; margin: -12px -4px; }
+    @media (min-width: 640px) { .forum-page { margin: -24px -8px; padding: 28px; } }
+    .forum-card { background: var(--forum-card); border: 1px solid var(--forum-card-border); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .forum-text-primary { color: var(--forum-text) !important; }
+    .forum-text-muted { color: var(--forum-text-muted) !important; }
+    .forum-border { border-color: var(--forum-divider) !important; }
+    .forum-input {
+        background: var(--forum-input-bg);
+        border: 1px solid var(--forum-input-border);
+        color: var(--forum-text);
+    }
+    .forum-input::placeholder { color: var(--forum-text-muted); }
+    .forum-input:focus { border-color: var(--forum-blue); }
+    .forum-select {
+        background: var(--forum-input-bg);
+        border: 1px solid var(--forum-input-border);
+        color: var(--forum-text);
+    }
+</style>
+
+<div class="forum-page">
+<div class="max-w-2xl mx-auto">
+    <!-- Back -->
+    <a href="{% url 'forum_feed' %}" class="inline-flex items-center gap-2 text-sm font-medium mb-4 transition-colors forum-text-muted hover:text-[#0a66c2]">
+        <i class="fas fa-arrow-left"></i> Back to Community
+    </a>
+
+    <div class="forum-card rounded-xl p-3 mb-4">
+        <p class="text-xs forum-text-muted">
+            Quick note: the main posting experience is now inline on the
+            <a href="{% url 'forum_feed' %}" class="font-semibold text-[#0a66c2] hover:underline">Community feed</a>.
+        </p>
+    </div>
+
+    <!-- Form Card -->
+    <div class="forum-card rounded-xl p-6">
+        <h2 class="text-lg font-bold mb-5 forum-text-primary">
+            {% if editing_post %}Edit Post{% else %}Create a Post{% endif %}
+        </h2>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <!-- Author preview -->
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-10 h-10 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-sm shadow-sm overflow-hidden">
+                    {% if membership.role == 'tenant_admin' and tenant_branding.logo_url %}
+                    <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+                    {% else %}
+                    {{ request.user.get_full_name|default:request.user.username|initial }}
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="font-semibold text-sm forum-text-primary">{{ request.user.get_full_name|default:request.user.username }}</div>
+                    <div class="text-xs forum-text-muted">Posting to Community</div>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="mb-4">
+                <textarea
+                    name="content"
+                    rows="6"
+                    placeholder="What do you want to share?"
+                    required
+                    maxlength="5000"
+                    class="w-full px-4 py-3 rounded-xl text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-input"
+                    style="min-height: 150px;"
+                >{% if editing_post %}{{ editing_post.content }}{% endif %}</textarea>
+                <div class="flex justify-end mt-1">
+                    <span class="text-[10px] forum-text-muted">Max 5000 characters</span>
+                </div>
+            </div>
+
+            <!-- Category -->
+            {% if categories %}
+            <div class="mb-4">
+                <label class="block text-xs font-medium mb-1.5 forum-text-muted">Topic (optional)</label>
+                <select name="category" class="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-select">
+                    <option value="">No topic</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if editing_post and editing_post.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- Image Upload -->
+            <div class="mb-5">
+                <label class="block text-xs font-medium mb-1.5 forum-text-muted">Image (optional)</label>
+                <input type="file" name="image" accept="image/*" id="post-image-input"
+                    class="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-input file:mr-3 file:px-3 file:py-1 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#0a66c2]/10 file:text-[#0a66c2]"
+                    onchange="previewImage(this)">
+                {% if editing_post and editing_post.image %}
+                <div class="mt-2 text-xs forum-text-muted">Current image attached. Upload a new one to replace it.</div>
+                {% endif %}
+                <div id="image-preview" class="hidden mt-3">
+                    <img id="preview-img" src="" alt="Preview" class="max-h-48 rounded-lg object-cover">
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-end gap-3 border-t pt-4 forum-border">
+                <a href="{% url 'forum_feed' %}" class="px-5 py-2.5 rounded-full border text-sm font-medium transition-all hover:bg-black/5 forum-text-muted" style="border-color: var(--forum-input-border);">
+                    Cancel
+                </a>
+                <button type="submit" class="px-6 py-2.5 rounded-full bg-[#0a66c2] text-white text-sm font-bold hover:bg-[#004182] transition-colors shadow-sm">
+                    {% if editing_post %}Save Changes{% else %}Post{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+</div>
+
+<script>
+function previewImage(input) {
+    var preview = document.getElementById('image-preview');
+    var img = document.getElementById('preview-img');
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+</script>
+{% endblock %}

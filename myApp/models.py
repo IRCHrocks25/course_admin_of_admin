@@ -929,11 +929,18 @@ class TenantMembership(models.Model):
         ('student', 'Student'),
     ]
 
+    THEME_CHOICES = [
+        ('', 'Use tenant default'),
+        ('dark', 'Dark'),
+        ('light', 'Light'),
+    ]
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='memberships')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tenant_memberships')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
     is_active = models.BooleanField(default=True)
     must_change_password = models.BooleanField(default=False)
+    theme_preference = models.CharField(max_length=10, choices=THEME_CHOICES, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1142,4 +1149,113 @@ class TenantNotificationDelivery(models.Model):
 
     def __str__(self):
         return f"{self.notification.title} → {self.tenant.name}"
+
+
+# ─── Community Forum ────────────────────────────────────────────────
+
+class ForumCategory(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='forum_categories')
+    name = models.CharField(max_length=60)
+    slug = models.SlugField(max_length=80)
+    description = models.CharField(max_length=200, blank=True, default='')
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('tenant', 'slug')]
+        ordering = ['order', 'name']
+        verbose_name_plural = 'forum categories'
+
+    def __str__(self):
+        return self.name
+
+
+class ForumPost(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='forum_posts')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='forum_posts')
+    category = models.ForeignKey(
+        ForumCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='posts',
+    )
+    content = models.TextField()
+    image = models.ImageField(upload_to='forum_images/', null=True, blank=True)
+    is_pinned = models.BooleanField(default=False)
+    is_edited = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_pinned', '-created_at']
+        indexes = [
+            models.Index(fields=['tenant', '-created_at']),
+            models.Index(fields=['tenant', 'author']),
+            models.Index(fields=['tenant', 'category']),
+        ]
+
+    def __str__(self):
+        return f"Post by {self.author.username} ({self.tenant.slug})"
+
+
+class ForumComment(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='forum_comments')
+    post = models.ForeignKey(ForumPost, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='forum_comments')
+    parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies',
+    )
+    content = models.TextField()
+    is_edited = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['post', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Comment by {self.author.username} on post {self.post_id}"
+
+
+class ForumReaction(models.Model):
+    REACTION_CHOICES = [
+        ('like', 'Like'),
+        ('celebrate', 'Celebrate'),
+        ('support', 'Support'),
+        ('insightful', 'Insightful'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='forum_reactions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='forum_reactions')
+    post = models.ForeignKey(
+        ForumPost, on_delete=models.CASCADE, null=True, blank=True, related_name='reactions',
+    )
+    comment = models.ForeignKey(
+        ForumComment, on_delete=models.CASCADE, null=True, blank=True, related_name='reactions',
+    )
+    reaction_type = models.CharField(max_length=20, choices=REACTION_CHOICES, default='like')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['post', 'reaction_type']),
+            models.Index(fields=['comment', 'reaction_type']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'user', 'post', 'reaction_type'],
+                condition=models.Q(post__isnull=False),
+                name='uniq_forum_reaction_post',
+            ),
+            models.UniqueConstraint(
+                fields=['tenant', 'user', 'comment', 'reaction_type'],
+                condition=models.Q(comment__isnull=False),
+                name='uniq_forum_reaction_comment',
+            ),
+        ]
+
+    def __str__(self):
+        target = f"post {self.post_id}" if self.post_id else f"comment {self.comment_id}"
+        return f"{self.user.username} {self.reaction_type} on {target}"
 

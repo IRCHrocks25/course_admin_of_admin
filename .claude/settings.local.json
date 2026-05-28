@@ -29,7 +29,11 @@
       "PowerShell(python -c \"from django_tasks import task_backends; print\\(task_backends.settings_name\\)\")",
       "PowerShell(pip check *)",
       "PowerShell(pip install *)",
-      "PowerShell(pip uninstall *)"
+      "PowerShell(pip uninstall *)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(Sort-Object Name)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-Content *)"
     ]
   }
 }

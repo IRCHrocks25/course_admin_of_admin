@@ -190,9 +190,17 @@
         .brand-theme-light .border-cyan-electric\/40 { border-color: rgba(15, 23, 42, 0.12) !important; }
         .brand-theme-light .shadow-cyan-electric\/20,
         .brand-theme-light .shadow-cyan-electric\/50 { box-shadow: none !important; }
+
+        /* Theme transition */
+        .theme-transitioning,
+        .theme-transitioning *,
+        .theme-transitioning *::before,
+        .theme-transitioning *::after {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+        }
     </style>
 </head>
-<body class="min-h-screen {% if tenant_branding.theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" style="--brand-accent-primary: {{ tenant_branding.accent_primary|default:'#00f0ff' }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary|default:'#a855f7' }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on|default:'#0a0e27' }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on|default:'#ffffff' }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on|default:'#ffffff' }};">
+<body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'dark' }}" style="--brand-accent-primary: {{ tenant_branding.accent_primary|default:'#00f0ff' }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary|default:'#a855f7' }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on|default:'#0a0e27' }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on|default:'#ffffff' }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on|default:'#ffffff' }};">
     <!-- Page Preloader -->
     <div id="page-preloader">
         <div class="text-center">
@@ -234,6 +242,7 @@
             <div class="hidden md:flex items-center gap-6 lg:gap-8">
                 <a href="{% url 'courses' %}" class="text-sm font-medium brand-nav-link transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
                 {% if user.is_authenticated %}
+                <a href="{% url 'forum_feed' %}" class="text-sm font-medium brand-nav-link transition-colors">Community</a>
                 <a href="{% url 'student_certifications' %}" class="text-sm font-medium brand-nav-link transition-colors">Certifications</a>
                 {% endif %}
                 {% if user.is_staff %}
@@ -241,6 +250,12 @@
                 {% endif %}
                 {% if user.is_superuser %}
                 <a href="{% url 'superadmin_home' %}" class="text-sm font-medium brand-nav-link transition-colors">Super Admin</a>
+                {% endif %}
+                {% if user.is_authenticated %}
+                <button onclick="toggleTheme()" class="p-2 rounded-lg brand-nav-link transition-colors hover:bg-cyan-electric/10" title="Toggle theme" aria-label="Toggle theme">
+                    <i class="fas fa-moon text-sm" id="theme-icon-moon" style="display:{% if effective_theme_mode == 'light' %}inline{% else %}none{% endif %}"></i>
+                    <i class="fas fa-sun text-sm" id="theme-icon-sun" style="display:{% if effective_theme_mode != 'light' %}inline{% else %}none{% endif %}"></i>
+                </button>
                 {% endif %}
                 <a href="{% url 'logout' %}" class="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/70 transition-all brand-nav-cta">Log Out</a>
             </div>
@@ -251,6 +266,7 @@
             <div class="px-4 py-4 space-y-3">
                 <a href="{% url 'courses' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
                 {% if user.is_authenticated %}
+                <a href="{% url 'forum_feed' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Community</a>
                 <a href="{% url 'student_certifications' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Certifications</a>
                 {% endif %}
                 {% if user.is_staff %}
@@ -258,6 +274,11 @@
                 {% endif %}
                 {% if user.is_superuser %}
                 <a href="{% url 'superadmin_home' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Super Admin</a>
+                {% endif %}
+                {% if user.is_authenticated %}
+                <button onclick="toggleTheme()" class="w-full text-left block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">
+                    <i class="fas fa-adjust mr-2"></i>Toggle Theme
+                </button>
                 {% endif %}
                 <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors border border-cyan-electric/30">Log Out</a>
             </div>
@@ -286,8 +307,33 @@
         });
     </script>
     
+    <script>
+    function toggleTheme() {
+        var csrfToken = '{{ csrf_token }}';
+        fetch('{% url "toggle_theme" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var body = document.body;
+            body.classList.add('theme-transitioning');
+            body.classList.remove('brand-theme-dark', 'brand-theme-light');
+            body.classList.add('brand-theme-' + data.theme);
+            body.dataset.theme = data.theme;
+            var moon = document.getElementById('theme-icon-moon');
+            var sun = document.getElementById('theme-icon-sun');
+            if (moon) moon.style.display = data.theme === 'light' ? 'inline' : 'none';
+            if (sun) sun.style.display = data.theme === 'dark' ? 'inline' : 'none';
+            setTimeout(function() { body.classList.remove('theme-transitioning'); }, 350);
+        });
+    }
+    </script>
+
     <!-- Main Content -->
-    <main class="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-12">
+    <main class="{% block main_content_classes %}max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-12{% endblock %}">
         {% block content %}{% endblock %}
     </main>
     

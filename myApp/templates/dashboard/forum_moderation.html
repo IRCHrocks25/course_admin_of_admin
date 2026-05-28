@@ -1,0 +1,84 @@
+{% extends 'dashboard/base.html' %}
+{% load forum_tags %}
+
+{% block page_title %}Community Moderation{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between flex-wrap gap-3">
+    <p class="text-sm text-gray-400">Manage community posts — pin important content, remove inappropriate posts.</p>
+    <a href="{% url 'dashboard_forum_categories' %}" class="px-4 py-2 rounded-lg border border-cyan-electric/30 text-sm font-medium text-cyan-electric hover:bg-cyan-electric/10 transition-all">
+        <i class="fas fa-tags mr-1.5"></i>Manage Categories
+    </a>
+</div>
+
+{% if page_obj %}
+<div class="space-y-3">
+    {% for post in page_obj %}
+    <div class="rounded-xl border border-cyan-electric/15 bg-[#0a0e27]/60 p-4 flex items-start gap-4">
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+                <span class="font-semibold text-sm text-white">{{ post.author.get_full_name|default:post.author.username }}</span>
+                {% if post.is_pinned %}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300">
+                    <i class="fas fa-thumbtack text-[8px]"></i> Pinned
+                </span>
+                {% endif %}
+                {% if post.category %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-electric/10 text-cyan-electric">{{ post.category.name }}</span>
+                {% endif %}
+                <span class="text-xs text-gray-500">{{ post.created_at|short_timesince }} ago</span>
+            </div>
+            <p class="text-sm text-gray-300 line-clamp-2">{{ post.content|truncatewords:40 }}</p>
+            <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                <span><i class="fas fa-comment mr-1"></i>{{ post.comment_count }}</span>
+                <span><i class="fas fa-heart mr-1"></i>{{ post.reaction_count }}</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+            <form method="post" action="{% url 'dashboard_forum_pin_post' post_id=post.id %}">
+                {% csrf_token %}
+                <button type="submit" class="p-2 rounded-lg border transition-all text-xs {% if post.is_pinned %}border-amber-500/30 text-amber-300 bg-amber-500/10 hover:bg-amber-500/20{% else %}border-cyan-electric/20 text-gray-400 hover:text-cyan-electric hover:bg-cyan-electric/10{% endif %}" title="{% if post.is_pinned %}Unpin{% else %}Pin{% endif %}">
+                    <i class="fas fa-thumbtack"></i>
+                </button>
+            </form>
+            <a href="{% url 'forum_post_detail' post_id=post.id %}" class="p-2 rounded-lg border border-cyan-electric/20 text-gray-400 hover:text-cyan-electric hover:bg-cyan-electric/10 transition-all text-xs" title="View">
+                <i class="fas fa-external-link-alt"></i>
+            </a>
+            <form method="post" action="{% url 'forum_delete_post' post_id=post.id %}" onsubmit="return confirm('Delete this post permanently?')">
+                {% csrf_token %}
+                <button type="submit" class="p-2 rounded-lg border border-red-500/20 text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all text-xs" title="Delete">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="flex items-center justify-center gap-2 mt-6">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}" class="px-4 py-2 rounded-lg border border-cyan-electric/30 text-sm font-medium hover:bg-cyan-electric/10 transition-all">
+        <i class="fas fa-chevron-left mr-1"></i> Previous
+    </a>
+    {% endif %}
+    <span class="px-3 py-2 text-xs text-gray-500">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="px-4 py-2 rounded-lg border border-cyan-electric/30 text-sm font-medium hover:bg-cyan-electric/10 transition-all">
+        Next <i class="fas fa-chevron-right ml-1"></i>
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="rounded-xl border border-cyan-electric/15 bg-[#0a0e27]/60 p-8 text-center">
+    <div class="w-16 h-16 rounded-full bg-cyan-electric/10 flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-comments text-2xl text-cyan-electric"></i>
+    </div>
+    <h3 class="font-semibold text-lg text-white mb-2">No community posts yet</h3>
+    <p class="text-sm text-gray-400">When students or instructors create posts, they'll appear here for moderation.</p>
+</div>
+{% endif %}
+{% endblock %}

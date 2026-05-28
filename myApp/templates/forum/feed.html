@@ -1,0 +1,461 @@
+{% extends 'base.html' %}
+{% load forum_tags %}
+
+{% block title %}Community — {{ tenant_branding.brand_name|default:"CourseForge" }}{% endblock %}
+{% block main_content_classes %}w-full px-0 py-4 sm:py-8{% endblock %}
+
+{% block content %}
+<!-- Community-specific LinkedIn-inspired styles -->
+<style>
+    .forum-page {
+        --forum-card: #ffffff;
+        --forum-card-border: rgba(0,0,0,0.12);
+        --forum-text: #191919;
+        --forum-text-muted: #5e5e5e;
+        --forum-blue: #0a66c2;
+        --forum-blue-hover: #004182;
+        --forum-comment-bg: #f3f2ef;
+        --forum-input-bg: #ffffff;
+        --forum-input-border: #d1d1d1;
+        --forum-divider: #e8e8e8;
+    }
+    .forum-page { min-height: calc(100vh - 72px); padding: 16px 12px 28px; }
+    .forum-shell { max-width: 1180px; margin: 0 auto; }
+    @media (min-width: 640px) { .forum-page { padding: 24px 16px 36px; } }
+    .forum-card { background: var(--forum-card); border: 1px solid var(--forum-card-border); box-shadow: none; }
+    .forum-text-primary { color: var(--forum-text) !important; }
+    .forum-text-muted { color: var(--forum-text-muted) !important; }
+    .forum-border { border-color: var(--forum-divider) !important; }
+    .forum-comment-bg { background: var(--forum-comment-bg); }
+    .forum-input {
+        background: var(--forum-input-bg);
+        border: 1px solid var(--forum-input-border);
+        color: var(--forum-text);
+    }
+    .forum-input::placeholder { color: var(--forum-text-muted); }
+    .forum-input:focus { border-color: var(--forum-blue); }
+    .forum-action-btn { color: #6f6f6f; }
+    .forum-action-btn:hover { background: #f3f2ef; color: #222; }
+    .forum-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(2px);
+        z-index: 90;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+    .forum-modal-overlay.open { display: flex; }
+    .forum-modal {
+        width: 100%;
+        max-width: 640px;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+    }
+    .forum-modal-header { padding: 14px 18px; border-bottom: 1px solid #e5e7eb; }
+    .forum-modal-body { padding: 14px 18px 10px; }
+    .forum-modal-footer { padding: 10px 18px; border-top: 1px solid #e5e7eb; background: #fff; }
+    .forum-modal-textarea {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        resize: vertical;
+        min-height: 180px;
+        font-size: 15px;
+        line-height: 1.5;
+        color: #1f1f1f;
+        background: transparent;
+    }
+    .forum-modal-textarea::placeholder { color: #6b7280; }
+    .forum-audience-pill {
+        border: 1px solid #d1d5db;
+        border-radius: 9999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #374151;
+        background: #fff;
+    }
+    .forum-modal-tools button {
+        width: 34px;
+        height: 34px;
+        border-radius: 9999px;
+        color: #6b7280;
+    }
+    .forum-modal-tools button:hover { background: #f3f4f6; color: #374151; }
+</style>
+
+<div class="forum-page">
+<div class="forum-shell grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_300px] gap-5 w-full">
+
+    <!-- Left Sidebar: Profile Card -->
+    <div class="hidden lg:block">
+        <div class="forum-card rounded-xl overflow-hidden sticky top-24">
+            <!-- Profile Banner -->
+            <div class="h-16 bg-[#eef5fd] border-b border-[#d7e8fb]"></div>
+            <div class="px-4 pb-4 -mt-6">
+                <div class="w-14 h-14 rounded-full bg-white border-2 border-[#0a66c2]/30 flex items-center justify-center text-[#0a66c2] font-bold text-xl shadow-sm mb-2 overflow-hidden">
+                    {% if membership.role == 'tenant_admin' and tenant_branding.logo_url %}
+                    <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+                    {% else %}
+                    {{ request.user.get_full_name|default:request.user.username|initial }}
+                    {% endif %}
+                </div>
+                <h3 class="font-semibold text-sm forum-text-primary">{{ request.user.get_full_name|default:request.user.username }}</h3>
+                <p class="text-xs mt-0.5 forum-text-muted">
+                    {% if membership.role == 'tenant_admin' %}Instructor{% else %}Student{% endif %}
+                </p>
+                <div class="border-t mt-3 pt-3 forum-border">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="forum-text-muted">Your posts</span>
+                        <span class="font-semibold text-[#0a66c2]">{{ user_post_count }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Column: Feed -->
+    <div>
+        <!-- Create Post Composer -->
+        <div class="forum-card rounded-xl mb-4 overflow-hidden">
+            <div class="px-4 pt-4 pb-3 flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-sm overflow-hidden">
+                    {% if membership.role == 'tenant_admin' and tenant_branding.logo_url %}
+                    <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+                    {% else %}
+                    {{ request.user.get_full_name|default:request.user.username|initial }}
+                    {% endif %}
+                </div>
+                <button type="button" onclick="openComposerModal()" class="w-full text-left px-4 py-2.5 rounded-full border text-sm forum-text-muted hover:bg-[#f3f2ef]" style="border-color:#cfd3d8;">
+                    Start a post...
+                </button>
+            </div>
+            <div class="border-t forum-border"></div>
+            <div class="grid grid-cols-3 gap-1 p-2">
+                <button type="button" onclick="openComposerModal()" class="forum-action-btn px-3 py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-image text-[#378fe9]"></i><span class="hidden sm:inline">Media</span>
+                </button>
+                <button type="button" onclick="openComposerModal()" class="forum-action-btn px-3 py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-calendar text-[#c37d16]"></i><span class="hidden sm:inline">Event</span>
+                </button>
+                <button type="button" onclick="openComposerModal()" class="forum-action-btn px-3 py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-pen text-[#e06847]"></i><span class="hidden sm:inline">Write article</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Category Filter Pills -->
+        {% if categories %}
+        <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
+            <a href="{% url 'forum_feed' %}{% if sort == 'popular' %}?sort=popular{% endif %}"
+               class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border {% if not active_category %}bg-white text-[#0a66c2] border-[#0a66c2]{% else %}bg-white border-[#666666]/30 forum-text-muted hover:border-[#0a66c2] hover:text-[#0a66c2]{% endif %}">
+                All
+            </a>
+            {% for cat in categories %}
+            <a href="{% url 'forum_feed' %}?category={{ cat.slug }}{% if sort == 'popular' %}&sort=popular{% endif %}"
+               class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border {% if active_category == cat.slug %}bg-white text-[#0a66c2] border-[#0a66c2]{% else %}bg-white border-[#666666]/30 forum-text-muted hover:border-[#0a66c2] hover:text-[#0a66c2]{% endif %}">
+                {{ cat.name }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Sort Toggle -->
+        <div class="flex items-center gap-4 mb-4">
+            <div class="flex-1 border-t forum-border"></div>
+            <div class="flex items-center gap-1 text-xs forum-text-muted">
+                <span>Sort by:</span>
+                <a href="{% url 'forum_feed' %}{% if active_category %}?category={{ active_category }}{% endif %}"
+                   class="px-2 py-1 rounded {% if sort == 'recent' %}font-bold text-[#0a66c2]{% endif %}">Recent</a>
+                <span>&middot;</span>
+                <a href="{% url 'forum_feed' %}?sort=popular{% if active_category %}&category={{ active_category }}{% endif %}"
+                   class="px-2 py-1 rounded {% if sort == 'popular' %}font-bold text-[#0a66c2]{% endif %}">Popular</a>
+            </div>
+            <div class="flex-1 border-t forum-border"></div>
+        </div>
+
+        <!-- Posts -->
+        {% for post in page_obj %}
+        {% include "forum/_post_card.html" %}
+        {% empty %}
+        <div class="forum-card rounded-xl p-8 text-center">
+            <div class="w-16 h-16 rounded-full bg-[#0a66c2]/10 flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-comments text-2xl text-[#0a66c2]"></i>
+            </div>
+            <h3 class="font-semibold text-lg mb-2 forum-text-primary">No posts yet</h3>
+            <p class="text-sm mb-4 forum-text-muted">Be the first to share something with the community!</p>
+            <button type="button" onclick="focusComposer()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#0a66c2] bg-white text-[#0a66c2] text-sm font-semibold hover:bg-[#eef5fd] transition-colors shadow-sm">
+                <i class="fas fa-plus"></i> Create Post
+            </button>
+        </div>
+        {% endfor %}
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="flex items-center justify-center gap-2 mt-6">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-all hover:bg-[#0a66c2]/5 hover:border-[#0a66c2]/30 forum-text-primary" style="border-color: var(--forum-card-border);">
+                <i class="fas fa-chevron-left mr-1"></i> Previous
+            </a>
+            {% endif %}
+            <span class="px-3 py-2 text-xs forum-text-muted">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-all hover:bg-[#0a66c2]/5 hover:border-[#0a66c2]/30 forum-text-primary" style="border-color: var(--forum-card-border);">
+                Next <i class="fas fa-chevron-right ml-1"></i>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="hidden lg:block">
+        <div class="sticky top-24 space-y-4">
+            <!-- Active Members -->
+            {% if top_posters %}
+            <div class="forum-card rounded-xl p-4">
+                <h4 class="font-semibold text-sm mb-3 forum-text-primary">
+                    <i class="fas fa-fire text-orange-500 mr-1.5"></i>Active Members
+                </h4>
+                <div class="space-y-3">
+                    {% for poster in top_posters %}
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-full bg-white border border-[#0a66c2]/25 flex items-center justify-center text-[#0a66c2] font-bold text-[10px] shadow-sm">
+                            {% with name=poster.author__first_name|default:poster.author__username %}{{ name|initial }}{% endwith %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-medium truncate forum-text-primary">
+                                {% if poster.author__first_name %}{{ poster.author__first_name }} {{ poster.author__last_name }}{% else %}{{ poster.author__username }}{% endif %}
+                            </div>
+                            <div class="text-[10px] forum-text-muted">{{ poster.post_count }} post{{ poster.post_count|pluralize }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Trending Categories -->
+            {% if categories %}
+            <div class="forum-card rounded-xl p-4">
+                <h4 class="font-semibold text-sm mb-3 forum-text-primary">
+                    <i class="fas fa-hashtag text-[#0a66c2] mr-1.5"></i>Topics
+                </h4>
+                <div class="space-y-1">
+                    {% for cat in categories %}
+                    <a href="{% url 'forum_feed' %}?category={{ cat.slug }}" class="block px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#0a66c2]/5 forum-text-muted hover:text-[#0a66c2]">
+                        {{ cat.name }}
+                        {% if cat.description %}
+                        <span class="block text-[10px] mt-0.5 opacity-70">{{ cat.description }}</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Composer Modal -->
+<div id="forum-composer-modal" class="forum-modal-overlay">
+    <div class="forum-modal">
+        <div class="forum-modal-header flex items-center justify-between">
+            <h3 class="text-base font-semibold forum-text-primary">Create a post</h3>
+            <button type="button" onclick="closeComposerModal()" class="w-8 h-8 rounded-full hover:bg-[#f3f2ef] forum-text-muted" aria-label="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="forum-modal-body">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-11 h-11 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center text-[#0a66c2] font-bold text-sm overflow-hidden">
+                        {% if membership.role == 'tenant_admin' and tenant_branding.logo_url %}
+                        <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
+                        {% else %}
+                        {{ request.user.get_full_name|default:request.user.username|initial }}
+                        {% endif %}
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold forum-text-primary">{{ request.user.get_full_name|default:request.user.username }}</p>
+                        <button type="button" class="forum-audience-pill mt-1">Anyone in community</button>
+                    </div>
+                </div>
+                <textarea
+                    name="content"
+                    rows="8"
+                    maxlength="5000"
+                    required
+                    id="modal-post-content"
+                    placeholder="What do you want to talk about?"
+                    class="forum-modal-textarea"
+                >{{ composer_content }}</textarea>
+                {% if categories %}
+                <div class="mt-2 mb-2">
+                    <select name="category" class="w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-input">
+                        <option value="">No topic</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if composer_category_id == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="mt-2">
+                    <input type="file" name="image" accept="image/*" id="modal-post-image"
+                           class="w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 forum-input file:mr-3 file:px-3 file:py-1 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#0a66c2]/10 file:text-[#0a66c2]">
+                    <div id="modal-image-preview" class="hidden mt-3">
+                        <img id="modal-preview-img" src="" alt="Preview" class="max-h-56 rounded-lg object-cover">
+                    </div>
+                </div>
+            </div>
+            <div class="forum-modal-footer flex items-center justify-between">
+                <div class="forum-modal-tools flex items-center gap-1">
+                    <button type="button" aria-label="Add image"><i class="fas fa-image"></i></button>
+                    <button type="button" aria-label="Add event"><i class="fas fa-calendar"></i></button>
+                    <button type="button" aria-label="Add hashtag"><i class="fas fa-hashtag"></i></button>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs forum-text-muted">Max 5000 chars</span>
+                    <button type="submit" class="px-5 py-2 rounded-full border border-[#0a66c2] bg-white text-[#0a66c2] text-sm font-semibold hover:bg-[#eef5fd] transition-colors">
+                        Post
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Close dropdown menus on outside click -->
+<script>
+function focusComposer() {
+    openComposerModal();
+}
+
+function openComposerModal() {
+    var modal = document.getElementById('forum-composer-modal');
+    if (!modal) return;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    var input = document.getElementById('modal-post-content');
+    if (input) {
+        setTimeout(function() { input.focus(); }, 40);
+    }
+}
+
+function closeComposerModal() {
+    var modal = document.getElementById('forum-composer-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+var modalImageInput = document.getElementById('modal-post-image');
+if (modalImageInput) {
+    modalImageInput.addEventListener('change', function() {
+        var preview = document.getElementById('modal-image-preview');
+        var img = document.getElementById('modal-preview-img');
+        if (!preview || !img) return;
+        if (this.files && this.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                preview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(this.files[0]);
+        } else {
+            preview.classList.add('hidden');
+        }
+    });
+}
+
+var composerModal = document.getElementById('forum-composer-modal');
+if (composerModal) {
+    composerModal.addEventListener('click', function(e) {
+        if (e.target === composerModal) closeComposerModal();
+    });
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeComposerModal();
+});
+
+function toggleCommentThread(postId) {
+    var section = document.getElementById('post-comments-' + postId);
+    if (!section) return;
+    section.classList.toggle('hidden');
+}
+
+function showReplyForm(postId, commentId) {
+    var form = document.getElementById('reply-form-' + postId + '-' + commentId);
+    if (!form) return;
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) {
+        var input = form.querySelector('input[name="content"]');
+        if (input) input.focus();
+    }
+}
+
+if (window.location.hash && window.location.hash.indexOf('#post-') === 0) {
+    var postIdFromHash = window.location.hash.replace('#post-', '');
+    var thread = document.getElementById('post-comments-' + postIdFromHash);
+    if (thread) {
+        thread.classList.remove('hidden');
+    }
+}
+
+{% if composer_content %}
+openComposerModal();
+{% endif %}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.fa-ellipsis-h') && !e.target.closest('[class*="absolute"]')) {
+        document.querySelectorAll('.absolute.right-0').forEach(function(m) { m.classList.add('hidden'); });
+    }
+});
+</script>
+
+<!-- Reaction Toggle Script -->
+<script>
+function toggleReaction(targetType, targetId, reactionType, btn) {
+    var csrfToken = '{{ csrf_token }}';
+    fetch('{% url "forum_toggle_reaction" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ target_type: targetType, target_id: targetId, reaction_type: reactionType }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) return;
+        if (data.action === 'added') {
+            btn.classList.add('border-[#0a66c2]/40', 'bg-[#0a66c2]/10', 'text-[#0a66c2]');
+            btn.classList.remove('border-transparent', 'forum-text-muted');
+        } else {
+            btn.classList.remove('border-[#0a66c2]/40', 'bg-[#0a66c2]/10', 'text-[#0a66c2]');
+            btn.classList.add('border-transparent', 'forum-text-muted');
+        }
+        var countEl = btn.querySelector('.reaction-count');
+        if (data.count > 0) {
+            if (!countEl) {
+                countEl = document.createElement('span');
+                countEl.className = 'reaction-count';
+                btn.appendChild(countEl);
+            }
+            countEl.textContent = data.count;
+        } else if (countEl) {
+            countEl.remove();
+        }
+    });
+}
+</script>
+{% endblock %}

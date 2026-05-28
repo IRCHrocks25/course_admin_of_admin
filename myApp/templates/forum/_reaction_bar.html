@@ -1,0 +1,16 @@
+{% load forum_tags %}
+<div class="flex items-center gap-1 flex-wrap">
+    {% for rtype, icon, label in reaction_meta %}
+    {% with is_active=active_reactions|in_set:rtype count=counts|dictget:rtype %}
+    <button
+        onclick="toggleReaction('{{ target_type }}', {{ target_id }}, '{{ rtype }}', this)"
+        class="reaction-btn inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold transition-all border cursor-pointer {% if is_active %}border-[#0a66c2]/20 bg-[#e8f3ff] text-[#0a66c2]{% else %}border-transparent forum-text-muted hover:bg-[#f3f2ef] hover:text-[#1f1f1f]{% endif %}"
+        data-type="{{ rtype }}"
+    >
+        <i class="fas {{ icon }}"></i>
+        <span>{{ label }}</span>
+        {% if count %}<span class="reaction-count">{{ count }}</span>{% endif %}
+    </button>
+    {% endwith %}
+    {% endfor %}
+</div>

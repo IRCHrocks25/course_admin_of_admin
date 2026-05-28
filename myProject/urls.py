@@ -6,6 +6,7 @@ from myApp import views
 from myApp import health_views
 from myApp import dashboard_views
 from myApp import superadmin_views
+from myApp import forum_views
 
 urlpatterns = [
     # Platform health checks
@@ -148,6 +149,23 @@ urlpatterns = [
 
     # Tenant-side notification dismiss
     path('api/notifications/<int:delivery_id>/dismiss/', views.dismiss_notification, name='dismiss_notification'),
+
+    # Theme toggle
+    path('api/theme/toggle/', views.toggle_theme, name='toggle_theme'),
+
+    # Community Forum
+    path('community/', forum_views.forum_feed, name='forum_feed'),
+    path('community/new/', forum_views.forum_create_post, name='forum_create_post'),
+    path('community/post/<int:post_id>/', forum_views.forum_post_detail, name='forum_post_detail'),
+    path('community/post/<int:post_id>/delete/', forum_views.forum_delete_post, name='forum_delete_post'),
+    path('community/post/<int:post_id>/comment/', forum_views.forum_add_comment, name='forum_add_comment'),
+    path('community/comment/<int:comment_id>/delete/', forum_views.forum_delete_comment, name='forum_delete_comment'),
+    path('api/forum/react/', forum_views.forum_toggle_reaction, name='forum_toggle_reaction'),
+
+    # Dashboard Forum Moderation
+    path('dashboard/community/', forum_views.dashboard_forum_moderation, name='dashboard_forum_moderation'),
+    path('dashboard/community/post/<int:post_id>/pin/', forum_views.dashboard_forum_pin_post, name='dashboard_forum_pin_post'),
+    path('dashboard/community/categories/', forum_views.dashboard_forum_categories, name='dashboard_forum_categories'),
 
     # Upgrade checkout flow
     path('upgrade/success/', views.upgrade_success, name='upgrade_success'),

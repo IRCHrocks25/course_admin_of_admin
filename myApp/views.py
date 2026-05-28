@@ -4129,3 +4129,28 @@ def _activate_setup_fee_payment(session):
         update_fields.append('stripe_customer_id')
     tenant.save(update_fields=update_fields)
     return tenant
+
+
+@require_http_methods(["POST"])
+@login_required
+def toggle_theme(request):
+    """Toggle user's theme preference between dark and light."""
+    from .models import TenantMembership
+    from .utils.branding import get_tenant_branding
+
+    tenant = getattr(request, 'tenant', None)
+    if not tenant:
+        return JsonResponse({'success': False, 'error': 'No tenant context'}, status=400)
+
+    membership = TenantMembership.objects.filter(
+        tenant=tenant, user=request.user, is_active=True,
+    ).first()
+    if not membership:
+        return JsonResponse({'success': False, 'error': 'No membership'}, status=403)
+
+    current = membership.theme_preference or get_tenant_branding(tenant).get('theme_mode', 'dark')
+    new_theme = 'light' if current == 'dark' else 'dark'
+    membership.theme_preference = new_theme
+    membership.save(update_fields=['theme_preference'])
+
+    return JsonResponse({'success': True, 'theme': new_theme})
