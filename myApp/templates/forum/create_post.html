@@ -113,6 +113,10 @@
                     onchange="previewImage(this)">
                 {% if editing_post and editing_post.image %}
                 <div class="mt-2 text-xs forum-text-muted">Current image attached. Upload a new one to replace it.</div>
+                <label class="mt-2 inline-flex items-center gap-2 text-xs forum-text-muted cursor-pointer">
+                    <input type="checkbox" name="remove_image" value="1" class="rounded">
+                    Remove current image (will be deleted)
+                </label>
                 {% endif %}
                 <div id="image-preview" class="hidden mt-3">
                     <img id="preview-img" src="" alt="Preview" class="max-h-48 rounded-lg object-cover">

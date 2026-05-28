@@ -146,12 +146,29 @@
     <div class="space-y-4">
         <h3 class="text-sm font-semibold forum-text-muted">
             <i class="fas fa-comments mr-1.5"></i>Comments
+            {% if comment_page.paginator.count %}
+            <span class="ml-1 text-xs forum-text-muted">({{ comment_page.paginator.count }})</span>
+            {% endif %}
         </h3>
         {% for comment in comments %}
         {% with is_reply=False %}
         {% include "forum/_comment.html" %}
         {% endwith %}
         {% endfor %}
+
+        {% if comment_page.has_other_pages %}
+        <div class="flex items-center justify-center gap-2 mt-4 pt-3 border-t forum-border">
+            {% if comment_page.has_previous %}
+            <a href="?page={{ comment_page.previous_page_number }}" class="px-3 py-1.5 rounded-lg border text-xs forum-text-primary hover:bg-[#0a66c2]/5">Previous</a>
+            {% endif %}
+            <span class="px-2 py-1 text-[11px] forum-text-muted">
+                Page {{ comment_page.number }} of {{ comment_page.paginator.num_pages }}
+            </span>
+            {% if comment_page.has_next %}
+            <a href="?page={{ comment_page.next_page_number }}" class="px-3 py-1.5 rounded-lg border text-xs forum-text-primary hover:bg-[#0a66c2]/5">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 </div>

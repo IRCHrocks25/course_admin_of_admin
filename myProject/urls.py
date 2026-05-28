@@ -160,6 +160,7 @@ urlpatterns = [
     path('community/post/<int:post_id>/delete/', forum_views.forum_delete_post, name='forum_delete_post'),
     path('community/post/<int:post_id>/comment/', forum_views.forum_add_comment, name='forum_add_comment'),
     path('community/comment/<int:comment_id>/delete/', forum_views.forum_delete_comment, name='forum_delete_comment'),
+    path('community/comment/<int:comment_id>/edit/', forum_views.forum_edit_comment, name='forum_edit_comment'),
     path('api/forum/react/', forum_views.forum_toggle_reaction, name='forum_toggle_reaction'),
 
     # Dashboard Forum Moderation

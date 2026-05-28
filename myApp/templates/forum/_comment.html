@@ -23,6 +23,9 @@
             {% if not is_reply %}
             <button onclick="showReplyForm({{ post.id }}, {{ comment.id }})" class="text-[11px] font-medium forum-text-muted hover:text-[#0a66c2] hover:underline">Reply</button>
             {% endif %}
+            {% if comment.author == request.user %}
+            <button type="button" onclick="document.getElementById('edit-comment-{{ comment.id }}').classList.toggle('hidden')" class="text-[11px] font-medium forum-text-muted hover:text-[#0a66c2] hover:underline">Edit</button>
+            {% endif %}
             {% if comment.author == request.user or membership.role == 'tenant_admin' %}
             <form method="post" action="{% url 'forum_delete_comment' comment_id=comment.id %}" class="inline" onsubmit="return confirm('Delete this comment?')">
                 {% csrf_token %}
@@ -31,6 +34,18 @@
             </form>
             {% endif %}
         </div>
+        {% if comment.author == request.user %}
+        <div id="edit-comment-{{ comment.id }}" class="hidden mt-2 ml-1">
+            <form method="post" action="{% url 'forum_edit_comment' comment_id=comment.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}#post-{{ post.id }}">
+                <div class="flex gap-2">
+                    <input type="text" name="content" value="{{ comment.content }}" maxlength="2000" required class="flex-1 px-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/20 focus:border-[#0a66c2]/40 forum-input">
+                    <button type="submit" class="px-3 py-2 rounded-lg border border-[#0a66c2] bg-white text-[#0a66c2] text-xs font-semibold hover:bg-[#eef5fd] transition-colors">Save</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
         <div class="ml-1 mt-1.5">
             {% with target_type="comment" target_id=comment.id %}
             {% include "forum/_reaction_bar.html" %}

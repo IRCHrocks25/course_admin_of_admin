@@ -1,16 +1,43 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch
+from django.db import IntegrityError, transaction
 from django.utils.text import slugify
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse
 from django.contrib import messages
 
 from .models import (
     TenantMembership, ForumCategory, ForumPost, ForumComment, ForumReaction,
 )
+
+# Limits for forum content. Kept here so they're easy to tune.
+MAX_POST_LENGTH = 5000
+MAX_COMMENT_LENGTH = 2000
+MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+ALLOWED_IMAGE_CONTENT_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+
+
+def _is_forum_admin(request, membership):
+    """Standardized moderator check. Tenant-admin role OR Django superuser."""
+    if membership and membership.role == 'tenant_admin':
+        return True
+    return bool(request.user.is_superuser)
+
+
+def _validate_image(uploaded):
+    """Return (ok: bool, error: str). ok=True with empty error means no image OR a valid one."""
+    if not uploaded:
+        return True, ''
+    if uploaded.size > MAX_IMAGE_BYTES:
+        return False, f'Image too large ({uploaded.size // 1024} KB). Max is {MAX_IMAGE_BYTES // (1024*1024)} MB.'
+    ctype = (getattr(uploaded, 'content_type', '') or '').lower()
+    if ctype and ctype not in ALLOWED_IMAGE_CONTENT_TYPES:
+        return False, f'Unsupported image type ({ctype}). Use JPEG, PNG, GIF, or WebP.'
+    return True, ''
 
 
 def _get_forum_context(request):
@@ -45,9 +72,18 @@ def _get_user_reactions(user, post_ids, tenant):
 
 
 def _redirect_with_fallback(request, fallback_url_name, **kwargs):
-    """Redirect to a safe `next` URL or fallback route."""
+    """Redirect to a safe `next` URL or fallback route.
+
+    Bug 14: uses Django's url_has_allowed_host_and_scheme which correctly
+    rejects protocol-relative tricks ("/\\evil.com", "//evil.com",
+    "javascript:..."), not just the naive "//" prefix.
+    """
     next_url = request.POST.get('next') or request.GET.get('next')
-    if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
         return redirect(next_url)
     return redirect(fallback_url_name, **kwargs)
 
@@ -77,10 +113,13 @@ def forum_feed(request):
         composer_content = content
         composer_category_id = category_id
 
+        img_ok, img_err = _validate_image(image)
         if not content:
             messages.error(request, 'Post content cannot be empty.')
-        elif len(content) > 5000:
-            messages.error(request, 'Post content cannot exceed 5000 characters.')
+        elif len(content) > MAX_POST_LENGTH:
+            messages.error(request, f'Post content cannot exceed {MAX_POST_LENGTH} characters.')
+        elif not img_ok:
+            messages.error(request, img_err)
         else:
             category = None
             if category_id:
@@ -136,27 +175,38 @@ def forum_feed(request):
     comments_by_post = {}
     comment_reaction_map = {}
     comment_rcounts = {}
+    # Bug 13: only the 3 most recent top-level comments per post are shown
+    # inline on the feed. Anything past that goes to /post/<id>/ via
+    # "View full thread". Keeps the feed page from rendering hundreds of
+    # comments when a single popular post has a long thread.
+    FEED_INLINE_COMMENT_LIMIT = 3
     if post_ids:
         replies_qs = ForumComment.objects.filter(
             tenant=tenant, post_id__in=post_ids, parent__isnull=False,
         ).select_related('author').order_by('created_at')
-        top_level_comments = (
-            ForumComment.objects.filter(
-                tenant=tenant, post_id__in=post_ids, parent__isnull=True,
-            )
-            .select_related('author')
-            .prefetch_related(Prefetch('replies', queryset=replies_qs))
-            .order_by('created_at')
-        )
-
+        # Per-post small queries (≤15 posts × LIMIT 3 each) — much cheaper than
+        # one big query when even a single post has thousands of comments.
         comment_ids = []
-        for comment in top_level_comments:
-            comments_by_post.setdefault(comment.post_id, []).append(comment)
-            author_ids.add(comment.author_id)
-            comment_ids.append(comment.id)
-            for reply in comment.replies.all():
-                author_ids.add(reply.author_id)
-                comment_ids.append(reply.id)
+        for pid in post_ids:
+            latest = list(
+                ForumComment.objects.filter(
+                    tenant=tenant, post_id=pid, parent__isnull=True,
+                )
+                .select_related('author')
+                .prefetch_related(Prefetch('replies', queryset=replies_qs))
+                .order_by('-created_at')[:FEED_INLINE_COMMENT_LIMIT]
+            )
+            if not latest:
+                continue
+            # Render oldest→newest within the visible slice so the thread reads naturally.
+            latest.reverse()
+            comments_by_post[pid] = latest
+            for comment in latest:
+                author_ids.add(comment.author_id)
+                comment_ids.append(comment.id)
+                for reply in comment.replies.all():
+                    author_ids.add(reply.author_id)
+                    comment_ids.append(reply.id)
 
         if comment_ids:
             user_comment_reactions = ForumReaction.objects.filter(
@@ -177,8 +227,13 @@ def forum_feed(request):
 
     user_post_count = ForumPost.objects.filter(tenant=tenant, author=request.user).count()
 
+    # Bug 15: restrict to authors who are currently active members of this
+    # tenant. Otherwise the widget keeps showing alumni who already left.
+    active_member_ids = TenantMembership.objects.filter(
+        tenant=tenant, is_active=True
+    ).values_list('user_id', flat=True)
     top_posters = (
-        ForumPost.objects.filter(tenant=tenant)
+        ForumPost.objects.filter(tenant=tenant, author_id__in=active_member_ids)
         .values('author__id', 'author__first_name', 'author__last_name', 'author__username')
         .annotate(post_count=Count('id'))
         .order_by('-post_count')[:5]
@@ -212,11 +267,15 @@ def forum_post_detail(request, post_id):
 
     post = get_object_or_404(ForumPost, id=post_id, tenant=tenant)
 
-    comments = (
+    all_top_level = (
         ForumComment.objects.filter(post=post, parent__isnull=True)
         .select_related('author')
         .prefetch_related('replies__author')
     )
+    # Bug 12: paginate so post_detail doesn't render 1000 comments at once.
+    paginator = Paginator(all_top_level, 25)
+    comment_page = paginator.get_page(request.GET.get('page', 1))
+    comments = list(comment_page)
 
     author_ids = {post.author_id}
     for c in comments:
@@ -261,6 +320,7 @@ def forum_post_detail(request, post_id):
     return render(request, 'forum/post_detail.html', {
         'post': post,
         'comments': comments,
+        'comment_page': comment_page,
         'role_map': role_map,
         'user_reactions': user_reactions,
         'comment_reaction_map': comment_reaction_map,
@@ -284,12 +344,15 @@ def forum_create_post(request):
         editing_post = ForumPost.objects.filter(
             id=post_id, tenant=tenant, author=request.user,
         ).first()
+        if editing_post is None:
+            raise Http404("Post not found, not yours, or in another tenant.")
 
     if request.method == 'POST':
         content = request.POST.get('content', '').strip()
         category_id = request.POST.get('category', '')
         image = request.FILES.get('image')
 
+        img_ok, img_err = _validate_image(image)
         if not content:
             messages.error(request, 'Post content cannot be empty.')
             return render(request, 'forum/create_post.html', {
@@ -297,8 +360,15 @@ def forum_create_post(request):
                 'editing_post': editing_post,
             })
 
-        if len(content) > 5000:
-            messages.error(request, 'Post content cannot exceed 5000 characters.')
+        if len(content) > MAX_POST_LENGTH:
+            messages.error(request, f'Post content cannot exceed {MAX_POST_LENGTH} characters.')
+            return render(request, 'forum/create_post.html', {
+                'categories': categories,
+                'editing_post': editing_post,
+            })
+
+        if not img_ok:
+            messages.error(request, img_err)
             return render(request, 'forum/create_post.html', {
                 'categories': categories,
                 'editing_post': editing_post,
@@ -312,8 +382,29 @@ def forum_create_post(request):
             editing_post.content = content
             editing_post.category = category
             editing_post.is_edited = True
+            remove_image = request.POST.get('remove_image') == '1'
             if image:
+                # Capture the old file's storage path BEFORE reassigning the
+                # field. Calling FieldFile.delete() on the old reference would
+                # also clear the instance's descriptor, wiping the new image we
+                # just assigned. Storage.delete() avoids that side effect.
+                old_storage = None
+                old_name = ''
+                if editing_post.image:
+                    old_storage = editing_post.image.storage
+                    old_name = editing_post.image.name
                 editing_post.image = image
+                if old_storage and old_name:
+                    try:
+                        old_storage.delete(old_name)
+                    except Exception:
+                        pass
+            elif remove_image and editing_post.image:
+                try:
+                    editing_post.image.delete(save=False)
+                except Exception:
+                    pass
+                editing_post.image = None
             editing_post.save()
             messages.success(request, 'Post updated.')
             return redirect('forum_post_detail', post_id=editing_post.id)
@@ -342,10 +433,16 @@ def forum_delete_post(request, post_id):
         return redirect('home')
 
     post = get_object_or_404(ForumPost, id=post_id, tenant=tenant)
-    if post.author != request.user and membership.role != 'tenant_admin':
+    if post.author != request.user and not _is_forum_admin(request, membership):
         messages.error(request, 'You cannot delete this post.')
         return redirect('forum_feed')
 
+    # Bug 12: clean up the orphaned image file before dropping the row.
+    if post.image:
+        try:
+            post.image.delete(save=False)
+        except Exception:
+            pass
     post.delete()
     messages.success(request, 'Post deleted.')
     return redirect('forum_feed')
@@ -365,12 +462,20 @@ def forum_add_comment(request, post_id):
     if not content:
         messages.error(request, 'Comment cannot be empty.')
         return _redirect_with_fallback(request, 'forum_post_detail', post_id=post.id)
+    if len(content) > MAX_COMMENT_LENGTH:
+        messages.error(request, f'Comment cannot exceed {MAX_COMMENT_LENGTH} characters.')
+        return _redirect_with_fallback(request, 'forum_post_detail', post_id=post.id)
 
     parent = None
     if parent_id:
         parent = ForumComment.objects.filter(
             id=parent_id, post=post, tenant=tenant, parent__isnull=True,
         ).first()
+        if parent is None:
+            # parent_id was supplied but doesn't resolve — refuse rather than
+            # silently turning the reply into a top-level comment.
+            messages.error(request, 'The comment you are replying to no longer exists.')
+            return _redirect_with_fallback(request, 'forum_post_detail', post_id=post.id)
 
     ForumComment.objects.create(
         tenant=tenant,
@@ -391,7 +496,7 @@ def forum_delete_comment(request, comment_id):
         return redirect('home')
 
     comment = get_object_or_404(ForumComment, id=comment_id, tenant=tenant)
-    if comment.author != request.user and membership.role != 'tenant_admin':
+    if comment.author != request.user and not _is_forum_admin(request, membership):
         messages.error(request, 'You cannot delete this comment.')
         return _redirect_with_fallback(request, 'forum_post_detail', post_id=comment.post_id)
 
@@ -399,6 +504,35 @@ def forum_delete_comment(request, comment_id):
     comment.delete()
     messages.success(request, 'Comment deleted.')
     return _redirect_with_fallback(request, 'forum_post_detail', post_id=post_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def forum_edit_comment(request, comment_id):
+    """Edit a comment's content. Author only; moderators do not get edit access
+    to keep audit clean (they can delete instead)."""
+    tenant, membership = _get_forum_context(request)
+    if not tenant or not membership:
+        return redirect('home')
+
+    comment = get_object_or_404(ForumComment, id=comment_id, tenant=tenant)
+    if comment.author != request.user:
+        messages.error(request, 'You cannot edit this comment.')
+        return _redirect_with_fallback(request, 'forum_post_detail', post_id=comment.post_id)
+
+    content = (request.POST.get('content') or '').strip()
+    if not content:
+        messages.error(request, 'Comment cannot be empty.')
+        return _redirect_with_fallback(request, 'forum_post_detail', post_id=comment.post_id)
+    if len(content) > MAX_COMMENT_LENGTH:
+        messages.error(request, f'Comment cannot exceed {MAX_COMMENT_LENGTH} characters.')
+        return _redirect_with_fallback(request, 'forum_post_detail', post_id=comment.post_id)
+
+    comment.content = content
+    comment.is_edited = True
+    comment.save(update_fields=['content', 'is_edited', 'updated_at'])
+    messages.success(request, 'Comment updated.')
+    return _redirect_with_fallback(request, 'forum_post_detail', post_id=comment.post_id)
 
 
 @login_required
@@ -426,34 +560,13 @@ def forum_toggle_reaction(request):
         post = ForumPost.objects.filter(id=target_id, tenant=tenant).first()
         if not post:
             return JsonResponse({'success': False, 'error': 'Post not found'}, status=404)
-        existing = ForumReaction.objects.filter(
-            tenant=tenant, user=request.user, post=post, reaction_type=reaction_type,
-        ).first()
-        if existing:
-            existing.delete()
-            action = 'removed'
-        else:
-            ForumReaction.objects.create(
-                tenant=tenant, user=request.user, post=post, reaction_type=reaction_type,
-            )
-            action = 'added'
+        action = _toggle_reaction(tenant, request.user, reaction_type, post=post)
         count = ForumReaction.objects.filter(post=post, reaction_type=reaction_type).count()
-
     elif target_type == 'comment':
         comment = ForumComment.objects.filter(id=target_id, tenant=tenant).first()
         if not comment:
             return JsonResponse({'success': False, 'error': 'Comment not found'}, status=404)
-        existing = ForumReaction.objects.filter(
-            tenant=tenant, user=request.user, comment=comment, reaction_type=reaction_type,
-        ).first()
-        if existing:
-            existing.delete()
-            action = 'removed'
-        else:
-            ForumReaction.objects.create(
-                tenant=tenant, user=request.user, comment=comment, reaction_type=reaction_type,
-            )
-            action = 'added'
+        action = _toggle_reaction(tenant, request.user, reaction_type, comment=comment)
         count = ForumReaction.objects.filter(comment=comment, reaction_type=reaction_type).count()
     else:
         return JsonResponse({'success': False, 'error': 'Invalid target_type'}, status=400)
@@ -461,12 +574,35 @@ def forum_toggle_reaction(request):
     return JsonResponse({'success': True, 'action': action, 'count': count})
 
 
+def _toggle_reaction(tenant, user, reaction_type, post=None, comment=None):
+    """Atomically add/remove a reaction. Returns 'added' or 'removed'.
+
+    Wrapped in get_or_create + IntegrityError fallback so two concurrent clicks
+    can't violate the unique constraint and 500 the request.
+    """
+    lookup = {
+        'tenant': tenant, 'user': user, 'reaction_type': reaction_type,
+        'post': post, 'comment': comment,
+    }
+    try:
+        with transaction.atomic():
+            _, created = ForumReaction.objects.get_or_create(**lookup)
+            if created:
+                return 'added'
+            # Already exists → this click toggles it off.
+            ForumReaction.objects.filter(**lookup).delete()
+            return 'removed'
+    except IntegrityError:
+        # Lost the race against another concurrent click — treat as added.
+        return 'added'
+
+
 # ─── Admin / Moderation Views ───────────────────────────────────────
 
 @login_required
 def dashboard_forum_moderation(request):
-    tenant = getattr(request, 'tenant', None)
-    if not tenant or not request.user.is_staff:
+    tenant, membership = _get_forum_context(request)
+    if not tenant or not _is_forum_admin(request, membership):
         return redirect('dashboard_home')
 
     categories = ForumCategory.objects.filter(tenant=tenant, is_active=True)
@@ -493,8 +629,8 @@ def dashboard_forum_moderation(request):
 @login_required
 @require_http_methods(["POST"])
 def dashboard_forum_pin_post(request, post_id):
-    tenant = getattr(request, 'tenant', None)
-    if not tenant or not request.user.is_staff:
+    tenant, membership = _get_forum_context(request)
+    if not tenant or not _is_forum_admin(request, membership):
         return redirect('dashboard_home')
 
     post = get_object_or_404(ForumPost, id=post_id, tenant=tenant)
@@ -506,8 +642,8 @@ def dashboard_forum_pin_post(request, post_id):
 
 @login_required
 def dashboard_forum_categories(request):
-    tenant = getattr(request, 'tenant', None)
-    if not tenant or not request.user.is_staff:
+    tenant, membership = _get_forum_context(request)
+    if not tenant or not _is_forum_admin(request, membership):
         return redirect('dashboard_home')
 
     categories = ForumCategory.objects.filter(tenant=tenant)
