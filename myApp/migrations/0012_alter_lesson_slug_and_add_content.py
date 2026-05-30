@@ -5,6 +5,11 @@ from django.db import migrations, models
 
 def alter_slug_field(apps, schema_editor):
     """Alter the slug field to allow 200 characters"""
+    # This migration uses PostgreSQL-specific raw SQL (ALTER COLUMN ... TYPE,
+    # DO $$ blocks, JSONB). Skip on other backends (e.g. SQLite) where the
+    # schema is created directly from the model definitions.
+    if schema_editor.connection.vendor != 'postgresql':
+        return
     db_alias = schema_editor.connection.alias
     with schema_editor.connection.cursor() as cursor:
         # Get the actual table name from Django's model
@@ -33,6 +38,8 @@ def alter_slug_field(apps, schema_editor):
 
 def reverse_alter_slug_field(apps, schema_editor):
     """Reverse: change slug back to 50 characters"""
+    if schema_editor.connection.vendor != 'postgresql':
+        return
     db_alias = schema_editor.connection.alias
     with schema_editor.connection.cursor() as cursor:
         Lesson = apps.get_model('myApp', 'Lesson')

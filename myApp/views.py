@@ -1715,6 +1715,7 @@ def _courses_authenticated(request):
     # Filter controls (sorting intentionally removed for this view).
     filter_favorites = (request.GET.get('favorites', '') or '').strip().lower()
     filter_category_raw = (request.GET.get('category', '') or '').strip()
+    filter_all = (request.GET.get('all', '') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
     my_courses_data.sort(
         key=lambda x: (
@@ -1725,15 +1726,26 @@ def _courses_authenticated(request):
         )
     )
 
-    available_categories = sorted(
-        {
-            (item['course'].category or '').strip() or 'Uncategorized'
-            for item in my_courses_data
-        },
-        key=lambda value: value.lower(),
-    )
+    # Category counts from the unfiltered set (drives the "browse by category" cards/dropdown).
+    category_counts = {}
+    for item in my_courses_data:
+        name = (item['course'].category or '').strip() or 'Uncategorized'
+        category_counts[name] = category_counts.get(name, 0) + 1
+
+    available_categories = sorted(category_counts.keys(), key=lambda value: value.lower())
+    category_cards = [{'name': name, 'count': category_counts[name]} for name in available_categories]
+
     category_lookup = {category.lower(): category for category in available_categories}
     filter_category = category_lookup.get(filter_category_raw.lower(), '') if filter_category_raw else ''
+
+    # Default landing shows category cards when the tenant actually uses categories
+    # (more than one distinct category). Otherwise course cards show directly.
+    show_category_cards = (
+        len(available_categories) > 1
+        and not filter_category
+        and filter_favorites != 'true'
+        and not filter_all
+    )
 
     if filter_category:
         my_courses_data = [
@@ -1769,6 +1781,9 @@ def _courses_authenticated(request):
         'filter_favorites': filter_favorites,
         'sort_by': 'custom',
         'available_categories': available_categories,
+        'category_cards': category_cards,
+        'show_category_cards': show_category_cards,
+        'filter_all': filter_all,
         'filter_category': filter_category,
         'search_query': search_query,
         'guest_catalog': None,

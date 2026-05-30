@@ -1,0 +1,25 @@
+name: Tailwind build is fresh
+
+# Authoritative gate: fails the build if static/css/tailwind.css was not rebuilt
+# after a template/config change. Catches a forgotten `npm run build:css`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tailwind-fresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Tailwind
+        run: npm ci
+      - name: Verify committed CSS matches a fresh build
+        run: python scripts/check_tailwind_build.py

@@ -1,0 +1,6 @@
+/* Tailwind entry point. Build with `npm run build:css` -> static/css/tailwind.css
+   This REPLACES the runtime cdn.tailwindcss.com script. Custom colors, font, and
+   the safelist for dynamically-composed class names live in tailwind.config.js. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

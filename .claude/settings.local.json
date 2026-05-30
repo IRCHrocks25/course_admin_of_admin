@@ -33,7 +33,26 @@
       "Bash(Select-Object Name, Mode)",
       "Bash(Sort-Object Name)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Get-Content *)"
+      "Bash(Get-Content *)",
+      "Bash(grep -E \"\\\\.env$|db.sqlite3\")",
+      "Bash(grep -rniE \"content\\\\s*\\\\|\\\\s*safe|\\\\.content.*safe|autoescape\" myApp/templates/forum/)",
+      "Bash(ls myApp/templates/forum/)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py shell -c ' *)",
+      "Bash(git rm *)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py test myApp -v2)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py test myApp)",
+      "Bash(grep -E '\\\\$\\\\{|`|'\"'\"'\\\\s*\\\\+|\\\\+\\\\s*'\"'\")",
+      "Bash(grep -o 'lg\\\\\\\\:col-span-2' static/css/tailwind.css)",
+      "Bash(grep -nE 'load static|cdn.tailwindcss.com|tailwind.config = \\\\{' myApp/templates/__TRACKED_VAR__)",
+      "Bash(sed -n 19,38p myApp/templates/__TRACKED_VAR__)",
+      "Bash(sed -n '1,12p' myApp/templates/landing.html)",
+      "Bash(sed -n '1,12p' myApp/templates/superadmin/notification_preview.html)",
+      "Bash(npm run *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(cp static/css/tailwind.css /tmp/tw_backup.css)",
+      "Bash(printf \"/*stale*/\")",
+      "Bash(cp /tmp/tw_backup.css static/css/tailwind.css)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py collectstatic --noinput)"
     ]
   }
 }

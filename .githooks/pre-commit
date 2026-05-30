@@ -1,0 +1,22 @@
+#!/bin/sh
+# Local early-warning that the committed Tailwind CSS isn't stale.
+# Activate once per clone:  git config core.hooksPath .githooks
+#
+# Best-effort: if Node/Tailwind tooling isn't installed locally it warns and lets
+# the commit through (CI is the authoritative gate). It only runs when a template,
+# the Tailwind config, or the built CSS is part of the commit.
+
+staged=$(git diff --cached --name-only)
+echo "$staged" | grep -qE '(\.html$|^tailwind\.config\.js$|^static/(src|css)/tailwind\.css$|^static/.*\.js$)' || exit 0
+
+if ! command -v python >/dev/null 2>&1; then
+    echo "[tailwind] python not found — skipping stale-build check (CI will still enforce it)."
+    exit 0
+fi
+
+python scripts/check_tailwind_build.py
+status=$?
+if [ "$status" -ne 0 ]; then
+    echo "[tailwind] pre-commit blocked: rebuild and stage static/css/tailwind.css (npm run build:css)."
+fi
+exit $status

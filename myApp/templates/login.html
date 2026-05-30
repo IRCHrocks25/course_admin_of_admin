@@ -32,6 +32,16 @@
             --danger-border: rgba(214,59,59,0.18);
             --r: 12px;
             --r-sm: 8px;
+            --panel-bg: #0a0b0e;
+            --panel-text-main: #ffffff;
+            --panel-text-secondary: rgba(180,184,200,0.55);
+            --panel-text-strong: rgba(235,237,245,0.88);
+            --panel-text-muted: rgba(160,165,185,0.5);
+            --panel-border-soft: rgba(255,255,255,0.05);
+            --panel-pill-border: rgba(255,255,255,0.07);
+            --panel-pill-bg: rgba(255,255,255,0.03);
+            --panel-pill-text: rgba(180,185,205,0.55);
+            --panel-wordmark-text: rgba(255,255,255,0.45);
         }
 
         html, body {
@@ -57,7 +67,7 @@
         /* ── Brand Panel ── */
         .brand-panel {
             position: relative;
-            background: var(--ink);
+            background: var(--panel-bg);
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -93,7 +103,7 @@
             font-weight: 600;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: rgba(255,255,255,0.45);
+            color: var(--panel-wordmark-text);
             margin-bottom: 52px;
             display: flex;
             align-items: center;
@@ -121,7 +131,7 @@
             font-weight: 700;
             line-height: 1.05;
             letter-spacing: -0.04em;
-            color: #ffffff;
+            color: var(--panel-text-main);
         }
 
         .brand-heading .accent {
@@ -132,7 +142,7 @@
             margin-top: 20px;
             font-size: 0.93rem;
             line-height: 1.75;
-            color: rgba(180,184,200,0.55);
+            color: var(--panel-text-secondary);
             font-weight: 300;
             max-width: 38ch;
         }
@@ -148,11 +158,11 @@
             align-items: flex-start;
             gap: 16px;
             padding: 18px 0;
-            border-top: 1px solid rgba(255,255,255,0.05);
+            border-top: 1px solid var(--panel-border-soft);
         }
 
         .feature-item:last-child {
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid var(--panel-border-soft);
         }
 
         .feature-num {
@@ -168,14 +178,14 @@
             display: block;
             font-size: 0.88rem;
             font-weight: 600;
-            color: rgba(235,237,245,0.88);
+            color: var(--panel-text-strong);
             margin-bottom: 3px;
             letter-spacing: -0.01em;
         }
 
         .feature-text span {
             font-size: 0.79rem;
-            color: rgba(160,165,185,0.5);
+            color: var(--panel-text-muted);
             font-weight: 300;
             line-height: 1.55;
         }
@@ -195,10 +205,10 @@
             gap: 7px;
             padding: 7px 12px;
             border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.07);
-            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--panel-pill-border);
+            background: var(--panel-pill-bg);
             font-size: 0.73rem;
-            color: rgba(180,185,205,0.55);
+            color: var(--panel-pill-text);
             font-weight: 400;
         }
 
@@ -546,6 +556,51 @@
             text-decoration: none;
         }
 
+        /* Theme variants */
+        body.theme-dark {
+            --panel-bg: #0a0b0e;
+            --panel-text-main: #ffffff;
+            --panel-text-secondary: rgba(180,184,200,0.55);
+            --panel-text-strong: rgba(235,237,245,0.88);
+            --panel-text-muted: rgba(160,165,185,0.5);
+            --panel-border-soft: rgba(255,255,255,0.05);
+            --panel-pill-border: rgba(255,255,255,0.07);
+            --panel-pill-bg: rgba(255,255,255,0.03);
+            --panel-pill-text: rgba(180,185,205,0.55);
+            --panel-wordmark-text: rgba(255,255,255,0.45);
+        }
+
+        body.theme-light {
+            --surface: #f8fafc;
+            --surface-2: #f1f5f9;
+            --surface-3: #dbe3ee;
+            --text-1: #0f172a;
+            --text-2: #334155;
+            --text-3: #475569;
+            --text-4: #64748b;
+            --panel-bg:
+                linear-gradient(145deg, #f8fbff 0%, #eef4ff 54%, #ffffff 100%);
+            --panel-text-main: #0f172a;
+            --panel-text-secondary: rgba(51, 65, 85, 0.9);
+            --panel-text-strong: #1e293b;
+            --panel-text-muted: #475569;
+            --panel-border-soft: rgba(148, 163, 184, 0.35);
+            --panel-pill-border: rgba(148, 163, 184, 0.45);
+            --panel-pill-bg: rgba(255, 255, 255, 0.8);
+            --panel-pill-text: #334155;
+            --panel-wordmark-text: #334155;
+        }
+
+        body.theme-light .brand-panel::before {
+            background:
+                radial-gradient(ellipse 70% 45% at 0% 0%, rgba(29,108,255,0.14) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 100% 100%, rgba(29,108,255,0.1) 0%, transparent 60%);
+        }
+
+        body.theme-light .wordmark-logo {
+            border-color: rgba(15, 23, 42, 0.18);
+        }
+
         /* ── Responsive ── */
         @media (max-width: 1024px) {
             .page { grid-template-columns: 1fr; }
@@ -562,7 +617,7 @@
         }
     </style>
 </head>
-<body>
+<body class="{% if effective_theme_mode == 'light' %}theme-light{% else %}theme-dark{% endif %}">
     <main class="page">
 
         <!-- Brand Column -->

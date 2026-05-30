@@ -1,0 +1,14 @@
+{
+  "name": "courseforge-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tailwind CSS build for CourseForge (replaces the cdn.tailwindcss.com runtime CDN).",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i static/src/tailwind.css -o static/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i static/src/tailwind.css -o static/css/tailwind.css --watch",
+    "check:css": "python scripts/check_tailwind_build.py"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

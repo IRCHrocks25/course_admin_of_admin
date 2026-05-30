@@ -57,10 +57,12 @@
     .brand-theme-light .divider-title,
     .brand-theme-light .c-name,
     .brand-theme-light .card-name,
+    .brand-theme-light .cat-name,
     .brand-theme-light .unlock-name,
     .brand-theme-light .empty-title { color: #0f172a; }
     .brand-theme-light .c-short,
     .brand-theme-light .card-desc,
+    .brand-theme-light .cat-count,
     .brand-theme-light .thumb-meta-item,
     .brand-theme-light .status-badge { color: #334155; }
 
@@ -387,6 +389,59 @@
         opacity: 0; transition: opacity .25s;
     }
     .course-card:hover::before { opacity: 1; }
+
+    /* ── CATEGORY CARDS (browse-by-category landing) ── */
+    .category-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr);
+        gap: 20px; margin-bottom: 48px;
+    }
+    .category-card {
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 18px; padding: 28px; text-decoration: none;
+        display: flex; align-items: center; gap: 18px;
+        position: relative; overflow: hidden;
+        transition: border-color .25s, transform .25s, box-shadow .25s;
+    }
+    .category-card:hover {
+        border-color: rgba(26,107,255,0.3);
+        transform: translateY(-3px); box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+    }
+    .category-card::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, var(--blue), var(--purple));
+        opacity: 0; transition: opacity .25s;
+    }
+    .category-card:hover::before { opacity: 1; }
+    .cat-icon {
+        width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
+        background: rgba(245,168,0,0.12); color: #f5a800;
+        display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .cat-info { display: flex; flex-direction: column; gap: 4px; }
+    .cat-name { font-family: 'Barlow', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: #fff; }
+    .cat-count { font-size: 13px; color: var(--muted); }
+    .back-link {
+        display: inline-flex; align-items: center; gap: 8px; margin-bottom: 18px;
+        font-size: 13px; font-weight: 700; color: var(--blue2); text-decoration: none;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    /* ── ALL CATEGORIES DROPDOWN ── */
+    .cat-dropdown { position: relative; }
+    .cat-dropdown > summary { list-style: none; cursor: pointer; }
+    .cat-dropdown > summary::-webkit-details-marker { display: none; }
+    .cat-menu {
+        position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 210px;
+        background: var(--card); border: 1.5px solid var(--border); border-radius: 10px;
+        padding: 6px; display: flex; flex-direction: column; gap: 2px;
+        box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+    }
+    .cat-menu a {
+        padding: 8px 12px; border-radius: 7px; text-decoration: none;
+        font-size: 12px; font-weight: 600; color: var(--muted);
+    }
+    .cat-menu a:hover { background: rgba(26,107,255,0.12); color: #fff; }
+    .cat-menu a.active { background: rgba(26,107,255,0.15); color: var(--blue2); }
     .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
     .card-name {
         font-family: 'Barlow', sans-serif;
@@ -678,24 +733,49 @@
                 {% endif %}
             </div>
             <div class="filter-row">
-                <a href="?favorites=true{% if filter_category %}&category={{ filter_category|urlencode }}{% endif %}" class="chip {% if filter_favorites == 'true' %}chip-active-yellow{% else %}chip-idle{% endif %}">
+                <a href="?favorites=true" class="chip {% if filter_favorites == 'true' %}chip-active-yellow{% else %}chip-idle{% endif %}">
                     <i class="fas fa-heart"></i> Favorites
                 </a>
-                <a href="?{% if filter_category %}category={{ filter_category|urlencode }}{% endif %}" class="chip {% if filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
+                {% if category_cards|length > 1 %}
+                <a href="?all=1" class="chip {% if filter_all and filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
                     All Courses
                 </a>
-                <a href="?{% if filter_favorites == 'true' %}favorites=true{% endif %}" class="chip {% if not filter_category %}chip-active-blue{% else %}chip-idle{% endif %}">
-                    All Categories
+                <details class="cat-dropdown">
+                    <summary class="chip {% if not filter_all and filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
+                        <i class="fas fa-layer-group"></i> All Categories <i class="fas fa-chevron-down" style="font-size:9px;margin-left:2px;"></i>
+                    </summary>
+                    <div class="cat-menu">
+                        <a href="?" class="{% if not filter_category and not filter_all and filter_favorites != 'true' %}active{% endif %}">All categories</a>
+                        {% for cat in category_cards %}
+                        <a href="?category={{ cat.name|urlencode }}" class="{% if filter_category == cat.name %}active{% endif %}">{{ cat.name }} ({{ cat.count }})</a>
+                        {% endfor %}
+                    </div>
+                </details>
+                {% else %}
+                <a href="?" class="chip {% if filter_favorites != 'true' %}chip-active-blue{% else %}chip-idle{% endif %}">
+                    All Courses
                 </a>
-                {% for category_name in available_categories %}
-                <a href="?category={{ category_name|urlencode }}{% if filter_favorites == 'true' %}&favorites=true{% endif %}" class="chip {% if filter_category == category_name %}chip-active-blue{% else %}chip-idle{% endif %}">
-                    {{ category_name }}
-                </a>
-                {% endfor %}
+                {% endif %}
             </div>
         </div>
 
-        {% if my_courses %}
+        {% if show_category_cards %}
+        <div class="category-grid">
+            {% for cat in category_cards %}
+            <a href="?category={{ cat.name|urlencode }}" class="category-card">
+                <div class="cat-icon"><i class="fas fa-folder"></i></div>
+                <div class="cat-info">
+                    <div class="cat-name">{{ cat.name }}</div>
+                    <div class="cat-count">{{ cat.count }} course{{ cat.count|pluralize }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% elif my_courses %}
+        {% if filter_category and category_cards|length > 1 %}
+        <a href="?" class="back-link"><i class="fas fa-arrow-left"></i> Back to categories</a>
+        {% endif %}
         <div class="course-grid">
             {% for data in my_courses %}
             <div class="course-card {% if data.is_favorited %}is-fav{% endif %}">

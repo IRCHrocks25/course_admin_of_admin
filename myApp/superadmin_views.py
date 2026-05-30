@@ -308,10 +308,10 @@ def superadmin_tenant_analytics(request, tenant_id):
     completion_count = UserProgress.objects.filter(tenant=tenant, completed=True).count()
 
     top_courses = Course.objects.filter(tenant=tenant).annotate(
-        enrollments=Count('enrollments', distinct=True),
-        accesses=Count('accesses', filter=Q(accesses__status='unlocked'), distinct=True),
-        lessons=Count('lessons', distinct=True),
-    ).order_by('-enrollments', '-accesses', 'name')[:20]
+        enrollments_count=Count('enrollments', distinct=True),
+        accesses_count=Count('accesses', filter=Q(accesses__status='unlocked'), distinct=True),
+        lessons_count=Count('lessons', distinct=True),
+    ).order_by('-enrollments_count', '-accesses_count', 'name')[:20]
 
     return render(request, 'superadmin/tenant_analytics.html', {
         'tenant': tenant,
@@ -330,11 +330,11 @@ def superadmin_analytics(request):
     cutoff_30d = timezone.now() - timedelta(days=30)
 
     tenants = Tenant.objects.annotate(
-        courses=Count('courses', distinct=True),
-        lessons=Count('lessons', distinct=True),
-        enrollments=Count('course_enrollments', distinct=True),
-        active_accesses=Count('course_accesses', filter=Q(course_accesses__status='unlocked'), distinct=True),
-        certifications=Count('certifications', distinct=True),
+        courses_count=Count('courses', distinct=True),
+        lessons_count=Count('lessons', distinct=True),
+        enrollments_count=Count('course_enrollments', distinct=True),
+        active_accesses_count=Count('course_accesses', filter=Q(course_accesses__status='unlocked'), distinct=True),
+        certifications_count=Count('certifications', distinct=True),
     ).order_by('name')
 
     usage_rows = AIUsageLog.objects.filter(created_at__gte=cutoff_30d).values('tenant_id').annotate(
