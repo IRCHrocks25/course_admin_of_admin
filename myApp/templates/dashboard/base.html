@@ -60,6 +60,77 @@
         .theme-transitioning *::after {
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
         }
+        /* ── Sidebar nav ───────────────────────────────────── */
+        .nav-section { margin-top: 1.25rem; }
+        .nav-section:first-child { margin-top: 0; }
+        .nav-section-title {
+            padding: 0 0.75rem 0.5rem;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgb(107 114 128);
+        }
+        .nav-stack { display: flex; flex-direction: column; gap: 0.125rem; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+            padding: 0.4375rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.8125rem;
+            color: rgb(209 213 219);
+            transition: background-color 0.15s, color 0.15s;
+            text-decoration: none;
+        }
+        .nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+        }
+        .nav-item.is-active {
+            background-color: rgba(0, 240, 255, 0.12);
+            color: #ffffff;
+            box-shadow: inset 2px 0 0 var(--brand-accent-primary, #00f0ff);
+        }
+        .nav-item .nav-icon {
+            width: 1rem;
+            text-align: center;
+            color: rgb(156 163 175);
+            font-size: 0.8125rem;
+            flex-shrink: 0;
+        }
+        .nav-item:hover .nav-icon,
+        .nav-item.is-active .nav-icon { color: inherit; }
+        /* Light theme overrides */
+        .brand-theme-light .nav-section-title { color: rgb(100 116 139); }
+        .brand-theme-light .nav-item { color: #475569; }
+        .brand-theme-light .nav-item .nav-icon { color: rgb(100 116 139); }
+        .brand-theme-light .nav-item:hover { background-color: rgba(15, 23, 42, 0.06); color: #0f172a; }
+        .brand-theme-light .nav-item.is-active {
+            background-color: rgba(37, 99, 235, 0.1);
+            color: #2563eb;
+            box-shadow: inset 2px 0 0 #2563eb;
+        }
+        /* Collapsible group (shadcn-style with indent rail) */
+        .nav-group { margin: 0; }
+        .nav-group > summary { list-style: none; cursor: pointer; }
+        .nav-group > summary::-webkit-details-marker { display: none; }
+        .nav-chevron {
+            margin-left: auto;
+            font-size: 0.625rem;
+            color: rgb(156 163 175);
+            transition: transform 0.2s;
+        }
+        .nav-group[open] > summary .nav-chevron { transform: rotate(180deg); }
+        .nav-group-children {
+            margin: 0.25rem 0 0 0.875rem;
+            padding-left: 0.75rem;
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 0.125rem;
+        }
+        .brand-theme-light .nav-group-children { border-left-color: rgba(15, 23, 42, 0.1); }
     </style>
 </head>
 <body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'dark' }}">
@@ -115,97 +186,129 @@
             </div>
             {% endif %}
             
-            <!-- Navigation Links -->
-            <nav class="space-y-2">
-                <a href="{% url 'dashboard_home' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if request.resolver_match.url_name == 'dashboard_home' %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-home w-5"></i>
-                    <span>Overview</span>
-                </a>
-                <a href="{% url 'dashboard_analytics' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if request.resolver_match.url_name == 'dashboard_analytics' %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-chart-line w-5"></i>
-                    <span>Analytics</span>
-                </a>
-                <a href="{% url 'dashboard_courses' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'course' in request.resolver_match.url_name %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-book w-5"></i>
-                    <span>Courses</span>
-                </a>
-                <a href="{% url 'dashboard_lessons' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'lesson' in request.resolver_match.url_name and 'dashboard' in request.resolver_match.url_name and 'quiz' not in request.resolver_match.url_name %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-video w-5"></i>
-                    <span>Lessons</span>
-                </a>
-                <a href="{% url 'dashboard_quizzes' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'quiz' in request.resolver_match.url_name and 'dashboard' in request.resolver_match.url_name %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-clipboard-question w-5"></i>
-                    <span>Quizzes</span>
-                </a>
-                <a href="{% url 'dashboard_exams' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'exam' in request.resolver_match.url_name and 'dashboard' in request.resolver_match.url_name %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-file-signature w-5"></i>
-                    <span>Exams</span>
-                </a>
-                <a href="{% url 'dashboard_students' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'student' in request.resolver_match.url_name and request.resolver_match.url_name != 'dashboard_student_ip_monitor' %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-users w-5"></i>
-                    <span>Students</span>
-                </a>
-                <a href="{% url 'dashboard_student_ip_monitor' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if request.resolver_match.url_name == 'dashboard_student_ip_monitor' %}bg-cyan-electric/20 text-cyan-electric border-l-2 border-cyan-electric{% else %}text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric{% endif %}">
-                    <i class="fas fa-network-wired w-5"></i>
-                    <span>Student IP Monitor</span>
-                </a>
-                <a href="{% url 'dashboard_forum_moderation' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'forum' in request.resolver_match.url_name or 'community' in request.path %}bg-teal-500/20 text-teal-300 border-l-2 border-teal-300{% else %}text-gray-300 hover:bg-teal-500/10 hover:text-teal-300{% endif %}">
-                    <i class="fas fa-comments w-5"></i>
-                    <span>Community</span>
-                </a>
-                <a href="{% url 'dashboard_bundles' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'bundle' in request.resolver_match.url_name %}bg-purple-accent/20 text-purple-accent border-l-2 border-purple-accent{% else %}text-gray-300 hover:bg-purple-accent/10 hover:text-purple-accent{% endif %}">
-                    <i class="fas fa-gift w-5"></i>
-                    <span>Bundles</span>
-                </a>
-                <a href="{% url 'dashboard_domain_settings' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'domain' in request.resolver_match.url_name %}bg-indigo-500/20 text-indigo-300 border-l-2 border-indigo-300{% else %}text-gray-300 hover:bg-indigo-500/10 hover:text-indigo-300{% endif %}">
-                    <i class="fas fa-globe w-5"></i>
-                    <span>Domains</span>
-                </a>
-                <a href="{% url 'dashboard_affiliate_program' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'affiliate' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-200 border-l-2 border-amber-200{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-200{% endif %}">
-                    <i class="fas fa-handshake w-5"></i>
-                    <span>Affiliate Program</span>
-                </a>
-                <a href="{% url 'dashboard_billing' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'billing' in request.resolver_match.url_name %}bg-emerald-500/20 text-emerald-300 border-l-2 border-emerald-300{% else %}text-gray-300 hover:bg-emerald-500/10 hover:text-emerald-300{% endif %}">
-                    <i class="fas fa-credit-card w-5"></i>
-                    <span>Billing</span>
-                </a>
-                <a href="{% url 'dashboard_branding_settings' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'branding' in request.resolver_match.url_name %}bg-pink-500/20 text-pink-300 border-l-2 border-pink-300{% else %}text-gray-300 hover:bg-pink-500/10 hover:text-pink-300{% endif %}">
-                    <i class="fas fa-palette w-5"></i>
-                    <span>Branding</span>
-                </a>
+            <!-- Navigation -->
+            {% with cur=request.resolver_match.url_name %}
+            <nav>
+                <!-- Top: Quick Access -->
+                <div class="nav-section">
+                    <a href="{% if tenant_site_url %}{{ tenant_site_url }}courses/{% elif tenant %}{% url 'courses' %}?tenant={{ tenant.slug }}{% elif user.is_superuser and dashboard_default_tenant_slug %}{% url 'courses' %}?tenant={{ dashboard_default_tenant_slug }}{% else %}{% url 'student_dashboard' %}{% endif %}" class="nav-item">
+                        <i class="fas fa-graduation-cap nav-icon"></i>
+                        <span>View Course Dashboard</span>
+                    </a>
+                </div>
+
+                <!-- Workspace -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Workspace</div>
+                    <div class="nav-stack">
+                        <a href="{% url 'dashboard_home' %}" class="nav-item {% if cur == 'dashboard_home' %}is-active{% endif %}">
+                            <i class="fas fa-home nav-icon"></i>
+                            <span>Overview</span>
+                        </a>
+                        <a href="{% url 'dashboard_analytics' %}" class="nav-item {% if cur == 'dashboard_analytics' %}is-active{% endif %}">
+                            <i class="fas fa-chart-line nav-icon"></i>
+                            <span>Analytics</span>
+                        </a>
+                        <a href="{% url 'dashboard_courses' %}" class="nav-item {% if 'course' in cur %}is-active{% endif %}">
+                            <i class="fas fa-book nav-icon"></i>
+                            <span>Courses</span>
+                        </a>
+                        <a href="{% url 'dashboard_lessons' %}" class="nav-item {% if 'lesson' in cur and 'dashboard' in cur and 'quiz' not in cur %}is-active{% endif %}">
+                            <i class="fas fa-video nav-icon"></i>
+                            <span>Lessons</span>
+                        </a>
+                        <a href="{% url 'dashboard_quizzes' %}" class="nav-item {% if 'quiz' in cur and 'dashboard' in cur %}is-active{% endif %}">
+                            <i class="fas fa-clipboard-question nav-icon"></i>
+                            <span>Quizzes</span>
+                        </a>
+                        <a href="{% url 'dashboard_exams' %}" class="nav-item {% if 'exam' in cur and 'dashboard' in cur %}is-active{% endif %}">
+                            <i class="fas fa-file-signature nav-icon"></i>
+                            <span>Exams</span>
+                        </a>
+                        <a href="{% url 'dashboard_students' %}" class="nav-item {% if 'student' in cur and cur != 'dashboard_student_ip_monitor' %}is-active{% endif %}">
+                            <i class="fas fa-users nav-icon"></i>
+                            <span>Students</span>
+                        </a>
+                        <a href="{% url 'dashboard_student_ip_monitor' %}" class="nav-item {% if cur == 'dashboard_student_ip_monitor' %}is-active{% endif %}">
+                            <i class="fas fa-network-wired nav-icon"></i>
+                            <span>Student IP Monitor</span>
+                        </a>
+                        <a href="{% url 'dashboard_forum_moderation' %}" class="nav-item {% if 'forum' in cur or 'community' in request.path %}is-active{% endif %}">
+                            <i class="fas fa-comments nav-icon"></i>
+                            <span>Community</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Commerce & Settings -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Commerce & Settings</div>
+                    <div class="nav-stack">
+                        <a href="{% url 'dashboard_bundles' %}" class="nav-item {% if 'bundle' in cur %}is-active{% endif %}">
+                            <i class="fas fa-gift nav-icon"></i>
+                            <span>Bundles</span>
+                        </a>
+                        <a href="{% url 'dashboard_domain_settings' %}" class="nav-item {% if 'domain' in cur %}is-active{% endif %}">
+                            <i class="fas fa-globe nav-icon"></i>
+                            <span>Domains</span>
+                        </a>
+                        <a href="{% url 'dashboard_affiliate_program' %}" class="nav-item {% if 'affiliate' in cur %}is-active{% endif %}">
+                            <i class="fas fa-handshake nav-icon"></i>
+                            <span>Affiliate Program</span>
+                        </a>
+                        <a href="{% url 'dashboard_billing' %}" class="nav-item {% if 'billing' in cur %}is-active{% endif %}">
+                            <i class="fas fa-credit-card nav-icon"></i>
+                            <span>Billing</span>
+                        </a>
+                        <a href="{% url 'dashboard_branding_settings' %}" class="nav-item {% if 'branding' in cur %}is-active{% endif %}">
+                            <i class="fas fa-palette nav-icon"></i>
+                            <span>Branding</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Super Admin (superusers, global view only) -->
                 {% if user.is_superuser %}
                 {% if not tenant %}
-                <a href="{% url 'superadmin_home' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'superadmin' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
-                    <i class="fas fa-shield-halved w-5"></i>
-                    <span>Super Admin</span>
-                </a>
-                <a href="{% url 'superadmin_tenants' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if request.resolver_match.url_name == 'superadmin_tenants' or request.resolver_match.url_name == 'superadmin_tenant_detail' or request.resolver_match.url_name == 'superadmin_tenant_analytics' or request.resolver_match.url_name == 'superadmin_tenant_suspend' or request.resolver_match.url_name == 'superadmin_tenant_archive' or request.resolver_match.url_name == 'superadmin_create_tenant_admin' or request.resolver_match.url_name == 'superadmin_add_tenant_domain' or request.resolver_match.url_name == 'superadmin_verify_tenant_domain' or request.resolver_match.url_name == 'superadmin_set_primary_tenant_domain' or request.resolver_match.url_name == 'superadmin_set_tenant_stripe_keys' %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
-                    <i class="fas fa-building w-5"></i>
-                    <span>Tenants</span>
-                </a>
-                <a href="{% url 'superadmin_pricing' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'pricing' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
-                    <i class="fas fa-tags w-5"></i>
-                    <span>Pricing</span>
-                </a>
-                <a href="{% url 'superadmin_notifications' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all {% if 'notification' in request.resolver_match.url_name %}bg-amber-500/20 text-amber-300 border-l-2 border-amber-300{% else %}text-gray-300 hover:bg-amber-500/10 hover:text-amber-300{% endif %}">
-                    <i class="fas fa-bell w-5"></i>
-                    <span>Notifications</span>
-                </a>
+                <div class="nav-section">
+                    <div class="nav-section-title">Super Admin</div>
+                    <div class="nav-stack">
+                        <a href="{% url 'superadmin_home' %}" class="nav-item {% if 'superadmin' in cur and 'tenant' not in cur and 'pricing' not in cur and 'notification' not in cur %}is-active{% endif %}">
+                            <i class="fas fa-shield-halved nav-icon"></i>
+                            <span>Super Admin</span>
+                        </a>
+                        <a href="{% url 'superadmin_tenants' %}" class="nav-item {% if 'superadmin_tenant' in cur or cur == 'superadmin_create_tenant_admin' or cur == 'superadmin_add_tenant_domain' or cur == 'superadmin_verify_tenant_domain' or cur == 'superadmin_set_primary_tenant_domain' or cur == 'superadmin_set_tenant_stripe_keys' %}is-active{% endif %}">
+                            <i class="fas fa-building nav-icon"></i>
+                            <span>Tenants</span>
+                        </a>
+                        <a href="{% url 'superadmin_pricing' %}" class="nav-item {% if 'pricing' in cur %}is-active{% endif %}">
+                            <i class="fas fa-tags nav-icon"></i>
+                            <span>Pricing</span>
+                        </a>
+                        <a href="{% url 'superadmin_notifications' %}" class="nav-item {% if 'notification' in cur %}is-active{% endif %}">
+                            <i class="fas fa-bell nav-icon"></i>
+                            <span>Notifications</span>
+                        </a>
+                    </div>
+                </div>
                 {% else %}
-                <div class="px-4 py-3 rounded-lg border border-cyan-electric/15 bg-cyan-electric/5 text-xs text-cyan-electric/90">
-                    Superadmin cross-tenant pages are hidden while tenant view is active.
+                <div class="nav-section">
+                    <div class="px-3 py-2 rounded-md border border-cyan-electric/15 bg-cyan-electric/5 text-xs text-cyan-electric/90 leading-snug">
+                        Superadmin cross-tenant pages are hidden while tenant view is active.
+                    </div>
                 </div>
                 {% endif %}
                 {% endif %}
-                <a href="{% if tenant_site_url %}{{ tenant_site_url }}{% elif tenant %}{% url 'home' %}?tenant={{ tenant.slug }}{% else %}{% url 'home' %}{% endif %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
-                    <i class="fas fa-external-link-alt w-5"></i>
-                    <span>View Site</span>
-                </a>
-                <a href="{% if tenant_site_url %}{{ tenant_site_url }}courses/{% elif tenant %}{% url 'courses' %}?tenant={{ tenant.slug }}{% elif user.is_superuser and dashboard_default_tenant_slug %}{% url 'courses' %}?tenant={{ dashboard_default_tenant_slug }}{% else %}{% url 'student_dashboard' %}{% endif %}" class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-300 hover:bg-cyan-electric/10 hover:text-cyan-electric">
-                    <i class="fas fa-graduation-cap w-5"></i>
-                    <span>View Course Dashboard</span>
-                </a>
+
+                <!-- Bottom: View Site -->
+                <div class="nav-section">
+                    <a href="{% if tenant_site_url %}{{ tenant_site_url }}{% elif tenant %}{% url 'home' %}?tenant={{ tenant.slug }}{% else %}{% url 'home' %}{% endif %}" class="nav-item">
+                        <i class="fas fa-external-link-alt nav-icon"></i>
+                        <span>View Site</span>
+                    </a>
+                </div>
             </nav>
+            {% endwith %}
         </div>
     </div>
     
