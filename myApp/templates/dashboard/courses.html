@@ -108,11 +108,39 @@
   <p class="text-xs text-gray-500 mt-3">Tip: pick a category above, click “Select Listed”, then apply category or display order to all selected courses.</p>
 </form>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-  {% for course in courses %}
-  <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-5 hover:border-cyan-electric/25 transition-colors h-full flex flex-col">
+{% for group in course_groups %}
+<section class="mb-9" data-category-group="{% if group.is_uncategorized %}__uncategorized__{% else %}{{ group.name|lower }}{% endif %}">
+  <div class="flex items-center gap-3 mb-4">
+    {% if group.thumbnail_url %}
+    <img src="{{ group.thumbnail_url }}" alt="" class="w-9 h-9 rounded-lg object-cover border border-white/10 flex-shrink-0">
+    {% else %}
+    <span class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style="background: {{ group.color }};">{{ group.initial }}</span>
+    {% endif %}
+    <h3 class="text-sm font-semibold uppercase tracking-wider {% if group.is_uncategorized %}text-gray-400{% else %}text-cyan-electric{% endif %}">{{ group.name }}</h3>
+    <span class="text-[11px] text-gray-400 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">{{ group.courses|length }}</span>
+    <div class="flex-1 h-px bg-cyan-electric/10"></div>
+    {% if can_manage_categories and not group.is_uncategorized %}
+    <form method="POST" action="{% url 'dashboard_category_thumbnail' %}" enctype="multipart/form-data" class="flex items-center gap-1.5">
+      {% csrf_token %}
+      <input type="hidden" name="category_name" value="{{ group.name }}">
+      <input type="hidden" name="redirect_to" value="courses">
+      <input type="file" name="thumbnail" accept="image/*" class="hidden" id="thumb-courses-{{ forloop.counter }}" onchange="this.form.submit()">
+      <label for="thumb-courses-{{ forloop.counter }}" class="act-btn act-cyan" style="cursor:pointer;">
+        <i class="fas fa-image text-[10px]"></i> {% if group.thumbnail_url %}Replace{% else %}Thumbnail{% endif %}
+      </label>
+      {% if group.thumbnail_url %}
+      <button type="submit" name="clear_thumbnail" value="1" class="act-btn act-red act-btn-icon" title="Remove thumbnail">
+        <i class="fas fa-trash text-[10px]"></i>
+      </button>
+      {% endif %}
+    </form>
+    {% endif %}
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for course in group.courses %}
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-5 hover:border-cyan-electric/25 transition-colors h-full flex flex-col">
 
-    <div class="flex items-start justify-between gap-2 mb-2">
+      <div class="flex items-start justify-between gap-2 mb-2">
       <div class="flex items-start gap-2">
         <input
           type="checkbox"
@@ -185,19 +213,21 @@
         <button type="submit" class="act-btn act-red act-btn-icon">
           <i class="fas fa-trash text-[10px]"></i>
         </button>
-      </form>
+        </form>
+      </div>
     </div>
+    {% endfor %}
   </div>
-  {% empty %}
-  <div class="col-span-full text-center py-20">
-    <i class="fas fa-book-open text-5xl text-gray-700 mb-4 block"></i>
-    <p class="text-gray-400 mb-5">No courses yet. Create your first to get started.</p>
-    <a href="{% url 'dashboard_add_course' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-semibold hover:opacity-90 transition-opacity">
-      <i class="fas fa-plus text-xs"></i> Create Course
-    </a>
-  </div>
-  {% endfor %}
+</section>
+{% empty %}
+<div class="col-span-full text-center py-20">
+  <i class="fas fa-book-open text-5xl text-gray-700 mb-4 block"></i>
+  <p class="text-gray-400 mb-5">No courses yet. Create your first to get started.</p>
+  <a href="{% url 'dashboard_add_course' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-semibold hover:opacity-90 transition-opacity">
+    <i class="fas fa-plus text-xs"></i> Create Course
+  </a>
 </div>
+{% endfor %}
 {{ lesson_preview_payloads|json_script:"lesson-preview-payloads" }}
 
 <div id="lesson-preview-modal" class="hidden fixed inset-0 z-50">

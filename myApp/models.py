@@ -204,6 +204,71 @@ class Course(models.Model):
         return int((completed / total) * 100)
 
 
+# Deterministic accent palette for category "initial" tiles when no thumbnail is set.
+CATEGORY_ACCENT_COLORS = [
+    '#1a6bff', '#7c3aed', '#0891b2', '#db2777',
+    '#ea580c', '#16a34a', '#d97706', '#4f46e5',
+]
+
+
+def category_accent_color(name):
+    """Pick a stable accent color for a category name (used for the initial tile)."""
+    key = (name or '').strip().lower()
+    if not key:
+        return CATEGORY_ACCENT_COLORS[0]
+    total = sum(ord(ch) for ch in key)
+    return CATEGORY_ACCENT_COLORS[total % len(CATEGORY_ACCENT_COLORS)]
+
+
+def category_initial(name):
+    """First alphanumeric character of a category name, uppercased (fallback '#')."""
+    for ch in (name or '').strip():
+        if ch.isalnum():
+            return ch.upper()
+    return '#'
+
+
+class CourseCategory(models.Model):
+    """
+    Display metadata for a course category.
+
+    Categories themselves remain free text on ``Course.category``; this model
+    only decorates a category name (within a tenant) with an optional thumbnail
+    so the catalog can render an image instead of a generic folder icon.
+    """
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='course_categories', null=True, blank=True)
+    name = models.CharField(max_length=120)
+    thumbnail = models.ImageField(upload_to='category_thumbnails/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Course category'
+        verbose_name_plural = 'Course categories'
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='uniq_course_category_tenant_name')
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def thumbnail_map_for_tenant(cls, tenant):
+        """Return {lowercased category name: thumbnail url} for a tenant."""
+        qs = cls.objects.all()
+        if tenant is not None:
+            qs = qs.filter(tenant=tenant)
+        result = {}
+        for category in qs:
+            if not category.thumbnail:
+                continue
+            try:
+                result[category.name.strip().lower()] = category.thumbnail.url
+            except Exception:
+                continue
+        return result
+
+
 class CourseResource(models.Model):
     """Downloadable resources for a course (SOP templates, checklists, PDFs, etc.)"""
     RESOURCE_TYPES = [

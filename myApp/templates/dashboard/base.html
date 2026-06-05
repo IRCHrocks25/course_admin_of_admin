@@ -209,9 +209,13 @@
                             <i class="fas fa-chart-line nav-icon"></i>
                             <span>Analytics</span>
                         </a>
-                        <a href="{% url 'dashboard_courses' %}" class="nav-item {% if 'course' in cur %}is-active{% endif %}">
+                        <a href="{% url 'dashboard_courses' %}" class="nav-item {% if 'course' in cur and 'categor' not in cur %}is-active{% endif %}">
                             <i class="fas fa-book nav-icon"></i>
                             <span>Courses</span>
+                        </a>
+                        <a href="{% url 'dashboard_categories' %}" class="nav-item {% if 'categor' in cur %}is-active{% endif %}">
+                            <i class="fas fa-folder-tree nav-icon"></i>
+                            <span>Categories</span>
                         </a>
                         <a href="{% url 'dashboard_lessons' %}" class="nav-item {% if 'lesson' in cur and 'dashboard' in cur and 'quiz' not in cur %}is-active{% endif %}">
                             <i class="fas fa-video nav-icon"></i>

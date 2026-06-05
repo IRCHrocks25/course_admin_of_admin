@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import user_passes_test
@@ -37,6 +38,7 @@ except ImportError:
     OPENAI_AVAILABLE = False
 from .models import (
     Course,
+    CourseCategory,
     CourseResource,
     Lesson,
     Module,
@@ -60,6 +62,8 @@ from .models import (
     TenantDomain,
     AIUsageLog,
     StudentIPLog,
+    category_accent_color,
+    category_initial,
 )
 from django.contrib import messages
 from django.core.cache import cache
@@ -1589,12 +1593,133 @@ def dashboard_courses(request):
                     course.owner_course_preview_url = ''
             else:
                 course.owner_course_preview_url = ''
+    # Group courses by category so the listing reads as "Category > courses".
+    # Courses keep their display_order/name ordering within each group.
+    thumbnail_map = CourseCategory.thumbnail_map_for_tenant(tenant)
+    grouped_courses = {}
+    for course in courses:
+        key = (course.category or '').strip()
+        grouped_courses.setdefault(key, []).append(course)
+
+    def _build_group(name, items, is_uncategorized):
+        lookup_key = '' if is_uncategorized else name.strip().lower()
+        return {
+            'name': name,
+            'courses': items,
+            'is_uncategorized': is_uncategorized,
+            'thumbnail_url': thumbnail_map.get(lookup_key, ''),
+            'initial': category_initial(name),
+            'color': category_accent_color(name),
+        }
+
+    course_groups = []
+    for category_name in course_categories:  # already sorted case-insensitively
+        items = grouped_courses.get(category_name)
+        if items:
+            course_groups.append(_build_group(category_name, items, False))
+    uncategorized = grouped_courses.get('')
+    if uncategorized:
+        course_groups.append(_build_group('Uncategorized', uncategorized, True))
+
     return render(request, 'dashboard/courses.html', {
         'courses': courses,
+        'course_groups': course_groups,
         'course_categories': course_categories,
         'is_superadmin': is_superadmin,
+        'can_manage_categories': tenant is not None,
         'lesson_preview_payloads': lesson_preview_payloads,
     })
+
+
+@staff_member_required
+def dashboard_categories(request):
+    """Manage per-category thumbnails for the active tenant's catalog."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Select a tenant before managing categories.')
+        return redirect('dashboard_courses')
+
+    courses_qs = Course.objects.filter(tenant=tenant)
+
+    # Course counts per category, driven by the free-text Course.category field.
+    category_counts = {}
+    for raw_category in courses_qs.values_list('category', flat=True):
+        name = (raw_category or '').strip()
+        if not name:
+            name = 'Uncategorized'
+        category_counts[name] = category_counts.get(name, 0) + 1
+
+    thumbnail_map = CourseCategory.thumbnail_map_for_tenant(tenant)
+    categories = []
+    for name in sorted(category_counts.keys(), key=str.lower):
+        is_uncategorized = name == 'Uncategorized'
+        lookup_key = '' if is_uncategorized else name.lower()
+        categories.append({
+            'name': name,
+            'count': category_counts[name],
+            'is_uncategorized': is_uncategorized,
+            'thumbnail_url': thumbnail_map.get(lookup_key, ''),
+            'initial': category_initial(name),
+            'color': category_accent_color(name),
+        })
+
+    return render(request, 'dashboard/categories.html', {
+        'categories': categories,
+        'tenant': tenant,
+    })
+
+
+@staff_member_required
+def dashboard_category_thumbnail(request):
+    """Upload, replace, or clear a single category's thumbnail."""
+    tenant = _get_dashboard_tenant(request)
+    redirect_to = (request.POST.get('redirect_to') or '').strip()
+    next_name = 'dashboard_courses' if redirect_to == 'courses' else 'dashboard_categories'
+
+    def _redirect_back():
+        url = reverse(next_name)
+        if tenant is not None:
+            url = f"{url}?tenant={tenant.slug}"
+        return redirect(url)
+
+    if request.method != 'POST':
+        return _redirect_back()
+
+    if tenant is None:
+        messages.error(request, 'Select a tenant before managing category thumbnails.')
+        return redirect('dashboard_courses')
+
+    category_name = (request.POST.get('category_name') or '').strip()
+    if not category_name or category_name.lower() == 'uncategorized':
+        messages.error(request, 'Pick a named category to set a thumbnail (Uncategorized cannot have one).')
+        return _redirect_back()
+
+    category, _ = CourseCategory.objects.get_or_create(tenant=tenant, name=category_name)
+
+    if (request.POST.get('clear_thumbnail') or '') == '1':
+        if category.thumbnail:
+            category.thumbnail.delete(save=False)
+        category.thumbnail = None
+        category.save()
+        messages.success(request, f'Removed thumbnail for "{category_name}".')
+        return _redirect_back()
+
+    upload = request.FILES.get('thumbnail')
+    if not upload:
+        messages.error(request, 'Choose an image to upload.')
+        return _redirect_back()
+
+    content_type = (getattr(upload, 'content_type', '') or '').lower()
+    if not content_type.startswith('image/'):
+        messages.error(request, 'Thumbnail must be an image file.')
+        return _redirect_back()
+
+    if category.thumbnail:
+        category.thumbnail.delete(save=False)
+    category.thumbnail = upload
+    category.save()
+    messages.success(request, f'Updated thumbnail for "{category_name}".')
+    return _redirect_back()
 
 
 @staff_member_required

@@ -1,0 +1,86 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Course Categories{% endblock %}
+{% block page_title %}Course Categories{% endblock %}
+
+{% block content %}
+<style>
+  .act-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 0.5px solid;
+    cursor: pointer;
+    background: transparent;
+    text-decoration: none;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .act-btn-icon { padding: 6px 9px; }
+  .act-cyan  { color: var(--cyan-electric,#00e5ff); border-color: rgba(0,229,255,0.3); }
+  .act-cyan:hover  { background: rgba(0,229,255,0.08); }
+  .act-red { color: #f87171; border-color: rgba(248,113,113,0.25); }
+  .act-red:hover { background: rgba(248,113,113,0.07); }
+</style>
+
+<div class="flex items-center justify-between mb-7">
+  <div>
+    <h2 class="text-xl font-semibold mb-1">Categories</h2>
+    <p class="text-sm text-gray-400">Add a thumbnail to each category so the catalog reads cleanly. Categories come from the “Category” value on your courses.</p>
+  </div>
+  <a href="{% url 'dashboard_courses' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-semibold hover:opacity-90 transition-opacity">
+    <i class="fas fa-book text-xs"></i> Manage Courses
+  </a>
+</div>
+
+<div class="space-y-3">
+  {% for cat in categories %}
+  <div class="flex items-center gap-4 bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-4">
+    {% if cat.thumbnail_url %}
+    <img src="{{ cat.thumbnail_url }}" alt="" class="w-14 h-14 rounded-xl object-cover border border-white/10 flex-shrink-0">
+    {% else %}
+    <span class="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold text-white flex-shrink-0" style="background: {{ cat.color }};">{{ cat.initial }}</span>
+    {% endif %}
+
+    <div class="min-w-0">
+      <h3 class="text-base font-medium leading-snug {% if cat.is_uncategorized %}text-gray-400{% endif %}">{{ cat.name }}</h3>
+      <p class="text-xs text-gray-500 mt-0.5">{{ cat.count }} course{{ cat.count|pluralize }}</p>
+    </div>
+
+    <div class="ml-auto flex items-center gap-2">
+      {% if cat.is_uncategorized %}
+      <span class="text-[11px] text-gray-600">Assign a category to these courses to add a thumbnail.</span>
+      {% else %}
+      <form method="POST" action="{% url 'dashboard_category_thumbnail' %}" enctype="multipart/form-data" class="flex items-center gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="category_name" value="{{ cat.name }}">
+        <input type="hidden" name="redirect_to" value="categories">
+        <input type="file" name="thumbnail" accept="image/*" class="hidden" id="thumb-cat-{{ forloop.counter }}" onchange="this.form.submit()">
+        <label for="thumb-cat-{{ forloop.counter }}" class="act-btn act-cyan" style="cursor:pointer;">
+          <i class="fas fa-image text-[11px]"></i> {% if cat.thumbnail_url %}Replace{% else %}Upload thumbnail{% endif %}
+        </label>
+        {% if cat.thumbnail_url %}
+        <button type="submit" name="clear_thumbnail" value="1" class="act-btn act-red act-btn-icon" title="Remove thumbnail">
+          <i class="fas fa-trash text-[11px]"></i>
+        </button>
+        {% endif %}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-center py-20">
+    <i class="fas fa-folder-tree text-5xl text-gray-700 mb-4 block"></i>
+    <p class="text-gray-400 mb-5">No categories yet. Add a “Category” value to your courses to group them here.</p>
+    <a href="{% url 'dashboard_courses' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-semibold hover:opacity-90 transition-opacity">
+      <i class="fas fa-book text-xs"></i> Go to Courses
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

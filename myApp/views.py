@@ -32,6 +32,7 @@ import time
 from pathlib import Path
 from .models import (
     Course,
+    CourseCategory,
     Lesson,
     Module,
     Tenant,
@@ -51,6 +52,8 @@ from .models import (
     StripeEventLog,
     PricingTier,
     TenantNotificationDelivery,
+    category_accent_color,
+    category_initial,
 )
 from django.db.models import Avg, Count, Q
 from django.db import models
@@ -1733,7 +1736,17 @@ def _courses_authenticated(request):
         category_counts[name] = category_counts.get(name, 0) + 1
 
     available_categories = sorted(category_counts.keys(), key=lambda value: value.lower())
-    category_cards = [{'name': name, 'count': category_counts[name]} for name in available_categories]
+    category_thumbnails = CourseCategory.thumbnail_map_for_tenant(tenant)
+    category_cards = [
+        {
+            'name': name,
+            'count': category_counts[name],
+            'thumbnail_url': category_thumbnails.get(name.strip().lower(), ''),
+            'initial': category_initial(name),
+            'color': category_accent_color(name),
+        }
+        for name in available_categories
+    ]
 
     category_lookup = {category.lower(): category for category in available_categories}
     filter_category = category_lookup.get(filter_category_raw.lower(), '') if filter_category_raw else ''

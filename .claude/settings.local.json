@@ -52,7 +52,10 @@
       "Bash(cp static/css/tailwind.css /tmp/tw_backup.css)",
       "Bash(printf \"/*stale*/\")",
       "Bash(cp /tmp/tw_backup.css static/css/tailwind.css)",
-      "Bash(USE_LOCAL_SQLITE=True python manage.py collectstatic --noinput)"
+      "Bash(USE_LOCAL_SQLITE=True python manage.py collectstatic --noinput)",
+      "Bash(xargs grep -l \"follow\\\\|trigger\\\\|task.*creation\\\\|auto.*assign\\\\|reminder\\\\|notification\" --color=never)",
+      "Bash(ls -la myApp/models/)",
+      "Bash(ls -la myApp/views/)"
     ]
   }
 }
