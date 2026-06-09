@@ -46,6 +46,7 @@ urlpatterns = [
     path('dashboard/courses/', dashboard_views.dashboard_courses, name='dashboard_courses'),
     path('dashboard/categories/', dashboard_views.dashboard_categories, name='dashboard_categories'),
     path('dashboard/categories/thumbnail/', dashboard_views.dashboard_category_thumbnail, name='dashboard_category_thumbnail'),
+    path('dashboard/categories/reorder/', dashboard_views.dashboard_reorder_categories, name='dashboard_reorder_categories'),
     path('dashboard/courses/add/', dashboard_views.dashboard_add_course, name='dashboard_add_course'),
     path('dashboard/courses/lesson-generator/', dashboard_views.dashboard_generate_lesson_draft, name='dashboard_generate_lesson_draft'),
     path('dashboard/courses/create-from-lessons/', dashboard_views.dashboard_create_course_from_lessons, name='dashboard_create_course_from_lessons'),

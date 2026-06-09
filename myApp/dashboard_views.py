@@ -64,6 +64,7 @@ from .models import (
     StudentIPLog,
     category_accent_color,
     category_initial,
+    sort_category_names,
 )
 from django.contrib import messages
 from django.core.cache import cache
@@ -1525,7 +1526,11 @@ def dashboard_courses(request):
         .annotate(lesson_count=Count('lessons'))
         .order_by('display_order', 'name', '-created_at')
     )
-    course_categories = sorted({(course.category or '').strip() for course in courses if (course.category or '').strip()}, key=str.lower)
+    category_order_map = CourseCategory.order_map_for_tenant(tenant)
+    course_categories = sort_category_names(
+        {(course.category or '').strip() for course in courses if (course.category or '').strip()},
+        category_order_map,
+    )
     lesson_preview_payloads = {}
     for course in courses:
         preview_lesson = Lesson.objects.filter(course=course).order_by('order', 'id').first()
@@ -1650,8 +1655,9 @@ def dashboard_categories(request):
         category_counts[name] = category_counts.get(name, 0) + 1
 
     thumbnail_map = CourseCategory.thumbnail_map_for_tenant(tenant)
+    order_map = CourseCategory.order_map_for_tenant(tenant)
     categories = []
-    for name in sorted(category_counts.keys(), key=str.lower):
+    for name in sort_category_names(category_counts.keys(), order_map):
         is_uncategorized = name == 'Uncategorized'
         lookup_key = '' if is_uncategorized else name.lower()
         categories.append({
@@ -1720,6 +1726,41 @@ def dashboard_category_thumbnail(request):
     category.save()
     messages.success(request, f'Updated thumbnail for "{category_name}".')
     return _redirect_back()
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_reorder_categories(request):
+    """Persist a new category display order (AJAX, from drag-and-drop on the courses page)."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        return JsonResponse({'ok': False, 'error': 'Select a tenant before reordering categories.'}, status=400)
+
+    try:
+        payload = json.loads((request.body or b'').decode('utf-8') or '{}')
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid payload.'}, status=400)
+
+    names = payload.get('order')
+    if not isinstance(names, list):
+        return JsonResponse({'ok': False, 'error': 'Expected an "order" list.'}, status=400)
+
+    order = 0
+    seen = set()
+    for raw in names:
+        name = (raw or '').strip() if isinstance(raw, str) else ''
+        key = name.lower()
+        # Skip blanks, the Uncategorized bucket, and any duplicate the client sent.
+        if not name or key == 'uncategorized' or key in seen:
+            continue
+        seen.add(key)
+        category, _ = CourseCategory.objects.get_or_create(tenant=tenant, name=name)
+        if category.display_order != order:
+            category.display_order = order
+            category.save(update_fields=['display_order'])
+        order += 1
+
+    return JsonResponse({'ok': True, 'count': order})
 
 
 @staff_member_required

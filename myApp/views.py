@@ -54,6 +54,7 @@ from .models import (
     TenantNotificationDelivery,
     category_accent_color,
     category_initial,
+    sort_category_names,
 )
 from django.db.models import Avg, Count, Q
 from django.db import models
@@ -1735,7 +1736,8 @@ def _courses_authenticated(request):
         name = (item['course'].category or '').strip() or 'Uncategorized'
         category_counts[name] = category_counts.get(name, 0) + 1
 
-    available_categories = sorted(category_counts.keys(), key=lambda value: value.lower())
+    category_order_map = CourseCategory.order_map_for_tenant(tenant)
+    available_categories = sort_category_names(category_counts.keys(), category_order_map)
     category_thumbnails = CourseCategory.thumbnail_map_for_tenant(tenant)
     category_cards = [
         {

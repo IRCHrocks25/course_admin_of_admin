@@ -40,6 +40,17 @@
     background: rgba(2, 6, 23, 0.74);
     backdrop-filter: blur(3px);
   }
+  .category-drag-handle { cursor: grab; }
+  section.category-dragging { opacity: 0.45; }
+  section.category-drag-over { outline: 2px dashed rgba(0,229,255,0.45); outline-offset: 4px; border-radius: 12px; }
+  #category-reorder-toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #0a0e27; color: #e5e7eb; border: 1px solid rgba(0,229,255,0.3);
+    padding: 8px 16px; border-radius: 9px; font-size: 12px; z-index: 60;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  }
+  #category-reorder-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #category-reorder-toast.is-error { border-color: rgba(248,113,113,0.5); color: #fca5a5; }
 </style>
 
 <div class="flex items-center justify-between mb-7">
@@ -108,9 +119,23 @@
   <p class="text-xs text-gray-500 mt-3">Tip: pick a category above, click “Select Listed”, then apply category or display order to all selected courses.</p>
 </form>
 
+{% if can_manage_categories and course_groups %}
+<p class="text-xs text-gray-500 mb-3 flex items-center gap-1.5">
+  <i class="fas fa-grip-vertical text-cyan-electric/70"></i>
+  Drag a category by its handle to reorder it. The order is saved automatically and applies to the public catalog.
+</p>
+{% endif %}
+
+<div id="category-groups" data-reorder-url="{% url 'dashboard_reorder_categories' %}" data-can-manage="{% if can_manage_categories %}1{% else %}0{% endif %}">
 {% for group in course_groups %}
-<section class="mb-9" data-category-group="{% if group.is_uncategorized %}__uncategorized__{% else %}{{ group.name|lower }}{% endif %}">
-  <div class="flex items-center gap-3 mb-4">
+<section class="mb-9{% if group.is_uncategorized %} category-uncat{% endif %}"
+  data-category-group="{% if group.is_uncategorized %}__uncategorized__{% else %}{{ group.name|lower }}{% endif %}"
+  {% if group.is_uncategorized %}data-uncategorized="1"{% else %}data-category-name="{{ group.name }}"{% endif %}>
+  <div class="flex items-center gap-3 mb-4{% if can_manage_categories and not group.is_uncategorized %} category-drag-handle{% endif %}"
+    {% if can_manage_categories and not group.is_uncategorized %}draggable="true"{% endif %}>
+    {% if can_manage_categories and not group.is_uncategorized %}
+    <i class="fas fa-grip-vertical text-gray-500 hover:text-cyan-electric flex-shrink-0" title="Drag to reorder" style="cursor:grab;"></i>
+    {% endif %}
     {% if group.thumbnail_url %}
     <img src="{{ group.thumbnail_url }}" alt="" class="w-9 h-9 rounded-lg object-cover border border-white/10 flex-shrink-0">
     {% else %}
@@ -228,6 +253,7 @@
   </a>
 </div>
 {% endfor %}
+</div>
 {{ lesson_preview_payloads|json_script:"lesson-preview-payloads" }}
 
 <div id="lesson-preview-modal" class="hidden fixed inset-0 z-50">
@@ -464,6 +490,99 @@
         checkboxes.forEach(function(cb) { cb.checked = false; });
       });
     }
+  })();
+
+  // Drag-and-drop category reordering.
+  (function() {
+    const container = document.getElementById('category-groups');
+    if (!container || container.dataset.canManage !== '1') return;
+    const reorderUrl = container.dataset.reorderUrl;
+    const csrfEl = document.querySelector('#bulk-course-form [name=csrfmiddlewaretoken]')
+      || document.querySelector('[name=csrfmiddlewaretoken]');
+    const csrftoken = csrfEl ? csrfEl.value : '';
+
+    let dragSection = null;
+    let orderAtDragStart = '';
+
+    function toast(message, isError) {
+      let el = document.getElementById('category-reorder-toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'category-reorder-toast';
+        document.body.appendChild(el);
+      }
+      el.textContent = message;
+      el.classList.toggle('is-error', !!isError);
+      el.classList.add('show');
+      clearTimeout(el._hideTimer);
+      el._hideTimer = setTimeout(function() { el.classList.remove('show'); }, 2200);
+    }
+
+    function orderedSections() {
+      return Array.from(container.querySelectorAll('section[data-category-name]'));
+    }
+
+    function currentOrderKey() {
+      return orderedSections().map(function(s) { return s.dataset.categoryName; }).join('||');
+    }
+
+    function sectionAfterPoint(y) {
+      const sections = orderedSections().filter(function(s) { return s !== dragSection; });
+      let closest = { offset: -Infinity, element: null };
+      sections.forEach(function(s) {
+        const box = s.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          closest = { offset: offset, element: s };
+        }
+      });
+      return closest.element;
+    }
+
+    function persistOrder() {
+      const order = orderedSections().map(function(s) { return s.dataset.categoryName; });
+      fetch(reorderUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        body: JSON.stringify({ order: order })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data && data.ok) { toast('Category order saved'); }
+        else { toast((data && data.error) || 'Could not save order', true); }
+      }).catch(function() { toast('Could not save order', true); });
+    }
+
+    container.addEventListener('dragstart', function(e) {
+      const handle = e.target.closest('.category-drag-handle');
+      if (!handle) return;
+      dragSection = handle.closest('section[data-category-name]');
+      if (!dragSection) return;
+      orderAtDragStart = currentOrderKey();
+      dragSection.classList.add('category-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragSection.dataset.categoryName || ''); } catch (_) {}
+    });
+
+    container.addEventListener('dragover', function(e) {
+      if (!dragSection) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const after = sectionAfterPoint(e.clientY);
+      if (after == null) {
+        const uncat = container.querySelector('section[data-uncategorized]');
+        if (uncat) { container.insertBefore(dragSection, uncat); }
+        else { container.appendChild(dragSection); }
+      } else if (after !== dragSection) {
+        container.insertBefore(dragSection, after);
+      }
+    });
+
+    container.addEventListener('dragend', function() {
+      if (!dragSection) return;
+      dragSection.classList.remove('category-dragging');
+      const moved = currentOrderKey() !== orderAtDragStart;
+      dragSection = null;
+      if (moved) { persistOrder(); }
+    });
   })();
 </script>
 {% endblock %}

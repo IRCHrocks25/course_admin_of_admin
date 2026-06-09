@@ -228,6 +228,26 @@ def category_initial(name):
     return '#'
 
 
+def sort_category_names(names, order_map):
+    """Sort category names by their saved display order, then alphabetically.
+
+    ``order_map`` maps lowercased category name -> display_order (see
+    ``CourseCategory.order_map_for_tenant``). Categories with a saved order come
+    first (in that order); categories without one fall back to alphabetical so a
+    tenant that never set an order keeps today's A-Z behaviour. "Uncategorized"
+    (and blank) always sorts last.
+    """
+    def key(name):
+        clean = (name or '').strip().lower()
+        if clean in ('', 'uncategorized'):
+            return (2, 0, clean)
+        order = order_map.get(clean)
+        if order is None:
+            return (1, 0, clean)
+        return (0, order, clean)
+    return sorted(names, key=key)
+
+
 class CourseCategory(models.Model):
     """
     Display metadata for a course category.
@@ -239,12 +259,14 @@ class CourseCategory(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='course_categories', null=True, blank=True)
     name = models.CharField(max_length=120)
     thumbnail = models.ImageField(upload_to='category_thumbnails/', null=True, blank=True)
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = 'Course category'
         verbose_name_plural = 'Course categories'
+        ordering = ['display_order', 'name']
         constraints = [
             models.UniqueConstraint(fields=['tenant', 'name'], name='uniq_course_category_tenant_name')
         ]
@@ -266,6 +288,18 @@ class CourseCategory(models.Model):
                 result[category.name.strip().lower()] = category.thumbnail.url
             except Exception:
                 continue
+        return result
+
+    @classmethod
+    def order_map_for_tenant(cls, tenant):
+        """Return {lowercased category name: display_order} for a tenant."""
+        qs = cls.objects.all()
+        if tenant is not None:
+            qs = qs.filter(tenant=tenant)
+        result = {}
+        for category in qs.values_list('name', 'display_order'):
+            name, order = category
+            result[(name or '').strip().lower()] = order
         return result
 
 
