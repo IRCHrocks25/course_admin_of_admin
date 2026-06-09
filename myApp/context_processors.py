@@ -85,12 +85,19 @@ def tenant_context(request):
 
     tenant_branding = get_tenant_branding(tenant)
     effective_theme_mode = tenant_branding.get('theme_mode', 'dark')
+    membership_theme = ''
     if tenant and getattr(request, 'user', None) and request.user.is_authenticated:
         membership = TenantMembership.objects.filter(
             tenant=tenant, user=request.user, is_active=True,
         ).only('theme_preference').first()
         if membership and membership.theme_preference:
-            effective_theme_mode = membership.theme_preference
+            membership_theme = membership.theme_preference
+    if membership_theme:
+        effective_theme_mode = membership_theme
+    elif request.session.get('theme_preference'):
+        # Fallback for users without a tenant membership (e.g. superadmins),
+        # whose toggle_theme preference is stored in the session.
+        effective_theme_mode = request.session['theme_preference']
 
     return {
         'tenant': tenant,

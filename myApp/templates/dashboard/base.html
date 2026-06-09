@@ -40,18 +40,31 @@
             --brand-border: rgba(15, 23, 42, 0.12);
         }
         .brand-theme-light .text-white { color: #0f172a !important; }
-        .brand-theme-light .text-gray-400,
+        /* Near-white text (light-on-dark) → readable slate */
+        .brand-theme-light .text-gray-100,
+        .brand-theme-light .text-gray-200,
         .brand-theme-light .text-gray-300,
-        .brand-theme-light .text-gray-500 { color: #475569 !important; }
-        .brand-theme-light .bg-\[\#0a0e27\]\/95,
-        .brand-theme-light .bg-\[\#0a0e27\]\/80,
-        .brand-theme-light .bg-\[\#0a0e27\],
-        .brand-theme-light .bg-\[\#1a1f3a\] { background-color: #ffffff !important; }
-        .brand-theme-light .border-cyan-electric\/20,
-        .brand-theme-light .border-cyan-electric\/30 { border-color: rgba(15, 23, 42, 0.12) !important; }
-        .brand-theme-light .bg-cyan-electric\/20 { background-color: rgba(59, 130, 246, 0.1) !important; }
+        .brand-theme-light .text-gray-400,
+        .brand-theme-light .text-gray-500,
+        .brand-theme-light .text-gray-600 { color: #475569 !important; }
+        /* Surfaces: any navy panel + translucent-white glass panel → white card.
+           Substring selectors catch every opacity variant in one rule. */
+        .brand-theme-light [class*="bg-[#0a0e27]"],
+        .brand-theme-light [class*="bg-[#1a1f3a]"],
+        .brand-theme-light [class*="bg-[#0b1030]"],
+        .brand-theme-light [class*="bg-white/"] { background-color: #ffffff !important; }
+        /* Borders: accent (cyan) + translucent-white hairlines → subtle slate */
+        .brand-theme-light [class*="border-cyan-electric"],
+        .brand-theme-light [class*="border-white/"] { border-color: rgba(15, 23, 42, 0.12) !important; }
+        /* Accent fills — only the translucent tints (bg-cyan-electric/NN) become
+           a light blue wash. Solid `bg-cyan-electric` (primary CTA buttons) keeps
+           its brand color so buttons stay solid in light mode. */
+        .brand-theme-light [class*="bg-cyan-electric/"] { background-color: rgba(37, 99, 235, 0.10) !important; }
         .brand-theme-light .text-cyan-electric { color: #2563eb !important; }
         .brand-theme-light .hover\:bg-cyan-electric\/10:hover { background-color: rgba(59, 130, 246, 0.08) !important; }
+        /* Neutral tracks (e.g. progress bar backgrounds) → light gray */
+        .brand-theme-light .bg-gray-700,
+        .brand-theme-light .bg-gray-500 { background-color: #e2e8f0 !important; }
         .brand-theme-light .bg-red-500\/20 { background-color: rgba(239, 68, 68, 0.1) !important; }
         .brand-theme-light .bg-green-500\/20 { background-color: rgba(34, 197, 94, 0.1) !important; }
         .theme-transitioning,
@@ -131,6 +144,18 @@
             gap: 0.125rem;
         }
         .brand-theme-light .nav-group-children { border-left-color: rgba(15, 23, 42, 0.1); }
+        /* ── Light-theme readability for per-page accent action chips ──
+           (.act-* used on categories/courses, .lesson-* used on lessons).
+           Their dark-theme text colors are too bright to read on white, so
+           map each to a darker, accessible shade of the same hue. */
+        .brand-theme-light .act-cyan,
+        .brand-theme-light .lesson-cyan { color: #0e7490 !important; border-color: rgba(14, 116, 144, 0.3) !important; }
+        .brand-theme-light .act-purple,
+        .brand-theme-light .lesson-purple { color: #7c3aed !important; border-color: rgba(124, 58, 237, 0.3) !important; }
+        .brand-theme-light .act-indigo { color: #4f46e5 !important; border-color: rgba(79, 70, 229, 0.3) !important; }
+        .brand-theme-light .act-emerald { color: #059669 !important; border-color: rgba(5, 150, 105, 0.3) !important; }
+        .brand-theme-light .act-red,
+        .brand-theme-light .lesson-red { color: #dc2626 !important; border-color: rgba(220, 38, 38, 0.3) !important; }
     </style>
 </head>
 <body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'dark' }}">

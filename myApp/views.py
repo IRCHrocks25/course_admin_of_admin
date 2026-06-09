@@ -4165,20 +4165,29 @@ def toggle_theme(request):
     """Toggle user's theme preference between dark and light."""
     from .models import TenantMembership
     from .utils.branding import get_tenant_branding
+    from .utils.tenancy import resolve_request_tenant
 
-    tenant = getattr(request, 'tenant', None)
-    if not tenant:
-        return JsonResponse({'success': False, 'error': 'No tenant context'}, status=400)
+    tenant = resolve_request_tenant(request)
+    membership = None
+    if tenant:
+        membership = TenantMembership.objects.filter(
+            tenant=tenant, user=request.user, is_active=True,
+        ).first()
 
-    membership = TenantMembership.objects.filter(
-        tenant=tenant, user=request.user, is_active=True,
-    ).first()
-    if not membership:
-        return JsonResponse({'success': False, 'error': 'No membership'}, status=403)
+    tenant_default = get_tenant_branding(tenant).get('theme_mode', 'dark')
 
-    current = membership.theme_preference or get_tenant_branding(tenant).get('theme_mode', 'dark')
-    new_theme = 'light' if current == 'dark' else 'dark'
-    membership.theme_preference = new_theme
-    membership.save(update_fields=['theme_preference'])
+    if membership:
+        # Tenant members persist their preference on the membership row.
+        current = membership.theme_preference or tenant_default
+        new_theme = 'light' if current == 'dark' else 'dark'
+        membership.theme_preference = new_theme
+        membership.save(update_fields=['theme_preference'])
+    else:
+        # Superadmins and other users without a tenant membership (e.g. the
+        # /superadmin/ console) have no membership row to store on, so keep
+        # their preference in the session instead.
+        current = request.session.get('theme_preference') or tenant_default
+        new_theme = 'light' if current == 'dark' else 'dark'
+        request.session['theme_preference'] = new_theme
 
     return JsonResponse({'success': True, 'theme': new_theme})
