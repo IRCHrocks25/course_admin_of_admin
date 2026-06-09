@@ -41,6 +41,23 @@
     backdrop-filter: blur(3px);
   }
   .category-drag-handle { cursor: grab; }
+  .category-thumb {
+    width: 90px;
+    height: 90px;
+    border-radius: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .category-thumb-initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  section.is-collapsed .category-courses { display: none; }
+  section.is-collapsed .category-chevron i { transform: rotate(-90deg); }
   section.category-dragging { opacity: 0.45; }
   section.category-drag-over { outline: 2px dashed rgba(0,229,255,0.45); outline-offset: 4px; border-radius: 12px; }
   #category-reorder-toast {
@@ -128,7 +145,7 @@
 
 <div id="category-groups" data-reorder-url="{% url 'dashboard_reorder_categories' %}" data-can-manage="{% if can_manage_categories %}1{% else %}0{% endif %}">
 {% for group in course_groups %}
-<section class="mb-9{% if group.is_uncategorized %} category-uncat{% endif %}"
+<section class="mb-9 is-collapsed{% if group.is_uncategorized %} category-uncat{% endif %}"
   data-category-group="{% if group.is_uncategorized %}__uncategorized__{% else %}{{ group.name|lower }}{% endif %}"
   {% if group.is_uncategorized %}data-uncategorized="1"{% else %}data-category-name="{{ group.name }}"{% endif %}>
   <div class="flex items-center gap-3 mb-4{% if can_manage_categories and not group.is_uncategorized %} category-drag-handle{% endif %}"
@@ -136,12 +153,15 @@
     {% if can_manage_categories and not group.is_uncategorized %}
     <i class="fas fa-grip-vertical text-gray-500 hover:text-cyan-electric flex-shrink-0" title="Drag to reorder" style="cursor:grab;"></i>
     {% endif %}
+    <button type="button" class="category-chevron flex-shrink-0 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-cyan-electric" data-collapse-toggle title="Expand / collapse">
+      <i class="fas fa-chevron-down text-xs transition-transform"></i>
+    </button>
     {% if group.thumbnail_url %}
-    <img src="{{ group.thumbnail_url }}" alt="" class="w-9 h-9 rounded-lg object-cover border border-white/10 flex-shrink-0">
+    <img src="{{ group.thumbnail_url }}" alt="" class="category-thumb border border-white/10 cursor-pointer" data-collapse-toggle>
     {% else %}
-    <span class="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style="background: {{ group.color }};">{{ group.initial }}</span>
+    <span class="category-thumb category-thumb-initial cursor-pointer" style="background: {{ group.color }};" data-collapse-toggle>{{ group.initial }}</span>
     {% endif %}
-    <h3 class="text-sm font-semibold uppercase tracking-wider {% if group.is_uncategorized %}text-gray-400{% else %}text-cyan-electric{% endif %}">{{ group.name }}</h3>
+    <h3 class="text-sm font-semibold uppercase tracking-wider cursor-pointer {% if group.is_uncategorized %}text-gray-400{% else %}text-cyan-electric{% endif %}" data-collapse-toggle>{{ group.name }}</h3>
     <span class="text-[11px] text-gray-400 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">{{ group.courses|length }}</span>
     <div class="flex-1 h-px bg-cyan-electric/10"></div>
     {% if can_manage_categories and not group.is_uncategorized %}
@@ -161,7 +181,7 @@
     </form>
     {% endif %}
   </div>
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div class="category-courses grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for course in group.courses %}
     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-5 hover:border-cyan-electric/25 transition-colors h-full flex flex-col">
 
@@ -490,6 +510,18 @@
         checkboxes.forEach(function(cb) { cb.checked = false; });
       });
     }
+  })();
+
+  // Collapse / expand category sections (collapsed by default).
+  (function() {
+    const container = document.getElementById('category-groups');
+    if (!container) return;
+    container.addEventListener('click', function(e) {
+      const toggle = e.target.closest('[data-collapse-toggle]');
+      if (!toggle || !container.contains(toggle)) return;
+      const section = toggle.closest('section[data-category-group]');
+      if (section) { section.classList.toggle('is-collapsed'); }
+    });
   })();
 
   // Drag-and-drop category reordering.
