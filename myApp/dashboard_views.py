@@ -854,7 +854,12 @@ def _sanitize_uploaded_html(raw_html, page_kind='generic'):
     Sanitize tenant-provided custom HTML.
     - landing: preserve full HTML/CSS/JS so branded pages render correctly.
     - signup/login/generic: strip active embeds/scripts for safer auth surfaces.
-    Always strips Django template delimiters to avoid template injection.
+
+    Django template delimiters are stripped ONLY on non-landing surfaces. Landing
+    HTML is served raw via HttpResponse (never compiled as a Django template), so
+    blanket-removing "{{"/"}}"/"{%"/"%}" would corrupt perfectly valid CSS keyframes
+    (e.g. "...translateY(-13px)}}") and JS (e.g. "...e.target);}});"), which silently
+    breaks the stylesheet and scripts of an otherwise-correct page.
     """
     if not raw_html:
         return ''
@@ -865,8 +870,15 @@ def _sanitize_uploaded_html(raw_html, page_kind='generic'):
         html = re.sub(r'<iframe[\s\S]*?</iframe>', '', html, flags=re.IGNORECASE)
         html = re.sub(r'<object[\s\S]*?</object>', '', html, flags=re.IGNORECASE)
         html = re.sub(r'<embed[\s\S]*?>', '', html, flags=re.IGNORECASE)
-    html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
+        html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
     return html.strip()
+
+
+def _landing_html_has_styles(raw_html):
+    lower = (raw_html or '').lower()
+    if '<style' in lower:
+        return True
+    return bool(re.search(r'<link[^>]*\brel=["\']stylesheet["\']', lower, flags=re.IGNORECASE))
 
 
 def _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file):
@@ -5381,7 +5393,15 @@ def dashboard_branding_settings(request):
             return redirect('dashboard_branding_settings')
 
         if html_text:
-            custom_pages['landing_html'] = _sanitize_uploaded_html(html_text, page_kind='landing')
+            sanitized_landing_html = _sanitize_uploaded_html(html_text, page_kind='landing')
+            if not _landing_html_has_styles(sanitized_landing_html):
+                messages.error(
+                    request,
+                    'Custom landing HTML must include a <style> block or stylesheet <link>. '
+                    'Paste/upload the complete file starting with <!DOCTYPE html> and keep the entire <head> section.'
+                )
+                return redirect('dashboard_branding_settings')
+            custom_pages['landing_html'] = sanitized_landing_html
             # If admin provided HTML, auto-enable custom mode to avoid confusion.
             custom_pages['landing_mode'] = 'custom'
         if clear_html:

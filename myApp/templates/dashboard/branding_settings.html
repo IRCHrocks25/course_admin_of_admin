@@ -89,15 +89,17 @@
                     <p class="text-xs text-gray-400 mt-1">Custom HTML replaces the default landing page for your tenant domain.</p>
                 </div>
                 <div>
-                    <label class="block text-sm text-gray-300 mb-1">Upload HTML file</label>
+                    <label class="block text-sm text-gray-300 mb-1">Upload HTML file (recommended)</label>
                     <input id="landing-html-file" type="file" name="landing_html_file" accept=".html,.htm,text/html" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="text-xs text-gray-400 mt-1">For large pages, upload the .html file instead of pasting so the full <span class="text-cyan-300">&lt;head&gt;</span> and <span class="text-cyan-300">&lt;style&gt;</span> block are preserved.</p>
                 </div>
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <label class="block text-sm text-gray-300">Or paste landing HTML</label>
                         <button id="preview-landing-html" type="button" class="px-3 py-1.5 rounded border border-cyan-electric/40 text-xs text-cyan-electric hover:bg-cyan-electric/20 transition">Preview HTML</button>
                     </div>
-                    <textarea name="landing_html" rows="10" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ landing_html }}</textarea>
+                    <textarea id="landing-html-textarea" name="landing_html" rows="10" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white font-mono text-xs">{{ landing_html }}</textarea>
+                    <p id="landing-html-status" class="text-xs mt-1 text-gray-400">Paste the complete document, including everything from <span class="text-cyan-300">&lt;!DOCTYPE html&gt;</span> through <span class="text-cyan-300">&lt;/html&gt;</span>.</p>
                 </div>
                 <div class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-3">
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -359,7 +361,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const buttons = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.tab-pane');
     const useSampleBtn = document.getElementById('use-landing-sample');
-    const landingTextarea = document.querySelector('textarea[name="landing_html"]');
+    const landingTextarea = document.getElementById('landing-html-textarea');
+    const landingHtmlStatus = document.getElementById('landing-html-status');
     const landingModeSelect = document.querySelector('select[name="landing_mode"]');
     const useSignupSampleBtn = document.getElementById('use-signup-sample');
     const signupTextarea = document.querySelector('textarea[name="signup_html"]');
@@ -395,6 +398,51 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    function updateLandingHtmlStatus() {
+        if (!landingTextarea || !landingHtmlStatus) return;
+        const value = (landingTextarea.value || '').trim();
+        const lower = value.toLowerCase();
+        const hasStyle = lower.includes('<style') || /<link[^>]*rel=["']stylesheet["']/i.test(value);
+        const hasHead = lower.includes('<head');
+        const hasHtml = lower.includes('<html');
+        if (!value) {
+            landingHtmlStatus.textContent = 'Paste the complete document, including everything from <!DOCTYPE html> through </html>.';
+            landingHtmlStatus.className = 'text-xs mt-1 text-gray-400';
+            return;
+        }
+        if (!hasStyle) {
+            landingHtmlStatus.textContent = 'Warning: no <style> block detected. The page will render unstyled unless you include the full <head> section.';
+            landingHtmlStatus.className = 'text-xs mt-1 text-amber-300';
+            return;
+        }
+        if (!hasHtml && !hasHead) {
+            landingHtmlStatus.textContent = 'Warning: this looks like body-only HTML. Include <!DOCTYPE html>, <html>, and <head> so CSS is applied.';
+            landingHtmlStatus.className = 'text-xs mt-1 text-amber-300';
+            return;
+        }
+        landingHtmlStatus.textContent = `Ready: ${value.length.toLocaleString()} characters with styles detected.`;
+        landingHtmlStatus.className = 'text-xs mt-1 text-emerald-300';
+    }
+
+    if (landingTextarea) {
+        landingTextarea.addEventListener('input', updateLandingHtmlStatus);
+        updateLandingHtmlStatus();
+    }
+
+    if (landingHtmlFileInput && landingTextarea) {
+        landingHtmlFileInput.addEventListener('change', function () {
+            const file = landingHtmlFileInput.files && landingHtmlFileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                landingTextarea.value = event.target?.result || '';
+                if (landingModeSelect) landingModeSelect.value = 'custom';
+                updateLandingHtmlStatus();
+            };
+            reader.readAsText(file);
+        });
+    }
+
     if (useSampleBtn && landingTextarea) {
         useSampleBtn.addEventListener('click', function() {
             landingTextarea.value = `{{ landing_html_sample|escapejs }}`;
@@ -404,6 +452,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const landingTab = document.querySelector('.tab-btn[data-tab="landing"]');
             if (landingTab) landingTab.click();
             landingTextarea.focus();
+            updateLandingHtmlStatus();
         });
     }
     if (useSignupSampleBtn && signupTextarea) {

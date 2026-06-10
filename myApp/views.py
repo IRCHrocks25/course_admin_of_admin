@@ -258,8 +258,62 @@ def _get_tenant_custom_pages(tenant):
     return {}
 
 
+def _normalize_tenant_custom_html_document(custom_html):
+    """
+    Ensure tenant custom HTML is a full document so inline CSS/JS in <head> is applied.
+    Body-only pastes were previously wrapped in a bare fragment with no styles.
+    """
+    html = (custom_html or '').strip()
+    if not html:
+        return ''
+    lower = html.lower()
+    if '<html' in lower:
+        return html
+
+    style_blocks = re.findall(r'<style[^>]*>[\s\S]*?</style>', html, flags=re.IGNORECASE)
+    link_blocks = re.findall(
+        r'<link[^>]*\brel=["\']stylesheet["\'][^>]*>',
+        html,
+        flags=re.IGNORECASE,
+    )
+    script_blocks = re.findall(r'<script[^>]*>[\s\S]*?</script>', html, flags=re.IGNORECASE)
+    title_match = re.search(r'<title[^>]*>([\s\S]*?)</title>', html, flags=re.IGNORECASE)
+    title_html = (
+        f'<title>{title_match.group(1).strip()}</title>'
+        if title_match
+        else '<title>Custom Page</title>'
+    )
+    head_extras = ''.join(link_blocks + style_blocks)
+
+    body_html = html
+    for block in link_blocks + style_blocks + script_blocks:
+        body_html = body_html.replace(block, '', 1)
+    if title_match:
+        body_html = re.sub(r'<title[^>]*>[\s\S]*?</title>', '', body_html, flags=re.IGNORECASE)
+    body_html = re.sub(r'<!DOCTYPE[^>]*>', '', body_html, flags=re.IGNORECASE)
+    body_html = re.sub(r'<head[^>]*>[\s\S]*?</head>', '', body_html, flags=re.IGNORECASE)
+
+    if '<body' in lower:
+        body_match = re.search(r'<body[^>]*>([\s\S]*?)</body>', body_html, flags=re.IGNORECASE)
+        body_inner = body_match.group(1).strip() if body_match else body_html.strip()
+    else:
+        body_inner = body_html.strip()
+
+    scripts_html = ''.join(script_blocks)
+    return (
+        '<!DOCTYPE html><html lang="en"><head>'
+        '<meta charset="UTF-8" />'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0" />'
+        f'{title_html}{head_extras}'
+        '</head><body>'
+        f'{body_inner}'
+        f'{scripts_html}'
+        '</body></html>'
+    )
+
+
 def _render_tenant_custom_html(request, tenant, custom_html):
-    custom_html = (custom_html or '').strip()
+    custom_html = _normalize_tenant_custom_html_document(custom_html)
     if not custom_html:
         return None
     # Ensure csrftoken cookie exists for custom HTML forms posted back to Django.
