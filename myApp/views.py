@@ -72,6 +72,8 @@ from .dashboard_views import (
     generate_ai_lesson_metadata,
     generate_ai_lesson_content,
     generate_ai_lesson_image,
+    upload_lesson_hero_image,
+    delete_lesson_hero_image,
     create_editorjs_content,
     _blueprint_lesson_context_block,
     _parse_generation_settings,
@@ -2626,6 +2628,27 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                             messages.error(request, 'Hero image generation failed. Check server logs and Cloudinary config.')
                     except Exception as e:
                         messages.error(request, f'Hero image generation failed: {e}')
+
+        elif action == 'upload_image':
+            image_file = request.FILES.get('hero_image_file')
+            if not image_file:
+                messages.error(request, 'Please choose an image file to upload.')
+            elif not image_file.content_type.startswith('image/'):
+                messages.error(request, 'That file is not an image. Please upload a JPG, PNG, or WEBP.')
+            elif image_file.size > 10 * 1024 * 1024:
+                messages.error(request, 'Image is too large. Please upload a file under 10 MB.')
+            else:
+                new_url = upload_lesson_hero_image(lesson, image_file)
+                if new_url:
+                    messages.success(request, 'Hero image uploaded.')
+                else:
+                    messages.error(request, 'Hero image upload failed. Check Cloudinary config and try again.')
+
+        elif action == 'delete_image':
+            if delete_lesson_hero_image(lesson):
+                messages.success(request, 'Hero image removed.')
+            else:
+                messages.info(request, 'There was no hero image to remove.')
 
         elif action == 'approve':
             # Save video & links from form (in case not saved via Edit first)

@@ -239,7 +239,7 @@
         </div>
     </div>
 
-    <form method="POST" id="ai-content-form">
+    <form method="POST" id="ai-content-form" enctype="multipart/form-data">
         {% csrf_token %}
         
         <!-- Video Section - Add or edit lesson video -->
@@ -311,17 +311,28 @@
 
         <!-- AI Hero Image -->
         <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mb-6">
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <h3 class="text-lg font-bold flex items-center gap-2">
                     <i class="fas fa-image text-cyan-electric"></i>
                     Hero Image
                 </h3>
-                <button type="submit" name="action" value="regenerate_image"
-                    class="px-3 py-1 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-xs font-medium hover:bg-purple-accent/30 transition-all text-purple-accent">
-                    <i class="fas fa-wand-magic-sparkles mr-1"></i>
-                    {% if lesson.ai_hero_image_url %}Regenerate Image{% else %}Generate Image{% endif %}
-                </button>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button type="submit" name="action" value="regenerate_image"
+                        class="px-3 py-1 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-xs font-medium hover:bg-purple-accent/30 transition-all text-purple-accent">
+                        <i class="fas fa-wand-magic-sparkles mr-1"></i>
+                        {% if lesson.ai_hero_image_url %}Regenerate with AI{% else %}Generate with AI{% endif %}
+                    </button>
+                    {% if lesson.ai_hero_image_url %}
+                    <button type="submit" name="action" value="delete_image"
+                        onclick="return confirm('Remove this hero image? This cannot be undone.');"
+                        class="px-3 py-1 bg-red-500/10 border border-red-500/40 rounded-full text-xs font-medium hover:bg-red-500/20 transition-all text-red-400">
+                        <i class="fas fa-trash-can mr-1"></i>
+                        Delete
+                    </button>
+                    {% endif %}
+                </div>
             </div>
+
             {% if lesson.ai_hero_image_url %}
                 <figure class="rounded-lg overflow-hidden border border-cyan-electric/10">
                     <img src="{{ lesson.ai_hero_image_url }}"
@@ -336,8 +347,25 @@
                     </details>
                 {% endif %}
             {% else %}
-                <p class="text-sm text-gray-400">No hero image yet. Click <span class="text-purple-accent">Generate Image</span> to create one with DALL-E. It will appear above the lesson title on the student page.</p>
+                <p class="text-sm text-gray-400 mb-4">No hero image yet. Generate one with AI, or upload your own below. It will appear above the lesson title on the student page.</p>
             {% endif %}
+
+            <!-- Upload your own hero image -->
+            <div class="mt-4 pt-4 border-t border-cyan-electric/10">
+                <label class="block text-sm font-semibold mb-2">
+                    {% if lesson.ai_hero_image_url %}Replace with your own image{% else %}Upload your own image{% endif %}
+                </label>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <input type="file" name="hero_image_file" accept="image/png,image/jpeg,image/webp"
+                        class="block text-sm text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-electric/15 file:text-cyan-electric hover:file:bg-cyan-electric/25 file:cursor-pointer cursor-pointer">
+                    <button type="submit" name="action" value="upload_image"
+                        class="px-4 py-2 bg-cyan-electric/15 border border-cyan-electric/40 rounded-full text-xs font-semibold hover:bg-cyan-electric/25 transition-all text-cyan-electric">
+                        <i class="fas fa-upload mr-1"></i>
+                        Upload
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">JPG, PNG, or WEBP up to 10 MB. Images are cropped to a 3:2 banner (1536×1024).</p>
+            </div>
         </div>
 
         <!-- AI Generated Content Sections -->

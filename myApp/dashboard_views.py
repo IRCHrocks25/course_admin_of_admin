@@ -2599,6 +2599,91 @@ def generate_ai_lesson_image(client, lesson, settings_obj):
         return ''
 
 
+def upload_lesson_hero_image(lesson, image_file):
+    """
+    Upload a user-supplied hero image for a lesson to Cloudinary (converted to
+    webp) and store it on the lesson. Uses the same folder/public_id as the
+    AI-generated image so it overwrites any existing hero in Cloudinary.
+
+    Returns the Cloudinary secure URL on success, or '' on any failure.
+    """
+    if not CLOUDINARY_UPLOAD_AVAILABLE:
+        return ''
+    if not (os.getenv('CLOUDINARY_CLOUD_NAME') and os.getenv('CLOUDINARY_API_KEY') and os.getenv('CLOUDINARY_API_SECRET')):
+        return ''
+    if not image_file:
+        return ''
+    try:
+        image = Image.open(image_file)
+        # Flatten transparency onto white so the hero never renders with gaps.
+        if image.mode in ('RGBA', 'LA', 'P'):
+            image = image.convert('RGBA')
+            bg = Image.new('RGB', image.size, (255, 255, 255))
+            bg.paste(image, mask=image.split()[-1])
+            image = bg
+        else:
+            image = image.convert('RGB')
+
+        out = io.BytesIO()
+        image.save(out, format='WEBP', quality=88, method=6)
+        out.seek(0)
+        out.name = f"lesson_{lesson.id}_hero.webp"
+
+        upload_result = cloudinary_uploader.upload(
+            out,
+            folder="lesson_hero_images",
+            public_id=f"lesson_{lesson.id}_{lesson.slug or 'img'}",
+            resource_type="image",
+            overwrite=True,
+            format="webp",
+            transformation=[{"width": 1536, "height": 1024, "crop": "fill"}],
+        )
+        cloudinary_url = (upload_result.get('secure_url') or '').strip()
+
+        if cloudinary_url:
+            lesson.ai_hero_image_url = cloudinary_url
+            lesson.ai_hero_image_prompt = ''  # user upload — no AI prompt
+            lesson.save(update_fields=['ai_hero_image_url', 'ai_hero_image_prompt'])
+
+        return cloudinary_url
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Hero image upload failed for lesson %s: %s",
+            getattr(lesson, 'id', '?'), e
+        )
+        return ''
+
+
+def delete_lesson_hero_image(lesson):
+    """
+    Remove a lesson's hero image: delete the asset from Cloudinary (best effort)
+    and clear the stored URL/prompt. Returns True if anything was cleared.
+    """
+    had_image = bool(lesson.ai_hero_image_url)
+
+    if CLOUDINARY_UPLOAD_AVAILABLE:
+        try:
+            import cloudinary.uploader
+            cloudinary.uploader.destroy(
+                f"lesson_hero_images/lesson_{lesson.id}_{lesson.slug or 'img'}",
+                resource_type="image",
+                invalidate=True,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Cloudinary destroy failed for lesson %s: %s",
+                getattr(lesson, 'id', '?'), e
+            )
+
+    lesson.ai_hero_image_url = ''
+    lesson.ai_hero_image_prompt = ''
+    lesson.save(update_fields=['ai_hero_image_url', 'ai_hero_image_prompt'])
+    return had_image
+
+
 def generate_ai_course_structure(course_name, description, course_type='sprint', coach_name='Sprint Coach', tenant=None, course=None, blueprint=None):
     """Generate complete course structure (modules and lessons) using AI"""
     if not OPENAI_AVAILABLE:

@@ -464,9 +464,12 @@
     .cat-dropdown > summary::-webkit-details-marker { display: none; }
     .cat-menu {
         position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 210px;
-        background: var(--card); border: 1.5px solid var(--border); border-radius: 10px;
+        background: #0d1526; border: 1.5px solid var(--border); border-radius: 10px;
         padding: 6px; display: flex; flex-direction: column; gap: 2px;
-        box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.55);
+    }
+    .brand-theme-light .cat-menu {
+        background: #ffffff;
     }
     .cat-menu a {
         padding: 8px 12px; border-radius: 7px; text-decoration: none;
@@ -762,7 +765,9 @@
         <div class="section-hd">
             <div style="display:flex;align-items:baseline;gap:6px;">
                 <h2 class="section-title">My Courses</h2>
-                {% if my_courses %}
+                {% if show_category_cards %}
+                <span class="section-count">{{ category_cards|length }} categor{{ category_cards|length|pluralize:"y,ies" }}</span>
+                {% elif my_courses %}
                 <span class="section-count">{{ my_courses|length }} course{{ my_courses|length|pluralize }}</span>
                 {% endif %}
             </div>
