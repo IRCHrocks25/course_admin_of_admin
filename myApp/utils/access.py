@@ -4,7 +4,7 @@ Core concept: "Access is a thing, not a side effect"
 """
 from django.utils import timezone
 from django.db.models import Q
-from ..models import CourseAccess, Course, CohortMember, BundlePurchase
+from ..models import CourseAccess, Course
 
 
 def has_course_access(user, course):
@@ -14,7 +14,7 @@ def has_course_access(user, course):
     """
     if not user.is_authenticated:
         return False, None, "Not authenticated"
-    
+
     # Get all active access records for this user and course
     active_accesses = CourseAccess.objects.filter(
         user=user,
@@ -24,11 +24,11 @@ def has_course_access(user, course):
         # Exclude expired accesses
         Q(expires_at__isnull=False) & Q(expires_at__lt=timezone.now())
     )
-    
+
     if active_accesses.exists():
         access = active_accesses.first()
         return True, access, f"Access granted via {access.get_source_display()}"
-    
+
     # Check if access exists but is expired/revoked
     any_access = CourseAccess.objects.filter(user=user, course=course).first()
     if any_access:
@@ -41,7 +41,7 @@ def has_course_access(user, course):
             any_access.status = 'expired'
             any_access.save()
             return False, any_access, "Access has expired"
-    
+
     return False, None, "No access found"
 
 
@@ -52,13 +52,13 @@ def batch_has_course_access(user, course_ids):
     """
     if not user.is_authenticated or not course_ids:
         return {cid: (False, None, "Not authenticated") for cid in course_ids}
-    
+
     now = timezone.now()
     accesses = CourseAccess.objects.filter(
         user=user,
         course_id__in=course_ids,
     ).select_related('course')
-    
+
     result = {cid: (False, None, "No access found") for cid in course_ids}
     for acc in accesses:
         if acc.status == 'expired':
@@ -71,11 +71,11 @@ def batch_has_course_access(user, course_ids):
             result[acc.course_id] = (False, acc, "Access has expired")
         elif acc.status == 'unlocked' and (not acc.expires_at or acc.expires_at > now):
             result[acc.course_id] = (True, acc, f"Access granted via {acc.get_source_display()}")
-    
+
     return result
 
 
-def grant_course_access(user, course, access_type, granted_by=None, bundle_purchase=None, 
+def grant_course_access(user, course, access_type, granted_by=None, bundle_purchase=None,
                        cohort=None, purchase_id=None, expires_at=None, notes=""):
     """
     Grant access to a course.
@@ -107,7 +107,7 @@ def revoke_course_access(user, course, revoked_by, reason="", notes=""):
         course=course,
         status='unlocked'
     ).first()
-    
+
     if access:
         access.status = 'revoked'
         access.revoked_at = timezone.now()
@@ -127,7 +127,7 @@ def get_user_accessible_courses(user, tenant=None):
     """
     if not user.is_authenticated:
         return Course.objects.none()
-    
+
     now = timezone.now()
     access_qs = CourseAccess.objects.filter(
         user=user,
@@ -139,7 +139,7 @@ def get_user_accessible_courses(user, tenant=None):
     access_ids = access_qs.exclude(
         Q(expires_at__isnull=False) & Q(expires_at__lt=now)
     ).values_list('course_id', flat=True)
-    
+
     course_qs = Course.objects.filter(id__in=access_ids)
     if tenant is not None:
         course_qs = course_qs.filter(tenant=tenant)
@@ -161,22 +161,24 @@ def get_courses_by_visibility(user, tenant=None):
             'available_to_unlock': public_courses,
             'not_available': Course.objects.none(),
         }
-    
+
     # Get courses user has access to
     my_courses = get_user_accessible_courses(user, tenant=tenant)
-    
-    # Get all visible courses
+
+    # Catalog-visible courses. "Hidden" means "not in catalog, direct link
+    # only" per VISIBILITY_CHOICES, so it's excluded from this query.
+    # Hidden courses the user has direct access to still appear via the
+    # my_courses path above; this query only feeds the
+    # "available to unlock" listing.
     visible_courses = Course.objects.filter(
-        Q(visibility='public') | 
-        Q(visibility='members_only') |
-        Q(visibility='hidden')  # Hidden courses can still be accessed if user has access
+        Q(visibility='public') | Q(visibility='members_only')
     ).filter(status='active')
     if tenant is not None:
         visible_courses = visible_courses.filter(tenant=tenant)
-    
+
     # Available to unlock = visible courses user doesn't have access to yet
     available_to_unlock = visible_courses.exclude(id__in=my_courses.values_list('id', flat=True))
-    
+
     # Not available = private courses or courses with unmet prerequisites
     not_available = Course.objects.filter(
         visibility='private',
@@ -184,7 +186,7 @@ def get_courses_by_visibility(user, tenant=None):
     )
     if tenant is not None:
         not_available = not_available.filter(tenant=tenant)
-    
+
     return {
         'my_courses': my_courses,
         'available_to_unlock': available_to_unlock,
@@ -199,14 +201,14 @@ def check_course_prerequisites(user, course):
     """
     if not course.prerequisite_courses.exists():
         return True, []
-    
+
     missing = []
     for prereq in course.prerequisite_courses.all():
         has_access, _, _ = has_course_access(user, prereq)
         if not has_access:
             missing.append(prereq)
             continue
-        
+
         # Check if prerequisite is completed
         from ..models import UserProgress
         total_lessons = prereq.lessons.count()
@@ -215,10 +217,10 @@ def check_course_prerequisites(user, course):
             lesson__course=prereq,
             completed=True
         ).count()
-        
+
         if total_lessons > 0 and completed_lessons < total_lessons:
             missing.append(prereq)
-    
+
     return len(missing) == 0, missing
 
 
@@ -228,14 +230,14 @@ def grant_bundle_access(user, bundle_purchase):
     """
     bundle = bundle_purchase.bundle
     courses_to_grant = []
-    
+
     if bundle.bundle_type == 'fixed':
         courses_to_grant = bundle.courses.all()
     elif bundle.bundle_type == 'pick_your_own':
         courses_to_grant = bundle_purchase.selected_courses.all()
     elif bundle.bundle_type == 'tiered':
         courses_to_grant = bundle.courses.all()
-    
+
     granted_accesses = []
     for course in courses_to_grant:
         # Check if access already exists
@@ -244,7 +246,7 @@ def grant_bundle_access(user, bundle_purchase):
             course=course,
             bundle_purchase=bundle_purchase
         ).first()
-        
+
         if not existing:
             access = grant_course_access(
                 user=user,
@@ -255,7 +257,7 @@ def grant_bundle_access(user, bundle_purchase):
                 notes=f"Granted via bundle purchase: {bundle.name}"
             )
             granted_accesses.append(access)
-    
+
     return granted_accesses
 
 
@@ -273,8 +275,7 @@ def grant_cohort_access(user, cohort):
         cohort=cohort,
         defaults={'tenant': cohort.tenant}
     )
-    
+
     # TODO: Add cohort.courses relationship if needed
     # For now, return empty list
     return []
-

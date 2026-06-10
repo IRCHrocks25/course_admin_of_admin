@@ -44,7 +44,6 @@ from .models import (
     ExamAttempt,
     Certification,
     LessonQuiz,
-    LessonQuizQuestion,
     LessonQuizAttempt,
     CourseAccess,
     Bundle,
@@ -56,7 +55,7 @@ from .models import (
     category_initial,
     sort_category_names,
 )
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Q
 from django.db import models
 from django.db import transaction
 from django.utils import timezone
@@ -330,6 +329,7 @@ def _render_tenant_custom_html(request, tenant, custom_html):
     if tenant is not None:
         active_courses = list(
             Course.objects.filter(tenant=tenant, status='active')
+            .exclude(visibility='hidden')
             .only('name', 'slug')
             .order_by('name')[:24]
         )
@@ -1367,7 +1367,7 @@ def login_view(request):
     force = request.GET.get('force', '').lower() == 'true'
     if request.user.is_authenticated and not force:
         return redirect(_default_redirect_for_user(request.user))
-    
+
     tenant = getattr(request, 'tenant', None)
     tenant_branding = get_tenant_branding(tenant)
     custom_pages = _get_tenant_custom_pages(tenant)
@@ -1382,7 +1382,7 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
-        
+
         user = authenticate(request, username=username, password=password)
         if user is not None:
             if tenant and not user.is_superuser:
@@ -1430,7 +1430,7 @@ def login_view(request):
             return redirect(requested_next or default_next_url)
         else:
             messages.error(request, 'Invalid username or password.')
-    
+
     return _render_login_page()
 
 
@@ -1587,7 +1587,15 @@ def _courses_guest(request):
     tenant = getattr(request, 'tenant', None)
     search_query = request.GET.get('search', '')
     sort_by = request.GET.get('sort', 'custom')
-    courses_qs = Course.objects.prefetch_related('lessons').filter(status='active')
+    # Exclude hidden courses — VISIBILITY_CHOICES documents them as
+    # "not in catalog, direct link only", so they don't belong in the
+    # anonymous browse view. Same exclusion applies in
+    # get_courses_by_visibility for authenticated users.
+    courses_qs = (
+        Course.objects.prefetch_related('lessons')
+        .filter(status='active')
+        .exclude(visibility='hidden')
+    )
     if tenant is not None:
         courses_qs = courses_qs.filter(tenant=tenant)
     if search_query:
@@ -1997,28 +2005,28 @@ def lesson_detail(request, course_slug, lesson_slug):
         ),
     )
     lesson = get_object_or_404(Lesson, course=course, slug=lesson_slug)
-    
+
     # Get user progress with optimized queries
     enrollment = CourseEnrollment.objects.filter(
-        user=request.user, 
+        user=request.user,
         course=course
     ).select_related('course').first()
-    
+
     # Batch fetch all progress data for this course (single query)
     all_progress = list(UserProgress.objects.filter(
         user=request.user,
         lesson__course=course
     ).values('lesson_id', 'completed', 'video_watch_percentage', 'last_watched_timestamp', 'status'))
-    
+
     # Compute progress from batch data (no extra query)
     completed_lessons = [p['lesson_id'] for p in all_progress if p['completed']]
-    
+
     # Get current lesson progress from batch data
     current_lesson_progress_data = next(
         (p for p in all_progress if p['lesson_id'] == lesson.id),
         None
     )
-    
+
     if current_lesson_progress_data:
         video_watch_percentage = current_lesson_progress_data.get('video_watch_percentage', 0.0) or 0.0
         last_watched_timestamp = current_lesson_progress_data.get('last_watched_timestamp', 0.0) or 0.0
@@ -2035,12 +2043,12 @@ def lesson_detail(request, course_slug, lesson_slug):
         last_watched_timestamp = 0.0
         lesson_status = 'not_started'
         current_lesson_progress = None
-    
+
     # Use prefetched lessons (no extra query)
     all_lessons = list(course.lessons.all())
     total_lessons = len(all_lessons)
     progress_percentage = int((len(completed_lessons) / total_lessons) * 100) if total_lessons > 0 else 0
-    
+
     # Build lessons_by_module from prefetched data (avoid N+1)
     lessons_by_module = {}
     for l in all_lessons:
@@ -2048,16 +2056,16 @@ def lesson_detail(request, course_slug, lesson_slug):
         lessons_by_module.setdefault(mid, []).append(l)
     for mid in lessons_by_module:
         lessons_by_module[mid].sort(key=lambda x: (x.order, x.id))
-    
+
     all_modules = list(course.modules.all())
-    
+
     # Determine which lessons are accessible (using prefetched data, no N+1)
     accessible_lessons = []
     completed_set = set(completed_lessons)
     if all_lessons:
         first_lesson = all_lessons[0]
         accessible_lessons.append(first_lesson.id)
-        
+
         for current_lesson in all_lessons[1:]:
             is_first_in_module = False
             current_module_lessons_list = lessons_by_module.get(current_lesson.module_id or 0, [])
@@ -2072,7 +2080,7 @@ def lesson_detail(request, course_slug, lesson_slug):
                         if prev_module_lessons_list and any(lid in completed_set for lid in [l.id for l in prev_module_lessons_list]):
                             accessible_lessons.append(current_lesson.id)
                             continue
-            
+
             if not is_first_in_module:
                 if current_lesson.module_id and current_module_lessons_list:
                     current_lesson_index = next((idx for idx, l in enumerate(current_module_lessons_list) if l.id == current_lesson.id), None)
@@ -2081,15 +2089,15 @@ def lesson_detail(request, course_slug, lesson_slug):
                         if previous_lesson_in_module.id in completed_set:
                             accessible_lessons.append(current_lesson.id)
                             continue
-                
+
                 # Fallback: all previous lessons overall completed
                 prev_ids = [l.id for l in all_lessons if l.order < current_lesson.order or (l.order == current_lesson.order and l.id < current_lesson.id)]
                 if all(pid in completed_set for pid in prev_ids):
                     accessible_lessons.append(current_lesson.id)
-        
+
         # Check if current lesson is locked
         lesson_locked = lesson.id not in accessible_lessons
-        
+
         # If lesson is locked, redirect to first incomplete lesson or show message
         if lesson_locked:
             # Find first incomplete lesson
@@ -2098,18 +2106,18 @@ def lesson_detail(request, course_slug, lesson_slug):
                 if l.id not in completed_lessons:
                     first_incomplete = l
                     break
-            
+
             if first_incomplete:
                 messages.warning(request, 'Please complete previous lessons before accessing this one.')
                 return redirect('lesson_detail', course_slug=course_slug, lesson_slug=first_incomplete.slug)
             else:
                 messages.info(request, 'All lessons completed!')
-    
+
     # Work out next lesson (using prefetched data)
     next_lesson = None
     has_more_modules = False
     is_last_in_module = False
-    
+
     if all_lessons and lesson.module_id:
         current_module_lessons_list = lessons_by_module.get(lesson.module_id, [])
         if current_module_lessons_list:
@@ -2128,7 +2136,7 @@ def lesson_detail(request, course_slug, lesson_slug):
                     if l.id == lesson.id and idx + 1 < len(current_module_lessons_list):
                         next_lesson = current_module_lessons_list[idx + 1]
                         break
-    
+
     if not next_lesson:
         for idx, l in enumerate(all_lessons):
             if l.id == lesson.id and idx + 1 < len(all_lessons):
@@ -2143,7 +2151,7 @@ def lesson_detail(request, course_slug, lesson_slug):
         lesson_quiz = lesson.quiz
     except:
         pass
-    
+
     quiz_attempts = None
     latest_quiz_attempt = None
     quiz_passed = False
@@ -2194,11 +2202,11 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
 
     questions = quiz.questions.all()
     result = None
-    
+
     # Get next lesson for redirect after passing (use same logic as lesson_detail)
     all_lessons = course.lessons.order_by('order', 'id')
     next_lesson = None
-    
+
     # Get user's completed lessons to check accessibility
     completed_lessons = list(
         UserProgress.objects.filter(
@@ -2208,23 +2216,23 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
             completed=True
         ).values_list('lesson_id', flat=True)
     )
-    
+
     if all_lessons.exists():
         all_modules = course.modules.all().order_by('order', 'id')
-        
+
         # Check if current lesson has a module
         if lesson.module and all_modules.exists():
             # Get all lessons in current module, ordered
             current_module_lessons = lesson.module.lessons.filter(course=course).order_by('order', 'id')
             current_module_lessons_list = list(current_module_lessons)
-            
+
             # Check if this is the last lesson in the current module
             is_last_in_module = False
             if current_module_lessons_list:
                 last_lesson_in_module = current_module_lessons_list[-1]
                 if last_lesson_in_module.id == lesson.id:
                     is_last_in_module = True
-            
+
             if is_last_in_module:
                 # Find next module's first lesson
                 current_module_found = False
@@ -2237,14 +2245,14 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
                             break
                     if module.id == lesson.module.id:
                         current_module_found = True
-            
+
             # If not last in module, get next lesson in same module
             if not is_last_in_module and not next_lesson:
                 for idx, l in enumerate(current_module_lessons_list):
                     if l.id == lesson.id and idx + 1 < len(current_module_lessons_list):
                         next_lesson = current_module_lessons_list[idx + 1]
                         break
-        
+
         # Fallback: if no module or no next lesson found, use sequential navigation
         if not next_lesson:
             lessons_list = list(all_lessons)
@@ -2271,7 +2279,7 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
             score=score,
             passed=passed,
         )
-        
+
         # If quiz is passed and lesson is required, auto-complete the lesson
         if passed and quiz.is_required:
             UserProgress.objects.update_or_create(
@@ -2377,7 +2385,7 @@ def course_lessons(request, course_slug):
     course = get_object_or_404(course_queryset_for_slug(request, course_slug))
     lessons = course.lessons.all()
     modules = course.modules.all()
-    
+
     return render(request, 'creator/course_lessons.html', {
         'course': course,
         'lessons': lessons,
@@ -2389,17 +2397,17 @@ def course_lessons(request, course_slug):
 def add_lesson(request, course_slug):
     """Add new lesson - 3-step flow with video upload and transcription"""
     course = get_object_or_404(course_queryset_for_slug(request, course_slug))
-    
+
     if request.method == 'POST':
         # Handle form submission
         vimeo_url = request.POST.get('vimeo_url', '')
         working_title = request.POST.get('working_title', '')
         rough_notes = request.POST.get('rough_notes', '')
         transcription = request.POST.get('transcription', '')
-        
+
         # Extract Vimeo ID
         vimeo_id = extract_vimeo_id(vimeo_url) if vimeo_url else None
-        
+
         # Create lesson draft
         lesson = Lesson.objects.create(
             tenant=course.tenant,
@@ -2410,7 +2418,7 @@ def add_lesson(request, course_slug):
             slug=generate_slug(working_title),
             description='',  # Will be AI-generated
         )
-        
+
         # Handle Vimeo URL if provided
         if vimeo_id:
             vimeo_data = fetch_vimeo_metadata(vimeo_id)
@@ -2419,14 +2427,14 @@ def add_lesson(request, course_slug):
             lesson.vimeo_thumbnail = vimeo_data.get('thumbnail', '')
             lesson.vimeo_duration_seconds = vimeo_data.get('duration', 0)
             lesson.video_duration = vimeo_data.get('duration', 0) // 60
-        
+
         # Handle video file upload and transcription (temporary - not saved)
         if 'video_file' in request.FILES:
             video_file = request.FILES['video_file']
             # Don't save video_file to lesson - only use for transcription
             lesson.transcription_status = 'processing'
             lesson.save()
-            
+
             # Start transcription in background (video will be deleted after)
             def process_transcription():
                 import tempfile
@@ -2437,10 +2445,10 @@ def add_lesson(request, course_slug):
                         for chunk in video_file.chunks():
                             temp_file.write(chunk)
                         temp_path = temp_file.name
-                    
+
                     # Transcribe from temporary file
                     result = transcribe_video(temp_path)
-                    
+
                     # Update lesson with transcription
                     lesson.transcription_status = 'completed' if result['success'] else 'failed'
                     lesson.transcription = result.get('transcription', '')
@@ -2457,7 +2465,7 @@ def add_lesson(request, course_slug):
                             os.remove(temp_path)
                         except:
                             pass
-            
+
             # Run transcription in background thread
             thread = threading.Thread(target=process_transcription)
             thread.daemon = True
@@ -2466,10 +2474,10 @@ def add_lesson(request, course_slug):
             # If transcription was manually edited, save it
             lesson.transcription = transcription
             lesson.transcription_status = 'completed'
-        
+
         lesson.save()
         return redirect('generate_lesson_ai', course_slug=course_slug, lesson_id=lesson.id)
-    
+
     return render(request, 'creator/add_lesson.html', {
         'course': course,
     })
@@ -2628,28 +2636,28 @@ def generate_lesson_ai(request, course_slug, lesson_id):
             lesson.slug = generate_slug(lesson.title)
             lesson.ai_generation_status = 'approved'
             lesson.save()
-            
+
             return redirect('course_lessons', course_slug=course_slug)
-        
+
         elif action == 'edit':
             # Update with manual edits
             lesson.ai_clean_title = request.POST.get('clean_title', lesson.ai_clean_title)
             lesson.ai_short_summary = request.POST.get('short_summary', lesson.ai_short_summary)
             lesson.ai_full_description = request.POST.get('full_description', lesson.ai_full_description)
-            
+
             # Parse outcomes
             outcomes_text = request.POST.get('outcomes', '')
             if outcomes_text:
                 lesson.ai_outcomes = [o.strip() for o in outcomes_text.split('\n') if o.strip()]
-            
+
             # Parse coach actions
             coach_text = request.POST.get('coach_actions', '')
             if coach_text:
                 lesson.ai_coach_actions = [a.strip() for a in coach_text.split('\n') if a.strip()]
-            
+
             _save_lesson_media_and_content(lesson, request)
             lesson.save()
-        
+
         elif action == 'improve_description':
             current_text = request.POST.get('full_description', lesson.ai_full_description or lesson.description or '')
             lesson.ai_full_description = improve_ai_full_description(lesson, current_text)
@@ -2657,7 +2665,7 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                 lesson.ai_generation_status = 'generated'
             lesson.save(update_fields=['ai_full_description', 'ai_generation_status'])
             messages.success(request, 'Full lesson description improved with AI.')
-    
+
     # Content for JSON textarea (pass dict for json_script)
     content_data = lesson.content if (lesson.content and isinstance(lesson.content, dict)) else {'blocks': []}
     if 'blocks' not in content_data:
@@ -2682,15 +2690,15 @@ def verify_vimeo_url(request):
     """AJAX endpoint to verify Vimeo URL and fetch metadata"""
     vimeo_url = request.POST.get('vimeo_url', '')
     vimeo_id = extract_vimeo_id(vimeo_url)
-    
+
     if not vimeo_id:
         return JsonResponse({
             'success': False,
             'error': 'Invalid Vimeo URL format'
         })
-    
+
     vimeo_data = fetch_vimeo_metadata(vimeo_id)
-    
+
     if vimeo_data:
         return JsonResponse({
             'success': True,
@@ -2700,7 +2708,7 @@ def verify_vimeo_url(request):
             'duration_formatted': format_duration(vimeo_data.get('duration', 0)),
             'title': vimeo_data.get('title', ''),
         })
-    
+
     return JsonResponse({
         'success': False,
         'error': 'Could not fetch video metadata'
@@ -2716,44 +2724,44 @@ def upload_video_transcribe(request):
             'success': False,
             'error': 'No video file provided'
         })
-    
+
     video_file = request.FILES['video_file']
-    
+
     # Validate file type
     if not video_file.name.lower().endswith('.mp4'):
         return JsonResponse({
             'success': False,
             'error': 'Please upload an MP4 video file'
         })
-    
+
     # Validate file size (500MB limit)
     if video_file.size > 500 * 1024 * 1024:
         return JsonResponse({
             'success': False,
             'error': 'File size exceeds 500MB limit'
         })
-    
+
     # Use system temp directory (not media folder) - will be deleted after transcription
     import tempfile
     temp_path = None
-    
+
     try:
         # Save to system temporary file (outside media folder)
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
             for chunk in video_file.chunks():
                 temp_file.write(chunk)
             temp_path = temp_file.name
-        
+
         # Transcribe from temporary file
         result = transcribe_video(temp_path)
-        
+
         # Always delete temporary video file (we don't save videos)
         if temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
             except:
                 pass
-        
+
         if result['success']:
             return JsonResponse({
                 'success': True,
@@ -2783,7 +2791,7 @@ def upload_video_transcribe(request):
 def check_transcription_status(request, lesson_id):
     """AJAX endpoint to check transcription status"""
     lesson = get_object_or_404(Lesson, id=lesson_id)
-    
+
     return JsonResponse({
         'status': lesson.transcription_status,
         'transcription': lesson.transcription,
@@ -2819,7 +2827,7 @@ def fetch_vimeo_metadata(vimeo_id):
     try:
         oembed_url = f"https://vimeo.com/api/oembed.json?url=https://vimeo.com/{vimeo_id}"
         response = requests.get(oembed_url, timeout=5)
-        
+
         if response.status_code == 200:
             data = response.json()
             return {
@@ -2829,7 +2837,7 @@ def fetch_vimeo_metadata(vimeo_id):
             }
     except Exception as e:
         print(f"Error fetching Vimeo metadata: {e}")
-    
+
     return {}
 
 
@@ -2876,12 +2884,12 @@ def update_video_progress(request, lesson_id):
     """Update video watch progress for a lesson"""
     lesson = get_object_or_404(Lesson, id=lesson_id)
     progress_tenant = _resolve_progress_tenant(request, lesson)
-    
+
     try:
         data = json.loads(request.body)
         watch_percentage = float(data.get('watch_percentage', 0))
         timestamp = float(data.get('timestamp', 0))
-        
+
         # Get or create UserProgress
         user_progress, created = UserProgress.objects.get_or_create(
             tenant=progress_tenant,
@@ -2894,16 +2902,16 @@ def update_video_progress(request, lesson_id):
                 'progress_percentage': int(watch_percentage)
             }
         )
-        
+
         # Update progress
         if not created:
             user_progress.video_watch_percentage = watch_percentage
             user_progress.last_watched_timestamp = timestamp
             user_progress.progress_percentage = int(watch_percentage)
-        
+
         # Auto-update status based on watch progress
         user_progress.update_status()
-        
+
         return JsonResponse({
             'success': True,
             'watch_percentage': user_progress.video_watch_percentage,
@@ -2918,12 +2926,12 @@ def update_video_progress(request, lesson_id):
 @login_required
 def complete_lesson(request, lesson_id):
     """Mark a lesson as complete for the current user.
-    
+
     If the lesson has a quiz, it must be passed before the lesson can be completed.
     """
     lesson = get_object_or_404(Lesson, id=lesson_id)
     progress_tenant = _resolve_progress_tenant(request, lesson)
-    
+
     # Check if lesson has a required quiz
     try:
         quiz = lesson.quiz
@@ -2934,7 +2942,7 @@ def complete_lesson(request, lesson_id):
                 quiz=quiz,
                 passed=True
             ).exists()
-            
+
             if not passed_attempt:
                 return JsonResponse({
                     'success': False,
@@ -2945,7 +2953,7 @@ def complete_lesson(request, lesson_id):
     except LessonQuiz.DoesNotExist:
         # No quiz, proceed with completion
         pass
-    
+
     # Get or create UserProgress
     user_progress, created = UserProgress.objects.get_or_create(
         tenant=progress_tenant,
@@ -2960,7 +2968,7 @@ def complete_lesson(request, lesson_id):
     user_progress.completed_at = datetime.now()
     user_progress.progress_percentage = 100
     user_progress.save()
-    
+
     return JsonResponse({
         'success': True,
         'message': 'Lesson marked as complete',
@@ -2975,13 +2983,13 @@ def toggle_favorite_course(request, course_id):
     from .models import FavoriteCourse, Course
     course = get_object_or_404(Course, id=course_id)
     user = request.user
-    
+
     favorite, created = FavoriteCourse.objects.get_or_create(
         user=user,
         course=course,
         defaults={'tenant': course.tenant}
     )
-    
+
     if not created:
         # Already favorited, remove it
         favorite.delete()
@@ -2989,7 +2997,7 @@ def toggle_favorite_course(request, course_id):
     else:
         # Just favorited
         is_favorited = True
-    
+
     return JsonResponse({
         'success': True,
         'is_favorited': is_favorited,
@@ -3003,7 +3011,7 @@ def chatbot_webhook(request):
     """Forward chatbot messages to the appropriate webhook based on lesson"""
     # Default webhook URL
     DEFAULT_WEBHOOK_URL = "https://kane-course-website.fly.dev/webhook/12e91cca-0e58-4769-9f11-68399ec2f970"
-    
+
     # Lesson-specific webhook URLs
     LESSON_WEBHOOKS = {
         2: "https://kane-course-website.fly.dev/webhook/7d81ca5f-0033-4a9c-8b75-ae44005f8451",
@@ -3018,16 +3026,16 @@ def chatbot_webhook(request):
         11: "https://kane-course-website.fly.dev/webhook/a571ba83-d96d-46c0-a88c-71416eda82a3",
         12: "https://kane-course-website.fly.dev/webhook/97427f57-0e89-4da3-846a-1e4453f8a58c",
     }
-    
+
     try:
         # Get the request data
         data = json.loads(request.body)
-        
+
         # Ensure we have a Django session and attach its ID
         if not request.session.session_key:
             request.session.save()
         data['session_id'] = request.session.session_key
-        
+
         # Enrich payload with course/lesson code for downstream processing,
         # e.g. "virtualrockstar_session1"
         lesson_id = data.get('lesson_id')
@@ -3040,10 +3048,10 @@ def chatbot_webhook(request):
                     data['course_lesson_code'] = f"{course_slug}_{lesson_slug}"
             except Lesson.DoesNotExist:
                 pass
-        
+
         # Determine which webhook URL to use based on lesson_id
         webhook_url = LESSON_WEBHOOKS.get(lesson_id, DEFAULT_WEBHOOK_URL)
-        
+
         # Forward to the webhook
         response = requests.post(
             webhook_url,
@@ -3051,7 +3059,7 @@ def chatbot_webhook(request):
             headers={'Content-Type': 'application/json'},
             timeout=30
         )
-        
+
         # Return the response from the webhook
         # Frontend treats any "error" key as a hard error, so we avoid using that
         # here and always surface the upstream payload as a normal response.
@@ -3146,7 +3154,7 @@ def student_course_progress(request, course_slug):
         return redirect('courses')
 
     enrollment = CourseEnrollment.objects.filter(user=user, course=course).select_related('course').first()
-    
+
     # Get all lessons ordered by module, then lesson order.
     lessons = list(
         course.lessons
@@ -3154,7 +3162,7 @@ def student_course_progress(request, course_slug):
         .order_by('module__order', 'module_id', 'order', 'id')
     )
     lesson_ids = [l.id for l in lessons]
-    
+
     # Batch fetch all UserProgress for this course (1 query instead of N)
     progress_by_lesson = {
         p.lesson_id: p
@@ -3163,7 +3171,7 @@ def student_course_progress(request, course_slug):
             lesson_id__in=lesson_ids
         ).select_related('lesson')
     }
-    
+
     lesson_progress = []
     for lesson in lessons:
         progress = progress_by_lesson.get(lesson.id)
@@ -3190,12 +3198,12 @@ def student_course_progress(request, course_slug):
             }
             module_sections.append(module_lookup[module_key])
         module_lookup[module_key]['lessons'].append(lp)
-    
+
     # Calculate overall progress
     total_lessons = len(lessons)
     completed_lessons = sum(1 for lp in lesson_progress if lp['completed'])
     progress_percentage = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
-    
+
     # Get exam info
     exam = None
     exam_attempts = []
@@ -3204,7 +3212,7 @@ def student_course_progress(request, course_slug):
         exam_attempts = ExamAttempt.objects.filter(user=user, exam=exam).order_by('-started_at')
     except Exam.DoesNotExist:
         pass
-    
+
     required_quiz_ids = list(
         LessonQuiz.objects.filter(
             lesson__course=course,
@@ -3272,13 +3280,13 @@ def student_course_progress(request, course_slug):
 def student_certifications(request):
     """View all certifications"""
     user = request.user
-    
+
     certifications = Certification.objects.filter(user=user).select_related('course').order_by('-issued_at', '-created_at')
-    
+
     # Get eligible courses (completed but no certification yet)
     enrollments = CourseEnrollment.objects.filter(user=user).select_related('course')
     eligible_courses = []
-    
+
     for enrollment in enrollments:
         total_lessons = enrollment.course.lessons.count()
         completed_lessons = UserProgress.objects.filter(
@@ -3286,12 +3294,12 @@ def student_certifications(request):
             lesson__course=enrollment.course,
             completed=True
         ).count()
-        
+
         if completed_lessons >= total_lessons and total_lessons > 0:
             # Check if certification exists
             if not Certification.objects.filter(user=user, course=enrollment.course).exists():
                 eligible_courses.append(enrollment.course)
-    
+
     return render(request, 'student/certifications.html', {
         'certifications': certifications,
         'eligible_courses': eligible_courses,
@@ -3303,22 +3311,22 @@ def student_certifications(request):
 def train_lesson_chatbot(request, lesson_id):
     """Send transcript to training webhook and update lesson status"""
     lesson = get_object_or_404(Lesson, id=lesson_id)
-    
+
     try:
         data = json.loads(request.body)
         transcript = data.get('transcript', '').strip()
-        
+
         if not transcript:
             return JsonResponse({'success': False, 'error': 'Transcript is required'}, status=400)
-        
+
         # Update lesson status
         lesson.transcription = transcript
         lesson.ai_chatbot_training_status = 'training'
         lesson.save()
-        
+
         # Prepare payload for training webhook
         training_webhook_url = 'https://katalyst-crm2.fly.dev/webhook/425e8e67-2aa6-4c50-b67f-0162e2496b51'
-        
+
         payload = {
             'transcript': transcript,
             'lesson_id': lesson.id,
@@ -3326,7 +3334,7 @@ def train_lesson_chatbot(request, lesson_id):
             'course_name': lesson.course.name,
             'lesson_slug': lesson.slug,
         }
-        
+
         # Send to training webhook
         try:
             response = requests.post(
@@ -3335,21 +3343,21 @@ def train_lesson_chatbot(request, lesson_id):
                 timeout=30,
                 headers={'Content-Type': 'application/json'}
             )
-            
+
             if response.status_code == 200:
                 response_data = response.json()
-                
+
                 # Store chatbot webhook ID if returned
                 chatbot_webhook_id = response_data.get('chatbot_webhook_id') or response_data.get('webhook_id') or response_data.get('id')
-                
+
                 if chatbot_webhook_id:
                     lesson.ai_chatbot_webhook_id = str(chatbot_webhook_id)
-                
+
                 lesson.ai_chatbot_training_status = 'trained'
                 lesson.ai_chatbot_trained_at = timezone.now()
                 lesson.ai_chatbot_enabled = True
                 lesson.save()
-                
+
                 return JsonResponse({
                     'success': True,
                     'message': 'Chatbot trained successfully',
@@ -3359,29 +3367,29 @@ def train_lesson_chatbot(request, lesson_id):
                 lesson.ai_chatbot_training_status = 'failed'
                 lesson.ai_chatbot_training_error = f"Webhook returned status {response.status_code}: {response.text[:500]}"
                 lesson.save()
-                
+
                 return JsonResponse({
                     'success': False,
                     'error': f'Training webhook returned error: {response.status_code}'
                 }, status=500)
-                
+
         except requests.exceptions.RequestException as e:
             lesson.ai_chatbot_training_status = 'failed'
             lesson.ai_chatbot_training_error = str(e)
             lesson.save()
-            
+
             return JsonResponse({
                 'success': False,
                 'error': f'Failed to connect to training webhook: {str(e)}'
             }, status=500)
-            
+
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         lesson.ai_chatbot_training_status = 'failed'
         lesson.ai_chatbot_training_error = str(e)
         lesson.save()
-        
+
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -3393,35 +3401,35 @@ def train_lesson_chatbot(request, lesson_id):
 def lesson_chatbot(request, lesson_id):
     """Handle chatbot interactions for a lesson"""
     lesson = get_object_or_404(Lesson, id=lesson_id)
-    
+
     # Check if chatbot is enabled and trained
     if not lesson.ai_chatbot_enabled or lesson.ai_chatbot_training_status != 'trained':
         return JsonResponse({
             'success': False,
             'error': 'Chatbot is not available for this lesson'
         }, status=400)
-    
+
     # Check if user has access to this lesson
     if not has_course_access(request.user, lesson.course):
         return JsonResponse({
             'success': False,
             'error': 'You do not have access to this lesson'
         }, status=403)
-    
+
     try:
         data = json.loads(request.body)
         user_message = data.get('message', '').strip()
-        
+
         if not user_message:
             return JsonResponse({'success': False, 'error': 'Message is required'}, status=400)
-        
+
         # Use the chatbot webhook
         chatbot_webhook_url = 'https://katalyst-crm2.fly.dev/webhook/swi-chatbot'
-        
+
         # Ensure we have a Django session and attach its ID
         if not request.session.session_key:
             request.session.save()
-        
+
         payload = {
             'message': user_message,
             'lesson_id': lesson.id,
@@ -3432,7 +3440,7 @@ def lesson_chatbot(request, lesson_id):
             'session_id': request.session.session_key,
             'chatbot_webhook_id': lesson.ai_chatbot_webhook_id,  # If webhook needs specific ID
         }
-        
+
         # Send to chatbot webhook
         try:
             response = requests.post(
@@ -3441,17 +3449,17 @@ def lesson_chatbot(request, lesson_id):
                 timeout=30,
                 headers={'Content-Type': 'application/json'}
             )
-            
+
             if response.status_code == 200:
                 # Try to parse as JSON first
                 response_text = response.text
-                
+
                 # Log raw response for debugging
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.info(f"Raw webhook response for lesson {lesson.id} (first 500 chars): {response_text[:500]}")
                 logger.info(f"Response headers: {dict(response.headers)}")
-                
+
                 # Print to terminal for debugging
                 print("\n" + "="*80)
                 print(f"AI CHATBOT RESPONSE - Lesson {lesson.id}")
@@ -3460,23 +3468,23 @@ def lesson_chatbot(request, lesson_id):
                 print(f"Session ID: {request.session.session_key}")
                 print(f"User ID: {request.user.id}")
                 print(f"User Email: {request.user.email}")
-                print(f"\nRaw webhook response (full):")
+                print("\nRaw webhook response (full):")
                 print(response_text)
                 print(f"\nResponse length: {len(response_text)} characters")
-                
+
                 # Check if it's HTML error page
                 if response_text.strip().startswith('<!DOCTYPE') or response_text.strip().startswith('<html'):
                     return JsonResponse({
                         'success': False,
                         'error': 'Webhook returned HTML instead of JSON. Please check the webhook configuration.'
                     }, status=500)
-                
+
                 # Try to parse as JSON
                 response_data = None
                 try:
                     response_data = response.json()
                     logger.info(f"Parsed JSON response: {response_data}")
-                    print(f"\nParsed JSON response:")
+                    print("\nParsed JSON response:")
                     print(json.dumps(response_data, indent=2))
                 except (ValueError, json.JSONDecodeError) as e:
                     logger.warning(
@@ -3523,7 +3531,7 @@ def lesson_chatbot(request, lesson_id):
                         ).strip()
 
                         # Print final cleaned response to terminal
-                        print(f"\nExtracted AI response (from non-JSON fallback):")
+                        print("\nExtracted AI response (from non-JSON fallback):")
                         print("-"*80)
                         print(final_response)
                         print("-"*80)
@@ -3534,20 +3542,20 @@ def lesson_chatbot(request, lesson_id):
 
                     logger.error("Webhook returned empty response text")
                     return JsonResponse({'success': False, 'error': 'Webhook returned empty response'}, status=500)
-                
+
                 # Only process JSON response if we have response_data
                 if response_data is None:
                     return JsonResponse({
                         'success': False,
                         'error': 'Webhook returned invalid response format'
                     }, status=500)
-                
+
                 # Extract AI response (adjust based on actual webhook response format)
                 # Try multiple possible field names
                 ai_response = None
                 if isinstance(response_data, list) and len(response_data) > 0:
                     # Handle list format like [{'output': '...'}]
-                    print(f"\nDetected LIST format response")
+                    print("\nDetected LIST format response")
                     print(f"List length: {len(response_data)}")
                     first_item = response_data[0]
                     print(f"First item type: {type(first_item)}")
@@ -3556,47 +3564,47 @@ def lesson_chatbot(request, lesson_id):
                         ai_response = (
                             first_item.get('output') or
                             first_item.get('Output') or
-                            first_item.get('response') or 
-                            first_item.get('Response') or 
-                            first_item.get('message') or 
-                            first_item.get('Message') or 
-                            first_item.get('text') or 
-                            first_item.get('Text') or 
-                            first_item.get('answer') or 
-                            first_item.get('Answer') or 
+                            first_item.get('response') or
+                            first_item.get('Response') or
+                            first_item.get('message') or
+                            first_item.get('Message') or
+                            first_item.get('text') or
+                            first_item.get('Text') or
+                            first_item.get('answer') or
+                            first_item.get('Answer') or
                             first_item.get('content') or
                             first_item.get('Content') or
                             None
                         )
                         print(f"Extracted from list item: {ai_response[:200] if ai_response else 'None'}...")
                         if ai_response is None:
-                            print(f"WARNING: Could not extract from list item, using str(first_item)")
+                            print("WARNING: Could not extract from list item, using str(first_item)")
                             ai_response = str(first_item)
                     elif isinstance(first_item, str):
                         ai_response = first_item
                         print(f"Using string from list: {ai_response[:200]}...")
                     else:
-                        print(f"WARNING: First item is not dict or string, converting to string")
+                        print("WARNING: First item is not dict or string, converting to string")
                         ai_response = str(first_item)
                 elif isinstance(response_data, dict):
-                    print(f"\nDetected DICT format response")
+                    print("\nDetected DICT format response")
                     print(f"Dict keys: {list(response_data.keys())}")
                     ai_response = (
-                        response_data.get('response') or 
-                        response_data.get('Response') or 
-                        response_data.get('message') or 
-                        response_data.get('Message') or 
-                        response_data.get('text') or 
-                        response_data.get('Text') or 
-                        response_data.get('answer') or 
-                        response_data.get('Answer') or 
+                        response_data.get('response') or
+                        response_data.get('Response') or
+                        response_data.get('message') or
+                        response_data.get('Message') or
+                        response_data.get('text') or
+                        response_data.get('Text') or
+                        response_data.get('answer') or
+                        response_data.get('Answer') or
                         response_data.get('content') or
                         response_data.get('Content') or
                         response_data.get('output') or
                         response_data.get('Output') or
                         None
                     )
-                    
+
                     # If still None, try to get the first string value from the dict
                     if ai_response is None:
                         print("No standard keys found, searching for first string value...")
@@ -3610,13 +3618,13 @@ def lesson_chatbot(request, lesson_id):
                 else:
                     # If it's not a dict or list, convert to string
                     ai_response = str(response_data)
-                
+
                 # If still None, convert entire dict to string
                 if ai_response is None:
                     ai_response = str(response_data)
-                
+
                 logger.info(f"Extracted ai_response (type: {type(ai_response)}, value: {str(ai_response)[:200]})")
-                
+
                 # Clean the response - handle JSON strings and dict-like strings
                 if isinstance(ai_response, str):
                     # Try to parse if it looks like JSON
@@ -3661,10 +3669,10 @@ def lesson_chatbot(request, lesson_id):
                                 quoted_match = re.search(r"['\"]([^'\"]{10,})['\"]", ai_response)
                                 if quoted_match:
                                     ai_response = quoted_match.group(1)
-                
+
                 # If response is still empty, try one more time with the full response_text
                 if not ai_response or (isinstance(ai_response, str) and not ai_response.strip()):
-                    logger.warning(f"Empty response extracted. Trying response_text directly.")
+                    logger.warning("Empty response extracted. Trying response_text directly.")
                     # If response_text itself is not empty, use it
                     if response_text and response_text.strip() and not response_text.strip().startswith('<!DOCTYPE') and not response_text.strip().startswith('<html'):
                         # Try to parse it as JSON one more time
@@ -3698,12 +3706,12 @@ def lesson_chatbot(request, lesson_id):
                         except:
                             # If it's not JSON, use it as plain text
                             ai_response = response_text[:500]
-                
+
                 # Ensure we have a clean string response
                 if not ai_response or (isinstance(ai_response, str) and (not ai_response.strip() or ai_response.strip().startswith('{'))):
-                    logger.error(f"Still empty after all attempts.")
+                    logger.error("Still empty after all attempts.")
                     print(f"\n{'='*80}")
-                    print(f"ERROR: Could not extract valid response after all attempts")
+                    print("ERROR: Could not extract valid response after all attempts")
                     print(f"ai_response value: {ai_response}")
                     print(f"ai_response type: {type(ai_response)}")
                     print(f"{'='*80}\n")
@@ -3711,10 +3719,10 @@ def lesson_chatbot(request, lesson_id):
                         'success': False,
                         'error': 'The AI chatbot did not return a valid response. Please try again.'
                     }, status=500)
-                
+
                 # Ensure ai_response is a string, not a list or dict
                 if isinstance(ai_response, list):
-                    print(f"WARNING: ai_response is still a list, extracting text...")
+                    print("WARNING: ai_response is still a list, extracting text...")
                     if len(ai_response) > 0:
                         first_item = ai_response[0]
                         if isinstance(first_item, dict):
@@ -3738,7 +3746,7 @@ def lesson_chatbot(request, lesson_id):
                     else:
                         ai_response = str(ai_response)
                 elif isinstance(ai_response, dict):
-                    print(f"WARNING: ai_response is still a dict, extracting text...")
+                    print("WARNING: ai_response is still a dict, extracting text...")
                     ai_response = (
                         ai_response.get('output') or
                         ai_response.get('Output') or
@@ -3752,22 +3760,22 @@ def lesson_chatbot(request, lesson_id):
                         ai_response.get('Answer') or
                         str(ai_response)
                     )
-                
+
                 # Final conversion to string
                 if not isinstance(ai_response, str):
                     ai_response = str(ai_response)
-                
+
                 logger.info(f"Final ai_response: {str(ai_response)[:200]}")
-                
+
                 # Print final cleaned response to terminal
-                print(f"\nExtracted AI response:")
+                print("\nExtracted AI response:")
                 print("-"*80)
                 print(ai_response)
                 print("-"*80)
                 print(f"Final response length: {len(ai_response)} characters")
                 print(f"Final response type: {type(ai_response)}")
                 print("="*80 + "\n")
-                
+
                 return JsonResponse({
                     'success': True,
                     'response': ai_response
@@ -3781,17 +3789,17 @@ def lesson_chatbot(request, lesson_id):
                     'success': False,
                     'error': f'Chatbot webhook returned error: {response.status_code}'
                 }, status=500)
-                
+
         except requests.exceptions.RequestException as e:
             print(f"\n{'='*80}")
-            print(f"ERROR: Failed to connect to chatbot webhook")
+            print("ERROR: Failed to connect to chatbot webhook")
             print(f"Error: {str(e)}")
             print(f"{'='*80}\n")
             return JsonResponse({
                 'success': False,
                 'error': f'Failed to connect to chatbot webhook: {str(e)}'
             }, status=500)
-            
+
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
