@@ -24,6 +24,10 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('force-password-change/', views.force_password_change, name='force_password_change'),
     path('register/', views.register_view, name='register'),
+    # Alias: some tenant custom signup pages hardcode action="/signup/".
+    # Routing it to the same view means those forms POST cleanly instead of
+    # 404'ing. /register/ remains the canonical URL.
+    path('signup/', views.register_view, name='signup'),
     path('logout/', views.logout_view, name='logout'),
     path('courses/', views.courses, name='courses'),
     path('courses/<slug:course_slug>/', views.course_detail, name='course_detail'),
@@ -34,12 +38,12 @@ urlpatterns = [
     path('courses/<slug:course_slug>/checkout-success/', views.course_checkout_success, name='course_checkout_success'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/', views.lesson_detail, name='lesson_detail'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/quiz/', views.lesson_quiz_view, name='lesson_quiz'),
-    
+
     # Student Dashboard (Client-facing)
     path('my-dashboard/', views.student_dashboard, name='student_dashboard'),
     path('my-dashboard/course/<slug:course_slug>/', views.student_course_progress, name='student_course_progress'),
     path('my-certifications/', views.student_certifications, name='student_certifications'),
-    
+
     # Dashboard URLs (Admin-facing, for developers)
     path('dashboard/', dashboard_views.dashboard_home, name='dashboard_home'),
     path('dashboard/analytics/', dashboard_views.dashboard_analytics, name='dashboard_analytics'),
@@ -66,7 +70,7 @@ urlpatterns = [
     path('dashboard/quizzes/', dashboard_views.dashboard_quizzes, name='dashboard_quizzes'),
     path('dashboard/exams/', dashboard_views.dashboard_exams, name='dashboard_exams'),
     path('dashboard/exams/<int:exam_id>/', dashboard_views.dashboard_exam_detail, name='dashboard_exam_detail'),
-    
+
     # Student Progress Monitoring
     path('dashboard/students/', dashboard_views.dashboard_students, name='dashboard_students'),
     path('dashboard/students/ip-monitor/', dashboard_views.dashboard_student_ip_monitor, name='dashboard_student_ip_monitor'),
@@ -74,13 +78,13 @@ urlpatterns = [
     path('dashboard/students/<int:user_id>/', dashboard_views.dashboard_student_detail, name='dashboard_student_detail'),
     path('dashboard/students/<int:user_id>/<slug:course_slug>/', dashboard_views.dashboard_student_detail, name='dashboard_student_detail_course'),
     path('dashboard/courses/<slug:course_slug>/progress/', dashboard_views.dashboard_course_progress, name='dashboard_course_progress'),
-    
+
     # Bundle Management
     path('dashboard/bundles/', dashboard_views.dashboard_bundles, name='dashboard_bundles'),
     path('dashboard/bundles/add/', dashboard_views.dashboard_add_bundle, name='dashboard_add_bundle'),
     path('dashboard/bundles/<int:bundle_id>/edit/', dashboard_views.dashboard_edit_bundle, name='dashboard_edit_bundle'),
     path('dashboard/bundles/<int:bundle_id>/delete/', dashboard_views.dashboard_delete_bundle, name='dashboard_delete_bundle'),
-    
+
     # Access Management
     path('dashboard/access/bulk/', dashboard_views.bulk_access_management, name='dashboard_bulk_access'),
     path('dashboard/access/bulk/grant/', dashboard_views.bulk_grant_access_view, name='dashboard_bulk_grant_access'),
@@ -98,7 +102,7 @@ urlpatterns = [
     path('dashboard/branding-settings/', dashboard_views.dashboard_branding_settings, name='dashboard_branding_settings'),
     path('dashboard/domain-settings/<int:domain_id>/verify/', dashboard_views.dashboard_verify_domain, name='dashboard_verify_domain'),
     path('dashboard/domain-settings/<int:domain_id>/make-primary/', dashboard_views.dashboard_make_primary_domain, name='dashboard_make_primary_domain'),
-    
+
     # Creator/Lesson Upload Flow (kept for lesson creation)
     path('creator/', views.creator_dashboard, name='creator_dashboard'),
     path('creator/courses/<slug:course_slug>/lessons/', views.course_lessons, name='course_lessons'),
@@ -107,18 +111,18 @@ urlpatterns = [
     path('creator/verify-vimeo/', views.verify_vimeo_url, name='verify_vimeo_url'),
     path('creator/upload-video-transcribe/', views.upload_video_transcribe, name='upload_video_transcribe'),
     path('creator/lessons/<int:lesson_id>/transcription-status/', views.check_transcription_status, name='check_transcription_status'),
-    
+
     # Chatbot webhook endpoint
     path('api/chatbot/', views.chatbot_webhook, name='chatbot_webhook'),
-    
+
     # AI Chatbot endpoints
     path('api/lessons/<int:lesson_id>/train-chatbot/', views.train_lesson_chatbot, name='train_lesson_chatbot'),
     path('api/lessons/<int:lesson_id>/chatbot/', views.lesson_chatbot, name='lesson_chatbot'),
-    
+
     # Lesson progress tracking endpoints
     path('api/lessons/<int:lesson_id>/progress/', views.update_video_progress, name='update_video_progress'),
     path('api/lessons/<int:lesson_id>/complete/', views.complete_lesson, name='complete_lesson'),
-    
+
     # Favorite course endpoint
     path('api/courses/<int:course_id>/favorite/', views.toggle_favorite_course, name='toggle_favorite_course'),
 
