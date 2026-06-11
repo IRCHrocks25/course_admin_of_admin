@@ -242,6 +242,13 @@
                             <i class="fas fa-folder-tree nav-icon"></i>
                             <span>Categories</span>
                         </a>
+                        {% comment %}
+                        Hidden 2026-06-12: the flat global Lessons and Quizzes
+                        lists mix content across all courses and were confusing
+                        operators. Course-scoped editing now happens in-line on
+                        the Course "Manage" page (dashboard/course_detail.html).
+                        The underlying URLs still resolve — uncomment to restore
+                        the sidebar links.
                         <a href="{% url 'dashboard_lessons' %}" class="nav-item {% if 'lesson' in cur and 'dashboard' in cur and 'quiz' not in cur %}is-active{% endif %}">
                             <i class="fas fa-video nav-icon"></i>
                             <span>Lessons</span>
@@ -250,6 +257,7 @@
                             <i class="fas fa-clipboard-question nav-icon"></i>
                             <span>Quizzes</span>
                         </a>
+                        {% endcomment %}
                         <a href="{% url 'dashboard_exams' %}" class="nav-item {% if 'exam' in cur and 'dashboard' in cur %}is-active{% endif %}">
                             <i class="fas fa-file-signature nav-icon"></i>
                             <span>Exams</span>

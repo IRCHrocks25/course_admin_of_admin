@@ -7,7 +7,6 @@ from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
 from django.conf import settings
-from django.core.files.uploadedfile import InMemoryUploadedFile
 import json
 import re
 import requests
@@ -70,7 +69,7 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from .utils.tenancy import get_default_tenant
 from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
@@ -1002,14 +1001,14 @@ def dashboard_home(request):
     pending_lessons = scoped_lessons_qs.filter(ai_generation_status='pending').count()
     recent_lessons = scoped_lessons_qs.select_related('course').order_by('-created_at')[:10]
     courses = scoped_courses_qs.annotate(lesson_count=Count('lessons')).order_by('-created_at')
-    
+
     # Student Analytics
     scoped_student_ids = set(scoped_enrollments_qs.values_list('user_id', flat=True))
     scoped_student_ids.update(scoped_access_qs.values_list('user_id', flat=True))
     scoped_students_qs = User.objects.filter(id__in=scoped_student_ids)
     total_students = scoped_students_qs.filter(is_staff=False, is_superuser=False).count()
     active_students = scoped_students_qs.filter(
-        is_staff=False, 
+        is_staff=False,
         is_superuser=False,
         last_login__gte=timezone.now() - timedelta(days=30)
     ).count()
@@ -1018,44 +1017,44 @@ def dashboard_home(request):
         is_superuser=False,
         date_joined__gte=timezone.now() - timedelta(days=30)
     ).count()
-    
+
     # Enrollment Analytics
     total_enrollments = scoped_enrollments_qs.count()
     active_enrollments = scoped_enrollments_qs.filter(
         enrolled_at__gte=timezone.now() - timedelta(days=30)
     ).count()
-    
+
     # Course Access Analytics
     total_accesses = scoped_access_qs.filter(status='unlocked').count()
     expired_accesses = scoped_access_qs.filter(status='expired').count()
-    
+
     # Progress Analytics
     total_progress = scoped_progress_qs.count()
     completed_lessons = scoped_progress_qs.filter(completed=True).count()
     completion_rate = (completed_lessons / total_progress * 100) if total_progress > 0 else 0
-    
+
     # Certification Analytics
     total_certifications = scoped_certs_qs.count()
     certifications_30d = scoped_certs_qs.filter(
         issued_at__gte=timezone.now() - timedelta(days=30)
     ).count() if scoped_certs_qs.filter(issued_at__isnull=False).exists() else 0
-    
+
     # Course Performance Analytics
     course_performance = []
     for course in scoped_courses_qs[:10]:
         enrollments = scoped_enrollments_qs.filter(course=course).count()
         accesses = scoped_access_qs.filter(course=course, status='unlocked').count()
         total_students_course = enrollments + accesses
-        
+
         total_lessons_course = course.lessons.count()
         completed = scoped_progress_qs.filter(
             lesson__course=course,
             completed=True
         ).count()
         course_completion_rate = (completed / (total_lessons_course * total_students_course * 100)) if total_students_course > 0 and total_lessons_course > 0 else 0
-        
+
         certifications_course = scoped_certs_qs.filter(course=course, status='passed').count()
-        
+
         course_performance.append({
             'course': course,
             'total_students': total_students_course,
@@ -1063,7 +1062,7 @@ def dashboard_home(request):
             'certifications': certifications_course,
             'lessons': total_lessons_course,
         })
-    
+
     # Recent Activity (last 7 days)
     seven_days_ago = timezone.now() - timedelta(days=7)
     recent_progress = scoped_progress_qs.filter(
@@ -1072,10 +1071,10 @@ def dashboard_home(request):
     recent_certifications = scoped_certs_qs.filter(
         issued_at__gte=seven_days_ago
     ).count() if scoped_certs_qs.filter(issued_at__isnull=False).exists() else 0
-    
+
     # Get student activity feed
     student_activities = get_student_activity_feed(limit=10, course_ids_qs=scoped_course_ids)
-    
+
     # Enrollment trend (last 30 days)
     enrollment_trend = []
     for i in range(30, 0, -1):
@@ -1087,7 +1086,7 @@ def dashboard_home(request):
             'date': date.strftime('%m/%d'),
             'count': count
         })
-    
+
     return render(request, 'dashboard/home.html', {
         'total_courses': total_courses,
         'total_lessons': total_lessons,
@@ -1129,7 +1128,7 @@ def dashboard_students(request):
     status_filter = request.GET.get('status', 'all')  # all, active, completed, certified
     search_query = request.GET.get('search', '')
     sort_by = request.GET.get('sort', 'recent')  # recent, progress, name, enrolled
-    
+
     # Scope visible users strictly to the active tenant for tenant-admin views.
     # Superadmin global view can still inspect platform-wide users.
     students_query = User.objects.all()
@@ -1161,13 +1160,13 @@ def dashboard_students(request):
             is_staff=False,
             is_superuser=False
         )
-    
+
     # Auto-enroll admin/staff users in all active courses if they don't have enrollments
     admin_users = students_query.filter(Q(is_staff=True) | Q(is_superuser=True))
     active_courses = Course.objects.filter(status='active')
     if tenant is not None:
         active_courses = active_courses.filter(tenant=tenant)
-    
+
     for admin_user in admin_users:
         for course in active_courses:
             CourseEnrollment.objects.get_or_create(
@@ -1175,7 +1174,7 @@ def dashboard_students(request):
                 course=course,
                 defaults={'tenant': course.tenant, 'payment_type': 'full'}
             )
-    
+
     # Apply search filter
     if search_query:
         students_query = students_query.filter(
@@ -1184,7 +1183,7 @@ def dashboard_students(request):
             Q(first_name__icontains=search_query) |
             Q(last_name__icontains=search_query)
         )
-    
+
     # Get student data with activity
     students_data = []
     for student in students_query:
@@ -1192,7 +1191,7 @@ def dashboard_students(request):
         enrollments = CourseEnrollment.objects.filter(user=student).select_related('course')
         if tenant is not None:
             enrollments = enrollments.filter(course__tenant=tenant)
-        
+
         # Get course access records (new access control system)
         course_accesses = CourseAccess.objects.filter(
             user=student,
@@ -1200,7 +1199,7 @@ def dashboard_students(request):
         ).select_related('course')
         if tenant is not None:
             course_accesses = course_accesses.filter(course__tenant=tenant)
-        
+
         # Combine both - get unique courses from enrollments and accesses
         enrollment_courses = set(enrollments.values_list('course_id', flat=True))
         access_courses = set(course_accesses.values_list('course_id', flat=True))
@@ -1208,23 +1207,23 @@ def dashboard_students(request):
         if tenant is not None and not all_course_ids:
             # In tenant mode we only display learners with tenant-linked course data.
             continue
-        
+
         # Apply course filter
         if course_filter:
             if int(course_filter) not in all_course_ids:
                 continue
             all_course_ids = {int(course_filter)}
-        
+
         # Get all courses for this student (even if empty, we still show the student)
         student_courses = Course.objects.filter(id__in=all_course_ids) if all_course_ids else Course.objects.none()
-        
+
         # Calculate overall stats
         total_courses = len(all_course_ids)
         total_lessons_all = 0
         completed_lessons_all = 0
         certifications_count = 0
         recent_activity = None
-        
+
         for course in student_courses:
             total_lessons = course.lessons.count()
             completed_lessons = UserProgress.objects.filter(
@@ -1234,13 +1233,13 @@ def dashboard_students(request):
             ).count()
             total_lessons_all += total_lessons
             completed_lessons_all += completed_lessons
-            
+
             # Check for certification
             if Certification.objects.filter(user=student, course=course, status='passed').exists():
                 certifications_count += 1
-        
+
         overall_progress = int((completed_lessons_all / total_lessons_all * 100)) if total_lessons_all > 0 else 0
-        
+
         # Get most recent activity
         recent_progress_qs = UserProgress.objects.filter(user=student)
         recent_exam_qs = ExamAttempt.objects.filter(user=student)
@@ -1252,7 +1251,7 @@ def dashboard_students(request):
         recent_progress = recent_progress_qs.order_by('-last_accessed').first()
         recent_exam = recent_exam_qs.order_by('-started_at').first()
         recent_cert = recent_cert_qs.order_by('-issued_at', '-created_at').first()
-        
+
         # Determine most recent activity
         activities = []
         if recent_progress:
@@ -1261,11 +1260,11 @@ def dashboard_students(request):
             activities.append(('exam', recent_exam.started_at, recent_exam))
         if recent_cert and recent_cert.issued_at:
             activities.append(('cert', recent_cert.issued_at, recent_cert))
-        
+
         if activities:
             activities.sort(key=lambda x: x[1], reverse=True)
             recent_activity = activities[0]
-        
+
         # Determine status
         if certifications_count > 0:
             student_status = 'certified'
@@ -1275,7 +1274,7 @@ def dashboard_students(request):
             student_status = 'active'
         else:
             student_status = 'inactive'
-        
+
         # Apply status filter
         if status_filter != 'all':
             if status_filter == 'active' and student_status != 'active':
@@ -1284,7 +1283,7 @@ def dashboard_students(request):
                 continue
             elif status_filter == 'certified' and student_status != 'certified':
                 continue
-        
+
         students_data.append({
             'student': student,
             'total_courses': total_courses,
@@ -1298,7 +1297,7 @@ def dashboard_students(request):
             'course_accesses': course_accesses,
             'courses': student_courses,
         })
-    
+
     # Sort students
     if sort_by == 'recent':
         students_data.sort(key=lambda x: x['recent_activity'][1] if x['recent_activity'] else (timezone.now() - timezone.timedelta(days=365)), reverse=True)
@@ -1308,15 +1307,15 @@ def dashboard_students(request):
         students_data.sort(key=lambda x: x['student'].username.lower())
     elif sort_by == 'enrolled':
         students_data.sort(key=lambda x: x['student'].date_joined, reverse=True)
-    
+
     # Get activity feed
     scoped_course_ids_qs = None
     if tenant is not None:
         scoped_course_ids_qs = Course.objects.filter(tenant=tenant).values_list('id', flat=True)
     activity_feed = get_student_activity_feed(limit=50, course_ids_qs=scoped_course_ids_qs)
-    
+
     courses = Course.objects.filter(tenant=tenant) if tenant is not None else Course.objects.all()
-    
+
     return render(request, 'dashboard/students.html', {
         'students_data': students_data,
         'activity_feed': activity_feed,
@@ -1406,14 +1405,14 @@ def get_student_activity_feed(limit=20, course_ids_qs=None):
     filter_kwargs = {}
     if course_ids_qs is not None:
         filter_kwargs = {'lesson__course_id__in': course_ids_qs}
-    
+
     # Recent lesson completions
     recent_completions = UserProgress.objects.filter(
         completed=True,
         completed_at__isnull=False,
         **filter_kwargs
     ).select_related('user', 'lesson', 'lesson__course').order_by('-completed_at')[:limit]
-    
+
     for progress in recent_completions:
         activities.append({
             'type': 'lesson_completed',
@@ -1425,13 +1424,13 @@ def get_student_activity_feed(limit=20, course_ids_qs=None):
                 'watch_percentage': progress.video_watch_percentage,
             }
         })
-    
+
     # Recent exam attempts
     recent_exams = ExamAttempt.objects.select_related('user', 'exam', 'exam__course')
     if course_ids_qs is not None:
         recent_exams = recent_exams.filter(exam__course_id__in=course_ids_qs)
     recent_exams = recent_exams.order_by('-started_at')[:limit]
-    
+
     for attempt in recent_exams:
         activities.append({
             'type': 'exam_attempt',
@@ -1444,13 +1443,13 @@ def get_student_activity_feed(limit=20, course_ids_qs=None):
                 'attempt_number': attempt.attempt_number(),
             }
         })
-    
+
     # Recent certifications
     recent_certs = Certification.objects.filter(issued_at__isnull=False)
     if course_ids_qs is not None:
         recent_certs = recent_certs.filter(course_id__in=course_ids_qs)
     recent_certs = recent_certs.select_related('user', 'course').order_by('-issued_at')[:limit]
-    
+
     for cert in recent_certs:
         activities.append({
             'type': 'certification_issued',
@@ -1461,14 +1460,14 @@ def get_student_activity_feed(limit=20, course_ids_qs=None):
                 'certificate_id': cert.accredible_certificate_id,
             }
         })
-    
+
     # Recent progress updates (video watch)
     recent_progress = UserProgress.objects.filter(
         video_watch_percentage__gt=0,
         last_accessed__isnull=False,
         **filter_kwargs
     ).select_related('user', 'lesson', 'lesson__course').order_by('-last_accessed')[:limit]
-    
+
     for progress in recent_progress:
         # Only add if significant progress (avoid spam)
         if progress.video_watch_percentage >= 50 or progress.completed:
@@ -1483,10 +1482,10 @@ def get_student_activity_feed(limit=20, course_ids_qs=None):
                     'status': progress.status,
                 }
             })
-    
+
     # Sort by timestamp (most recent first)
     activities.sort(key=lambda x: x['timestamp'], reverse=True)
-    
+
     return activities[:limit]
 
 
@@ -1851,9 +1850,44 @@ def dashboard_course_detail(request, course_slug):
             messages.success(request, 'Course updated.')
             return redirect('dashboard_course_detail', course_slug=course.slug)
 
+    # Build module → lesson → quiz tree for the in-page editor.
+    # Replaces the operator having to bounce between course_detail,
+    # course_lessons, and lesson_quiz pages. Modules + lessons keep their
+    # `order` ordering. Lessons that aren't assigned to a module (legacy)
+    # collect at the bottom under a synthetic "Unsorted" group.
+    modules_qs = course.modules.all().order_by('order', 'id')
+    grouped_lessons = {m.id: [] for m in modules_qs}
+    unsorted_lessons = []
+    for lesson in (
+        course.lessons
+        .select_related('module', 'quiz')
+        .prefetch_related('quiz__questions')
+        .order_by('module__order', 'order', 'id')
+    ):
+        quiz = getattr(lesson, 'quiz', None)
+        row = {
+            'lesson': lesson,
+            'quiz': quiz,
+            'question_count': quiz.questions.count() if quiz else 0,
+        }
+        if lesson.module_id and lesson.module_id in grouped_lessons:
+            grouped_lessons[lesson.module_id].append(row)
+        else:
+            unsorted_lessons.append(row)
+
+    modules_tree = [
+        {
+            'module': m,
+            'lessons': grouped_lessons.get(m.id, []),
+        }
+        for m in modules_qs
+    ]
+
     return render(request, 'dashboard/course_detail.html', {
         'course': course,
         'course_resources': course.resources.all(),
+        'modules_tree': modules_tree,
+        'unsorted_lessons': unsorted_lessons,
     })
 
 
@@ -1929,13 +1963,13 @@ def dashboard_delete_course(request, course_slug):
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_courses')
     course_name = course.name
-    
+
     try:
         course.delete()
         messages.success(request, f'Course "{course_name}" has been deleted successfully.')
     except Exception as e:
         messages.error(request, f'Error deleting course: {str(e)}')
-    
+
     return redirect('dashboard_courses')
 
 
@@ -2037,7 +2071,7 @@ def dashboard_delete_quiz(request, lesson_id):
     else:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_lessons')
-    
+
     try:
         if hasattr(lesson, 'quiz'):
             quiz_title = lesson.quiz.title
@@ -2047,7 +2081,7 @@ def dashboard_delete_quiz(request, lesson_id):
             messages.warning(request, 'No quiz found for this lesson.')
     except Exception as e:
         messages.error(request, f'Error deleting quiz: {str(e)}')
-    
+
     return redirect('dashboard_lesson_quiz', lesson_id=lesson.id)
 
 
@@ -2058,7 +2092,7 @@ def dashboard_quizzes(request):
     # Get filter parameters
     course_filter = request.GET.get('course', '')
     search_query = request.GET.get('search', '')
-    
+
     # Get all quizzes with related lesson and course info
     quizzes = LessonQuiz.objects.select_related('lesson', 'lesson__course').prefetch_related('questions').all()
     if tenant is not None:
@@ -2066,11 +2100,11 @@ def dashboard_quizzes(request):
     elif not request.user.is_superuser:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_courses')
-    
+
     # Apply course filter
     if course_filter:
         quizzes = quizzes.filter(lesson__course_id=course_filter)
-    
+
     # Apply search filter
     if search_query:
         quizzes = quizzes.filter(
@@ -2078,10 +2112,10 @@ def dashboard_quizzes(request):
             Q(lesson__title__icontains=search_query) |
             Q(lesson__course__name__icontains=search_query)
         )
-    
+
     # Order by course and lesson
     quizzes = quizzes.order_by('lesson__course__name', 'lesson__order', 'lesson__id')
-    
+
     # Get quiz data with question counts
     quiz_data = []
     for quiz in quizzes:
@@ -2091,14 +2125,14 @@ def dashboard_quizzes(request):
             'course': quiz.lesson.course,
             'question_count': quiz.questions.count(),
         })
-    
+
     if tenant is not None:
         courses = Course.objects.filter(tenant=tenant)
     elif request.user.is_superuser:
         courses = Course.objects.all()
     else:
         courses = Course.objects.none()
-    
+
     return render(request, 'dashboard/quizzes.html', {
         'quiz_data': quiz_data,
         'courses': courses,
@@ -2309,7 +2343,7 @@ def create_editorjs_content(content_sections):
                 'text': section.get('text', ''),
                 'caption': section.get('caption', '')
             }))
-    
+
     return {
         "time": int(timezone.now().timestamp() * 1000),
         "blocks": blocks,
@@ -2331,7 +2365,7 @@ def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course
         },
         settings=settings,
     )
-    
+
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -2350,9 +2384,9 @@ def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course
             lesson=lesson,
             model_name='gpt-4o-mini',
         )
-        
+
         response_text = response.choices[0].message.content.strip()
-        
+
         # Clean up response
         if response_text.startswith('```'):
             response_text = response_text.split('```')[1]
@@ -2361,7 +2395,7 @@ def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course
             response_text = response_text.strip()
         if response_text.endswith('```'):
             response_text = response_text.rsplit('```', 1)[0].strip()
-        
+
         # Parse JSON
         try:
             metadata = json.loads(response_text)
@@ -2416,7 +2450,7 @@ def generate_ai_lesson_content(client, lesson_title, lesson_description, course_
         },
         settings=settings,
     )
-    
+
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -2435,9 +2469,9 @@ def generate_ai_lesson_content(client, lesson_title, lesson_description, course_
             lesson=lesson,
             model_name='gpt-4o-mini',
         )
-        
+
         response_text = response.choices[0].message.content.strip()
-        
+
         # Clean up response
         if response_text.startswith('```'):
             response_text = response_text.split('```')[1]
@@ -2446,7 +2480,7 @@ def generate_ai_lesson_content(client, lesson_title, lesson_description, course_
             response_text = response_text.strip()
         if response_text.endswith('```'):
             response_text = response_text.rsplit('```', 1)[0].strip()
-        
+
         # Parse JSON
         try:
             content_data = json.loads(response_text)
@@ -2695,15 +2729,15 @@ def generate_ai_course_structure(course_name, description, course_type='sprint',
     """Generate complete course structure (modules and lessons) using AI"""
     if not OPENAI_AVAILABLE:
         raise Exception('OpenAI is not available. Please install the openai package.')
-    
+
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise Exception('OPENAI_API_KEY not found in environment variables.')
-    
+
     try:
         client = OpenAI(api_key=api_key)
         blueprint_extra = _blueprint_structure_prompt_section(blueprint) if blueprint else ''
-        
+
         # Create prompt for AI
         prompt = f"""You are an expert course creator. Based on the following course information, generate a complete course structure with modules and lessons.
 
@@ -2738,7 +2772,7 @@ Return the structure in JSON format:
 }}
 
 Only return valid JSON, no additional text."""
-        
+
         # Call OpenAI API
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -2756,10 +2790,10 @@ Only return valid JSON, no additional text."""
             course=course,
             model_name='gpt-4o-mini',
         )
-        
+
         # Parse response
         response_text = response.choices[0].message.content.strip()
-        
+
         # Clean up response (remove markdown code blocks if present)
         if response_text.startswith('```'):
             response_text = response_text.split('```')[1]
@@ -2768,7 +2802,7 @@ Only return valid JSON, no additional text."""
             response_text = response_text.strip()
         if response_text.endswith('```'):
             response_text = response_text.rsplit('```', 1)[0].strip()
-        
+
         # Parse JSON
         try:
             course_data = json.loads(response_text)
@@ -2779,9 +2813,9 @@ Only return valid JSON, no additional text."""
                 course_data = json.loads(json_match.group())
             else:
                 raise Exception('Failed to parse AI response as JSON.')
-        
+
         return course_data, client
-        
+
     except Exception as e:
         raise Exception(f'AI generation failed: {str(e)}')
 
@@ -2875,9 +2909,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         from django.db import connection
         # Close any existing database connections before starting thread
         connection.close()
-        
+
         _update_ai_gen_progress(course_id, course_name, 'generating_structure', progress=5, current='Generating course structure...')
-        
+
         # Re-fetch course to ensure we have latest data
         course = Course.objects.get(id=course_id)
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
@@ -2923,13 +2957,13 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         if total_items == 0:
             total_items = 1
         items_done = 0
-        
+
         _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=15, total=total_items, current='Creating modules and lessons...')
-        
+
         # Create modules and lessons
         modules_created = 0
         lessons_created = 0
-        
+
         for module_data in modules_data:
             module = Module.objects.create(
                 tenant=course.tenant,
@@ -2942,7 +2976,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             items_done += 1
             pct = min(95, 15 + int(80 * items_done / total_items))
             _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=pct, total=total_items, current=f'Creating: {module.name}')
-            
+
             # Create lessons for this module
             for lesson_data in module_data.get('lessons', []):
                 lesson_title = lesson_data.get('title', 'Untitled Lesson')
@@ -2951,14 +2985,14 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 if lesson_video_link:
                     lesson_description = f"{lesson_description}\n\nVideo reference: {lesson_video_link}"
                 lesson_slug = generate_slug(lesson_title)
-                
+
                 # Ensure lesson slug is unique within course
                 base_lesson_slug = lesson_slug
                 lesson_counter = 1
                 while Lesson.objects.filter(course=course, slug=lesson_slug).exists():
                     lesson_slug = f"{base_lesson_slug}-{lesson_counter}"
                     lesson_counter += 1
-                
+
                 # Generate all AI lesson metadata (title, summary, description, outcomes, coach actions)
                 lesson_metadata = generate_ai_lesson_metadata(
                     client=ai_client,
@@ -2984,11 +3018,11 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     blueprint_context=lesson_blueprint_ctx,
                     settings=gen_settings,
                 )
-                
+
                 # Convert content sections to Editor.js format
                 lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
                 video_fields = _derive_video_fields(lesson_video_link)
-                
+
                 lesson = Lesson.objects.create(
                     tenant=course.tenant,
                     course=course,
@@ -3047,7 +3081,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 items_done += 1
                 pct = min(90, 15 + int(75 * items_done / total_items))
                 _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=pct, total=total_items, current=f'Lesson: {lesson_title[:50]}')
-        
+
         # Create final exam with AI-generated questions
         _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=92, total=total_items, current='Creating final exam...')
         try:
@@ -3068,10 +3102,10 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 print(f'[Background] Final exam created for "{course_name}": {exam_qc} questions')
         except Exception as ex:
             print(f'[Background] Exam generation failed for "{course_name}": {ex}')
-        
+
         _update_ai_gen_progress(course_id, course_name, 'completed', progress=100, total=total_items, current='Complete!')
         print(f'[Background] Successfully generated AI content for course "{course_name}": {modules_created} modules, {lessons_created} lessons')
-        
+
     except Exception as e:
         _update_ai_gen_progress(course_id, course_name, 'failed', progress=0, error=str(e))
         print(f'[Background] Error generating AI content for course "{course_name}": {str(e)}')
@@ -3672,23 +3706,23 @@ def dashboard_lessons(request):
     elif not request.user.is_superuser:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_courses')
-    
+
     # Filtering
     status_filter = request.GET.get('status', 'all')
     if status_filter != 'all':
         lessons = lessons.filter(ai_generation_status=status_filter)
-    
+
     course_filter = request.GET.get('course', '')
     if course_filter:
         lessons = lessons.filter(course_id=course_filter)
-    
+
     if tenant is not None:
         courses = Course.objects.filter(tenant=tenant)
     elif request.user.is_superuser:
         courses = Course.objects.all()
     else:
         courses = Course.objects.none()
-    
+
     return render(request, 'dashboard/lessons.html', {
         'lessons': lessons,
         'courses': courses,
@@ -3712,13 +3746,13 @@ def dashboard_delete_lesson(request, lesson_id):
         return redirect('dashboard_lessons')
     lesson_title = lesson.title
     course_slug = lesson.course.slug if lesson.course else None
-    
+
     try:
         lesson.delete()
         messages.success(request, f'Lesson "{lesson_title}" has been deleted successfully.')
     except Exception as e:
         messages.error(request, f'Error deleting lesson: {str(e)}')
-    
+
     # Redirect back to lessons list or course lessons if we have course info
     if course_slug:
         return redirect('dashboard_course_lessons', course_slug=course_slug)
@@ -3738,11 +3772,11 @@ def dashboard_upload_quiz(request):
     if tenant is not None:
         courses = courses.filter(tenant=tenant)
         lessons = lessons.filter(tenant=tenant)
-    
+
     if request.method == 'POST':
         lesson_id = request.POST.get('lesson_id')
         generation_method = request.POST.get('generation_method', 'upload')  # 'upload' or 'ai'
-        
+
         if not lesson_id:
             messages.error(request, 'Please select a lesson.')
             return render(request, 'dashboard/upload_quiz.html', {
@@ -3750,12 +3784,12 @@ def dashboard_upload_quiz(request):
                 'lessons': lessons,
                 'openai_available': OPENAI_AVAILABLE,
             })
-        
+
         if tenant is not None:
             lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
         else:
             lesson = get_object_or_404(Lesson, id=lesson_id)
-        
+
         try:
             # Get or create quiz
             quiz, created = LessonQuiz.objects.get_or_create(
@@ -3766,9 +3800,9 @@ def dashboard_upload_quiz(request):
                     'passing_score': 70,
                 },
             )
-            
+
             questions_created = 0
-            
+
             if generation_method == 'ai':
                 # Generate quiz using AI
                 num_questions = int(request.POST.get('num_questions', 5))
@@ -3783,9 +3817,9 @@ def dashboard_upload_quiz(request):
                         'lessons': lessons,
                         'openai_available': OPENAI_AVAILABLE,
                     })
-                
+
                 file_extension = uploaded_file.name.split('.')[-1].lower()
-                
+
                 if file_extension == 'csv':
                     questions_created = parse_csv_quiz(uploaded_file, quiz)
                 elif file_extension == 'pdf':
@@ -3804,16 +3838,16 @@ def dashboard_upload_quiz(request):
                         'lessons': lessons,
                         'openai_available': OPENAI_AVAILABLE,
                     })
-            
+
             if questions_created > 0:
                 messages.success(request, f'Successfully created {questions_created} quiz question(s) for "{lesson.title}".')
                 return redirect('dashboard_lesson_quiz', lesson_id=lesson.id)
             else:
                 messages.warning(request, 'No questions were created. Please check your file format or lesson content.')
-        
+
         except Exception as e:
             messages.error(request, f'Error processing: {str(e)}')
-    
+
     return render(request, 'dashboard/upload_quiz.html', {
         'courses': courses,
         'lessons': lessons,
@@ -3826,30 +3860,30 @@ def parse_csv_quiz(uploaded_file, quiz):
     # Read the file
     file_content = uploaded_file.read().decode('utf-8')
     csv_reader = csv.DictReader(io.StringIO(file_content))
-    
+
     questions_created = 0
     max_order = quiz.questions.aggregate(models.Max('order'))['order__max'] or 0
-    
+
     for row_num, row in enumerate(csv_reader, start=1):
         try:
             # Expected CSV format: question, option_a, option_b, option_c, option_d, correct_answer
             question_text = row.get('question', '').strip()
             if not question_text:
                 continue
-            
+
             option_a = row.get('option_a', '').strip()
             option_b = row.get('option_b', '').strip()
             option_c = row.get('option_c', '').strip()
             option_d = row.get('option_d', '').strip()
             correct_answer = row.get('correct_answer', 'A').strip().upper()
-            
+
             if not option_a or not option_b:
                 continue
-            
+
             # Validate correct_answer
             if correct_answer not in ['A', 'B', 'C', 'D']:
                 correct_answer = 'A'
-            
+
             # Create question
             LessonQuizQuestion.objects.create(
                 quiz=quiz,
@@ -3865,7 +3899,7 @@ def parse_csv_quiz(uploaded_file, quiz):
         except Exception as e:
             # Skip rows with errors but continue processing
             continue
-    
+
     return questions_created
 
 
@@ -3873,14 +3907,14 @@ def generate_ai_quiz(lesson, quiz, num_questions=5):
     """Generate quiz questions using AI based on lesson content"""
     if not OPENAI_AVAILABLE:
         raise Exception('OpenAI is not available. Please install the openai package.')
-    
+
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise Exception('OPENAI_API_KEY not found in environment variables.')
-    
+
     try:
         client = OpenAI(api_key=api_key)
-        
+
         # Gather lesson content for AI context
         lesson_content = []
         if lesson.title:
@@ -3891,12 +3925,12 @@ def generate_ai_quiz(lesson, quiz, num_questions=5):
             lesson_content.append(f"Transcription: {lesson.transcription[:2000]}")  # Limit transcription length
         if lesson.ai_full_description:
             lesson_content.append(f"Full Description: {lesson.ai_full_description}")
-        
+
         if not lesson_content:
             raise Exception('Lesson does not have enough content for AI generation. Please add a description or transcription.')
-        
+
         content_text = "\n\n".join(lesson_content)
-        
+
         # Create prompt for AI
         prompt = f"""Based on the following lesson content, generate {num_questions} multiple-choice quiz questions.
 
@@ -3925,7 +3959,7 @@ Return the questions in JSON format:
 }}
 
 Only return valid JSON, no additional text."""
-        
+
         # Call OpenAI API
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -3944,10 +3978,10 @@ Only return valid JSON, no additional text."""
             lesson=lesson,
             model_name='gpt-4o-mini',
         )
-        
+
         # Parse response
         response_text = response.choices[0].message.content.strip()
-        
+
         # Clean up response (remove markdown code blocks if present)
         if response_text.startswith('```'):
             response_text = response_text.split('```')[1]
@@ -3956,7 +3990,7 @@ Only return valid JSON, no additional text."""
             response_text = response_text.strip()
         if response_text.endswith('```'):
             response_text = response_text.rsplit('```', 1)[0].strip()
-        
+
         # Parse JSON
         try:
             quiz_data = json.loads(response_text)
@@ -3967,11 +4001,11 @@ Only return valid JSON, no additional text."""
                 quiz_data = json.loads(json_match.group())
             else:
                 raise Exception('Failed to parse AI response as JSON.')
-        
+
         # Create quiz questions
         questions_created = 0
         max_order = quiz.questions.aggregate(models.Max('order'))['order__max'] or 0
-        
+
         for idx, q_data in enumerate(quiz_data.get('questions', []), start=1):
             try:
                 question_text = q_data.get('question', '').strip()
@@ -3980,13 +4014,13 @@ Only return valid JSON, no additional text."""
                 option_c = q_data.get('option_c', '').strip()
                 option_d = q_data.get('option_d', '').strip()
                 correct_answer = q_data.get('correct_answer', 'A').strip().upper()
-                
+
                 if not question_text or not option_a or not option_b:
                     continue
-                
+
                 if correct_answer not in ['A', 'B', 'C', 'D']:
                     correct_answer = 'A'
-                
+
                 LessonQuizQuestion.objects.create(
                     quiz=quiz,
                     text=question_text,
@@ -4000,9 +4034,9 @@ Only return valid JSON, no additional text."""
                 questions_created += 1
             except Exception as e:
                 continue
-        
+
         return questions_created
-    
+
     except Exception as e:
         raise Exception(f'AI generation failed: {str(e)}')
 
@@ -4097,37 +4131,37 @@ def parse_pdf_quiz(uploaded_file, quiz):
     # Read PDF content
     pdf_bytes = uploaded_file.read()
     pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    
+
     text_content = ""
     for page in pdf_doc:
         text_content += page.get_text()
-    
+
     pdf_doc.close()
-    
+
     # Try to parse questions from PDF text
     # Expected format: Questions should be numbered (1., 2., etc.) with options A, B, C, D
     questions_created = 0
     max_order = quiz.questions.aggregate(models.Max('order'))['order__max'] or 0
-    
+
     # Split by question numbers (1., 2., etc.)
     question_pattern = r'(\d+\.\s+.*?)(?=\d+\.|$)'
     questions_text = re.findall(question_pattern, text_content, re.DOTALL | re.IGNORECASE)
-    
+
     for idx, question_block in enumerate(questions_text, start=1):
         try:
             lines = [line.strip() for line in question_block.split('\n') if line.strip()]
             if len(lines) < 3:  # Need at least question + 2 options
                 continue
-            
+
             question_text = lines[0].lstrip('0123456789. ').strip()
             if not question_text:
                 continue
-            
+
             # Extract options (looking for A., B., C., D. patterns)
             options = {}
             current_option = None
             option_text = []
-            
+
             for line in lines[1:]:
                 # Check if line starts with option letter
                 option_match = re.match(r'^([A-D])[\.\)]\s*(.*)$', line, re.IGNORECASE)
@@ -4139,15 +4173,15 @@ def parse_pdf_quiz(uploaded_file, quiz):
                     option_text = [option_match.group(2)]
                 elif current_option:
                     option_text.append(line)
-            
+
             # Save last option
             if current_option:
                 options[current_option] = ' '.join(option_text).strip()
-            
+
             # Need at least A and B options
             if 'A' not in options or 'B' not in options:
                 continue
-            
+
             # Determine correct answer (look for "Answer:" or "Correct:" patterns)
             correct_answer = 'A'  # Default
             for line in lines:
@@ -4155,7 +4189,7 @@ def parse_pdf_quiz(uploaded_file, quiz):
                 if answer_match:
                     correct_answer = answer_match.group(1).upper()
                     break
-            
+
             # Create question
             LessonQuizQuestion.objects.create(
                 quiz=quiz,
@@ -4171,7 +4205,7 @@ def parse_pdf_quiz(uploaded_file, quiz):
         except Exception as e:
             # Skip questions with errors
             continue
-    
+
     return questions_created
 
 
@@ -4182,7 +4216,7 @@ def dashboard_add_lesson(request):
     if course_id:
         course = get_object_or_404(Course, id=course_id)
         return redirect('add_lesson', course_slug=course.slug)
-    
+
     courses = Course.objects.all()
     return render(request, 'dashboard/select_course.html', {
         'courses': courses,
@@ -4202,21 +4236,21 @@ def dashboard_student_progress(request):
     # Get filter parameters
     course_filter = request.GET.get('course', '')
     search_query = request.GET.get('search', '')
-    
+
     # Get all enrollments
     enrollments = CourseEnrollment.objects.select_related('user', 'course').all()
-    
+
     # Apply filters
     if course_filter:
         enrollments = enrollments.filter(course_id=course_filter)
-    
+
     if search_query:
         enrollments = enrollments.filter(
             Q(user__username__icontains=search_query) |
             Q(user__email__icontains=search_query) |
             Q(course__name__icontains=search_query)
         )
-    
+
     # Calculate progress for each enrollment
     enrollment_data = []
     for enrollment in enrollments:
@@ -4226,16 +4260,16 @@ def dashboard_student_progress(request):
             lesson__course=enrollment.course,
             completed=True
         ).count()
-        
+
         progress_percentage = int((completed_lessons / total_lessons * 100)) if total_lessons > 0 else 0
-        
+
         # Get certification status
         try:
             cert = Certification.objects.get(user=enrollment.user, course=enrollment.course)
             cert_status = cert.get_status_display()
         except Certification.DoesNotExist:
             cert_status = 'Not Eligible' if progress_percentage < 100 else 'Eligible'
-        
+
         enrollment_data.append({
             'enrollment': enrollment,
             'total_lessons': total_lessons,
@@ -4243,9 +4277,9 @@ def dashboard_student_progress(request):
             'progress_percentage': progress_percentage,
             'cert_status': cert_status,
         })
-    
+
     courses = Course.objects.all()
-    
+
     return render(request, 'dashboard/student_progress.html', {
         'enrollment_data': enrollment_data,
         'courses': courses,
@@ -4258,22 +4292,22 @@ def dashboard_student_progress(request):
 def dashboard_student_detail(request, user_id, course_slug=None):
     """Detailed student progress view"""
     user = get_object_or_404(User, id=user_id)
-    
+
     if course_slug:
         course = get_object_or_404(Course, slug=course_slug)
         courses = [course]
     else:
         # Get all courses the user is enrolled in
         courses = Course.objects.filter(enrollments__user=user).distinct()
-    
+
     course_data = []
     for course in courses:
         enrollment = CourseEnrollment.objects.filter(user=user, course=course).first()
-        
+
         # Get all lessons with progress
         lessons = course.lessons.order_by('order', 'id')
         lesson_progress = []
-        
+
         for lesson in lessons:
             progress = UserProgress.objects.filter(user=user, lesson=lesson).first()
             lesson_progress.append({
@@ -4283,7 +4317,7 @@ def dashboard_student_detail(request, user_id, course_slug=None):
                 'status': progress.status if progress else 'not_started',
                 'completed': progress.completed if progress else False,
             })
-        
+
         # Get exam attempts
         exam_attempts = []
         try:
@@ -4291,13 +4325,13 @@ def dashboard_student_detail(request, user_id, course_slug=None):
             exam_attempts = ExamAttempt.objects.filter(user=user, exam=exam).order_by('-started_at')
         except Exam.DoesNotExist:
             pass
-        
+
         # Get certification
         try:
             certification = Certification.objects.get(user=user, course=course)
         except Certification.DoesNotExist:
             certification = None
-        
+
         course_data.append({
             'course': course,
             'enrollment': enrollment,
@@ -4305,17 +4339,17 @@ def dashboard_student_detail(request, user_id, course_slug=None):
             'exam_attempts': exam_attempts,
             'certification': certification,
         })
-    
+
     # Get all course access records for this student
     from .models import CourseAccess
     course_accesses = CourseAccess.objects.filter(user=user).select_related('course', 'bundle_purchase', 'cohort', 'granted_by', 'revoked_by').order_by('-granted_at')
-    
+
     # Get bundles and cohorts for access management
     from .models import Bundle, Cohort
     bundles = Bundle.objects.filter(is_active=True)
     cohorts = Cohort.objects.filter(is_active=True)
     all_courses = Course.objects.filter(status='active')
-    
+
     return render(request, 'dashboard/student_detail.html', {
         'student': user,
         'course_data': course_data,
@@ -4330,10 +4364,10 @@ def dashboard_student_detail(request, user_id, course_slug=None):
 def dashboard_course_progress(request, course_slug):
     """View all student progress for a specific course"""
     course = get_object_or_404(Course, slug=course_slug)
-    
+
     # Get all enrollments for this course
     enrollments = CourseEnrollment.objects.filter(course=course).select_related('user')
-    
+
     # Calculate progress for each student
     student_progress = []
     for enrollment in enrollments:
@@ -4343,13 +4377,13 @@ def dashboard_course_progress(request, course_slug):
             lesson__course=course,
             completed=True
         ).count()
-        
+
         # Get average video watch percentage
         avg_watch = UserProgress.objects.filter(
             user=enrollment.user,
             lesson__course=course
         ).aggregate(avg=Avg('video_watch_percentage'))['avg'] or 0
-        
+
         # Get exam attempts
         exam_attempts_count = 0
         passed_exam = False
@@ -4360,14 +4394,14 @@ def dashboard_course_progress(request, course_slug):
             passed_exam = exam_attempts.filter(passed=True).exists()
         except Exam.DoesNotExist:
             pass
-        
+
         # Get certification status
         try:
             cert = Certification.objects.get(user=enrollment.user, course=course)
             cert_status = cert.get_status_display()
         except Certification.DoesNotExist:
             cert_status = 'Not Eligible' if completed_lessons < total_lessons else 'Eligible'
-        
+
         student_progress.append({
             'user': enrollment.user,
             'enrollment': enrollment,
@@ -4379,10 +4413,10 @@ def dashboard_course_progress(request, course_slug):
             'passed_exam': passed_exam,
             'cert_status': cert_status,
         })
-    
+
     # Sort by progress percentage (descending)
     student_progress.sort(key=lambda x: x['progress_percentage'], reverse=True)
-    
+
     return render(request, 'dashboard/course_progress.html', {
         'course': course,
         'student_progress': student_progress,
@@ -4399,17 +4433,17 @@ def grant_course_access_view(request, user_id):
     from .utils.access import grant_course_access
     from django.utils import timezone
     from datetime import timedelta
-    
+
     course_id = request.POST.get('course_id')
     access_type = request.POST.get('access_type', 'manual')
     expires_in_days = request.POST.get('expires_in_days', '')
     notes = request.POST.get('notes', '')
-    
+
     if not course_id:
         return JsonResponse({'success': False, 'error': 'Course ID required'}, status=400)
-    
+
     course = get_object_or_404(Course, id=course_id)
-    
+
     # Calculate expiration
     expires_at = None
     if expires_in_days:
@@ -4418,7 +4452,7 @@ def grant_course_access_view(request, user_id):
             expires_at = timezone.now() + timedelta(days=days)
         except ValueError:
             pass
-    
+
     # Grant access
     access = grant_course_access(
         user=user,
@@ -4428,7 +4462,7 @@ def grant_course_access_view(request, user_id):
         expires_at=expires_at,
         notes=notes
     )
-    
+
     return JsonResponse({
         'success': True,
         'message': f'Access granted to {course.name}',
@@ -4442,16 +4476,16 @@ def revoke_course_access_view(request, user_id):
     """Revoke course access from a student"""
     user = get_object_or_404(User, id=user_id)
     from .utils.access import revoke_course_access
-    
+
     course_id = request.POST.get('course_id')
     reason = request.POST.get('reason', '')
     notes = request.POST.get('notes', '')
-    
+
     if not course_id:
         return JsonResponse({'success': False, 'error': 'Course ID required'}, status=400)
-    
+
     course = get_object_or_404(Course, id=course_id)
-    
+
     # Revoke access
     access = revoke_course_access(
         user=user,
@@ -4460,7 +4494,7 @@ def revoke_course_access_view(request, user_id):
         reason=reason,
         notes=notes
     )
-    
+
     if access:
         return JsonResponse({
             'success': True,
@@ -4479,16 +4513,16 @@ def grant_bundle_access_view(request, user_id):
     """Grant bundle access to a student"""
     user = get_object_or_404(User, id=user_id)
     from .utils.access import grant_bundle_access
-    
+
     bundle_id = request.POST.get('bundle_id')
     purchase_id = request.POST.get('purchase_id', '')
     notes = request.POST.get('notes', '')
-    
+
     if not bundle_id:
         return JsonResponse({'success': False, 'error': 'Bundle ID required'}, status=400)
-    
+
     bundle = get_object_or_404(Bundle, id=bundle_id)
-    
+
     # Create bundle purchase
     bundle_purchase = BundlePurchase.objects.create(
         user=user,
@@ -4496,10 +4530,10 @@ def grant_bundle_access_view(request, user_id):
         purchase_id=purchase_id,
         notes=notes
     )
-    
+
     # Grant access to all courses in bundle
     granted_accesses = grant_bundle_access(user, bundle_purchase)
-    
+
     return JsonResponse({
         'success': True,
         'message': f'Bundle access granted - {len(granted_accesses)} courses unlocked',
@@ -4512,20 +4546,20 @@ def grant_bundle_access_view(request, user_id):
 def add_to_cohort_view(request, user_id):
     """Add student to a cohort"""
     user = get_object_or_404(User, id=user_id)
-    
+
     cohort_id = request.POST.get('cohort_id')
     if not cohort_id:
         return JsonResponse({'success': False, 'error': 'Cohort ID required'}, status=400)
-    
+
     cohort = get_object_or_404(Cohort, id=cohort_id)
-    
+
     # Add to cohort
     member, created = CohortMember.objects.get_or_create(
         user=user,
         cohort=cohort,
         defaults={'tenant': cohort.tenant}
     )
-    
+
     if created:
         # Grant access to courses associated with cohort (if any)
         # Note: This requires adding a many-to-many relationship between Cohort and Course
@@ -4533,7 +4567,7 @@ def add_to_cohort_view(request, user_id):
         message = f'Added to cohort: {cohort.name}'
     else:
         message = f'Already in cohort: {cohort.name}'
-    
+
     return JsonResponse({
         'success': True,
         'message': message
@@ -4547,10 +4581,10 @@ def bulk_access_management(request):
     courses = Course.objects.filter(status='active')
     bundles = Bundle.objects.filter(is_active=True)
     cohorts = Cohort.objects.filter(is_active=True)
-    
+
     # Get all users (for selection)
     users = User.objects.all().order_by('username')
-    
+
     return render(request, 'dashboard/bulk_access.html', {
         'courses': courses,
         'bundles': bundles,
@@ -4566,16 +4600,16 @@ def bulk_grant_access_view(request):
     from .utils.access import grant_course_access
     from django.utils import timezone
     from datetime import timedelta
-    
+
     user_ids = request.POST.getlist('user_ids[]')
     course_ids = request.POST.getlist('course_ids[]')
     access_type = request.POST.get('access_type', 'manual')
     expires_in_days = request.POST.get('expires_in_days', '')
     notes = request.POST.get('notes', '')
-    
+
     if not user_ids or not course_ids:
         return JsonResponse({'success': False, 'error': 'Users and courses required'}, status=400)
-    
+
     # Calculate expiration
     expires_at = None
     if expires_in_days:
@@ -4584,7 +4618,7 @@ def bulk_grant_access_view(request):
             expires_at = timezone.now() + timedelta(days=days)
         except ValueError:
             pass
-    
+
     granted_count = 0
     for user_id in user_ids:
         try:
@@ -4612,7 +4646,7 @@ def bulk_grant_access_view(request):
                     continue
         except User.DoesNotExist:
             continue
-    
+
     return JsonResponse({
         'success': True,
         'message': f'Granted {granted_count} access records',
@@ -4642,36 +4676,36 @@ def dashboard_analytics(request):
     scoped_student_ids = set(enrollments_qs.values_list('user_id', flat=True))
     scoped_student_ids.update(accesses_qs.values_list('user_id', flat=True))
     students_qs = User.objects.filter(id__in=scoped_student_ids, is_staff=False, is_superuser=False)
-    
+
     # Date ranges
     now = timezone.now()
     last_7_days = now - timedelta(days=7)
     last_30_days = now - timedelta(days=30)
     last_90_days = now - timedelta(days=90)
-    
+
     # Student Analytics
     total_students = students_qs.count()
     active_students = students_qs.filter(last_login__gte=last_30_days).count()
     new_students_7d = students_qs.filter(date_joined__gte=last_7_days).count()
     new_students_30d = students_qs.filter(date_joined__gte=last_30_days).count()
     inactive_students = students_qs.filter(last_login__lt=last_90_days).count()
-    
+
     # Enrollment Analytics
     total_enrollments = enrollments_qs.count()
     enrollments_7d = enrollments_qs.filter(enrolled_at__gte=last_7_days).count()
     enrollments_30d = enrollments_qs.filter(enrolled_at__gte=last_30_days).count()
-    
+
     # Access Analytics
     total_accesses = accesses_qs.filter(status='unlocked').count()
     expired_accesses = accesses_qs.filter(status='expired').count()
     pending_accesses = accesses_qs.filter(status='pending').count()
-    
+
     # Progress Analytics
     total_progress = progress_qs.count()
     completed_lessons = progress_qs.filter(completed=True).count()
     progress_7d = progress_qs.filter(last_accessed__gte=last_7_days).count()
     completion_rate = (completed_lessons / total_progress * 100) if total_progress > 0 else 0
-    
+
     # Certification Analytics
     total_certifications = certifications_qs.count()
     certifications_7d = certifications_qs.filter(
@@ -4682,14 +4716,14 @@ def dashboard_analytics(request):
         issued_at__isnull=False,
         issued_at__gte=last_30_days
     ).count()
-    
+
     # Course Performance Detailed
     course_performance_detailed = []
     for course in courses_qs:
         enrollments = enrollments_qs.filter(course=course).count()
         accesses = accesses_qs.filter(course=course, status='unlocked').count()
         total_students_course = enrollments + accesses
-        
+
         total_lessons_course = course.lessons.count()
         completed = progress_qs.filter(
             lesson__course=course,
@@ -4697,15 +4731,15 @@ def dashboard_analytics(request):
         ).count()
         total_possible = total_lessons_course * total_students_course
         course_completion_rate = (completed / total_possible * 100) if total_possible > 0 else 0
-        
+
         certifications_course = certifications_qs.filter(course=course, status='passed').count()
-        
+
         # Recent activity
         recent_enrollments = enrollments_qs.filter(
             course=course,
             enrolled_at__gte=last_7_days
         ).count()
-        
+
         course_performance_detailed.append({
             'course': course,
             'total_students': total_students_course,
@@ -4715,10 +4749,10 @@ def dashboard_analytics(request):
             'recent_enrollments': recent_enrollments,
             'completed_lessons': completed,
         })
-    
+
     # Sort by total students
     course_performance_detailed.sort(key=lambda x: x['total_students'], reverse=True)
-    
+
     # Enrollment trend (last 30 days)
     enrollment_trend = []
     for i in range(30, 0, -1):
@@ -4730,7 +4764,7 @@ def dashboard_analytics(request):
             'date': date.strftime('%m/%d'),
             'count': count
         })
-    
+
     # Certification trend (last 30 days)
     certification_trend = []
     if certifications_qs.filter(issued_at__isnull=False).exists():
@@ -4743,30 +4777,30 @@ def dashboard_analytics(request):
                 'date': date.strftime('%m/%d'),
                 'count': count
             })
-    
+
     # Top performing courses
     top_courses = sorted(course_performance_detailed, key=lambda x: x['total_students'], reverse=True)[:5]
-    
+
     # Most active students
     active_students_list = students_qs.annotate(
         progress_count=Count('progress', filter=Q(progress__last_accessed__gte=last_7_days))
     ).filter(progress_count__gt=0).order_by('-progress_count')[:10]
-    
+
     # Additional Phase 1 Analytics
-    
+
     # Students with zero progress
     students_with_progress = progress_qs.values_list('user_id', flat=True).distinct()
     students_zero_progress = students_qs.exclude(id__in=students_with_progress).count()
-    
+
     # Students who completed at least one course
     students_with_completions = progress_qs.filter(
         completed=True
     ).values_list('user_id', flat=True).distinct().count()
-    
+
     # Average lessons completed per student
     total_lessons_completed = progress_qs.filter(completed=True).count()
     avg_lessons_per_student = round(total_lessons_completed / total_students, 1) if total_students > 0 else 0
-    
+
     # Course completion rates by course type
     course_type_stats = {}
     for course_type, _ in Course.COURSE_TYPES:
@@ -4774,20 +4808,20 @@ def dashboard_analytics(request):
         total_enrollments_type = enrollments_qs.filter(course__in=courses_of_type).count()
         total_accesses_type = accesses_qs.filter(course__in=courses_of_type, status='unlocked').count()
         total_students_type = total_enrollments_type + total_accesses_type
-        
+
         total_lessons_type = sum(c.lessons.count() for c in courses_of_type)
         completed_lessons_type = progress_qs.filter(
             lesson__course__in=courses_of_type,
             completed=True
         ).count()
         completion_rate_type = (completed_lessons_type / (total_lessons_type * total_students_type * 100)) if total_students_type > 0 and total_lessons_type > 0 else 0
-        
+
         course_type_stats[course_type] = {
             'total_courses': courses_of_type.count(),
             'total_students': total_students_type,
             'completion_rate': min(completion_rate_type * 100, 100),
         }
-    
+
     # Certification rate (certifications / eligible students)
     students_with_all_lessons = []
     for course in courses_qs:
@@ -4811,10 +4845,10 @@ def dashboard_analytics(request):
                 ).count()
                 if completed >= total_lessons:
                     students_with_all_lessons.append((access.user.id, course.id))
-    
+
     eligible_students_count = len(set(students_with_all_lessons))
     certification_rate = (total_certifications / eligible_students_count * 100) if eligible_students_count > 0 else 0
-    
+
     # Trophy distribution
     trophy_distribution = {
         'bronze': 0,  # 1 certification
@@ -4838,18 +4872,18 @@ def dashboard_analytics(request):
             trophy_distribution['silver'] += 1
         elif cert_count >= 1:
             trophy_distribution['bronze'] += 1
-    
+
     # Exam & Quiz Analytics
     total_exam_attempts = exam_attempts_qs.count()
     passed_exams = exam_attempts_qs.filter(passed=True).count()
     exam_pass_rate = (passed_exams / total_exam_attempts * 100) if total_exam_attempts > 0 else 0
     avg_exam_score = exam_attempts_qs.aggregate(Avg('score'))['score__avg'] or 0
-    
+
     total_quiz_attempts = quiz_attempts_qs.count()
     passed_quizzes = quiz_attempts_qs.filter(passed=True).count()
     quiz_pass_rate = (passed_quizzes / total_quiz_attempts * 100) if total_quiz_attempts > 0 else 0
     avg_quiz_score = quiz_attempts_qs.aggregate(Avg('score'))['score__avg'] or 0
-    
+
     # Access Source Analytics
     access_by_method = {
         'enrollment': enrollments_qs.count(),
@@ -4857,7 +4891,7 @@ def dashboard_analytics(request):
         'bundle': BundlePurchase.objects.filter(bundle__tenant=tenant).count() if tenant is not None else BundlePurchase.objects.count(),
         'cohort': CohortMember.objects.filter(cohort__tenant=tenant).count() if tenant is not None else CohortMember.objects.count(),
     }
-    
+
     # Drop-off analysis (students who started but didn't complete)
     students_who_started = set()
     students_who_completed = set()
@@ -4865,7 +4899,7 @@ def dashboard_analytics(request):
         enrollments = enrollments_qs.filter(course=course)
         accesses = accesses_qs.filter(course=course, status='unlocked')
         total_lessons = course.lessons.count()
-        
+
         for enrollment in enrollments:
             students_who_started.add(enrollment.user.id)
             completed = progress_qs.filter(
@@ -4875,7 +4909,7 @@ def dashboard_analytics(request):
             ).count()
             if completed >= total_lessons and total_lessons > 0:
                 students_who_completed.add(enrollment.user.id)
-        
+
         for access in accesses:
             students_who_started.add(access.user.id)
             completed = progress_qs.filter(
@@ -4885,10 +4919,10 @@ def dashboard_analytics(request):
             ).count()
             if completed >= total_lessons and total_lessons > 0:
                 students_who_completed.add(access.user.id)
-    
+
     drop_off_count = len(students_who_started) - len(students_who_completed)
     drop_off_rate = (drop_off_count / len(students_who_started) * 100) if len(students_who_started) > 0 else 0
-    
+
     return render(request, 'dashboard/analytics.html', {
         # Student metrics
         'total_students': total_students,
@@ -4896,35 +4930,35 @@ def dashboard_analytics(request):
         'new_students_7d': new_students_7d,
         'new_students_30d': new_students_30d,
         'inactive_students': inactive_students,
-        
+
         # Enrollment metrics
         'total_enrollments': total_enrollments,
         'enrollments_7d': enrollments_7d,
         'enrollments_30d': enrollments_30d,
-        
+
         # Access metrics
         'total_accesses': total_accesses,
         'expired_accesses': expired_accesses,
         'pending_accesses': pending_accesses,
-        
+
         # Progress metrics
         'total_progress': total_progress,
         'completed_lessons': completed_lessons,
         'progress_7d': progress_7d,
         'completion_rate': round(completion_rate, 1),
-        
+
         # Certification metrics
         'total_certifications': total_certifications,
         'certifications_7d': certifications_7d,
         'certifications_30d': certifications_30d,
-        
+
         # Detailed data
         'course_performance': course_performance_detailed,
         'enrollment_trend': enrollment_trend,
         'certification_trend': certification_trend,
         'top_courses': top_courses,
         'active_students_list': active_students_list,
-        
+
         # Additional Phase 1 Analytics
         'students_zero_progress': students_zero_progress,
         'students_with_completions': students_with_completions,
@@ -4973,7 +5007,7 @@ def dashboard_bundles(request):
     ).order_by('-created_at')
     if tenant is not None:
         bundles = bundles.filter(tenant=tenant)
-    
+
     return render(request, 'dashboard/bundles.html', {
         'bundles': bundles,
     })
@@ -4995,11 +5029,11 @@ def dashboard_add_bundle(request):
         is_active = request.POST.get('is_active') == 'on'
         max_course_selections = request.POST.get('max_course_selections', '') or None
         course_ids = request.POST.getlist('courses')
-        
+
         if not name:
             messages.error(request, 'Bundle name is required')
             return redirect('dashboard_add_bundle')
-        
+
         # Generate slug from name
         default_tenant = tenant or get_default_tenant()
         slug = generate_slug(name)
@@ -5009,7 +5043,7 @@ def dashboard_add_bundle(request):
         while Bundle.objects.filter(tenant=default_tenant, slug=slug).exists():
             slug = f"{base_slug}-{counter}"
             counter += 1
-        
+
         bundle = Bundle.objects.create(
             tenant=default_tenant,
             name=name,
@@ -5020,17 +5054,17 @@ def dashboard_add_bundle(request):
             is_active=is_active,
             max_course_selections=int(max_course_selections) if max_course_selections else None
         )
-        
+
         # Add courses
         if course_ids:
             courses = Course.objects.filter(id__in=course_ids)
             if tenant is not None:
                 courses = courses.filter(tenant=tenant)
             bundle.courses.set(courses)
-        
+
         messages.success(request, f'Bundle "{bundle.name}" created successfully!')
         return redirect('dashboard_bundles')
-    
+
     courses = Course.objects.filter(status='active').order_by('name')
     if tenant is not None:
         courses = courses.filter(tenant=tenant)
@@ -5051,7 +5085,7 @@ def dashboard_edit_bundle(request, bundle_id):
     else:
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_bundles')
-    
+
     if request.method == 'POST':
         bundle.name = request.POST.get('name')
         bundle.description = request.POST.get('description', '')
@@ -5060,11 +5094,11 @@ def dashboard_edit_bundle(request, bundle_id):
         bundle.is_active = request.POST.get('is_active') == 'on'
         max_course_selections = request.POST.get('max_course_selections', '') or None
         course_ids = request.POST.getlist('courses')
-        
+
         if not bundle.name:
             messages.error(request, 'Bundle name is required')
             return redirect('dashboard_edit_bundle', bundle_id=bundle_id)
-        
+
         # Update slug if name changed
         new_slug = generate_slug(bundle.name)
         if new_slug != bundle.slug:
@@ -5074,11 +5108,11 @@ def dashboard_edit_bundle(request, bundle_id):
                 new_slug = f"{base_slug}-{counter}"
                 counter += 1
             bundle.slug = new_slug
-        
+
         bundle.price = float(price) if price else None
         bundle.max_course_selections = int(max_course_selections) if max_course_selections else None
         bundle.save()
-        
+
         # Update courses
         if course_ids:
             courses = Course.objects.filter(id__in=course_ids)
@@ -5087,15 +5121,15 @@ def dashboard_edit_bundle(request, bundle_id):
             bundle.courses.set(courses)
         else:
             bundle.courses.clear()
-        
+
         messages.success(request, f'Bundle "{bundle.name}" updated successfully!')
         return redirect('dashboard_bundles')
-    
+
     courses = Course.objects.filter(status='active').order_by('name')
     if tenant is not None:
         courses = courses.filter(tenant=tenant)
     selected_course_ids = bundle.courses.values_list('id', flat=True)
-    
+
     return render(request, 'dashboard/edit_bundle.html', {
         'bundle': bundle,
         'courses': courses,
@@ -5117,13 +5151,13 @@ def dashboard_delete_bundle(request, bundle_id):
         messages.error(request, 'Tenant context is required.')
         return redirect('dashboard_bundles')
     bundle_name = bundle.name
-    
+
     # Check if bundle has purchases
     purchase_count = bundle.purchases.count()
     if purchase_count > 0:
         messages.error(request, f'Cannot delete bundle "{bundle_name}" because it has {purchase_count} purchase(s).')
         return redirect('dashboard_bundles')
-    
+
     bundle.delete()
     messages.success(request, f'Bundle "{bundle_name}" deleted successfully!')
     return redirect('dashboard_bundles')
@@ -5593,4 +5627,3 @@ def dashboard_branding_settings(request):
         'login_html_sample': LOGIN_HTML_SAMPLE,
         'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
     })
-

@@ -260,6 +260,112 @@
     {% endif %}
 </div>
 
+{# --------------------------------------------------------------------- #}
+{# Course structure: modules → lessons → quiz tree.                      #}
+{# Added 2026-06-12 to replace the global flat Lessons/Quizzes pages.    #}
+{# Operators now edit a course's content in one scoped place.            #}
+{# --------------------------------------------------------------------- #}
+<div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mt-6">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-xl font-semibold text-cyan-electric">Course Structure</h2>
+            <p class="text-sm text-gray-400 mt-1">Modules, lessons, and the Confidence Checkpoint quiz for each module.</p>
+        </div>
+        <a href="{% url 'dashboard_add_lesson' %}?course={{ course.id }}"
+           class="px-4 py-2 text-sm bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg hover:bg-cyan-electric/20 text-cyan-electric">
+            <i class="fas fa-plus mr-2"></i>Add Lesson
+        </a>
+    </div>
+
+    {% if modules_tree %}
+        <div class="space-y-4">
+        {% for entry in modules_tree %}
+            <div class="border border-cyan-electric/20 rounded-lg overflow-hidden">
+                <div class="bg-[#0a0e27]/80 px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-xs uppercase tracking-wider text-cyan-electric/70 shrink-0">Module {{ forloop.counter0 }}</span>
+                        <h3 class="text-base font-semibold text-white truncate">{{ entry.module.title }}</h3>
+                    </div>
+                    <span class="text-xs text-gray-400 shrink-0">{{ entry.lessons|length }} lesson{{ entry.lessons|length|pluralize }}</span>
+                </div>
+
+                {% if entry.lessons %}
+                    <ul class="divide-y divide-cyan-electric/10">
+                    {% for row in entry.lessons %}
+                        <li class="flex items-center justify-between px-4 py-3 hover:bg-[#0a0e27]/40">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <i class="fas fa-video text-gray-500 shrink-0"></i>
+                                <div class="min-w-0">
+                                    <div class="text-sm text-white truncate">{{ row.lesson.title }}</div>
+                                    {% if row.quiz %}
+                                        <div class="text-xs text-emerald-300/80 mt-0.5">
+                                            <i class="fas fa-clipboard-check mr-1"></i>
+                                            Quiz: {{ row.quiz.title }} — {{ row.question_count }} question{{ row.question_count|pluralize }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <a href="{% url 'dashboard_edit_lesson' row.lesson.id %}"
+                                   class="px-3 py-1 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded hover:bg-cyan-electric/20 text-cyan-electric">
+                                    Edit Lesson
+                                </a>
+                                <a href="{% url 'dashboard_lesson_quiz' row.lesson.id %}"
+                                   class="px-3 py-1 text-xs {% if row.quiz %}bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300{% else %}bg-gray-500/10 border border-gray-500/30 hover:bg-gray-500/20 text-gray-300{% endif %} rounded">
+                                    {% if row.quiz %}Edit Quiz{% else %}Add Quiz{% endif %}
+                                </a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="px-4 py-3 text-sm text-gray-500 italic">No lessons in this module yet.</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-gray-500 text-sm italic">No modules yet. Add lessons and they will appear here grouped by module.</p>
+    {% endif %}
+
+    {% if unsorted_lessons %}
+        <div class="mt-6 border border-yellow-500/20 rounded-lg overflow-hidden">
+            <div class="bg-yellow-500/5 px-4 py-3">
+                <h3 class="text-base font-semibold text-yellow-300">Unsorted lessons</h3>
+                <p class="text-xs text-gray-400 mt-1">Lessons not yet attached to a module. Assign one from the lesson editor.</p>
+            </div>
+            <ul class="divide-y divide-yellow-500/10">
+            {% for row in unsorted_lessons %}
+                <li class="flex items-center justify-between px-4 py-3 hover:bg-[#0a0e27]/40">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <i class="fas fa-video text-gray-500 shrink-0"></i>
+                        <div class="min-w-0">
+                            <div class="text-sm text-white truncate">{{ row.lesson.title }}</div>
+                            {% if row.quiz %}
+                                <div class="text-xs text-emerald-300/80 mt-0.5">
+                                    <i class="fas fa-clipboard-check mr-1"></i>
+                                    Quiz: {{ row.quiz.title }} — {{ row.question_count }} question{{ row.question_count|pluralize }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <a href="{% url 'dashboard_edit_lesson' row.lesson.id %}"
+                           class="px-3 py-1 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded hover:bg-cyan-electric/20 text-cyan-electric">
+                            Edit Lesson
+                        </a>
+                        <a href="{% url 'dashboard_lesson_quiz' row.lesson.id %}"
+                           class="px-3 py-1 text-xs {% if row.quiz %}bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300{% else %}bg-gray-500/10 border border-gray-500/30 hover:bg-gray-500/20 text-gray-300{% endif %} rounded">
+                            {% if row.quiz %}Edit Quiz{% else %}Add Quiz{% endif %}
+                        </a>
+                    </div>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+</div>
+
 <script>
     (function () {
         const improveBtn = document.getElementById('improve-description-ai-btn');
