@@ -1565,7 +1565,7 @@ def dashboard_courses(request):
             {
                 'id': lesson.id,
                 'title': lesson.title,
-                'module_title': lesson.module.title if lesson.module_id else '',
+                'module_title': lesson.module.name if lesson.module_id else '',
                 'has_quiz': lesson.id in course_lessons_with_quiz,
             }
             for lesson in course_lesson_qs
