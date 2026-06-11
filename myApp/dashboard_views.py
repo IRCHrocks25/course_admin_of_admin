@@ -870,7 +870,14 @@ def _sanitize_uploaded_html(raw_html, page_kind='generic'):
         html = re.sub(r'<iframe[\s\S]*?</iframe>', '', html, flags=re.IGNORECASE)
         html = re.sub(r'<object[\s\S]*?</object>', '', html, flags=re.IGNORECASE)
         html = re.sub(r'<embed[\s\S]*?>', '', html, flags=re.IGNORECASE)
-        html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
+        # NOTE: login/signup HTML is served raw via HttpResponse (never compiled as a
+        # Django template), exactly like landing — so stripping "{{"/"}}"/"{%"/"%}"
+        # buys no safety and silently corrupts valid CSS (e.g. nested media queries
+        # ending "...!important}}" or keyframes "...translateY(-13px)}}"), which breaks
+        # the stylesheet of an otherwise-correct page. Only strip delimiters on the
+        # truly-generic surface, which may be embedded as a template fragment.
+        if normalized_kind not in ('login', 'signup'):
+            html = html.replace('{%', '').replace('%}', '').replace('{{', '').replace('}}', '')
     return html.strip()
 
 
