@@ -31,12 +31,40 @@
 <div class="flex items-center justify-between mb-7">
   <div>
     <h2 class="text-xl font-semibold mb-1">Categories</h2>
-    <p class="text-sm text-gray-400">Add a thumbnail to each category so the catalog reads cleanly. Categories come from the “Category” value on your courses.</p>
+    <p class="text-sm text-gray-400">Create the categories you want, then assign them to courses. Categories with zero courses still show up here so you can prep them in advance.</p>
   </div>
   <a href="{% url 'dashboard_courses' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-full text-sm font-semibold hover:opacity-90 transition-opacity">
     <i class="fas fa-book text-xs"></i> Manage Courses
   </a>
 </div>
+
+{# Create a brand-new category. Name is required; thumbnail optional and can be added later. #}
+<form method="POST" action="{% url 'dashboard_create_category' %}" enctype="multipart/form-data"
+      class="flex flex-wrap items-end gap-3 bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-4 mb-5">
+  {% csrf_token %}
+  <div class="flex-1 min-w-[180px]">
+    <label class="block text-xs font-semibold text-gray-400 mb-1">Category name</label>
+    <input
+      type="text"
+      name="name"
+      required
+      placeholder="e.g. Investor Agent, Leadership, Sales"
+      class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50"
+    >
+  </div>
+  <div class="flex-1 min-w-[180px]">
+    <label class="block text-xs font-semibold text-gray-400 mb-1">Thumbnail <span class="text-gray-600 font-normal">(optional)</span></label>
+    <input
+      type="file"
+      name="thumbnail"
+      accept="image/*"
+      class="w-full text-xs text-gray-300 bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:bg-cyan-electric/10 file:text-cyan-electric"
+    >
+  </div>
+  <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 bg-cyan-electric text-[#0a0e27] rounded-lg text-sm font-semibold hover:opacity-90">
+    <i class="fas fa-plus text-xs"></i> Create Category
+  </button>
+</form>
 
 <div class="space-y-3">
   {% for cat in categories %}
@@ -70,6 +98,15 @@
         </button>
         {% endif %}
       </form>
+      {% if cat.category_id %}
+      <form method="POST" action="{% url 'dashboard_delete_category' cat.category_id %}" class="inline"
+            onsubmit="return confirm('Delete category &quot;{{ cat.name|escapejs }}&quot;?{% if cat.count %} {{ cat.count }} course{{ cat.count|pluralize }} will be moved to Uncategorized.{% endif %}');">
+        {% csrf_token %}
+        <button type="submit" class="act-btn act-red" title="Delete category">
+          <i class="fas fa-trash text-[11px]"></i> Delete
+        </button>
+      </form>
+      {% endif %}
       {% endif %}
     </div>
   </div>

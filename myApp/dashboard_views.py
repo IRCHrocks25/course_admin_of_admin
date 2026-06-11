@@ -1676,7 +1676,7 @@ def dashboard_courses(request):
 
 @staff_member_required
 def dashboard_categories(request):
-    """Manage per-category thumbnails for the active tenant's catalog."""
+    """Manage categories (create / rename via thumbnail / delete) for the active tenant."""
     tenant = _get_dashboard_tenant(request)
     if tenant is None:
         messages.error(request, 'Select a tenant before managing categories.')
@@ -1684,7 +1684,7 @@ def dashboard_categories(request):
 
     courses_qs = Course.objects.filter(tenant=tenant)
 
-    # Course counts per category, driven by the free-text Course.category field.
+    # Per-category course counts driven by the free-text Course.category field.
     category_counts = {}
     for raw_category in courses_qs.values_list('category', flat=True):
         name = (raw_category or '').strip()
@@ -1692,12 +1692,23 @@ def dashboard_categories(request):
             name = 'Uncategorized'
         category_counts[name] = category_counts.get(name, 0) + 1
 
+    # CourseCategory rows can exist independently — Bobby may have created an
+    # empty category to organize incoming courses. Merge them into the listing
+    # with count=0 so they appear even before any course uses them.
+    standalone_categories = {
+        cat.name.strip(): cat
+        for cat in CourseCategory.objects.filter(tenant=tenant)
+    }
+    for name in standalone_categories.keys():
+        category_counts.setdefault(name, 0)
+
     thumbnail_map = CourseCategory.thumbnail_map_for_tenant(tenant)
     order_map = CourseCategory.order_map_for_tenant(tenant)
     categories = []
     for name in sort_category_names(category_counts.keys(), order_map):
         is_uncategorized = name == 'Uncategorized'
         lookup_key = '' if is_uncategorized else name.lower()
+        standalone = standalone_categories.get(name)
         categories.append({
             'name': name,
             'count': category_counts[name],
@@ -1705,12 +1716,77 @@ def dashboard_categories(request):
             'thumbnail_url': thumbnail_map.get(lookup_key, ''),
             'initial': category_initial(name),
             'color': category_accent_color(name),
+            'category_id': standalone.id if standalone else None,
         })
 
     return render(request, 'dashboard/categories.html', {
         'categories': categories,
         'tenant': tenant,
     })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_create_category(request):
+    """Create a CourseCategory row so it appears in the listing even with zero courses."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Select a tenant before creating categories.')
+        return redirect('dashboard_courses')
+
+    name = (request.POST.get('name') or '').strip()
+    if not name:
+        messages.error(request, 'Category name is required.')
+        return redirect('dashboard_categories')
+    if name.lower() == 'uncategorized':
+        messages.error(request, '"Uncategorized" is reserved.')
+        return redirect('dashboard_categories')
+
+    category, created = CourseCategory.objects.get_or_create(tenant=tenant, name=name)
+
+    thumbnail = request.FILES.get('thumbnail')
+    if thumbnail:
+        content_type = (getattr(thumbnail, 'content_type', '') or '').lower()
+        if not content_type.startswith('image/'):
+            messages.error(request, 'Thumbnail must be an image file.')
+        else:
+            if category.thumbnail:
+                category.thumbnail.delete(save=False)
+            category.thumbnail = thumbnail
+            category.save()
+
+    if created:
+        messages.success(request, f'Created category "{name}".')
+    else:
+        messages.info(request, f'Category "{name}" already exists.')
+    return redirect('dashboard_categories')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_delete_category(request, category_id):
+    """Delete a category row; courses using its name become Uncategorized."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
+
+    category = CourseCategory.objects.filter(id=category_id, tenant=tenant).first()
+    if category is None:
+        messages.error(request, 'Category not found.')
+        return redirect('dashboard_categories')
+
+    name = category.name
+    moved = Course.objects.filter(tenant=tenant, category=name).update(category='')
+    if category.thumbnail:
+        category.thumbnail.delete(save=False)
+    category.delete()
+
+    if moved:
+        messages.success(request, f'Deleted "{name}". {moved} course{"s" if moved != 1 else ""} moved to Uncategorized.')
+    else:
+        messages.success(request, f'Deleted "{name}".')
+    return redirect('dashboard_categories')
 
 
 @staff_member_required
