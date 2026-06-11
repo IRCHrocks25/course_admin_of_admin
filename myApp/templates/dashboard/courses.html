@@ -261,6 +261,33 @@
         <i class="fas fa-external-link-alt text-[9px]"></i> Site
       </a>
       {% endif %}
+      {# Open the logged-in student experience in a new tab. Mints a 60-second #}
+      {# signed token, redirects through preview_student_consume which logs the #}
+      {# new tab in as this tenant's preview student. Admin tab stays logged in. #}
+      <a href="{% url 'dashboard_preview_as_student' %}?course={{ course.slug }}{% if is_superadmin and course.owner_slug %}&tenant={{ course.owner_slug }}{% endif %}"
+         target="_blank" rel="noopener noreferrer"
+         class="act-btn act-cyan"
+         title="Open this course in a new tab as a logged-in student would see it">
+        <i class="fas fa-user-graduate text-[10px]"></i> Student view
+      </a>
+      {# Binary visibility toggle: flips public ↔ hidden. Other states #}
+      {# (members_only, private) only change via the full edit form. #}
+      <form method="POST" action="{% url 'dashboard_toggle_course_visibility' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="inline">
+        {% csrf_token %}
+        {% if course.visibility == 'hidden' %}
+          <button type="submit"
+                  class="act-btn act-red"
+                  title="Currently hidden from students. Click to make it visible.">
+            <i class="fas fa-eye-slash text-[10px]"></i> Hidden
+          </button>
+        {% else %}
+          <button type="submit"
+                  class="act-btn act-emerald"
+                  title="Currently visible to students. Click to hide it.">
+            <i class="fas fa-eye text-[10px]"></i> Visible
+          </button>
+        {% endif %}
+      </form>
       <form method="POST" action="{% url 'dashboard_delete_course' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="inline ml-auto" onsubmit="return confirm('Delete this course? All lessons, enrollments, and data will be permanently removed.');">
         {% csrf_token %}
         <button type="submit" class="act-btn act-red act-btn-icon">

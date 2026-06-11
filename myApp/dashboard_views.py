@@ -5723,3 +5723,162 @@ def dashboard_branding_settings(request):
         'login_html_sample': LOGIN_HTML_SAMPLE,
         'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
     })
+
+
+# ---------------------------------------------------------------------------
+# "Preview as Student" — staff impersonates a per-tenant preview student so
+# they can QA the logged-in student experience without juggling two accounts.
+# ---------------------------------------------------------------------------
+
+PREVIEW_STUDENT_SIGNER_SALT = 'preview-student-impersonation.v1'
+PREVIEW_STUDENT_TOKEN_MAX_AGE = 60  # seconds — token is one-shot, generated then immediately consumed.
+
+
+def _get_or_create_preview_student(tenant):
+    """
+    Return the dedicated preview-student user for this tenant, creating one
+    on first use. The user has an unusable password (can't log in by typing
+    credentials — only via the signed-token impersonation flow) and a Student
+    TenantMembership. Auto-grants `manual` CourseAccess to every active course
+    on the tenant so the experience matches a real enrolled student.
+    """
+    from .utils.access import grant_course_access
+    username = f'preview-student-{tenant.slug}'
+    email = f'preview-student+{tenant.slug}@noreply.courseforge.local'
+
+    user, created = User.objects.get_or_create(
+        username=username,
+        defaults={
+            'email': email,
+            'first_name': 'Preview',
+            'last_name': 'Student',
+            'is_staff': False,
+            'is_superuser': False,
+        },
+    )
+    if created:
+        user.set_unusable_password()
+        user.save()
+
+    TenantMembership.objects.get_or_create(
+        tenant=tenant,
+        user=user,
+        defaults={'role': 'student', 'is_active': True},
+    )
+
+    existing_course_ids = set(
+        CourseAccess.objects.filter(user=user, tenant=tenant).values_list('course_id', flat=True)
+    )
+    for course in Course.objects.filter(tenant=tenant, status='active'):
+        if course.id in existing_course_ids:
+            continue
+        grant_course_access(
+            user=user,
+            course=course,
+            access_type='manual',
+            granted_by=None,
+            notes='Auto-grant for preview-as-student impersonation.',
+        )
+
+    return user
+
+
+@staff_member_required
+def dashboard_preview_as_student(request):
+    """
+    Issue a short-lived signed token for the requested tenant's preview
+    student and redirect the staff user to the consume endpoint, which logs
+    them in as that student. Optional ?course=<slug> lands directly on the
+    course page; otherwise the student dashboard.
+    """
+    from django.core.signing import TimestampSigner
+
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Select a tenant before previewing the student view.')
+        return redirect('dashboard_courses')
+
+    user = _get_or_create_preview_student(tenant)
+    course_slug = (request.GET.get('course') or '').strip()
+
+    signer = TimestampSigner(salt=PREVIEW_STUDENT_SIGNER_SALT)
+    payload = f'{user.id}:{tenant.id}:{course_slug}'
+    token = signer.sign(payload)
+
+    consume_url = reverse('preview_student_consume') + f'?t={token}'
+    return redirect(consume_url)
+
+
+def preview_student_consume(request):
+    """
+    Validate the signed token, log the request session in as that tenant's
+    preview student, redirect to the student dashboard (or specific course).
+
+    Intentionally NOT auth-protected — the whole point is to switch the
+    current session to the preview student. Security comes from the
+    TimestampSigner signature + 60-second max_age + the fact that the
+    trigger endpoint that mints tokens is staff-only.
+    """
+    from django.contrib.auth import login
+    from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+
+    token = (request.GET.get('t') or '').strip()
+    if not token:
+        return redirect('login')
+
+    signer = TimestampSigner(salt=PREVIEW_STUDENT_SIGNER_SALT)
+    try:
+        payload = signer.unsign(token, max_age=PREVIEW_STUDENT_TOKEN_MAX_AGE)
+    except SignatureExpired:
+        messages.error(request, 'Preview link expired. Click "Preview as Student" again.')
+        return redirect('login')
+    except BadSignature:
+        return redirect('login')
+
+    try:
+        user_id, tenant_id, course_slug = payload.split(':', 2)
+        user = User.objects.get(id=int(user_id))
+    except (ValueError, User.DoesNotExist):
+        return redirect('login')
+
+    if not user.username.startswith('preview-student-'):
+        # Defence in depth: this endpoint must NEVER log in a regular user.
+        return redirect('login')
+
+    user.backend = 'django.contrib.auth.backends.ModelBackend'
+    login(request, user)
+
+    if course_slug:
+        try:
+            return redirect('student_course_progress', course_slug=course_slug)
+        except Exception:
+            pass
+    return redirect('student_dashboard')
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_toggle_course_visibility(request, course_slug):
+    """
+    Flip a course between catalog-visible and hidden in one click.
+
+    "Hidden" → restore to "public" (the common student-facing state).
+    Anything else → set to "hidden" (out of the catalog; direct-link only).
+    Other visibility values (members_only, private) survive the round-trip
+    only via the full course edit form — this button is the binary toggle.
+    """
+    tenant = _get_dashboard_tenant(request)
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
+        messages.error(request, 'Course not found.')
+        return redirect('dashboard_courses')
+
+    if course.visibility == 'hidden':
+        course.visibility = 'public'
+        msg = f'"{course.name}" is now visible to students.'
+    else:
+        course.visibility = 'hidden'
+        msg = f'"{course.name}" is now hidden from the student catalog.'
+    course.save(update_fields=['visibility'])
+    messages.success(request, msg)
+    return redirect('dashboard_courses')
