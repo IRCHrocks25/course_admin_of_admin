@@ -240,7 +240,15 @@
       <a href="{% url 'dashboard_course_detail' course.slug %}{% if course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-indigo">Super Admin</a>
       {% endif %}
       <a href="{% url 'dashboard_course_detail' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-cyan">Manage</a>
-      <a href="{% url 'dashboard_course_lessons' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}" class="act-btn act-purple">Lessons</a>
+      <button
+        type="button"
+        class="act-btn act-purple lessons-toggle-btn"
+        data-course-id="{{ course.id }}"
+        aria-expanded="false"
+      >
+        <i class="fas fa-chevron-down mr-1 text-[9px] lessons-chev transition-transform"></i>
+        Lessons ({{ course.lessons_for_dropdown|length }})
+      </button>
       <button
         type="button"
         class="act-btn act-emerald preview-lesson-btn"
@@ -259,6 +267,67 @@
           <i class="fas fa-trash text-[10px]"></i>
         </button>
         </form>
+      </div>
+
+      {# Inline editable lesson list — expands when the Lessons button is clicked. #}
+      {# Lets the operator jump straight into editing any lesson without leaving this page. #}
+      <div
+        class="lessons-panel hidden mt-3 pt-3 border-t border-cyan-electric/10"
+        data-course-id="{{ course.id }}"
+      >
+        {% if course.lessons_for_dropdown %}
+          <div class="max-h-72 overflow-y-auto pr-1 space-y-0.5">
+            {% regroup course.lessons_for_dropdown by module_title as lessons_by_module %}
+            {% for module_group in lessons_by_module %}
+              {% if module_group.grouper %}
+                <div class="text-[10px] uppercase tracking-wider text-cyan-electric/60 mt-2 mb-1 px-1">
+                  {{ module_group.grouper }}
+                </div>
+              {% else %}
+                <div class="text-[10px] uppercase tracking-wider text-yellow-400/60 mt-2 mb-1 px-1">
+                  Unsorted
+                </div>
+              {% endif %}
+              {% for lesson in module_group.list %}
+                <a
+                  href="{% url 'dashboard_edit_lesson' lesson.id %}"
+                  class="flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-cyan-electric/5 text-xs text-gray-300 hover:text-cyan-electric group/lesson"
+                >
+                  <span class="flex items-center gap-2 min-w-0">
+                    <i class="fas fa-video text-gray-500 text-[10px] shrink-0"></i>
+                    <span class="truncate">{{ lesson.title }}</span>
+                  </span>
+                  <span class="flex items-center gap-1.5 shrink-0">
+                    {% if lesson.has_quiz %}
+                      <span class="text-[10px] text-emerald-400" title="Has Confidence Checkpoint quiz">
+                        <i class="fas fa-clipboard-check"></i>
+                      </span>
+                    {% endif %}
+                    <i class="fas fa-pen text-[9px] text-gray-600 group-hover/lesson:text-cyan-electric"></i>
+                  </span>
+                </a>
+              {% endfor %}
+            {% endfor %}
+          </div>
+          <div class="mt-2 pt-2 border-t border-cyan-electric/8 flex items-center justify-between">
+            <a
+              href="{% url 'dashboard_add_lesson' %}?course={{ course.id }}"
+              class="text-[11px] text-cyan-electric/80 hover:text-cyan-electric"
+            >
+              <i class="fas fa-plus mr-1 text-[9px]"></i>Add Lesson
+            </a>
+            <a
+              href="{% url 'dashboard_course_detail' course.slug %}{% if is_superadmin and course.owner_slug %}?tenant={{ course.owner_slug }}{% endif %}"
+              class="text-[11px] text-gray-400 hover:text-cyan-electric"
+            >
+              Full course editor →
+            </a>
+          </div>
+        {% else %}
+          <p class="text-xs text-gray-500 italic px-1">No lessons yet.
+            <a href="{% url 'dashboard_add_lesson' %}?course={{ course.id }}" class="text-cyan-electric/80 hover:text-cyan-electric ml-1">Add the first one</a>.
+          </p>
+        {% endif %}
       </div>
     </div>
     {% endfor %}
@@ -454,6 +523,21 @@
     document.querySelectorAll('.preview-lesson-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         openModal(btn);
+      });
+    });
+
+    // Per-card "Lessons" dropdown toggle. Each card has a button + a sibling
+    // panel scoped by data-course-id. Toggling one card doesn't affect others.
+    document.querySelectorAll('.lessons-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var courseId = btn.getAttribute('data-course-id');
+        var panel = document.querySelector('.lessons-panel[data-course-id="' + courseId + '"]');
+        if (!panel) return;
+        var willOpen = panel.classList.contains('hidden');
+        panel.classList.toggle('hidden');
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        var chev = btn.querySelector('.lessons-chev');
+        if (chev) chev.style.transform = willOpen ? 'rotate(180deg)' : '';
       });
     });
 

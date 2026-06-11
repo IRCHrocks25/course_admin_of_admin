@@ -1551,6 +1551,26 @@ def dashboard_courses(request):
     )
     lesson_preview_payloads = {}
     for course in courses:
+        # Inline dropdown data for the courses-list card. Each lesson links to
+        # the per-lesson editor; rendering happens in dashboard/courses.html.
+        course_lesson_qs = (
+            Lesson.objects.filter(course=course)
+            .select_related('module')
+            .order_by('module__order', 'order', 'id')
+        )
+        course_lessons_with_quiz = set(
+            LessonQuiz.objects.filter(lesson__course=course).values_list('lesson_id', flat=True)
+        )
+        course.lessons_for_dropdown = [
+            {
+                'id': lesson.id,
+                'title': lesson.title,
+                'module_title': lesson.module.title if lesson.module_id else '',
+                'has_quiz': lesson.id in course_lessons_with_quiz,
+            }
+            for lesson in course_lesson_qs
+        ]
+
         preview_lesson = Lesson.objects.filter(course=course).order_by('order', 'id').first()
         course.preview_lesson = preview_lesson
         course.preview_lesson_title = preview_lesson.title if preview_lesson else ''
