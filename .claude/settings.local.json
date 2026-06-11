@@ -55,7 +55,11 @@
       "Bash(USE_LOCAL_SQLITE=True python manage.py collectstatic --noinput)",
       "Bash(xargs grep -l \"follow\\\\|trigger\\\\|task.*creation\\\\|auto.*assign\\\\|reminder\\\\|notification\" --color=never)",
       "Bash(ls -la myApp/models/)",
-      "Bash(ls -la myApp/views/)"
+      "Bash(ls -la myApp/views/)",
+      "Bash(git fetch *)",
+      "Bash(git stash *)",
+      "Bash(git rebase *)",
+      "Bash(git push *)"
     ]
   }
 }
