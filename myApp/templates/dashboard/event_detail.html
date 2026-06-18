@@ -1,0 +1,41 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Edit {{ event.title }}{% endblock %}
+{% block page_title %}Edit Event{% endblock %}
+
+{% block content %}
+<style>
+  /* Field styles (.ef-section/.ef-input/.ef-label/…) live in _event_form_fields.html. */
+  .ef-form { max-width: 760px; }
+  .ef-actions { display: flex; gap: 12px; margin-top: 2rem; align-items: center; }
+  .ef-btn { display: inline-flex; align-items: center; gap: 7px; padding: 11px 20px; border-radius: 9px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; text-decoration: none; }
+  .ef-btn-primary { background: linear-gradient(135deg, #2563eb, #6366f1); color: #fff; }
+  .ef-btn-ghost { background: transparent; border: 1px solid var(--brand-border); color: var(--brand-text-primary); }
+  .ef-btn-danger { background: transparent; border: 1px solid rgba(220,38,38,.35); color: #dc2626; margin-left: auto; }
+  .brand-theme-dark .ef-btn-danger { color: #f87171; border-color: rgba(248,113,113,.3); }
+  .ef-summary { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.75rem; padding: 1rem 1.25rem; background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface)); border: 1px solid var(--brand-border); border-radius: 12px; }
+  .ef-summary div { font-size: 13px; color: var(--brand-text-muted); }
+  .ef-summary strong { display: block; color: var(--brand-text-primary); font-size: 18px; font-weight: 700; }
+</style>
+
+<div class="ef-summary">
+  <div><strong>{{ registration_count }}</strong> Registered</div>
+  <div><strong>{{ event.get_status_display }}</strong> Status</div>
+  <div><strong>{% if event.event_date %}{{ event.event_date|date:"M j, Y" }}{% else %}—{% endif %}</strong> Date</div>
+  <div style="margin-left:auto;"><a href="{% url 'event_detail' event_slug=event.slug %}" target="_blank" class="ef-btn ef-btn-ghost"><i class="fas fa-external-link-alt"></i> View public page</a></div>
+</div>
+
+<form class="ef-form" method="post" action="{% url 'dashboard_event_detail' event_slug=event.slug %}" enctype="multipart/form-data">
+  {% csrf_token %}
+  {% include 'dashboard/_event_form_fields.html' %}
+  <div class="ef-actions">
+    <button type="submit" class="ef-btn ef-btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+    <a href="{% url 'dashboard_events' %}" class="ef-btn ef-btn-ghost">Back</a>
+    <button type="submit" form="ev-delete-form" class="ef-btn ef-btn-danger"><i class="fas fa-trash"></i> Delete</button>
+  </div>
+</form>
+
+<form id="ev-delete-form" method="post" action="{% url 'dashboard_delete_event' event_slug=event.slug %}" onsubmit="return confirm('Delete this event? This cannot be undone.');">
+  {% csrf_token %}
+</form>
+{% endblock %}

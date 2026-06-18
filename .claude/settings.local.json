@@ -59,7 +59,15 @@
       "Bash(git fetch *)",
       "Bash(git stash *)",
       "Bash(git rebase *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Pin Python to 3.12.8 for Railpack build *)",
+      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 30)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 10)",
+      "Bash(grep -vE \"base\\\\.html$\")",
+      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 6)",
+      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 4)"
     ]
   }
 }

@@ -398,10 +398,17 @@
     #chat-input:focus {
         box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.1);
     }
-    
+
     #send-message:hover {
         transform: scale(1.05);
     }
+
+    /* No-neon light mode: cyan scrollbars/glows → neutral blue */
+    .brand-theme-light .sidebar-scroll { scrollbar-color: rgba(37, 99, 235, 0.35) transparent; }
+    .brand-theme-light .sidebar-scroll::-webkit-scrollbar-thumb { background-color: rgba(37, 99, 235, 0.35); }
+    .brand-theme-light .sidebar-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(37, 99, 235, 0.55); }
+    .brand-theme-light .user-message .bg-gradient-to-br { box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); }
+    .brand-theme-light #chat-input:focus { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
     
     #send-message:active {
         transform: scale(0.95);

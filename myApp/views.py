@@ -40,6 +40,8 @@ from .models import (
     TenantMembership,
     UserProgress,
     CourseEnrollment,
+    Event,
+    EventRegistration,
     Exam,
     ExamAttempt,
     Certification,
@@ -61,7 +63,7 @@ from django.db import transaction
 from django.utils import timezone
 from urllib.parse import urlencode, urlparse, parse_qs, unquote
 from .utils.transcription import transcribe_video
-from .utils.access import has_course_access
+from .utils.access import has_course_access, has_event_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
 from .utils.tenancy import get_default_tenant
@@ -323,7 +325,7 @@ def _render_tenant_custom_html(request, tenant, custom_html):
     tenant_logo_url = (branding.get('logo_url') or '').strip()
     tenant_brand_name = (branding.get('brand_name') or getattr(tenant, 'name', '') or 'Your Brand').strip()
     if not tenant_logo_url:
-        tenant_logo_url = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Crect width='160' height='160' rx='24' fill='%230a0f25'/%3E%3Crect x='18' y='18' width='124' height='124' rx='20' fill='%23101735' stroke='%2322d3ee' stroke-opacity='0.35'/%3E%3Ctext x='80' y='92' text-anchor='middle' font-family='Arial,sans-serif' font-size='30' font-weight='700' fill='%2322d3ee'%3ELOGO%3C/text%3E%3C/svg%3E"
+        tenant_logo_url = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Crect width='160' height='160' rx='24' fill='%23ffffff'/%3E%3Crect x='18' y='18' width='124' height='124' rx='20' fill='%23eef3ff' stroke='%232563eb' stroke-opacity='0.35'/%3E%3Ctext x='80' y='92' text-anchor='middle' font-family='Arial,sans-serif' font-size='30' font-weight='700' fill='%232563eb'%3ELOGO%3C/text%3E%3C/svg%3E"
     custom_html = custom_html.replace('__TENANT_LOGO_URL__', tenant_logo_url)
     custom_html = custom_html.replace('__TENANT_BRAND_NAME__', tenant_brand_name)
     tenant_course_count = 0
@@ -1913,6 +1915,75 @@ def enroll_course(request, course_slug):
     else:
         messages.info(request, 'This course requires assignment. Contact your administrator.')
     return redirect('course_detail', course_slug=course_slug)
+
+
+# ========== PUBLIC EVENTS (standalone live-events module) ==========
+
+def events(request):
+    """Public catalog of published events for the current tenant (visible to guests)."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.info(request, 'Use your tenant portal URL to access events.')
+        return redirect('home')
+
+    search_query = request.GET.get('search', '')
+    events_qs = Event.objects.filter(tenant=tenant, status='published')
+    if search_query:
+        events_qs = events_qs.filter(title__icontains=search_query)
+    events_qs = events_qs.order_by('event_date', 'start_time', 'display_order')
+
+    now = timezone.now()
+    upcoming, past = [], []
+    for event in events_qs:
+        (past if event.is_past() else upcoming).append(event)
+
+    return render(request, 'events.html', {
+        'upcoming_events': upcoming,
+        'past_events': past,
+        'total_events': len(upcoming) + len(past),
+        'search_query': search_query,
+    })
+
+
+def event_detail(request, event_slug):
+    """
+    Public event detail. The join link is ONLY placed into context when the
+    user is registered (has_event_access) — never exposed otherwise.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.info(request, 'Use your tenant portal URL to access events.')
+        return redirect('home')
+
+    event = get_object_or_404(Event, slug=event_slug, tenant=tenant, status='published')
+    is_registered, _, _ = has_event_access(request.user, event)
+
+    return render(request, 'event_detail.html', {
+        'event': event,
+        'is_registered': is_registered,
+        # Only expose the join link to registered users.
+        'join_link': event.join_link if is_registered else '',
+        'registration_count': event.registration_count(),
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def register_event(request, event_slug):
+    """Free registration for an event, scoped to the current tenant."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.info(request, 'Use your tenant portal URL to register for events.')
+        return redirect('home')
+
+    event = get_object_or_404(Event, slug=event_slug, tenant=tenant, status='published')
+    EventRegistration.objects.get_or_create(
+        tenant=tenant,
+        user=request.user,
+        event=event,
+    )
+    messages.success(request, f'You are registered for {event.title}.')
+    return redirect('event_detail', event_slug=event.slug)
 
 
 @login_required
@@ -4261,20 +4332,21 @@ def toggle_theme(request):
             tenant=tenant, user=request.user, is_active=True,
         ).first()
 
-    tenant_default = get_tenant_branding(tenant).get('theme_mode', 'dark')
+    tenant_default = get_tenant_branding(tenant).get('theme_mode', 'light')
+
+    # Use whichever stored preference applies, falling back to the tenant default.
+    current = membership.theme_preference if membership and membership.theme_preference \
+        else request.session.get('theme_preference') or tenant_default
+    new_theme = 'light' if current == 'dark' else 'dark'
 
     if membership:
         # Tenant members persist their preference on the membership row.
-        current = membership.theme_preference or tenant_default
-        new_theme = 'light' if current == 'dark' else 'dark'
         membership.theme_preference = new_theme
         membership.save(update_fields=['theme_preference'])
-    else:
-        # Superadmins and other users without a tenant membership (e.g. the
-        # /superadmin/ console) have no membership row to store on, so keep
-        # their preference in the session instead.
-        current = request.session.get('theme_preference') or tenant_default
-        new_theme = 'light' if current == 'dark' else 'dark'
-        request.session['theme_preference'] = new_theme
+    # Always mirror to the session too. The context processor reads membership
+    # first, then session; mirroring guarantees the choice survives reloads even
+    # when the next request resolves no tenant (e.g. superadmins toggling between
+    # the global console and tenant-scoped pages).
+    request.session['theme_preference'] = new_theme
 
     return JsonResponse({'success': True, 'theme': new_theme})

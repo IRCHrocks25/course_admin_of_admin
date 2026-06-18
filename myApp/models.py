@@ -1358,3 +1358,98 @@ class ForumReaction(models.Model):
         target = f"post {self.post_id}" if self.post_id else f"comment {self.comment_id}"
         return f"{self.user.username} {self.reaction_type} on {target}"
 
+
+class Event(models.Model):
+    """
+    A standalone live event (Zoom/Google Meet, etc.) — NOT a course type.
+    Mirrors Course's tenant scoping and per-tenant unique slug. A single
+    session is described by event_date + start_time + timezone + duration.
+    The join link is only exposed to registered users (see has_event_access).
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='events', null=True, blank=True)
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
+    short_description = models.CharField(max_length=1000, blank=True)
+    description = models.TextField(blank=True)
+    thumbnail = models.ImageField(upload_to='event_thumbnails/', null=True, blank=True)
+    host_name = models.CharField(max_length=100, blank=True, help_text="Person/team hosting the event")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    display_order = models.PositiveIntegerField(default=0, help_text="Lower numbers appear first in event listings.")
+
+    # Schedule (single session)
+    event_date = models.DateField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
+    timezone = models.CharField(max_length=64, default='UTC', help_text="IANA timezone name, e.g. America/New_York")
+    duration_minutes = models.PositiveIntegerField(default=60, help_text="Length of the event in minutes")
+
+    # Access
+    join_link = models.URLField(max_length=500, blank=True, help_text="Zoom/Google Meet link — only shown to registered users")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['event_date', 'start_time']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='uniq_event_tenant_slug')
+        ]
+
+    def __str__(self):
+        return self.title
+
+    def get_start_datetime(self):
+        """Combine event_date + start_time into a timezone-aware datetime, or None."""
+        if not self.event_date or not self.start_time:
+            return None
+        import datetime
+        naive = datetime.datetime.combine(self.event_date, self.start_time)
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(self.timezone or 'UTC')
+        except Exception:
+            from django.utils.timezone import get_default_timezone
+            tz = get_default_timezone()
+        return naive.replace(tzinfo=tz)
+
+    def get_end_datetime(self):
+        start = self.get_start_datetime()
+        if start is None:
+            return None
+        import datetime
+        return start + datetime.timedelta(minutes=self.duration_minutes or 0)
+
+    def is_past(self):
+        end = self.get_end_datetime() or self.get_start_datetime()
+        if end is None:
+            return False
+        return end < timezone.now()
+
+    def is_upcoming(self):
+        start = self.get_start_datetime()
+        if start is None:
+            return False
+        return not self.is_past()
+
+    def registration_count(self):
+        return self.registrations.count()
+
+
+class EventRegistration(models.Model):
+    """A user's free registration for an Event. Mirrors CourseEnrollment."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='event_registrations', null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='event_registrations')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registrations')
+    registered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['tenant', 'user', 'event']
+        ordering = ['-registered_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.event.title}"
+

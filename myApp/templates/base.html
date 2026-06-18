@@ -34,6 +34,9 @@
             --brand-menu-border: rgba(0, 240, 255, 0.2);
             --brand-accent-primary: #00f0ff;
             --brand-accent-secondary: #a855f7;
+            --brand-accent-on-primary: #0a0e27;
+            --brand-accent-on-secondary: #ffffff;
+            --brand-accent-on-gradient: #ffffff;
         }
         .brand-theme-light {
             --brand-bg-gradient: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #ffffff 100%);
@@ -44,8 +47,14 @@
             --brand-border: rgba(15, 23, 42, 0.12);
             --brand-menu-bg: #ffffff;
             --brand-menu-border: rgba(15, 23, 42, 0.1);
-            --brand-accent-primary: #00f0ff;
-            --brand-accent-secondary: #a855f7;
+            /* Neutral, low-glare accents (vs. the dark theme's neon) so the
+               default light UI is easy on the eyes. Tenants with their own
+               brand colors still override these via the inline body style. */
+            --brand-accent-primary: #2563eb;
+            --brand-accent-secondary: #7c3aed;
+            --brand-accent-on-primary: #ffffff;
+            --brand-accent-on-secondary: #ffffff;
+            --brand-accent-on-gradient: #ffffff;
         }
         /* Page Preloader */
         #page-preloader {
@@ -157,20 +166,81 @@
         .to-purple-accent { --tw-gradient-to: var(--brand-accent-secondary) var(--tw-gradient-to-position) !important; }
 
         .brand-theme-light .text-white { color: #0f172a !important; }
-        .brand-theme-light .text-gray-400,
+        .brand-theme-light .text-gray-100,
+        .brand-theme-light .text-gray-200,
         .brand-theme-light .text-gray-300,
+        .brand-theme-light .text-gray-400,
         .brand-theme-light .text-gray-500,
         .brand-theme-light .text-gray-600 { color: #475569 !important; }
-        .brand-theme-light .bg-\[\#0a0e27\],
-        .brand-theme-light .bg-\[\#080b1e\],
-        .brand-theme-light .bg-\[\#0d1230\],
-        .brand-theme-light .bg-\[\#1a1f3a\] { background-color: #ffffff !important; }
-        .brand-theme-light .border-cyan-electric\/10,
-        .brand-theme-light .border-cyan-electric\/20,
-        .brand-theme-light .border-cyan-electric\/30,
-        .brand-theme-light .border-cyan-electric\/40 { border-color: rgba(15, 23, 42, 0.12) !important; }
-        .brand-theme-light .shadow-cyan-electric\/20,
-        .brand-theme-light .shadow-cyan-electric\/50 { box-shadow: none !important; }
+        /* Surfaces: any navy panel + translucent-white glass → white card.
+           Substring selectors catch every opacity variant (e.g. /60, /80). */
+        .brand-theme-light [class*="bg-[#0a0e27]"],
+        .brand-theme-light [class*="bg-[#080b1e]"],
+        .brand-theme-light [class*="bg-[#0d1230]"],
+        .brand-theme-light [class*="bg-[#1a1f3a]"],
+        .brand-theme-light [class*="bg-white/"] { background-color: #ffffff !important; }
+        /* Accent/white hairline borders → subtle slate */
+        .brand-theme-light [class*="border-cyan-electric"],
+        .brand-theme-light [class*="border-white/"] { border-color: rgba(15, 23, 42, 0.12) !important; }
+        .brand-theme-light [class*="shadow-cyan-electric"] { box-shadow: none !important; }
+        /* Neutral tracks (e.g. progress bar backgrounds) → light gray */
+        .brand-theme-light .bg-gray-700,
+        .brand-theme-light .bg-gray-500 { background-color: #e2e8f0 !important; }
+        /* ── No-neon light mode ──────────────────────────────────────────
+           Bright dark-theme text shades (200–400) of every accent hue read
+           as glaring "neon" on white. Remap each to an accessible same-hue
+           shade (~700). Substring selectors also catch /opacity variants. */
+        .brand-theme-light [class*="text-red-2"],
+        .brand-theme-light [class*="text-red-3"],
+        .brand-theme-light [class*="text-red-4"] { color: #b91c1c !important; }
+        .brand-theme-light [class*="text-orange-2"],
+        .brand-theme-light [class*="text-orange-3"],
+        .brand-theme-light [class*="text-orange-4"] { color: #c2410c !important; }
+        .brand-theme-light [class*="text-amber-2"],
+        .brand-theme-light [class*="text-amber-3"],
+        .brand-theme-light [class*="text-amber-4"] { color: #b45309 !important; }
+        .brand-theme-light [class*="text-yellow-2"],
+        .brand-theme-light [class*="text-yellow-3"],
+        .brand-theme-light [class*="text-yellow-4"] { color: #a16207 !important; }
+        .brand-theme-light [class*="text-lime-2"],
+        .brand-theme-light [class*="text-lime-3"],
+        .brand-theme-light [class*="text-lime-4"] { color: #4d7c0f !important; }
+        .brand-theme-light [class*="text-green-2"],
+        .brand-theme-light [class*="text-green-3"],
+        .brand-theme-light [class*="text-green-4"] { color: #15803d !important; }
+        .brand-theme-light [class*="text-emerald-2"],
+        .brand-theme-light [class*="text-emerald-3"],
+        .brand-theme-light [class*="text-emerald-4"] { color: #047857 !important; }
+        .brand-theme-light [class*="text-teal-2"],
+        .brand-theme-light [class*="text-teal-3"],
+        .brand-theme-light [class*="text-teal-4"] { color: #0f766e !important; }
+        .brand-theme-light [class*="text-cyan-2"],
+        .brand-theme-light [class*="text-cyan-3"],
+        .brand-theme-light [class*="text-cyan-4"] { color: #0e7490 !important; }
+        .brand-theme-light [class*="text-sky-2"],
+        .brand-theme-light [class*="text-sky-3"],
+        .brand-theme-light [class*="text-sky-4"] { color: #0369a1 !important; }
+        .brand-theme-light [class*="text-blue-2"],
+        .brand-theme-light [class*="text-blue-3"],
+        .brand-theme-light [class*="text-blue-4"] { color: #1d4ed8 !important; }
+        .brand-theme-light [class*="text-indigo-2"],
+        .brand-theme-light [class*="text-indigo-3"],
+        .brand-theme-light [class*="text-indigo-4"] { color: #4338ca !important; }
+        .brand-theme-light [class*="text-violet-2"],
+        .brand-theme-light [class*="text-violet-3"],
+        .brand-theme-light [class*="text-violet-4"] { color: #6d28d9 !important; }
+        .brand-theme-light [class*="text-purple-2"],
+        .brand-theme-light [class*="text-purple-3"],
+        .brand-theme-light [class*="text-purple-4"] { color: #7e22ce !important; }
+        .brand-theme-light [class*="text-fuchsia-2"],
+        .brand-theme-light [class*="text-fuchsia-3"],
+        .brand-theme-light [class*="text-fuchsia-4"] { color: #a21caf !important; }
+        .brand-theme-light [class*="text-pink-2"],
+        .brand-theme-light [class*="text-pink-3"],
+        .brand-theme-light [class*="text-pink-4"] { color: #be185d !important; }
+        .brand-theme-light [class*="text-rose-2"],
+        .brand-theme-light [class*="text-rose-3"],
+        .brand-theme-light [class*="text-rose-4"] { color: #be123c !important; }
 
         /* Theme transition */
         .theme-transitioning,
@@ -181,7 +251,27 @@
         }
     </style>
 </head>
-<body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'dark' }}" style="--brand-accent-primary: {{ tenant_branding.accent_primary|default:'#00f0ff' }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary|default:'#a855f7' }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on|default:'#0a0e27' }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on|default:'#ffffff' }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on|default:'#ffffff' }};">
+<body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'light' }}"{% if tenant_branding.accent_is_custom %} style="--brand-accent-primary: {{ tenant_branding.accent_primary }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on }};"{% endif %}>
+    <!-- Apply persisted theme before paint so a toggled choice survives reloads
+         without a flash, even if the server-side preference is unavailable. -->
+    <script>
+    (function () {
+        try {
+            var t = localStorage.getItem('cf_theme');
+            if (t !== 'light' && t !== 'dark') return;
+            var b = document.body;
+            b.classList.remove('brand-theme-light', 'brand-theme-dark');
+            b.classList.add('brand-theme-' + t);
+            b.dataset.theme = t;
+            document.addEventListener('DOMContentLoaded', function () {
+                var moon = document.getElementById('theme-icon-moon');
+                var sun = document.getElementById('theme-icon-sun');
+                if (moon) moon.style.display = t === 'light' ? 'inline' : 'none';
+                if (sun) sun.style.display = t === 'dark' ? 'inline' : 'none';
+            });
+        } catch (e) {}
+    })();
+    </script>
     <!-- Page Preloader -->
     <div id="page-preloader">
         <div class="text-center">
@@ -222,6 +312,7 @@
             <!-- Right: Navigation Links (Desktop) -->
             <div class="hidden md:flex items-center gap-6 lg:gap-8">
                 <a href="{% url 'courses' %}" class="text-sm font-medium brand-nav-link transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
+                <a href="{% url 'events' %}" class="text-sm font-medium brand-nav-link transition-colors">Events</a>
                 {% if user.is_authenticated %}
                 <a href="{% url 'forum_feed' %}" class="text-sm font-medium brand-nav-link transition-colors">Community</a>
                 <a href="{% url 'student_certifications' %}" class="text-sm font-medium brand-nav-link transition-colors">Certifications</a>
@@ -246,6 +337,7 @@
         <div id="mobile-menu" class="hidden md:hidden brand-mobile-menu">
             <div class="px-4 py-4 space-y-3">
                 <a href="{% url 'courses' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
+                <a href="{% url 'events' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Events</a>
                 {% if user.is_authenticated %}
                 <a href="{% url 'forum_feed' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Community</a>
                 <a href="{% url 'student_certifications' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Certifications</a>
@@ -299,6 +391,7 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
+            try { localStorage.setItem('cf_theme', data.theme); } catch (e) {}
             var body = document.body;
             body.classList.add('theme-transitioning');
             body.classList.remove('brand-theme-dark', 'brand-theme-light');

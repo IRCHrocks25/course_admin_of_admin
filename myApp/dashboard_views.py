@@ -43,6 +43,8 @@ from .models import (
     Module,
     UserProgress,
     CourseEnrollment,
+    Event,
+    EventRegistration,
     Exam,
     ExamQuestion,
     CourseAccess,
@@ -413,69 +415,108 @@ LANDING_HTML_SAMPLE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Your Brand</title>
+  <title>__TENANT_BRAND_NAME__ Academy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    :root { --bg:#0b1028; --card:#101735; --text:#e8ecff; --muted:#a8b3d8; --accent:#22d3ee; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: Inter, Arial, sans-serif; background: linear-gradient(180deg,#0a0f25,#050814); color: var(--text); }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 28px 18px 56px; }
-    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-    .brand { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; }
-    .brand-logo { width:38px; height:38px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,.14); background:#0a0f25; }
-    .brand-note { font-size:12px; color:#9aa8d8; margin-top:6px; }
+    :root {
+      --bg:#f7f9fc; --surface:#ffffff; --ink:#0f172a; --muted:#475569; --soft:#64748b;
+      --line:#e7eaf3; --accent:#2563eb; --accent-dark:#1d4ed8; --accent-soft:#eef3ff;
+      --shadow:0 1px 2px rgba(15,23,42,.04), 0 18px 40px -20px rgba(15,23,42,.18);
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:'Inter',system-ui,-apple-system,Arial,sans-serif; color:var(--ink); line-height:1.6;
+      background:radial-gradient(1100px 520px at 100% -8%, #e9f0ff 0%, transparent 55%), var(--bg); -webkit-font-smoothing:antialiased; }
+    a { color:inherit; }
+    .wrap { max-width:1080px; margin:0 auto; padding:22px 20px 72px; }
+    header.top { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+    .brand { display:flex; align-items:center; gap:12px; font-weight:700; font-size:17px; letter-spacing:-.01em; }
+    .brand-logo { width:42px; height:42px; border-radius:11px; object-fit:cover; border:1px solid var(--line); background:#fff; box-shadow:var(--shadow); }
     .nav { display:flex; gap:10px; flex-wrap:wrap; }
-    .btn { display:inline-block; text-decoration:none; border:1px solid rgba(34,211,238,.45); color:var(--accent); padding:9px 13px; border-radius:10px; font-size:14px; }
-    .btn-solid { background: rgba(34,211,238,.14); }
-    .hero { margin-top: 42px; background: var(--card); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:28px; }
-    h1 { margin:0 0 12px; font-size:34px; line-height:1.15; }
-    p { margin:0; color: var(--muted); line-height:1.65; }
-    .cta-row { margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; }
-    .grid { margin-top:16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
-    .card { background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; }
-    .card h3 { margin:0 0 8px; font-size:16px; }
-    .course-panel { margin-top:16px; background: rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; }
-    .course-panel h3 { margin:0 0 8px; font-size:16px; }
-    .course-panel p { font-size:13px; margin:0 0 10px; color:#9db0e4; }
-    .course-list { margin:0; padding-left:18px; display:grid; gap:6px; }
-    .course-list a { color:#9fefff; text-decoration:none; }
-    .course-list a:hover { text-decoration:underline; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; font-weight:600;
+      font-size:14px; padding:11px 18px; border-radius:11px; border:1px solid var(--line); color:var(--ink);
+      background:var(--surface); transition:border-color .15s ease, transform .15s ease, background .15s ease; }
+    .btn:hover { border-color:#cdd5e6; transform:translateY(-1px); }
+    .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 10px 22px -10px rgba(37,99,235,.65); }
+    .btn-primary:hover { background:var(--accent-dark); border-color:var(--accent-dark); }
+    .hero { margin-top:64px; text-align:center; }
+    .eyebrow { display:inline-block; font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+      color:var(--accent); background:var(--accent-soft); padding:7px 14px; border-radius:999px; }
+    h1 { margin:18px auto 16px; font-size:clamp(32px,5.2vw,54px); line-height:1.06; letter-spacing:-.03em; max-width:17ch; font-weight:800; }
+    .lead { margin:0 auto; max-width:58ch; color:var(--muted); font-size:18px; }
+    .cta-row { margin-top:30px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+    .features { margin-top:72px; display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:16px; }
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:26px; box-shadow:var(--shadow); }
+    .card .ico { width:44px; height:44px; border-radius:12px; background:var(--accent-soft); color:var(--accent);
+      display:flex; align-items:center; justify-content:center; margin-bottom:16px; }
+    .card .ico svg { width:22px; height:22px; }
+    .card h3 { margin:0 0 6px; font-size:17px; letter-spacing:-.01em; }
+    .card p { margin:0; color:var(--muted); font-size:14.5px; }
+    .courses { margin-top:16px; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:26px; box-shadow:var(--shadow); }
+    .courses-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:16px; }
+    .courses-head h2 { margin:0; font-size:19px; letter-spacing:-.01em; }
+    .courses-head .count { font-size:13px; color:var(--soft); font-weight:500; }
+    .course-list { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:8px; }
+    .course-list li a { display:flex; align-items:center; gap:10px; padding:13px 15px; border:1px solid var(--line); border-radius:11px;
+      text-decoration:none; color:var(--ink); font-weight:500; font-size:14.5px; background:#fcfdff; transition:all .15s ease; }
+    .course-list li a:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+    footer { margin-top:56px; text-align:center; color:var(--soft); font-size:13px; }
+    @media (max-width:560px){ header.top{ flex-direction:column; align-items:flex-start; } .hero{ margin-top:44px; } }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
-      <div>
-        <div class="brand">
-          <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
-          <span>__TENANT_BRAND_NAME__ Academy</span>
-        </div>
-        <div class="brand-note">Set your tenant logo in Branding Settings. This sample auto-uses it.</div>
+    <header class="top">
+      <div class="brand">
+        <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
+        <span>__TENANT_BRAND_NAME__</span>
       </div>
-      <div class="nav">
+      <nav class="nav">
         <a class="btn" href="/login/">Sign in</a>
-        <a class="btn btn-solid" href="/register/">Get started</a>
-      </div>
-    </div>
+        <a class="btn btn-primary" href="/register/">Get started</a>
+      </nav>
+    </header>
+
     <section class="hero">
+      <span class="eyebrow">__TENANT_BRAND_NAME__ Academy</span>
       <h1>Turn your expertise into a premium learning experience.</h1>
-      <p>Launch your academy, onboard students, and sell your programs under your own brand.</p>
+      <p class="lead">Launch your academy, onboard students, and sell your programs under your own brand &mdash; all from one professional platform.</p>
       <div class="cta-row">
-        <a class="btn btn-solid" href="/register/">Create account</a>
+        <a class="btn btn-primary" href="/register/">Create your account</a>
         <a class="btn" href="/courses/">Browse courses</a>
       </div>
-      <div class="grid">
-        <div class="card"><h3>Structured Programs</h3><p>Organize modules, lessons, and progress in one place.</p></div>
-        <div class="card"><h3>Student Payments</h3><p>Accept payments directly with your connected Stripe account.</p></div>
-        <div class="card"><h3>Branded Experience</h3><p>Use your own domain and customize copy, logo, and visuals.</p></div>
+    </section>
+
+    <section class="features">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="m2 16 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></div>
+        <h3>Structured Programs</h3>
+        <p>Organize modules, lessons, and student progress in one elegant place.</p>
       </div>
-      <div class="course-panel">
-        <h3>Current Courses</h3>
-        <p>Live from your tenant: __TENANT_COURSE_COUNT__ active courses.</p>
-        <ul class="course-list">
-          __TENANT_COURSES_LIST__
-        </ul>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+        <h3>Student Payments</h3>
+        <p>Accept payments directly through your own connected Stripe account.</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg></div>
+        <h3>Branded Experience</h3>
+        <p>Use your own domain and tailor the copy, logo, and visuals to your brand.</p>
       </div>
     </section>
+
+    <section class="courses">
+      <div class="courses-head">
+        <h2>Current Courses</h2>
+        <span class="count">__TENANT_COURSE_COUNT__ active courses</span>
+      </div>
+      <ul class="course-list">
+        __TENANT_COURSES_LIST__
+      </ul>
+    </section>
+
+    <footer>&copy; __TENANT_BRAND_NAME__ Academy. All rights reserved.</footer>
   </div>
 </body>
 </html>
@@ -486,37 +527,53 @@ SIGNUP_HTML_SAMPLE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Create your account</title>
+  <title>Create your account &middot; __TENANT_BRAND_NAME__</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    body { margin:0; font-family: Inter, Arial, sans-serif; background:#0b1028; color:#e8ecff; }
-    .wrap { max-width:560px; margin:40px auto; padding:24px; background:#101735; border:1px solid rgba(255,255,255,.09); border-radius:14px; }
-    .brand { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .brand-logo { width:36px; height:36px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,.15); background:#0a0f25; }
-    .brand-note { margin:0 0 14px; color:#8fa0d8; font-size:12px; }
-    h1 { margin:0 0 8px; font-size:28px; }
-    p { margin:0 0 18px; color:#a8b3d8; }
-    .field { margin-bottom:12px; }
-    label { display:block; margin-bottom:6px; font-size:13px; color:#b9c3e4; }
-    input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0a0f25; color:#fff; }
-    button { width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1px solid rgba(34,211,238,.5); background:rgba(34,211,238,.14); color:#22d3ee; font-weight:600; cursor:pointer; }
-    .links { margin-top:14px; display:flex; justify-content:space-between; gap:10px; }
-    .links a { color:#22d3ee; text-decoration:none; font-size:13px; }
+    :root { --bg:#f7f9fc; --surface:#ffffff; --ink:#0f172a; --muted:#475569; --soft:#64748b;
+      --line:#e7eaf3; --field:#f8fafc; --accent:#2563eb; --accent-dark:#1d4ed8;
+      --shadow:0 1px 2px rgba(15,23,42,.04), 0 24px 50px -24px rgba(15,23,42,.22); }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 18px;
+      font-family:'Inter',system-ui,-apple-system,Arial,sans-serif; color:var(--ink); line-height:1.6;
+      background:radial-gradient(900px 480px at 50% -10%, #e9f0ff 0%, transparent 60%), var(--bg); -webkit-font-smoothing:antialiased; }
+    .card { width:100%; max-width:460px; background:var(--surface); border:1px solid var(--line); border-radius:18px;
+      padding:34px 32px; box-shadow:var(--shadow); }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+    .brand-logo { width:42px; height:42px; border-radius:11px; object-fit:cover; border:1px solid var(--line); background:#fff; }
+    .brand strong { font-size:16px; font-weight:700; letter-spacing:-.01em; }
+    h1 { margin:0 0 6px; font-size:26px; letter-spacing:-.02em; font-weight:800; }
+    .sub { margin:0 0 24px; color:var(--muted); font-size:15px; }
+    .field { margin-bottom:14px; }
+    label { display:block; margin-bottom:7px; font-size:13px; font-weight:500; color:var(--ink); }
+    input { width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--line); background:var(--field);
+      color:var(--ink); font-size:15px; font-family:inherit; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+    input::placeholder { color:#94a3b8; }
+    input:focus { outline:none; border-color:var(--accent); background:#fff; box-shadow:0 0 0 4px rgba(37,99,235,.12); }
+    button { width:100%; margin-top:6px; padding:13px 16px; border-radius:11px; border:1px solid var(--accent);
+      background:var(--accent); color:#fff; font-weight:600; font-size:15px; font-family:inherit; cursor:pointer;
+      box-shadow:0 10px 22px -10px rgba(37,99,235,.65); transition:background .15s ease, transform .15s ease; }
+    button:hover { background:var(--accent-dark); transform:translateY(-1px); }
+    .links { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:12px; }
+    .links a { color:var(--accent); text-decoration:none; font-size:13.5px; font-weight:500; }
+    .links a:hover { text-decoration:underline; }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="card">
     <div class="brand">
       <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
       <strong>__TENANT_BRAND_NAME__ Academy</strong>
     </div>
-    <p class="brand-note">Set your tenant logo in Branding Settings. This sample auto-uses it.</p>
-    <h1>Create account</h1>
-    <p>Join and start learning right away.</p>
+    <h1>Create your account</h1>
+    <p class="sub">Join __TENANT_BRAND_NAME__ and start learning right away.</p>
     <form method="post" action="/register/">
-      <div class="field"><label>Username</label><input name="username" required /></div>
-      <div class="field"><label>Email</label><input type="email" name="email" /></div>
-      <div class="field"><label>Password</label><input type="password" name="password" required /></div>
-      <div class="field"><label>Confirm Password</label><input type="password" name="confirm_password" required /></div>
+      <div class="field"><label>Username</label><input name="username" placeholder="yourname" required /></div>
+      <div class="field"><label>Email</label><input type="email" name="email" placeholder="you@example.com" /></div>
+      <div class="field"><label>Password</label><input type="password" name="password" placeholder="Create a password" required /></div>
+      <div class="field"><label>Confirm password</label><input type="password" name="confirm_password" placeholder="Re-enter your password" required /></div>
       <button type="submit">Create account</button>
     </form>
     <div class="links">
@@ -533,35 +590,51 @@ LOGIN_HTML_SAMPLE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign in</title>
+  <title>Sign in &middot; __TENANT_BRAND_NAME__</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    body { margin:0; font-family: Inter, Arial, sans-serif; background:#0b1028; color:#e8ecff; }
-    .wrap { max-width:520px; margin:48px auto; padding:24px; background:#101735; border:1px solid rgba(255,255,255,.09); border-radius:14px; }
-    .brand { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .brand-logo { width:36px; height:36px; border-radius:10px; object-fit:cover; border:1px solid rgba(255,255,255,.15); background:#0a0f25; }
-    .brand-note { margin:0 0 14px; color:#8fa0d8; font-size:12px; }
-    h1 { margin:0 0 8px; font-size:28px; }
-    p { margin:0 0 18px; color:#a8b3d8; }
-    .field { margin-bottom:12px; }
-    label { display:block; margin-bottom:6px; font-size:13px; color:#b9c3e4; }
-    input { width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:#0a0f25; color:#fff; }
-    button { width:100%; margin-top:8px; padding:10px 12px; border-radius:10px; border:1px solid rgba(34,211,238,.5); background:rgba(34,211,238,.14); color:#22d3ee; font-weight:600; cursor:pointer; }
-    .links { margin-top:14px; display:flex; justify-content:space-between; gap:10px; }
-    .links a { color:#22d3ee; text-decoration:none; font-size:13px; }
+    :root { --bg:#f7f9fc; --surface:#ffffff; --ink:#0f172a; --muted:#475569; --soft:#64748b;
+      --line:#e7eaf3; --field:#f8fafc; --accent:#2563eb; --accent-dark:#1d4ed8;
+      --shadow:0 1px 2px rgba(15,23,42,.04), 0 24px 50px -24px rgba(15,23,42,.22); }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 18px;
+      font-family:'Inter',system-ui,-apple-system,Arial,sans-serif; color:var(--ink); line-height:1.6;
+      background:radial-gradient(900px 480px at 50% -10%, #e9f0ff 0%, transparent 60%), var(--bg); -webkit-font-smoothing:antialiased; }
+    .card { width:100%; max-width:440px; background:var(--surface); border:1px solid var(--line); border-radius:18px;
+      padding:34px 32px; box-shadow:var(--shadow); }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
+    .brand-logo { width:42px; height:42px; border-radius:11px; object-fit:cover; border:1px solid var(--line); background:#fff; }
+    .brand strong { font-size:16px; font-weight:700; letter-spacing:-.01em; }
+    h1 { margin:0 0 6px; font-size:26px; letter-spacing:-.02em; font-weight:800; }
+    .sub { margin:0 0 24px; color:var(--muted); font-size:15px; }
+    .field { margin-bottom:14px; }
+    label { display:block; margin-bottom:7px; font-size:13px; font-weight:500; color:var(--ink); }
+    input { width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--line); background:var(--field);
+      color:var(--ink); font-size:15px; font-family:inherit; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+    input::placeholder { color:#94a3b8; }
+    input:focus { outline:none; border-color:var(--accent); background:#fff; box-shadow:0 0 0 4px rgba(37,99,235,.12); }
+    button { width:100%; margin-top:6px; padding:13px 16px; border-radius:11px; border:1px solid var(--accent);
+      background:var(--accent); color:#fff; font-weight:600; font-size:15px; font-family:inherit; cursor:pointer;
+      box-shadow:0 10px 22px -10px rgba(37,99,235,.65); transition:background .15s ease, transform .15s ease; }
+    button:hover { background:var(--accent-dark); transform:translateY(-1px); }
+    .links { margin-top:20px; padding-top:18px; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:12px; }
+    .links a { color:var(--accent); text-decoration:none; font-size:13.5px; font-weight:500; }
+    .links a:hover { text-decoration:underline; }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="card">
     <div class="brand">
       <img class="brand-logo" src="__TENANT_LOGO_URL__" alt="__TENANT_BRAND_NAME__ Logo" />
       <strong>__TENANT_BRAND_NAME__ Academy</strong>
     </div>
-    <p class="brand-note">Set your tenant logo in Branding Settings. This sample auto-uses it.</p>
     <h1>Welcome back</h1>
-    <p>Sign in to continue.</p>
+    <p class="sub">Sign in to continue to __TENANT_BRAND_NAME__.</p>
     <form method="post" action="/login/">
-      <div class="field"><label>Username</label><input name="username" required /></div>
-      <div class="field"><label>Password</label><input type="password" name="password" required /></div>
+      <div class="field"><label>Username</label><input name="username" placeholder="yourname" required /></div>
+      <div class="field"><label>Password</label><input type="password" name="password" placeholder="Your password" required /></div>
       <button type="submit">Sign in</button>
     </form>
     <div class="links">
@@ -5534,9 +5607,9 @@ def dashboard_branding_settings(request):
 
     if request.method == 'POST':
         updated = dict(current_branding)
-        theme_mode = (request.POST.get('theme_mode') or current_branding.get('theme_mode') or 'dark').strip().lower()
+        theme_mode = (request.POST.get('theme_mode') or current_branding.get('theme_mode') or 'light').strip().lower()
         if theme_mode not in ('dark', 'light'):
-            theme_mode = 'dark'
+            theme_mode = 'light'
         accent_primary = (request.POST.get('accent_primary') or current_branding.get('accent_primary') or '#00f0ff').strip().lower()
         accent_secondary = (request.POST.get('accent_secondary') or current_branding.get('accent_secondary') or '#a855f7').strip().lower()
         if not _is_valid_hex_color(accent_primary):
@@ -5723,3 +5796,205 @@ def dashboard_branding_settings(request):
         'login_html_sample': LOGIN_HTML_SAMPLE,
         'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
     })
+
+
+# ========== EVENT MANAGEMENT (dashboard) ==========
+
+EVENT_STATUS_CHOICES = Event.STATUS_CHOICES
+
+
+def _resolve_dashboard_event(request, event_slug, tenant=None):
+    """Resolve an event for dashboard actions, tenant-scoped (superadmin-safe)."""
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        scoped = Event.objects.filter(slug=event_slug, tenant=tenant).select_related('tenant').first()
+        if scoped is not None:
+            return scoped
+        if not is_superadmin:
+            raise Http404("No Event matches the given query.")
+        # Superadmin recovery: unique slug across tenants → adopt that tenant.
+        matches = Event.objects.filter(slug=event_slug).select_related('tenant').order_by('-created_at', '-id')
+        if not matches.exists():
+            raise Http404("No Event matches the given query.")
+        if matches.count() == 1:
+            recovered = matches.first()
+            if recovered.tenant_id:
+                request.session['superadmin_tenant_id'] = recovered.tenant_id
+            return recovered
+        messages.error(request, 'This event slug exists in multiple tenants. Select the correct Tenant View and try again.')
+        raise Http404("No Event matches the given query.")
+    if not is_superadmin:
+        return None
+    return Event.objects.filter(slug=event_slug).select_related('tenant').order_by('-created_at', '-id').first()
+
+
+def _unique_event_slug(tenant, base_slug, exclude_pk=None):
+    """Ensure slug uniqueness within a tenant (matches uniq_event_tenant_slug)."""
+    base = (base_slug or 'event')[:200].rstrip('-') or 'event'
+    slug = base
+    counter = 2
+    while True:
+        qs = Event.objects.filter(tenant=tenant, slug=slug)
+        if exclude_pk is not None:
+            qs = qs.exclude(pk=exclude_pk)
+        if not qs.exists():
+            return slug
+        suffix = f"-{counter}"
+        slug = f"{base[:200 - len(suffix)].rstrip('-')}{suffix}"
+        counter += 1
+
+
+def _apply_event_form(event, request):
+    """Populate an Event instance from POST data (manual parse, like courses)."""
+    event.title = (request.POST.get('title') or event.title or '').strip()
+    event.short_description = (request.POST.get('short_description') or '').strip()
+    event.description = (request.POST.get('description') or '').strip()
+    event.host_name = (request.POST.get('host_name') or '').strip()
+    status = request.POST.get('status', event.status or 'draft')
+    event.status = status if status in dict(Event.STATUS_CHOICES) else 'draft'
+    event.join_link = (request.POST.get('join_link') or '').strip()
+    event.timezone = (request.POST.get('timezone') or 'UTC').strip() or 'UTC'
+
+    event.event_date = (request.POST.get('event_date') or '').strip() or None
+    event.start_time = (request.POST.get('start_time') or '').strip() or None
+
+    raw_duration = (request.POST.get('duration_minutes') or '').strip()
+    try:
+        event.duration_minutes = max(1, int(raw_duration or 60))
+    except (TypeError, ValueError):
+        event.duration_minutes = 60
+
+    raw_order = (request.POST.get('display_order') or '').strip()
+    try:
+        event.display_order = max(0, int(raw_order or 0))
+    except (TypeError, ValueError):
+        event.display_order = event.display_order or 0
+    return event
+
+
+@staff_member_required
+def dashboard_events(request):
+    """List all events for the active tenant."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    events_qs = Event.objects.all()
+    if tenant is not None:
+        events_qs = events_qs.filter(tenant=tenant)
+    elif not is_superadmin:
+        messages.error(request, 'Tenant context is required to view events.')
+        return redirect('dashboard_home')
+
+    events = list(
+        events_qs
+        .select_related('tenant')
+        .annotate(reg_count=Count('registrations'))
+        .order_by('event_date', 'start_time', 'display_order')
+    )
+    return render(request, 'dashboard/events.html', {
+        'events': events,
+        'is_superadmin': is_superadmin,
+        'cur': 'dashboard_events',
+    })
+
+
+@staff_member_required
+def dashboard_add_event(request):
+    """Create a new event. Super admins can pick which tenant it belongs to."""
+    is_superadmin = bool(request.user.is_superuser)
+    tenant = _get_dashboard_tenant(request)
+    # Tenant admins must already have a tenant context; super admins can choose
+    # one in the form, so they're allowed to land here without an active tenant.
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required to create events.')
+        return redirect('dashboard_home')
+
+    if request.method == 'POST':
+        target_tenant = tenant
+        if is_superadmin:
+            tid = (request.POST.get('tenant_id') or '').strip()
+            if tid:
+                target_tenant = Tenant.objects.filter(id=tid, is_archived=False).first()
+
+        event = Event(tenant=target_tenant)
+        _apply_event_form(event, request)
+
+        errors = []
+        if not event.title:
+            errors.append('Event title is required.')
+        if target_tenant is None:
+            errors.append('Select a tenant for this event.')
+        if errors:
+            for msg in errors:
+                messages.error(request, msg)
+            return render(request, 'dashboard/add_event.html', {
+                'event': event,
+                'status_choices': Event.STATUS_CHOICES,
+                'cur': 'dashboard_add_event',
+            })
+
+        event.slug = _unique_event_slug(target_tenant, generate_slug(event.title))
+        if request.FILES.get('thumbnail'):
+            event.thumbnail = request.FILES['thumbnail']
+        event.save()
+        messages.success(request, f'Event "{event.title}" created.')
+        return redirect('dashboard_event_detail', event_slug=event.slug)
+
+    return render(request, 'dashboard/add_event.html', {
+        'event': None,
+        'status_choices': Event.STATUS_CHOICES,
+        'cur': 'dashboard_add_event',
+    })
+
+
+@staff_member_required
+def dashboard_event_detail(request, event_slug):
+    """Edit an existing event (incl. join link, schedule, status)."""
+    tenant = _get_dashboard_tenant(request)
+    event = _resolve_dashboard_event(request, event_slug, tenant=tenant)
+    if event is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_events')
+
+    if request.method == 'POST':
+        _apply_event_form(event, request)
+        # Super admins may move an event to a different tenant; keep the slug
+        # unique within the new owner.
+        if request.user.is_superuser:
+            tid = (request.POST.get('tenant_id') or '').strip()
+            if tid:
+                new_tenant = Tenant.objects.filter(id=tid, is_archived=False).first()
+                if new_tenant and new_tenant.id != event.tenant_id:
+                    event.tenant = new_tenant
+                    event.slug = _unique_event_slug(
+                        new_tenant, event.slug or generate_slug(event.title), exclude_pk=event.pk
+                    )
+        if not event.title:
+            messages.error(request, 'Event title is required.')
+        else:
+            if request.FILES.get('thumbnail'):
+                event.thumbnail = request.FILES['thumbnail']
+            event.save()
+            messages.success(request, 'Event updated.')
+            return redirect('dashboard_event_detail', event_slug=event.slug)
+
+    return render(request, 'dashboard/event_detail.html', {
+        'event': event,
+        'status_choices': Event.STATUS_CHOICES,
+        'registration_count': event.registration_count(),
+        'cur': 'dashboard_event_detail',
+    })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_delete_event(request, event_slug):
+    """Delete an event (tenant-guarded)."""
+    tenant = _get_dashboard_tenant(request)
+    event = _resolve_dashboard_event(request, event_slug, tenant=tenant)
+    if event is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_events')
+    title = event.title
+    event.delete()
+    messages.success(request, f'Event "{title}" deleted.')
+    return redirect('dashboard_events')

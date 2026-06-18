@@ -39,6 +39,11 @@ urlpatterns = [
     path('courses/<slug:course_slug>/<slug:lesson_slug>/', views.lesson_detail, name='lesson_detail'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/quiz/', views.lesson_quiz_view, name='lesson_quiz'),
 
+    # Public Events (standalone live-events module)
+    path('events/', views.events, name='events'),
+    path('events/<slug:event_slug>/', views.event_detail, name='event_detail'),
+    path('events/<slug:event_slug>/register/', views.register_event, name='register_event'),
+
     # Student Dashboard (Client-facing)
     path('my-dashboard/', views.student_dashboard, name='student_dashboard'),
     path('my-dashboard/course/<slug:course_slug>/', views.student_course_progress, name='student_course_progress'),
@@ -62,6 +67,12 @@ urlpatterns = [
     path('dashboard/courses/<slug:course_slug>/delete/', dashboard_views.dashboard_delete_course, name='dashboard_delete_course'),
     path('dashboard/courses/<slug:course_slug>/lessons/', dashboard_views.dashboard_course_lessons, name='dashboard_course_lessons'),
     path('dashboard/courses/<slug:course_slug>/lessons/add-seed/', dashboard_views.dashboard_course_add_seed_lessons, name='dashboard_course_add_seed_lessons'),
+    # Event Management (dashboard)
+    path('dashboard/events/', dashboard_views.dashboard_events, name='dashboard_events'),
+    path('dashboard/events/add/', dashboard_views.dashboard_add_event, name='dashboard_add_event'),
+    path('dashboard/events/<slug:event_slug>/', dashboard_views.dashboard_event_detail, name='dashboard_event_detail'),
+    path('dashboard/events/<slug:event_slug>/delete/', dashboard_views.dashboard_delete_event, name='dashboard_delete_event'),
+
     path('dashboard/lessons/', dashboard_views.dashboard_lessons, name='dashboard_lessons'),
     path('dashboard/lessons/add/', dashboard_views.dashboard_add_lesson, name='dashboard_add_lesson'),
     path('dashboard/lessons/upload-quiz/', dashboard_views.dashboard_upload_quiz, name='dashboard_upload_quiz'),

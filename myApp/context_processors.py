@@ -35,14 +35,26 @@ def tenant_context(request):
         tenant = None
 
     if tenant is None and is_superadmin and not clear_tenant_requested:
-        selected_id = request.session.get('superadmin_tenant_id')
-        if selected_id:
-            selected = Tenant.objects.filter(id=selected_id).first()
+        # Honor an explicit pick from the "Tenant View" switcher (?tenant=slug)
+        # and persist it, so the selection sticks while navigating the console
+        # even on hosts where the middleware does not resolve ?tenant=.
+        tenant_query = (request.GET.get('tenant') or '').strip().lower()
+        if tenant_query and tenant_query != 'clear':
+            selected = Tenant.objects.filter(slug=tenant_query).first()
             if selected:
+                request.session['superadmin_tenant_id'] = selected.id
                 tenant = selected
                 dashboard_impersonating = True
-            else:
-                request.session.pop('superadmin_tenant_id', None)
+
+        if tenant is None:
+            selected_id = request.session.get('superadmin_tenant_id')
+            if selected_id:
+                selected = Tenant.objects.filter(id=selected_id).first()
+                if selected:
+                    tenant = selected
+                    dashboard_impersonating = True
+                else:
+                    request.session.pop('superadmin_tenant_id', None)
 
     if tenant is None and getattr(request, 'user', None) and request.user.is_authenticated and not is_superadmin:
         membership = (
@@ -84,7 +96,7 @@ def tenant_context(request):
         )
 
     tenant_branding = get_tenant_branding(tenant)
-    effective_theme_mode = tenant_branding.get('theme_mode', 'dark')
+    effective_theme_mode = tenant_branding.get('theme_mode', 'light')
     membership_theme = ''
     if tenant and getattr(request, 'user', None) and request.user.is_authenticated:
         membership = TenantMembership.objects.filter(

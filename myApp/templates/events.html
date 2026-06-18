@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Events{% endblock %}
+
+{% block content %}
+<style>
+  .ev-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .ev-head { margin-bottom: 2rem; }
+  .ev-eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand-accent-primary); background: color-mix(in srgb, var(--brand-accent-primary) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand-accent-primary) 30%, transparent); border-radius: 999px; padding: .3rem .75rem; margin-bottom: .9rem; }
+  .ev-title { font-size: 34px; font-weight: 800; color: var(--brand-text-primary); letter-spacing: -.02em; margin: 0 0 .4rem; }
+  .ev-sub { color: var(--brand-text-muted); font-size: 16px; margin: 0; }
+  .ev-search { margin: 1.5rem 0; }
+  .ev-search input { width: 100%; max-width: 420px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--brand-border); background: var(--brand-surface); color: var(--brand-text-primary); font-size: 14px; }
+  .ev-section-title { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brand-text-muted); margin: 2rem 0 1rem; }
+  .ev-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+  .ev-card { display: flex; flex-direction: column; background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface)); border: 1px solid var(--brand-border); border-radius: 14px; overflow: hidden; transition: border-color .15s, transform .15s; text-decoration: none; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+  .ev-card:hover { border-color: color-mix(in srgb, var(--brand-accent-primary) 45%, transparent); transform: translateY(-2px); }
+  .ev-card-thumb { height: 140px; background: linear-gradient(135deg, color-mix(in srgb, var(--brand-accent-primary) 18%, var(--brand-surface)), color-mix(in srgb, var(--brand-accent-secondary) 18%, var(--brand-surface))); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; }
+  .ev-card-thumb i { font-size: 34px; color: color-mix(in srgb, var(--brand-accent-primary) 65%, transparent); }
+  .ev-card-body { padding: 1.1rem 1.2rem 1.3rem; display: flex; flex-direction: column; gap: .55rem; flex: 1; }
+  .ev-card-title { font-size: 18px; font-weight: 700; color: var(--brand-text-primary); line-height: 1.3; margin: 0; }
+  .ev-card-desc { font-size: 14px; color: var(--brand-text-muted); line-height: 1.55; margin: 0; flex: 1; }
+  .ev-meta { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .35rem; }
+  .ev-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--brand-text-muted); background: color-mix(in srgb, var(--brand-text-primary) 6%, transparent); border: 1px solid var(--brand-border); border-radius: 99px; padding: 4px 10px; }
+  .ev-pill.past { color: var(--brand-text-muted); }
+  .ev-cta { margin-top: .6rem; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--brand-accent-primary); }
+  .ev-empty { text-align: center; color: var(--brand-text-muted); padding: 3rem 1rem; border: 1px dashed var(--brand-border); border-radius: 14px; }
+</style>
+
+<div class="ev-page">
+  <div class="ev-head">
+    <span class="ev-eyebrow">Live Events</span>
+    <h1 class="ev-title">Events</h1>
+    <p class="ev-sub">Register for upcoming live sessions. The join link unlocks once you register.</p>
+    <form class="ev-search" method="get" action="{% url 'events' %}">
+      <input type="text" name="search" value="{{ search_query }}" placeholder="Search events…">
+    </form>
+  </div>
+
+  {% if upcoming_events %}
+  <div class="ev-section-title">Upcoming</div>
+  <div class="ev-grid">
+    {% for event in upcoming_events %}
+    <a href="{% url 'event_detail' event_slug=event.slug %}" class="ev-card">
+      <div class="ev-card-thumb" {% if event.thumbnail %}style="background-image:url('{{ event.thumbnail.url }}')"{% endif %}>
+        {% if not event.thumbnail %}<i class="fas fa-calendar-day"></i>{% endif %}
+      </div>
+      <div class="ev-card-body">
+        <h3 class="ev-card-title">{{ event.title }}</h3>
+        {% if event.short_description %}<p class="ev-card-desc">{{ event.short_description }}</p>{% endif %}
+        <div class="ev-meta">
+          {% if event.event_date %}<span class="ev-pill"><i class="fas fa-calendar"></i> {{ event.event_date|date:"M j, Y" }}</span>{% endif %}
+          {% if event.start_time %}<span class="ev-pill"><i class="fas fa-clock"></i> {{ event.start_time|time:"g:i A" }} {{ event.timezone }}</span>{% endif %}
+          {% if event.host_name %}<span class="ev-pill"><i class="fas fa-user"></i> {{ event.host_name }}</span>{% endif %}
+        </div>
+        <span class="ev-cta">View &amp; Register <i class="fas fa-arrow-right"></i></span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if past_events %}
+  <div class="ev-section-title">Past Events</div>
+  <div class="ev-grid">
+    {% for event in past_events %}
+    <a href="{% url 'event_detail' event_slug=event.slug %}" class="ev-card" style="opacity:.75;">
+      <div class="ev-card-thumb" {% if event.thumbnail %}style="background-image:url('{{ event.thumbnail.url }}')"{% endif %}>
+        {% if not event.thumbnail %}<i class="fas fa-calendar-check"></i>{% endif %}
+      </div>
+      <div class="ev-card-body">
+        <h3 class="ev-card-title">{{ event.title }}</h3>
+        <div class="ev-meta">
+          {% if event.event_date %}<span class="ev-pill past"><i class="fas fa-calendar"></i> {{ event.event_date|date:"M j, Y" }}</span>{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not upcoming_events and not past_events %}
+  <div class="ev-empty">
+    <i class="fas fa-calendar-day" style="font-size:28px; margin-bottom:.6rem; display:block;"></i>
+    No events yet. Check back soon.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

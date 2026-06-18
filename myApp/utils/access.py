@@ -7,6 +7,23 @@ from django.db.models import Q
 from ..models import CourseAccess, Course
 
 
+def has_event_access(user, event):
+    """
+    Check if a user is registered for an event (free registration).
+    Mirrors has_course_access's 3-tuple contract so views/templates can use it
+    as the single source of truth for whether to expose the join link.
+    Returns (has_access: bool, registration: EventRegistration or None, reason: str)
+    """
+    if not user.is_authenticated:
+        return False, None, "Not authenticated"
+
+    from ..models import EventRegistration
+    registration = EventRegistration.objects.filter(user=user, event=event).first()
+    if registration:
+        return True, registration, "Registered"
+    return False, None, "Not registered"
+
+
 def has_course_access(user, course):
     """
     Check if user has active access to a course.

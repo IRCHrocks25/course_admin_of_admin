@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ event.title }}{% endblock %}
+
+{% block content %}
+<style>
+  .ed-page { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
+  .ed-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--brand-text-muted); text-decoration: none; margin-bottom: 1.25rem; }
+  .ed-back:hover { color: var(--brand-accent-primary); }
+  .ed-grid { display: grid; grid-template-columns: 1fr 360px; gap: 2.5rem; align-items: start; }
+  @media (max-width: 880px) { .ed-grid { grid-template-columns: 1fr; gap: 1.75rem; } }
+  .ed-eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand-accent-primary); background: color-mix(in srgb, var(--brand-accent-primary) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand-accent-primary) 30%, transparent); border-radius: 999px; padding: .3rem .75rem; margin-bottom: 1rem; }
+  .ed-title { font-size: 36px; line-height: 1.15; font-weight: 800; color: var(--brand-text-primary); margin: 0 0 .6rem; letter-spacing: -.02em; }
+  .ed-short { font-size: 17px; color: var(--brand-text-muted); line-height: 1.6; margin: 0 0 1.5rem; }
+  .ed-about { background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface)); border: 1px solid var(--brand-border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .ed-about-label { font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--brand-accent-primary); margin-bottom: .75rem; }
+  .ed-about-body { font-size: 16px; color: var(--brand-text-primary); line-height: 1.75; white-space: pre-line; }
+  .ed-card { background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface)); border: 1px solid var(--brand-border); border-radius: 14px; padding: 1.4rem; position: sticky; top: 1.25rem; box-shadow: 0 1px 3px rgba(15,23,42,.05); }
+  .ed-schedule { display: flex; flex-direction: column; gap: .75rem; margin-bottom: 1.25rem; }
+  .ed-row { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--brand-text-primary); }
+  .ed-row i { width: 18px; text-align: center; color: var(--brand-accent-primary); }
+  .ed-badge { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #15803d; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); border-radius: 8px; padding: 9px 12px; margin-bottom: 1rem; }
+  .ed-btn { display: block; width: 100%; text-align: center; padding: 12px 16px; border-radius: 10px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; text-decoration: none; transition: filter .15s; }
+  .ed-btn-primary { background: linear-gradient(135deg, #38bdf8, #6366f1); color: #fff; }
+  .ed-btn-primary:hover { filter: brightness(1.08); }
+  .ed-btn-join { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; }
+  .ed-note { font-size: 12px; color: var(--brand-text-muted); margin-top: .75rem; text-align: center; }
+  .ed-count { font-size: 13px; color: var(--brand-text-muted); margin-top: .9rem; text-align: center; }
+</style>
+
+<div class="ed-page">
+  <a href="{% url 'events' %}" class="ed-back"><i class="fas fa-arrow-left"></i> All events</a>
+
+  <div class="ed-grid">
+    <div>
+      <span class="ed-eyebrow"><i class="fas fa-broadcast-tower"></i> Live Event</span>
+      <h1 class="ed-title">{{ event.title }}</h1>
+      {% if event.short_description %}<p class="ed-short">{{ event.short_description }}</p>{% endif %}
+      {% if event.description %}
+      <div class="ed-about">
+        <div class="ed-about-label">About this event</div>
+        <div class="ed-about-body">{{ event.description }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <aside class="ed-card">
+      {% if is_registered %}
+      <div class="ed-badge"><i class="fas fa-check-circle"></i> You're registered</div>
+      {% endif %}
+
+      <div class="ed-schedule">
+        {% if event.event_date %}<div class="ed-row"><i class="fas fa-calendar"></i> {{ event.event_date|date:"l, M j, Y" }}</div>{% endif %}
+        {% if event.start_time %}<div class="ed-row"><i class="fas fa-clock"></i> {{ event.start_time|time:"g:i A" }} ({{ event.timezone }})</div>{% endif %}
+        <div class="ed-row"><i class="fas fa-hourglass-half"></i> {{ event.duration_minutes }} min</div>
+        {% if event.host_name %}<div class="ed-row"><i class="fas fa-user"></i> Hosted by {{ event.host_name }}</div>{% endif %}
+      </div>
+
+      {% if is_registered %}
+        {% comment %} Join link is ONLY rendered for registered users. {% endcomment %}
+        {% if join_link %}
+        <a href="{{ join_link }}" target="_blank" rel="noopener" class="ed-btn ed-btn-join"><i class="fas fa-video"></i> Join Event</a>
+        <p class="ed-note">Opens your meeting link in a new tab.</p>
+        {% else %}
+        <p class="ed-note">The host hasn't posted the join link yet — check back before the event starts.</p>
+        {% endif %}
+      {% elif user.is_authenticated %}
+        <form method="post" action="{% url 'register_event' event_slug=event.slug %}">
+          {% csrf_token %}
+          <button type="submit" class="ed-btn ed-btn-primary"><i class="fas fa-user-plus"></i> Register</button>
+        </form>
+        <p class="ed-note">Register to reveal the join link.</p>
+      {% else %}
+        <a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="ed-btn ed-btn-primary"><i class="fas fa-sign-in-alt"></i> Log in to register</a>
+        <p class="ed-note">You must be logged in and registered to access the join link.</p>
+      {% endif %}
+
+      <div class="ed-count"><i class="fas fa-users"></i> {{ registration_count }} registered</div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

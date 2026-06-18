@@ -1,0 +1,290 @@
+{% comment %}
+Shared event form fields, used by add_event.html and event_detail.html.
+`event` may be None (create) or an Event instance (edit). `status_choices`
+is Event.STATUS_CHOICES.
+
+Self-contained: includes its own <style> and a small enhancement script, so
+you can drop it in without touching the parent templates. If add_event.html /
+event_detail.html still define their own `.ef-*` rules, you can delete those.
+{% endcomment %}
+
+<style>
+  /* ---- Event form (ef) ---- theme-aware via --brand-* vars + per-theme accent.
+     Dark mode keeps the original navy look; light mode reads off white surfaces. */
+  .brand-theme-dark  { --ev-accent: #38bdf8; }
+  .brand-theme-light { --ev-accent: #2563eb; }
+
+  .ef-section {
+    background: color-mix(in srgb, var(--brand-text-primary) 3%, var(--brand-surface));
+    border: 1px solid var(--brand-border);
+    border-radius: 14px;
+    padding: 1.4rem 1.5rem .4rem;
+    margin-bottom: 1.25rem;
+  }
+  .ef-section-head {
+    display: flex; align-items: center; gap: .7rem;
+    margin-bottom: 1.25rem; padding-bottom: .9rem;
+    border-bottom: 1px solid var(--brand-border);
+  }
+  .ef-section-head i {
+    font-size: 13px; color: var(--ev-accent);
+    width: 30px; height: 30px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: color-mix(in srgb, var(--ev-accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ev-accent) 25%, transparent);
+  }
+  .ef-section-head h3 {
+    margin: 0; font-size: 12.5px; font-weight: 700;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--brand-text-primary);
+  }
+
+  .ef-group { margin-bottom: 1.25rem; }
+  .ef-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  @media (max-width: 640px) { .ef-row { grid-template-columns: 1fr; } }
+
+  .ef-label {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: 12.5px; font-weight: 600; color: var(--brand-text-primary);
+    margin-bottom: .55rem;
+  }
+  .ef-req {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: #dc2626;
+    background: rgba(220,38,38,.1);
+    border: 1px solid rgba(220,38,38,.28);
+    padding: .14rem .42rem; border-radius: 5px;
+  }
+  .brand-theme-dark .ef-req { color: #f87171; background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.28); }
+
+  .ef-input, .ef-textarea, .ef-select {
+    width: 100%; box-sizing: border-box;
+    background: color-mix(in srgb, var(--brand-text-primary) 3%, var(--brand-surface));
+    color: var(--brand-text-primary);
+    border: 1px solid var(--brand-border); border-radius: 10px;
+    padding: .72rem .85rem; font-size: 14px; font-family: inherit;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  .ef-input::placeholder, .ef-textarea::placeholder { color: var(--brand-text-muted); }
+  .ef-input:hover, .ef-textarea:hover, .ef-select:hover { border-color: color-mix(in srgb, var(--brand-text-primary) 24%, transparent); }
+  .ef-input:focus, .ef-textarea:focus, .ef-select:focus {
+    outline: none; border-color: var(--ev-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ev-accent) 18%, transparent);
+    background: var(--brand-surface);
+  }
+  .ef-textarea { resize: vertical; min-height: 120px; line-height: 1.55; }
+
+  .ef-select {
+    appearance: none; -webkit-appearance: none; cursor: pointer;
+    padding-right: 2.4rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right .9rem center;
+  }
+  /* Native date/time icons are dark by default — only invert them in dark mode. */
+  .ef-input[type="date"]::-webkit-calendar-picker-indicator,
+  .ef-input[type="time"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+  .brand-theme-dark .ef-input[type="date"]::-webkit-calendar-picker-indicator,
+  .brand-theme-dark .ef-input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(.7); }
+
+  /* leading-icon inputs */
+  .ef-input-icon { position: relative; }
+  .ef-input-icon > i {
+    position: absolute; left: .9rem; top: 50%; transform: translateY(-50%);
+    color: var(--brand-text-muted); font-size: 13px; pointer-events: none; transition: color .15s;
+  }
+  .ef-input-icon .ef-input { padding-left: 2.4rem; }
+  .ef-input-icon:focus-within > i { color: var(--ev-accent); }
+
+  /* suffix inputs (e.g. min) */
+  .ef-input-suffix { position: relative; }
+  .ef-input-suffix .ef-suffix {
+    position: absolute; right: .9rem; top: 50%; transform: translateY(-50%);
+    color: var(--brand-text-muted); font-size: 12px; font-weight: 600; pointer-events: none;
+  }
+  .ef-input-suffix .ef-input { padding-right: 3rem; }
+
+  .ef-hint { font-size: 11.5px; color: var(--brand-text-muted); margin-top: .45rem; line-height: 1.45; }
+  .ef-hint-lock { display: inline-flex; align-items: center; gap: .4rem; color: var(--brand-text-muted); }
+  .ef-hint-lock i { color: var(--ev-accent); font-size: 10px; }
+
+  /* thumbnail + file */
+  .ef-thumb-current {
+    width: 150px; aspect-ratio: 16 / 9; margin-bottom: .65rem;
+    border-radius: 10px; overflow: hidden; border: 1px solid var(--brand-border);
+    background: color-mix(in srgb, var(--brand-text-primary) 3%, var(--brand-surface));
+  }
+  .ef-thumb-current img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ef-file-input { display: none; }
+  .ef-file {
+    display: inline-flex; align-items: center; gap: .55rem;
+    font-size: 13px; font-weight: 600; color: var(--brand-text-primary); cursor: pointer;
+    background: color-mix(in srgb, var(--brand-text-primary) 3%, var(--brand-surface));
+    border: 1px dashed color-mix(in srgb, var(--brand-text-primary) 22%, transparent); border-radius: 10px;
+    padding: .65rem 1rem; transition: border-color .15s, color .15s;
+  }
+  .ef-file:hover { border-color: var(--ev-accent); color: var(--brand-text-primary); }
+  .ef-file i { color: var(--ev-accent); }
+  .ef-file-name { font-size: 11.5px; color: var(--brand-text-muted); margin-top: .45rem; }
+</style>
+
+{% if user.is_superuser %}
+{# ---------- Tenant (super admin only) ---------- #}
+<section class="ef-section">
+  <div class="ef-section-head">
+    <i class="fas fa-building"></i>
+    <h3>Tenant</h3>
+  </div>
+
+  <div class="ef-group">
+    <label class="ef-label" for="tenant_id">Owning tenant <span class="ef-req">Required</span></label>
+    <select class="ef-select" id="tenant_id" name="tenant_id" required>
+      <option value="">Select a tenant…</option>
+      {% for t in dashboard_available_tenants %}
+        {% if not t.is_archived %}
+        <option value="{{ t.id }}" {% if event %}{% if event.tenant_id == t.id %}selected{% endif %}{% elif tenant and tenant.id == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+    <div class="ef-hint">Which tenant this event belongs to. Only you (super admin) can see this.</div>
+  </div>
+</section>
+{% endif %}
+
+{# ---------- Basics ---------- #}
+<section class="ef-section">
+  <div class="ef-section-head">
+    <i class="fas fa-circle-info"></i>
+    <h3>Event basics</h3>
+  </div>
+
+  <div class="ef-group">
+    <label class="ef-label" for="title">Title <span class="ef-req">Required</span></label>
+    <input class="ef-input" type="text" id="title" name="title" value="{{ event.title|default:'' }}" required maxlength="200" placeholder="e.g. Commercial Deal Q&amp;A — Live with Bobby">
+  </div>
+
+  <div class="ef-group">
+    <label class="ef-label" for="short_description">Short description</label>
+    <input class="ef-input" type="text" id="short_description" name="short_description" value="{{ event.short_description|default:'' }}" maxlength="1000" placeholder="One line shown on event cards">
+    <div class="ef-hint">Appears under the title on the events catalog.</div>
+  </div>
+
+  <div class="ef-group">
+    <label class="ef-label" for="description">Description</label>
+    <textarea class="ef-textarea" id="description" name="description" rows="5" placeholder="What is this event about, and what will attendees take away?">{{ event.description|default:'' }}</textarea>
+  </div>
+
+  <div class="ef-row">
+    <div class="ef-group">
+      <label class="ef-label" for="host_name">Host</label>
+      <div class="ef-input-icon">
+        <i class="fas fa-user"></i>
+        <input class="ef-input" type="text" id="host_name" name="host_name" value="{{ event.host_name|default:'' }}" maxlength="100" placeholder="e.g. Jane Doe">
+      </div>
+    </div>
+    <div class="ef-group">
+      <label class="ef-label" for="status">Status</label>
+      <select class="ef-select" id="status" name="status">
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if event.status == value %}selected{% elif not event and value == 'draft' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+</section>
+
+{# ---------- Schedule ---------- #}
+<section class="ef-section">
+  <div class="ef-section-head">
+    <i class="fas fa-calendar-day"></i>
+    <h3>Schedule</h3>
+  </div>
+
+  <div class="ef-row">
+    <div class="ef-group">
+      <label class="ef-label" for="event_date">Date</label>
+      <input class="ef-input" type="date" id="event_date" name="event_date" value="{{ event.event_date|date:'Y-m-d' }}">
+    </div>
+    <div class="ef-group">
+      <label class="ef-label" for="start_time">Start time</label>
+      <input class="ef-input" type="time" id="start_time" name="start_time" value="{{ event.start_time|time:'H:i' }}">
+    </div>
+  </div>
+
+  <div class="ef-row">
+    <div class="ef-group">
+      <label class="ef-label" for="timezone">Timezone</label>
+      <input class="ef-input" type="text" id="timezone" name="timezone" value="{{ event.timezone|default:'UTC' }}" placeholder="e.g. America/New_York">
+      <div class="ef-hint">IANA name, e.g. America/New_York or Europe/London.</div>
+    </div>
+    <div class="ef-group">
+      <label class="ef-label" for="duration_minutes">Duration</label>
+      <div class="ef-input-suffix">
+        <input class="ef-input" type="number" min="1" id="duration_minutes" name="duration_minutes" value="{{ event.duration_minutes|default:60 }}">
+        <span class="ef-suffix">min</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ---------- Access ---------- #}
+<section class="ef-section">
+  <div class="ef-section-head">
+    <i class="fas fa-link"></i>
+    <h3>Access</h3>
+  </div>
+
+  <div class="ef-group">
+    <label class="ef-label" for="join_link">Join link</label>
+    <div class="ef-input-icon">
+      <i class="fas fa-video"></i>
+      <input class="ef-input" type="url" id="join_link" name="join_link" value="{{ event.join_link|default:'' }}" placeholder="https://zoom.us/j/… or Google Meet link">
+    </div>
+    <div class="ef-hint ef-hint-lock"><i class="fas fa-lock"></i> Only registered users can see this link.</div>
+  </div>
+</section>
+
+{# ---------- Display ---------- #}
+<section class="ef-section">
+  <div class="ef-section-head">
+    <i class="fas fa-image"></i>
+    <h3>Display</h3>
+  </div>
+
+  <div class="ef-row">
+    <div class="ef-group">
+      <label class="ef-label" for="display_order">Display order</label>
+      <input class="ef-input" type="number" min="0" id="display_order" name="display_order" value="{{ event.display_order|default:0 }}">
+      <div class="ef-hint">Lower numbers appear first in the catalog.</div>
+    </div>
+    <div class="ef-group">
+      <label class="ef-label" for="thumbnail">Thumbnail</label>
+      <div class="ef-thumb-current" id="ef-thumb-preview" {% if not event.thumbnail %}style="display:none;"{% endif %}>
+        <img id="ef-thumb-img" src="{% if event.thumbnail %}{{ event.thumbnail.url }}{% endif %}" alt="Event thumbnail">
+      </div>
+      <label class="ef-file" for="thumbnail">
+        <i class="fas fa-upload"></i>
+        <span>{% if event.thumbnail %}Replace image{% else %}Upload image{% endif %}</span>
+      </label>
+      <input class="ef-file-input" type="file" id="thumbnail" name="thumbnail" accept="image/*">
+      <div class="ef-file-name" id="ef-file-name"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var input = document.getElementById('thumbnail');
+    if (!input || input.dataset.efBound) return;
+    input.dataset.efBound = '1';
+    var box = document.getElementById('ef-thumb-preview');
+    var img = document.getElementById('ef-thumb-img');
+    var name = document.getElementById('ef-file-name');
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      if (name) name.textContent = file.name;
+      var url = URL.createObjectURL(file);
+      if (img) img.src = url;
+      if (box) box.style.display = 'block';
+    });
+  })();
+</script>

@@ -78,7 +78,7 @@ def build_default_branding(tenant, profile=None):
     return {
         'brand_name': name,
         'brand_short_name': short_name,
-        'theme_mode': 'dark',
+        'theme_mode': 'light',
         'accent_primary': '#00f0ff',
         'accent_secondary': '#a855f7',
         'logo_url': '',
@@ -116,7 +116,7 @@ def get_tenant_branding(tenant):
         return _with_derived_accent_colors({
             'brand_name': 'CourseForge',
             'brand_short_name': 'CourseForge',
-            'theme_mode': 'dark',
+            'theme_mode': 'light',
             'accent_primary': '#00f0ff',
             'accent_secondary': '#a855f7',
             'logo_url': '',
@@ -141,6 +141,10 @@ def get_tenant_branding(tenant):
     merged = {**defaults, **branding}
     merged['accent_primary'] = _normalize_hex_color(merged.get('accent_primary'), defaults['accent_primary'])
     merged['accent_secondary'] = _normalize_hex_color(merged.get('accent_secondary'), defaults['accent_secondary'])
+    # True only when this tenant has deliberately set its own brand accents.
+    # Lets templates fall back to the per-theme default accent (neutral in
+    # light mode) instead of forcing the built-in neon for un-branded tenants.
+    merged['accent_is_custom'] = bool(branding.get('accent_primary') or branding.get('accent_secondary'))
     if not merged.get('logo_url') and getattr(tenant, 'logo', None):
         try:
             merged['logo_url'] = tenant.logo.url

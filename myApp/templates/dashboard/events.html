@@ -1,0 +1,79 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Manage Events{% endblock %}
+{% block page_title %}Manage Events{% endblock %}
+
+{% block content %}
+<style>
+  .brand-theme-dark { --ev-accent: #38bdf8; }
+  .brand-theme-light { --ev-accent: #2563eb; }
+  .ev-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .ev-toolbar p { color: var(--brand-text-muted); }
+  .ev-add-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #2563eb, #6366f1); color: #fff; text-decoration: none; }
+  .ev-add-btn:hover { filter: brightness(1.08); }
+  .ev-table { width: 100%; border-collapse: collapse; background: color-mix(in srgb, var(--brand-text-primary) 3%, var(--brand-surface)); border: 1px solid var(--brand-border); border-radius: 12px; overflow: hidden; }
+  .ev-table th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-text-muted); padding: 12px 16px; border-bottom: 1px solid var(--brand-border); }
+  .ev-table td { padding: 14px 16px; font-size: 14px; color: var(--brand-text-primary); border-bottom: 1px solid var(--brand-border); vertical-align: middle; }
+  .ev-table tr:last-child td { border-bottom: none; }
+  .ev-name { font-weight: 600; color: var(--brand-text-primary); text-decoration: none; }
+  .ev-name:hover { color: var(--ev-accent); }
+  .ev-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
+  .ev-status.published { color: #15803d; background: rgba(22,163,74,.12); border: 1px solid rgba(22,163,74,.3); }
+  .brand-theme-dark .ev-status.published { color: #4ade80; }
+  .ev-status.draft { color: #b45309; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); }
+  .brand-theme-dark .ev-status.draft { color: #fbbf24; }
+  .ev-actions { display: flex; gap: 8px; }
+  .ev-act { font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 7px; border: 0.5px solid; text-decoration: none; background: transparent; cursor: pointer; }
+  .ev-act.edit { color: var(--ev-accent); border-color: color-mix(in srgb, var(--ev-accent) 35%, transparent); }
+  .ev-act.del { color: #dc2626; border-color: rgba(220,38,38,.3); }
+  .brand-theme-dark .ev-act.del { color: #f87171; }
+  .ev-empty { text-align: center; color: var(--brand-text-muted); padding: 3rem 1rem; }
+</style>
+
+<div class="ev-toolbar">
+  <p style="color:#94a3b8; font-size:14px; margin:0;">{{ events|length }} event{{ events|length|pluralize }}</p>
+  <a href="{% url 'dashboard_add_event' %}" class="ev-add-btn"><i class="fas fa-plus"></i> New Event</a>
+</div>
+
+{% if events %}
+<table class="ev-table">
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Schedule</th>
+      <th>Status</th>
+      <th>Registered</th>
+      {% if is_superadmin %}<th>Tenant</th>{% endif %}
+      <th style="text-align:right;">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for event in events %}
+    <tr>
+      <td><a href="{% url 'dashboard_event_detail' event_slug=event.slug %}" class="ev-name">{{ event.title }}</a></td>
+      <td>
+        {% if event.event_date %}{{ event.event_date|date:"M j, Y" }}{% if event.start_time %} · {{ event.start_time|time:"g:i A" }}{% endif %}<br><span style="color:#64748b; font-size:12px;">{{ event.timezone }} · {{ event.duration_minutes }} min</span>{% else %}<span style="color:#64748b;">Not scheduled</span>{% endif %}
+      </td>
+      <td><span class="ev-status {{ event.status }}">{{ event.get_status_display }}</span></td>
+      <td>{{ event.reg_count }}</td>
+      {% if is_superadmin %}<td style="color:#94a3b8;">{{ event.tenant.name|default:"—" }}</td>{% endif %}
+      <td>
+        <div class="ev-actions" style="justify-content:flex-end;">
+          <a href="{% url 'dashboard_event_detail' event_slug=event.slug %}" class="ev-act edit"><i class="fas fa-pen"></i> Edit</a>
+          <form method="post" action="{% url 'dashboard_delete_event' event_slug=event.slug %}" onsubmit="return confirm('Delete &quot;{{ event.title|escapejs }}&quot;? This cannot be undone.');" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="ev-act del"><i class="fas fa-trash"></i> Delete</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="ev-empty">
+  <i class="fas fa-calendar-day" style="font-size:30px; margin-bottom:.7rem; display:block;"></i>
+  No events yet. Create your first live event.
+</div>
+{% endif %}
+{% endblock %}
