@@ -760,11 +760,11 @@
         <span class="pb-pct">{{ overall_progress }}%</span>
     </div>
 
-    <!-- My Courses -->
+    <!-- My Courses / Categories (heading matches the active view) -->
     <div class="reveal" style="transition-delay:.3s">
         <div class="section-hd">
             <div style="display:flex;align-items:baseline;gap:6px;">
-                <h2 class="section-title">My Courses</h2>
+                <h2 class="section-title">{% if show_category_cards %}Categories{% else %}My Courses{% endif %}</h2>
                 {% if show_category_cards %}
                 <span class="section-count">{{ category_cards|length }} categor{{ category_cards|length|pluralize:"y,ies" }}</span>
                 {% elif my_courses %}
