@@ -2454,16 +2454,13 @@ def creator_dashboard(request):
 
 @staff_member_required
 def course_lessons(request, course_slug):
-    """View all lessons for a course"""
-    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
-    lessons = course.lessons.all()
-    modules = course.modules.all()
-
-    return render(request, 'creator/course_lessons.html', {
-        'course': course,
-        'lessons': lessons,
-        'modules': modules,
-    })
+    """Deprecated creator lessons page — redirect to the cleaner dashboard
+    lessons view (dashboard_course_lessons)."""
+    response = redirect('dashboard_course_lessons', course_slug=course_slug)
+    query_string = request.META.get('QUERY_STRING')
+    if query_string:
+        response['Location'] += f'?{query_string}'
+    return response
 
 
 @staff_member_required

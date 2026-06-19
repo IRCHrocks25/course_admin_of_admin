@@ -59,21 +59,21 @@
         /* Accent fills — only the translucent tints (bg-cyan-electric/NN) become
            a light blue wash. Solid `bg-cyan-electric` (primary CTA buttons) keeps
            its brand color so buttons stay solid in light mode. */
-        .brand-theme-light [class*="bg-cyan-electric/"] { background-color: rgba(37, 99, 235, 0.10) !important; }
-        .brand-theme-light .text-cyan-electric { color: #2563eb !important; }
+        .brand-theme-light [class*="bg-cyan-electric/"] { background-color: rgba(30, 58, 138, 0.10) !important; }
+        .brand-theme-light .text-cyan-electric { color: #1e3a8a !important; }
         .brand-theme-light .hover\:bg-cyan-electric\/10:hover { background-color: rgba(59, 130, 246, 0.08) !important; }
         /* Solid neon accents → neutral blue/violet so buttons, badges and the
            cyan→purple gradients don't glare on the default light UI. */
-        .brand-theme-light .bg-cyan-electric { background-color: #2563eb !important; }
+        .brand-theme-light .bg-cyan-electric { background-color: #1e3a8a !important; }
         .brand-theme-light .text-purple-accent { color: #7c3aed !important; }
         .brand-theme-light [class*="bg-purple-accent/"] { background-color: rgba(124, 58, 237, 0.10) !important; }
         .brand-theme-light .bg-purple-accent { background-color: #7c3aed !important; }
         .brand-theme-light .from-cyan-electric {
-            --tw-gradient-from: #2563eb var(--tw-gradient-from-position) !important;
-            --tw-gradient-to: rgba(37, 99, 235, 0) var(--tw-gradient-to-position) !important;
+            --tw-gradient-from: #1e3a8a var(--tw-gradient-from-position) !important;
+            --tw-gradient-to: rgba(30, 58, 138, 0) var(--tw-gradient-to-position) !important;
             --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
         }
-        .brand-theme-light .to-cyan-electric { --tw-gradient-to: #2563eb var(--tw-gradient-to-position) !important; }
+        .brand-theme-light .to-cyan-electric { --tw-gradient-to: #1e3a8a var(--tw-gradient-to-position) !important; }
         .brand-theme-light .from-purple-accent {
             --tw-gradient-from: #7c3aed var(--tw-gradient-from-position) !important;
             --tw-gradient-to: rgba(124, 58, 237, 0) var(--tw-gradient-to-position) !important;
@@ -86,7 +86,7 @@
            as glaring "neon" on white. Remap each to an accessible same-hue
            shade (~700) so colors stay meaningful but easy on the eyes.
            Substring selectors also catch /opacity variants (e.g. /70). */
-        .brand-theme-light [class*="text-cyan-electric"] { color: #2563eb !important; }
+        .brand-theme-light [class*="text-cyan-electric"] { color: #1e3a8a !important; }
         .brand-theme-light [class*="text-purple-accent"] { color: #7c3aed !important; }
         .brand-theme-light [class*="text-red-2"],
         .brand-theme-light [class*="text-red-3"],
@@ -197,9 +197,9 @@
         .brand-theme-light .nav-item .nav-icon { color: rgb(100 116 139); }
         .brand-theme-light .nav-item:hover { background-color: rgba(15, 23, 42, 0.06); color: #0f172a; }
         .brand-theme-light .nav-item.is-active {
-            background-color: rgba(37, 99, 235, 0.1);
-            color: #2563eb;
-            box-shadow: inset 2px 0 0 #2563eb;
+            background-color: rgba(30, 58, 138, 0.1);
+            color: #1e3a8a;
+            box-shadow: inset 2px 0 0 #1e3a8a;
         }
         /* Collapsible group (shadcn-style with indent rail) */
         .nav-group { margin: 0; }

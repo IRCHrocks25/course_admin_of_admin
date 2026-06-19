@@ -50,7 +50,7 @@
             /* Neutral, low-glare accents (vs. the dark theme's neon) so the
                default light UI is easy on the eyes. Tenants with their own
                brand colors still override these via the inline body style. */
-            --brand-accent-primary: #2563eb;
+            --brand-accent-primary: #1e3a8a;
             --brand-accent-secondary: #7c3aed;
             --brand-accent-on-primary: #ffffff;
             --brand-accent-on-secondary: #ffffff;
@@ -183,6 +183,24 @@
         .brand-theme-light [class*="border-cyan-electric"],
         .brand-theme-light [class*="border-white/"] { border-color: rgba(15, 23, 42, 0.12) !important; }
         .brand-theme-light [class*="shadow-cyan-electric"] { box-shadow: none !important; }
+        /* Force cyan-electric / purple-accent to navy/violet in light mode for
+           every utility variant (incl. file: pseudo + gradient stops). */
+        .brand-theme-light [class*="text-cyan-electric"] { color: #1e3a8a !important; }
+        .brand-theme-light [class*="text-purple-accent"] { color: #7c3aed !important; }
+        .brand-theme-light [class*="bg-cyan-electric/"] { background-color: rgba(30, 58, 138, 0.10) !important; }
+        .brand-theme-light .bg-cyan-electric { background-color: #1e3a8a !important; }
+        .brand-theme-light [class*="bg-purple-accent/"] { background-color: rgba(124, 58, 237, 0.10) !important; }
+        .brand-theme-light .bg-purple-accent { background-color: #7c3aed !important; }
+        .brand-theme-light [class*="ring-cyan-electric"] { --tw-ring-color: rgba(30, 58, 138, 0.45) !important; }
+        .brand-theme-light [class*="from-cyan-electric"] { --tw-gradient-from: #1e3a8a var(--tw-gradient-from-position) !important; --tw-gradient-to: rgba(30, 58, 138, 0) var(--tw-gradient-to-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+        .brand-theme-light [class*="via-cyan-electric"] { --tw-gradient-stops: var(--tw-gradient-from), #1e3a8a var(--tw-gradient-via-position), var(--tw-gradient-to) !important; }
+        .brand-theme-light [class*="to-cyan-electric"] { --tw-gradient-to: #1e3a8a var(--tw-gradient-to-position) !important; }
+        .brand-theme-light input[type="file"]::file-selector-button,
+        .brand-theme-light input[type="file"]::-webkit-file-upload-button {
+            background-color: rgba(30, 58, 138, 0.12) !important;
+            color: #1e3a8a !important;
+            border-color: rgba(30, 58, 138, 0.30) !important;
+        }
         /* Neutral tracks (e.g. progress bar backgrounds) → light gray */
         .brand-theme-light .bg-gray-700,
         .brand-theme-light .bg-gray-500 { background-color: #e2e8f0 !important; }

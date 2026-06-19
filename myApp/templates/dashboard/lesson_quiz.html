@@ -39,9 +39,12 @@
                     <label class="block text-sm font-semibold mb-1 text-gray-300">Passing Score (%)</label>
                     <input type="number" name="passing_score" value="{{ quiz.passing_score }}" min="0" max="100" class="w-24 bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
                 </div>
-                <label class="inline-flex items-center gap-2 mt-6">
-                    <input type="checkbox" name="is_required" {% if quiz.is_required %}checked{% endif %} class="text-cyan-electric">
-                    <span class="text-sm text-gray-300">Show as recommended after lesson</span>
+                <label class="inline-flex items-start gap-2 mt-6">
+                    <input type="checkbox" name="is_required" {% if quiz.is_required %}checked{% endif %} class="text-cyan-electric mt-1">
+                    <span class="text-sm text-gray-300">
+                        Required to complete the lesson
+                        <span class="block text-xs text-gray-500">Leave unchecked to make this quiz optional — students can finish the lesson without passing it.</span>
+                    </span>
                 </label>
             </div>
             <button type="submit" class="px-5 py-2 bg-cyan-electric text-[#0a0e27] rounded-lg text-sm font-semibold hover:bg-cyan-electric/90 transition-all">
