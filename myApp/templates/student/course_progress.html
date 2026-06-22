@@ -4,59 +4,374 @@
 {% block title %}{{ course.name }} - Progress{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
+<style>
+    :root {
+        --green:  #22c55e;
+        --yellow: #eab308;
+        --card:   rgba(255,255,255,0.035);
+        --card-inner: rgba(255,255,255,0.04);
+        --border: rgba(255,255,255,0.08);
+        --border-subtle: rgba(255,255,255,0.06);
+        --text:   #f1f5f9;
+        --muted:  rgba(255,255,255,0.45);
+        --track:  rgba(255,255,255,0.08);
+        --shadow: none;
+        --lesson-bg: var(--card-inner);
+        --lesson-bg-hover: color-mix(in srgb, var(--cp-accent) 8%, var(--card-inner));
+    }
+
+    /* Inherit tenant accent from base.html body vars */
+    .cp-page {
+        --cp-accent: var(--brand-accent-primary, #4d8fff);
+        --cp-accent-2: var(--brand-accent-secondary, #7B3FE4);
+        --accent: var(--cp-accent);
+        --blue: var(--cp-accent);
+        --blue2: var(--cp-accent);
+        --purple: var(--cp-accent-2);
+        font-family: 'DM Sans', 'Inter', sans-serif;
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 0 3rem;
+    }
+
+    .brand-theme-light .cp-page {
+        --lesson-bg-hover: color-mix(in srgb, var(--cp-accent) 10%, #f7f9fc);
+    }
+
+    .brand-theme-light {
+        /* Surfaces */
+        --card:        #ffffff;
+        --card-inner:  #f7f9fc;
+        --border:        rgba(15,23,42,0.09);
+        --border-subtle: rgba(15,23,42,0.06);
+        /* Text */
+        --text:   #0f172a;
+        --muted:  #64748b;
+        --track:  #e6ebf4;
+        /* Layered soft shadow for depth on the light page */
+        --shadow: 0 1px 2px rgba(15,23,42,0.05), 0 8px 24px -12px rgba(15,23,42,0.12);
+        /* Lesson rows: defined, never muddy */
+        --lesson-bg: #f7f9fc;
+    }
+
+    /* ── Header ── */
+    .cp-back {
+        display: inline-flex; align-items: center; gap: 7px;
+        font-size: 13px; font-weight: 600; color: var(--accent);
+        text-decoration: none; margin-bottom: 1.25rem;
+        transition: gap .2s, color .2s;
+    }
+    .cp-back:hover { gap: 10px; color: var(--text); }
+    .cp-back i { font-size: 11px; }
+
+    .cp-header { margin-bottom: 2rem; padding-bottom: 1.75rem; border-bottom: 1px solid var(--border); }
+    .cp-eyebrow {
+        font-size: 11px; font-weight: 700; letter-spacing: 2px;
+        text-transform: uppercase; color: var(--accent); margin-bottom: 8px;
+    }
+    .cp-title {
+        font-size: clamp(26px, 3vw, 36px);
+        font-weight: 800; letter-spacing: -0.5px; line-height: 1.15;
+        color: var(--text); margin-bottom: 8px;
+    }
+    .cp-subtitle { font-size: 15px; color: var(--muted); line-height: 1.6; max-width: 640px; }
+
+    /* ── Cards ── */
+    .cp-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+    }
+    .cp-card + .cp-card,
+    .cp-section + .cp-section { margin-top: 1.25rem; }
+
+    .cp-card-title {
+        font-size: 1.05rem; font-weight: 700; color: var(--text);
+        display: flex; align-items: center; gap: 10px; margin-bottom: 1rem;
+    }
+    .cp-card-title i { color: var(--accent); font-size: 15px; }
+    .cp-card-desc { font-size: 13px; color: var(--muted); margin-bottom: 1rem; }
+
+    /* ── Progress overview ── */
+    .cp-progress-hd {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 14px; gap: 12px;
+    }
+    .cp-progress-label { font-size: 15px; font-weight: 600; color: var(--text); }
+    .cp-progress-pct {
+        font-size: 28px; font-weight: 800; letter-spacing: -1px;
+        color: var(--accent); line-height: 1;
+    }
+    .cp-progress-track {
+        position: relative;
+        width: 100%; height: 10px; border-radius: 99px;
+        background: var(--track); overflow: hidden; margin-bottom: 16px;
+    }
+    .brand-theme-light .cp-progress-track {
+        box-shadow: inset 0 1px 2px rgba(15,23,42,0.08);
+    }
+    .cp-progress-fill {
+        height: 100%; border-radius: 99px;
+        min-width: 8px;
+        background: linear-gradient(90deg, var(--blue), var(--purple));
+        transition: width .6s cubic-bezier(.4,0,.2,1);
+    }
+    .brand-theme-light .cp-progress-fill {
+        box-shadow: 0 1px 4px rgba(26,107,255,0.45);
+    }
+    .cp-meta-row {
+        display: flex; flex-wrap: wrap; gap: 1.25rem;
+        font-size: 13px; color: var(--muted);
+    }
+    .cp-meta-item { display: flex; align-items: center; gap: 8px; }
+    .cp-meta-item i.fa-check-circle { color: #4ade80; }
+    .brand-theme-light .cp-meta-item i.fa-check-circle { color: #16a34a; }
+    .cp-meta-item i.fa-calendar { color: var(--accent); }
+
+    /* ── Resources grid ── */
+    .cp-resources-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 10px;
+    }
+    .cp-resource {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px; border-radius: 12px;
+        background: var(--card-inner);
+        border: 1px solid var(--border-subtle);
+        text-decoration: none; color: inherit;
+        transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
+    }
+    .cp-resource:hover {
+        border-color: color-mix(in srgb, var(--blue) 35%, transparent);
+        background: var(--lesson-bg-hover);
+        transform: translateY(-1px);
+    }
+    .brand-theme-light .cp-resource:hover { box-shadow: 0 6px 16px -8px rgba(26,107,255,0.35); }
+    .cp-resource-icon {
+        width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: color-mix(in srgb, var(--blue) 14%, transparent);
+        color: var(--accent); font-size: 15px;
+    }
+    .cp-resource-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .cp-resource-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .cp-resource-cta { font-size: 11px; font-weight: 600; color: var(--accent); margin-top: 4px; }
+
+    /* ── Two-column exam / cert ── */
+    .cp-grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+        margin-top: 1.25rem;
+    }
+    @media (max-width: 700px) { .cp-grid-2 { grid-template-columns: 1fr; } }
+
+    .cp-stat-row {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 13px; padding: 4px 0;
+    }
+    .cp-stat-label { color: var(--muted); }
+    .cp-stat-value { font-weight: 600; color: var(--text); }
+
+    .cp-attempt {
+        background: var(--card-inner);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px; padding: 12px 14px;
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .cp-attempt + .cp-attempt { margin-top: 8px; }
+    .cp-attempt-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .cp-attempt-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .cp-pass { color: #4ade80; font-weight: 700; }
+    .cp-fail { color: #f87171; font-weight: 700; }
+    .brand-theme-light .cp-pass { color: #15803d; }
+    .brand-theme-light .cp-fail { color: #b91c1c; }
+
+    .cp-btn-primary {
+        display: block; width: 100%; margin-top: 14px;
+        padding: 12px; border-radius: 10px; border: none; cursor: pointer;
+        font-size: 14px; font-weight: 700; text-align: center; text-decoration: none;
+        background: linear-gradient(90deg, var(--blue), var(--purple));
+        color: #fff;
+        transition: opacity .2s, transform .2s, box-shadow .2s;
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--blue) 30%, transparent);
+    }
+    .cp-btn-primary:hover { opacity: .92; transform: translateY(-1px); color: #fff; }
+
+    .cp-btn-gold {
+        background: linear-gradient(90deg, #eab308, #ca8a04);
+        box-shadow: 0 4px 14px rgba(234,179,8,0.25);
+    }
+    .cp-btn-green {
+        background: linear-gradient(90deg, #22c55e, #059669);
+        box-shadow: 0 4px 14px rgba(34,197,94,0.25);
+    }
+
+    .cp-lock-state { text-align: center; padding: 1.5rem 1rem; }
+    .cp-lock-state i { font-size: 2rem; color: var(--muted); margin-bottom: 10px; display: block; opacity: .5; }
+    .cp-lock-state p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Badges ── */
+    .cp-badge {
+        display: inline-flex; align-items: center;
+        padding: 4px 12px; border-radius: 99px;
+        font-size: 11px; font-weight: 700; letter-spacing: .02em;
+    }
+    .cp-badge-passed { background: rgba(234,179,8,0.12); color: #fbbf24; border: 1px solid rgba(234,179,8,0.25); }
+    .cp-badge-failed { background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .cp-badge-eligible { background: color-mix(in srgb, var(--blue) 12%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--blue) 25%, transparent); }
+    .cp-badge-neutral { background: rgba(148,163,184,0.12); color: var(--muted); border: 1px solid var(--border); }
+    .cp-badge-available { background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.22); }
+    .brand-theme-light .cp-badge-passed { color: #a16207; background: rgba(234,179,8,0.14); }
+    .brand-theme-light .cp-badge-failed { color: #b91c1c; background: rgba(239,68,68,0.1); }
+    .brand-theme-light .cp-badge-available { color: #15803d; background: rgba(34,197,94,0.12); }
+
+    .cp-cert-card { border-color: rgba(34,197,94,0.2); }
+    .brand-theme-light .cp-cert-card { border-color: rgba(21,128,61,0.25); }
+    .cp-cert-note { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Program / modules ── */
+    .cp-program-hd { margin-bottom: 1.25rem; }
+    .cp-program-label {
+        font-size: 11px; font-weight: 700; letter-spacing: 2px;
+        text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
+    }
+    .cp-program-title { font-size: 1.35rem; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
+    .cp-program-pct { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+    .cp-module { margin-top: 1rem; }
+    .cp-module-title {
+        font-size: 15px; font-weight: 700; color: var(--text);
+        margin-bottom: 12px; padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* Scoped under .cp-page so the light surface always wins over any
+       global .cp-lesson styles that may bleed in from base.html */
+    .cp-page .cp-lesson {
+        display: flex; align-items: center; justify-content: space-between; gap: 14px;
+        padding: 12px 14px; border-radius: 10px;
+        background: var(--lesson-bg);
+        border: 1px solid var(--border-subtle);
+        transition: border-color .2s, background .2s, box-shadow .2s, transform .2s;
+    }
+    .cp-page .cp-lesson + .cp-lesson { margin-top: 8px; }
+    .cp-page .cp-lesson:hover {
+        background: var(--lesson-bg-hover);
+        border-color: color-mix(in srgb, var(--blue) 28%, transparent);
+    }
+    .brand-theme-light .cp-page .cp-lesson:hover,
+    .brand-theme-light.cp-page .cp-lesson:hover {
+        box-shadow: 0 6px 16px -10px rgba(26,107,255,0.4);
+        transform: translateY(-1px);
+    }
+
+    .cp-lesson-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .cp-lesson-num {
+        width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: 700;
+        background: color-mix(in srgb, var(--blue) 12%, transparent);
+        color: var(--accent);
+        border: 1px solid color-mix(in srgb, var(--blue) 22%, transparent);
+    }
+    .cp-lesson-num.done {
+        background: rgba(34,197,94,0.12);
+        color: #4ade80;
+        border-color: rgba(34,197,94,0.22);
+    }
+    .brand-theme-light .cp-lesson-num.done {
+        background: rgba(34,197,94,0.14);
+        color: #15803d;
+        border-color: rgba(34,197,94,0.3);
+    }
+
+    .cp-lesson-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .cp-lesson-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .cp-lesson-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        padding: 7px 14px; border-radius: 8px; flex-shrink: 0;
+        font-size: 12px; font-weight: 600; text-decoration: none;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--blue) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--blue) 22%, transparent);
+        transition: background .2s, border-color .2s;
+    }
+    .brand-theme-light .cp-lesson-btn {
+        background: color-mix(in srgb, var(--cp-accent) 10%, #ffffff);
+    }
+    .cp-lesson-btn:hover {
+        background: color-mix(in srgb, var(--cp-accent) 16%, transparent);
+        border-color: color-mix(in srgb, var(--cp-accent) 35%, transparent);
+        color: var(--accent);
+    }
+    .brand-theme-light .cp-lesson-btn:hover {
+        background: color-mix(in srgb, var(--cp-accent) 14%, #ffffff);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .cp-page *, .cp-progress-fill { transition: none !important; }
+    }
+</style>
+
+<div class="cp-page space-y-0">
+
     <!-- Header -->
-    <div class="flex items-center justify-between">
-        <div>
-            <a href="{% url 'student_dashboard' %}" class="text-cyan-electric hover:text-cyan-electric/80 mb-2 inline-flex items-center gap-2 text-sm">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
-            <h1 class="text-4xl font-bold mb-2">{{ course.name }}</h1>
-            <p class="text-gray-400">{{ course.short_description }}</p>
+    <a href="{% url 'student_dashboard' %}" class="cp-back">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+    <div class="cp-header">
+        <div class="cp-eyebrow">Course Progress</div>
+        <h1 class="cp-title">{{ course.name }}</h1>
+        {% if course.short_description %}
+        <p class="cp-subtitle">{{ course.short_description }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Progress Overview -->
+    <div class="cp-card">
+        <div class="cp-progress-hd">
+            <span class="cp-progress-label">Overall Progress</span>
+            <span class="cp-progress-pct">{{ progress_percentage }}%</span>
+        </div>
+        <div class="cp-progress-track">
+            <div class="cp-progress-fill" style="width: {{ progress_percentage }}%"></div>
+        </div>
+        <div class="cp-meta-row">
+            <div class="cp-meta-item">
+                <i class="fas fa-check-circle"></i>
+                <span>{{ completed_lessons }}/{{ total_lessons }} lessons completed</span>
+            </div>
+            {% if enrollment %}
+            <div class="cp-meta-item">
+                <i class="fas fa-calendar"></i>
+                <span>Enrolled {{ enrollment.enrolled_at|date:"M d, Y" }}</span>
+            </div>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Course Progress Overview -->
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-            <span class="font-semibold text-lg">Course Progress</span>
-            <span class="text-cyan-electric font-bold text-2xl">{{ progress_percentage }}%</span>
-        </div>
-        <div class="w-full bg-[#1a1f3a] rounded-full h-4 overflow-hidden mb-4">
-            <div class="h-full bg-gradient-to-r from-cyan-electric to-purple-accent transition-all duration-500" style="width: {{ progress_percentage }}%"></div>
-        </div>
-        <div class="flex items-center gap-6 text-sm">
-            <div class="flex items-center gap-2">
-                <i class="fas fa-check-circle text-green-400"></i>
-                <span>{{ completed_lessons }}/{{ total_lessons }} Lessons Completed</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <i class="fas fa-calendar text-cyan-electric"></i>
-                <span>Enrolled: {{ enrollment.enrolled_at|date:"M d, Y" }}</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Course Resources Section -->
+    <!-- Course Resources -->
     {% if course_resources %}
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-        <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
-            <i class="fas fa-download text-cyan-electric"></i>
-            Course Resources
-        </h3>
-        <p class="text-sm text-gray-400 mb-4">Download SOP templates, checklists, and materials for this course.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div class="cp-card cp-section">
+        <h3 class="cp-card-title"><i class="fas fa-download"></i> Course Resources</h3>
+        <p class="cp-card-desc">Download SOP templates, checklists, and materials for this course.</p>
+        <div class="cp-resources-grid">
             {% for resource in course_resources %}
-            <a href="{{ resource.get_download_url }}" target="_blank" rel="noopener noreferrer" class="flex items-center gap-3 p-4 bg-[#1a1f3a]/50 hover:bg-cyan-electric/10 border border-cyan-electric/10 hover:border-cyan-electric/30 rounded-lg transition-all group">
-                <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 flex items-center justify-center flex-shrink-0 group-hover:bg-cyan-electric/30">
-                    <i class="fas fa-file-{% if resource.resource_type == 'pdf' %}pdf{% elif resource.resource_type == 'template' %}code{% elif resource.resource_type == 'checklist' %}list-check{% else %}download{% endif %} text-cyan-electric"></i>
+            <a href="{{ resource.get_download_url }}" target="_blank" rel="noopener noreferrer" class="cp-resource">
+                <div class="cp-resource-icon">
+                    <i class="fas fa-file-{% if resource.resource_type == 'pdf' %}pdf{% elif resource.resource_type == 'template' %}code{% elif resource.resource_type == 'checklist' %}list-check{% else %}download{% endif %}"></i>
                 </div>
                 <div class="min-w-0 flex-1">
-                    <div class="font-semibold text-sm truncate">{{ resource.title }}</div>
+                    <div class="cp-resource-title truncate">{{ resource.title }}</div>
                     {% if resource.description %}
-                    <div class="text-xs text-gray-500 truncate">{{ resource.description }}</div>
+                    <div class="cp-resource-desc truncate">{{ resource.description }}</div>
                     {% endif %}
-                    <span class="text-xs text-cyan-electric">Download →</span>
+                    <div class="cp-resource-cta">Download →</div>
                 </div>
             </a>
             {% endfor %}
@@ -64,39 +379,36 @@
     </div>
     {% endif %}
 
-    <!-- Exam & Certification Section -->
+    <!-- Exam & Certification -->
     {% if exam or certification or certificate_available %}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="cp-grid-2">
         {% if exam %}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
-                <i class="fas fa-clipboard-check text-cyan-electric"></i>
-                Final Exam
-            </h3>
+        <div class="cp-card">
+            <h3 class="cp-card-title"><i class="fas fa-clipboard-check"></i> Final Exam</h3>
             {% if is_exam_available %}
             <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-gray-400">Attempts</span>
-                    <span class="font-semibold">{{ exam_attempts|length }}/{{ exam.max_attempts|default:"∞" }}</span>
+                <div class="cp-stat-row">
+                    <span class="cp-stat-label">Attempts</span>
+                    <span class="cp-stat-value">{{ exam_attempts|length }}/{{ exam.max_attempts|default:"∞" }}</span>
                 </div>
                 {% if exam_attempts %}
-                <div class="space-y-2">
+                <div>
                     {% for attempt in exam_attempts %}
-                    <div class="bg-[#1a1f3a]/50 rounded-lg p-3 flex items-center justify-between">
+                    <div class="cp-attempt">
                         <div>
-                            <div class="text-sm font-medium">Attempt #{{ attempt.attempt_number }}</div>
-                            <div class="text-xs text-gray-400">{{ attempt.started_at|date:"M d, Y H:i" }}</div>
+                            <div class="cp-attempt-title">Attempt #{{ attempt.attempt_number }}</div>
+                            <div class="cp-attempt-date">{{ attempt.started_at|date:"M d, Y H:i" }}</div>
                         </div>
                         <div class="text-right">
                             {% if attempt.score is not None %}
-                            <div class="text-sm font-bold {% if attempt.passed %}text-green-400{% else %}text-red-400{% endif %}">
+                            <div class="text-sm {% if attempt.passed %}cp-pass{% else %}cp-fail{% endif %}">
                                 {{ attempt.score|floatformat:1 }}%
                             </div>
-                            <div class="text-xs {% if attempt.passed %}text-green-400{% else %}text-red-400{% endif %}">
+                            <div class="text-xs {% if attempt.passed %}cp-pass{% else %}cp-fail{% endif %}">
                                 {% if attempt.passed %}Passed{% else %}Failed{% endif %}
                             </div>
                             {% else %}
-                            <div class="text-xs text-gray-400">In Progress</div>
+                            <div class="text-xs" style="color:var(--muted)">In Progress</div>
                             {% endif %}
                         </div>
                     </div>
@@ -105,75 +417,67 @@
                 {% endif %}
                 {% with exam_attempts|last as last_attempt %}
                 {% if not exam_attempts or not last_attempt.passed %}
-                <button class="w-full mt-4 px-4 py-2 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-semibold rounded-lg transition-all">
+                <button class="cp-btn-primary">
                     {% if exam_attempts %}Retake Exam{% else %}Start Exam{% endif %}
                 </button>
                 {% endif %}
                 {% endwith %}
             </div>
             {% else %}
-            <div class="text-center py-4">
-                <i class="fas fa-lock text-4xl text-gray-600 mb-2"></i>
-                <p class="text-sm text-gray-400">
+            <div class="cp-lock-state">
+                <i class="fas fa-lock"></i>
+                <p>
                     {% if enrollment.payment_type == 'installment' %}
-                    Exam unlocks {{ enrollment.days_until_exam }} days after enrollment
+                    Exam unlocks {{ enrollment.days_until_exam }} days after enrollment.
                     {% else %}
-                    Complete all lessons to unlock the exam
+                    Complete all lessons to unlock the exam.
                     {% endif %}
                 </p>
             </div>
             {% endif %}
         </div>
         {% endif %}
-        
+
         {% if certification %}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
-                <i class="fas fa-certificate text-yellow-400"></i>
-                Certification
-            </h3>
+        <div class="cp-card">
+            <h3 class="cp-card-title"><i class="fas fa-certificate" style="color:#eab308"></i> Certification</h3>
             <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-gray-400">Status</span>
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold
-                        {% if certification.status == 'passed' %}bg-yellow-500/20 text-yellow-300 border border-yellow-500/30
-                        {% elif certification.status == 'failed' %}bg-red-500/20 text-red-400 border border-red-500/30
-                        {% elif certification.status == 'eligible' %}bg-cyan-electric/20 text-cyan-electric border border-cyan-electric/30
-                        {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
+                <div class="cp-stat-row">
+                    <span class="cp-stat-label">Status</span>
+                    <span class="cp-badge
+                        {% if certification.status == 'passed' %}cp-badge-passed
+                        {% elif certification.status == 'failed' %}cp-badge-failed
+                        {% elif certification.status == 'eligible' %}cp-badge-eligible
+                        {% else %}cp-badge-neutral{% endif %}">
                         {{ certification.get_status_display }}
                     </span>
                 </div>
                 {% if certification.issued_at %}
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-gray-400">Issued</span>
-                    <span class="text-sm font-medium">{{ certification.issued_at|date:"M d, Y" }}</span>
+                <div class="cp-stat-row">
+                    <span class="cp-stat-label">Issued</span>
+                    <span class="cp-stat-value">{{ certification.issued_at|date:"M d, Y" }}</span>
                 </div>
                 {% endif %}
                 {% if certification.accredible_certificate_url %}
-                <a href="{{ certification.accredible_certificate_url }}" target="_blank" class="block w-full mt-4 px-4 py-2 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-500/90 hover:to-yellow-600/90 text-white font-semibold rounded-lg transition-all text-center">
+                <a href="{{ certification.accredible_certificate_url }}" target="_blank" class="cp-btn-primary cp-btn-gold">
                     <i class="fas fa-external-link-alt mr-2"></i>View Certificate
                 </a>
                 {% endif %}
             </div>
         </div>
         {% elif certificate_available %}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-green-400/20 rounded-xl p-6">
-            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
-                <i class="fas fa-certificate text-green-400"></i>
-                Certification
-            </h3>
+        <div class="cp-card cp-cert-card">
+            <h3 class="cp-card-title"><i class="fas fa-certificate" style="color:#22c55e"></i> Certification</h3>
             <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-gray-400">Status</span>
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-300 border border-green-500/30">
-                        Certificate Available
-                    </span>
+                <div class="cp-stat-row">
+                    <span class="cp-stat-label">Status</span>
+                    <span class="cp-badge cp-badge-available">Certificate Available</span>
                 </div>
-                <p class="text-sm text-gray-300">
+                <p class="cp-cert-note">
                     You completed all required lessons{% if exam %} and passed the exam{% endif %}.
                     Your certificate is now available.
                 </p>
-                <a href="{% url 'student_certifications' %}" class="block w-full mt-4 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-500/90 hover:to-emerald-600/90 text-white font-semibold rounded-lg transition-all text-center">
+                <a href="{% url 'student_certifications' %}" class="cp-btn-primary cp-btn-green">
                     <i class="fas fa-award mr-2"></i>Open My Certifications
                 </a>
             </div>
@@ -183,45 +487,39 @@
     {% endif %}
 
     <!-- Program Structure -->
-    <div class="space-y-4">
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-            <div class="text-sm uppercase tracking-wide text-cyan-electric/80 mb-1">Program</div>
-            <h2 class="text-2xl font-bold">{{ course.name }}</h2>
-            <div class="text-gray-400 mt-1">{{ progress_percentage }}% Complete</div>
+    <div class="cp-section" style="margin-top:1.25rem">
+        <div class="cp-card cp-program-hd">
+            <div class="cp-program-label">Program</div>
+            <h2 class="cp-program-title">{{ course.name }}</h2>
+            <div class="cp-program-pct">{{ progress_percentage }}% complete</div>
         </div>
 
-        <div class="space-y-4">
-            {% for section in module_sections %}
-            <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-5">
-                <h3 class="text-lg font-semibold mb-4">{{ section.title }}</h3>
-                <div class="space-y-2">
-                    {% for lp in section.lessons %}
-                    <div class="bg-[#111733]/60 border border-white/10 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
-                        <div class="flex items-center gap-4 min-w-0">
-                            <div class="w-7 h-7 rounded-full bg-white/10 text-gray-200 text-sm flex items-center justify-center flex-shrink-0">
-                                {{ forloop.counter }}
-                            </div>
-                            <div class="min-w-0">
-                                <div class="font-medium truncate">{{ lp.lesson.title }}</div>
-                                <div class="text-xs text-gray-400 mt-0.5">
-                                    {% if lp.last_accessed %}
-                                    Last: {{ lp.last_accessed|date:"M d" }}
-                                    {% endif %}
-                                </div>
+        {% for section in module_sections %}
+        <div class="cp-card cp-module">
+            <h3 class="cp-module-title">{{ section.title }}</h3>
+            <div>
+                {% for lp in section.lessons %}
+                <div class="cp-lesson">
+                    <div class="cp-lesson-left">
+                        <div class="cp-lesson-num {% if lp.completed %}done{% endif %}">
+                            {% if lp.completed %}<i class="fas fa-check" style="font-size:10px"></i>{% else %}{{ forloop.counter }}{% endif %}
+                        </div>
+                        <div class="min-w-0">
+                            <div class="cp-lesson-title truncate">{{ lp.lesson.title }}</div>
+                            <div class="cp-lesson-meta">
+                                {{ lp.lesson.get_formatted_duration }}
+                                {% if lp.last_accessed %} · Last {{ lp.last_accessed|date:"M d" }}{% endif %}
                             </div>
                         </div>
-                        <a href="{% url 'lesson_detail' course.slug lp.lesson.slug %}" class="px-3 py-1.5 bg-cyan-electric/10 hover:bg-cyan-electric/20 border border-cyan-electric/20 rounded-md text-xs font-medium transition-all whitespace-nowrap">
-                            {% if lp.completed %}Review{% elif lp.status == 'in_progress' %}Continue{% else %}Start{% endif %}
-                        </a>
                     </div>
-                    {% endfor %}
+                    <a href="{% url 'lesson_detail' course.slug lp.lesson.slug %}" class="cp-lesson-btn">
+                        {% if lp.completed %}Review{% elif lp.status == 'in_progress' %}Continue{% else %}Start{% endif %}
+                    </a>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
         </div>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
-
-
-
