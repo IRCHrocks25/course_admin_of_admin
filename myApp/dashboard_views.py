@@ -3236,7 +3236,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                             'tenant': lesson.tenant,
                             'title': f'{lesson_title} Quiz',
                             'passing_score': 70,
-                            'is_required': True
+                            'is_required': False
                         },
                     )
                     qc = generate_ai_quiz(lesson, quiz, num_questions=5)
@@ -3603,7 +3603,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                         'tenant': lesson.tenant,
                         'title': f'{lesson_title} Quiz',
                         'passing_score': 70,
-                        'is_required': True,
+                        'is_required': False,
                     },
                 )
                 generate_ai_quiz(lesson, quiz, num_questions=5)

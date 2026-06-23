@@ -514,7 +514,7 @@ class LessonQuiz(models.Model):
     lesson = models.OneToOneField(Lesson, on_delete=models.CASCADE, related_name='quiz')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    is_required = models.BooleanField(default=True, help_text="If true, quiz must be passed to complete the lesson.")
+    is_required = models.BooleanField(default=False, help_text="If true, quiz must be passed to complete the lesson. Defaults to optional so quizzes never block progression unless an admin opts in.")
     passing_score = models.IntegerField(default=70, help_text="Score percentage required to pass (0–100)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
