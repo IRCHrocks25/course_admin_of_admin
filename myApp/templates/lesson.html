@@ -4,6 +4,8 @@
 {% block title %}{{ lesson.title }} - {{ course.name }}{% endblock %}
 
 {% block content %}
+<!-- Confetti Canvas (celebration on lesson completion) -->
+<canvas id="confetti-canvas" class="fixed top-0 left-0 w-full h-full pointer-events-none z-50" style="display: none;"></canvas>
 <!-- Desktop: Sidebars are fixed to viewport edges, center content is offset -->
 <!-- Mobile/Tablet: Normal stacked layout -->
 <div class="relative">
@@ -673,6 +675,68 @@
         });
     }
     
+    // Celebration confetti — same effect used on the lesson quiz pass screen.
+    function launchLessonConfetti() {
+        const canvas = document.getElementById('confetti-canvas');
+        if (!canvas) return;
+
+        canvas.style.display = 'block';
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const confetti = [];
+        const colors = ['#00f0ff', '#a855f7', '#00ff88', '#ff00ff', '#ffff00', '#00ffff'];
+
+        class ConfettiPiece {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = -10;
+                this.size = Math.random() * 8 + 4;
+                this.color = colors[Math.floor(Math.random() * colors.length)];
+                this.speed = Math.random() * 3 + 2;
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = Math.random() * 10 - 5;
+            }
+            update() {
+                this.y += this.speed;
+                this.x += Math.sin(this.y * 0.01) * 2;
+                this.rotation += this.rotationSpeed;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+                ctx.restore();
+            }
+        }
+
+        for (let i = 0; i < 150; i++) {
+            confetti.push(new ConfettiPiece());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            confetti.forEach((piece, index) => {
+                piece.update();
+                piece.draw();
+                if (piece.y > canvas.height) {
+                    confetti.splice(index, 1);
+                }
+            });
+            if (confetti.length > 0) {
+                requestAnimationFrame(animate);
+            } else {
+                canvas.style.display = 'none';
+            }
+        }
+
+        animate();
+        setTimeout(() => { canvas.style.display = 'none'; }, 3000);
+    }
+
     // Video Progress Tracking
     const lessonId = {{ lesson.id }};
     const nextLessonUrl = {% if next_lesson %}"{% url 'lesson_detail' course_slug=course.slug lesson_slug=next_lesson.slug %}"{% else %}null{% endif %};
@@ -1193,12 +1257,16 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Navigate to next module after completing lesson
-                        if (nextLessonUrl) {
-                            window.location.href = nextLessonUrl;
-                        } else {
-                            window.location.reload();
-                        }
+                        // Celebrate, then move to the next module/lesson automatically.
+                        launchLessonConfetti();
+                        btn.innerHTML = '<i class="fas fa-check-circle"></i><span>Lesson Completed!</span>';
+                        setTimeout(() => {
+                            if (nextLessonUrl) {
+                                window.location.href = nextLessonUrl;
+                            } else {
+                                window.location.reload();
+                            }
+                        }, 3000);
                     } else {
                         // Show error
                         btn.disabled = false;
@@ -1258,8 +1326,10 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Show completion state with next lesson button if available
+                        // Celebrate, then auto-advance to the next unlocked lesson.
                         hideStudentPreloader();
+                        launchLessonConfetti();
+
                         let completionHTML = `
                             <div class="space-y-4">
                                 <div class="flex items-center justify-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
@@ -1267,24 +1337,28 @@
                                     <span class="text-green-400 font-semibold">Lesson Completed!</span>
                                 </div>
                         `;
-                        
+
                         // Add next lesson button if available
                         if (nextLessonUrl) {
                             completionHTML += `
-                                <a 
+                                <a
                                     href="${nextLessonUrl}"
                                     class="flex items-center justify-center gap-3 w-full px-6 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-bold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
                                 >
                                     <span>Continue to Next Lesson</span>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>
+                                <p class="text-center text-sm text-gray-400">
+                                    <i class="fas fa-circle-notch fa-spin mr-1"></i>
+                                    Taking you to the next lesson…
+                                </p>
                             `;
                         }
-                        
+
                         completionHTML += `</div>`;
                         const btnParent = btn.parentElement;
                         btn.outerHTML = completionHTML;
-                        
+
                         // Scroll to show the completion message and button
                         const completionDiv = btnParent.querySelector('.space-y-4');
                         if (completionDiv) {
@@ -1292,12 +1366,17 @@
                                 completionDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
                             }, 100);
                         }
-                        
-                        // Reload page after a short delay to update all UI elements (only if no next lesson)
-                        if (!nextLessonUrl) {
+
+                        if (nextLessonUrl) {
+                            // Let the confetti play, then move on automatically.
+                            setTimeout(() => {
+                                window.location.href = nextLessonUrl;
+                            }, 3000);
+                        } else {
+                            // No next lesson — reload to refresh course/certificate UI.
                             setTimeout(() => {
                                 window.location.reload();
-                            }, 1000);
+                            }, 3000);
                         }
                     } else {
                         // Show error
