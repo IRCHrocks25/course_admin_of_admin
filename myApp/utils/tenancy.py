@@ -1,6 +1,34 @@
 from ..models import Tenant
 
 
+_CLEAR_TRUTHY = {'1', 'true', 'yes', 'on'}
+
+
+def is_clear_tenant_requested(request):
+    """
+    Return True when the request is asking a superadmin's impersonation to be
+    cleared (back to the Global Superadmin View).
+
+    Recognises every signal the UI can emit so the view, the context processor
+    and the AJAX resolver all agree:
+
+        * ``?clear_tenant=1`` (truthy values)
+        * ``?tenant=clear``
+        * ``?tenant=`` present but blank (e.g. the "Global Superadmin View"
+          option in the switcher)
+    """
+    get = getattr(request, 'GET', None)
+    if get is None:
+        return False
+    if (get.get('clear_tenant') or '').strip().lower() in _CLEAR_TRUTHY:
+        return True
+    if 'tenant' in get:
+        value = (get.get('tenant') or '').strip().lower()
+        if value in ('', 'clear'):
+            return True
+    return False
+
+
 def resolve_request_tenant(request):
     """
     Resolve the tenant for a request, mirroring the fallback chain used by the
@@ -25,6 +53,11 @@ def resolve_request_tenant(request):
         return None
 
     if user.is_superuser:
+        # A clear request must win over a stale session, otherwise AJAX views
+        # keep operating on the old tenant after the chrome shows "Global".
+        if is_clear_tenant_requested(request):
+            request.session.pop('superadmin_tenant_id', None)
+            return None
         selected_id = request.session.get('superadmin_tenant_id')
         if selected_id:
             return Tenant.objects.filter(id=selected_id).first()

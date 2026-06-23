@@ -1,6 +1,6 @@
 from .utils.branding import get_tenant_branding
 from .utils.domains import get_tenant_public_home_url
-from .utils.tenancy import get_default_tenant
+from .utils.tenancy import get_default_tenant, is_clear_tenant_requested
 from .models import TenantMembership, Tenant, TenantNotificationDelivery
 
 
@@ -25,10 +25,7 @@ def tenant_context(request):
     dashboard_impersonating = False
     dashboard_default_tenant_slug = ''
     is_superadmin = bool(getattr(request, 'user', None) and request.user.is_authenticated and request.user.is_superuser)
-    clear_tenant_requested = (request.GET.get('clear_tenant') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
-    clear_tenant_requested = clear_tenant_requested or ((request.GET.get('tenant') or '').strip().lower() == 'clear')
-    if not clear_tenant_requested and 'tenant' in request.GET and not request.GET.get('tenant', '').strip():
-        clear_tenant_requested = True
+    clear_tenant_requested = is_clear_tenant_requested(request)
 
     if is_superadmin and clear_tenant_requested:
         request.session.pop('superadmin_tenant_id', None)
@@ -113,6 +110,12 @@ def tenant_context(request):
 
     return {
         'tenant': tenant,
+        # Impersonation tenant resolved purely from session/host — exposed under
+        # its own name so the "Tenant View" switcher in dashboard/base.html
+        # reflects the actual impersonation state even on pages (e.g. the
+        # superadmin tenant-detail page) that inject their own ``tenant`` into
+        # the context and would otherwise override it.
+        'dashboard_impersonated_tenant': tenant,
         'tenant_branding': tenant_branding,
         'effective_theme_mode': effective_theme_mode,
         'tenant_site_url': get_tenant_public_home_url(request, tenant),

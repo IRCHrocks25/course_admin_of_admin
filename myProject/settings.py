@@ -263,9 +263,31 @@ TASKS = {
 }
 
 # ─── Email (Resend) ───
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-EMAIL_BACKEND = "resend.django.EmailBackend"
+# Resend HTTP API via custom backend (see myApp/utils/email_backend.py).
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "CourseForge <noreply@courseforge.katek-ai.com>")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+RESEND_FROM = os.getenv("RESEND_FROM", "").strip() or DEFAULT_FROM_EMAIL
+RESEND_REPLY_TO = os.getenv("RESEND_REPLY_TO", "").strip()
+RESEND_BASE_URL = os.getenv("RESEND_BASE_URL", "https://api.resend.com").strip().rstrip("/")
+
+EMAIL_HOST = os.getenv("EMAIL_HOST", "").strip()
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587") or 587)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").strip()
+EMAIL_USE_TLS = (os.getenv("EMAIL_USE_TLS", "True").strip().lower() in {"1", "true", "yes", "on"})
+
+_email_backend_override = os.getenv("EMAIL_BACKEND", "").strip()
+if _email_backend_override:
+    EMAIL_BACKEND = _email_backend_override
+elif RESEND_API_KEY:
+    EMAIL_BACKEND = "myApp.utils.email_backend.ResendEmailBackend"
+elif EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+elif DEBUG:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 cache_backend = (os.getenv('CACHE_BACKEND', 'locmem') or 'locmem').strip().lower()
 

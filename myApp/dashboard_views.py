@@ -7,6 +7,7 @@ from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.db.models import Count, Q
 from django.conf import settings
+from django.core.mail import send_mail
 import json
 import re
 import requests
@@ -15,7 +16,7 @@ import io
 import os
 import uuid
 import threading
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from decimal import Decimal
 import stripe
 from django.utils import timezone
@@ -73,7 +74,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
-from .utils.tenancy import get_default_tenant
+from django.utils.http import url_has_allowed_host_and_scheme
+from .utils.tenancy import get_default_tenant, is_clear_tenant_requested
 from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import get_tenant_branding, ensure_tenant_branding
 from .utils.prompts import (
@@ -5335,13 +5337,14 @@ def dashboard_delete_bundle(request, bundle_id):
 def _get_dashboard_tenant(request):
     """Resolve active tenant for tenant-admin dashboard context."""
     if request.user.is_superuser:
-        if (request.GET.get('clear_tenant') or '').strip() in {'1', 'true', 'yes', 'on'}:
+        # Honour every "clear" signal (incl. a blank ?tenant=) and pop the
+        # session here so this view and the tenant_context processor that runs
+        # at render time agree. Without this, clearing would load the old
+        # tenant's data once and only take effect on the next request.
+        if is_clear_tenant_requested(request):
             request.session.pop('superadmin_tenant_id', None)
             return None
         tenant_query = (request.GET.get('tenant') or '').strip().lower()
-        if tenant_query == 'clear':
-            request.session.pop('superadmin_tenant_id', None)
-            return None
 
     tenant = getattr(request, 'tenant', None)
     if tenant is not None:
@@ -5372,6 +5375,55 @@ def _get_dashboard_tenant(request):
         is_active=True
     ).select_related('tenant').first()
     return membership.tenant if membership else None
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_set_tenant(request):
+    """
+    Single source of truth for the super admin "Tenant View" switcher.
+
+    Mutates the session and redirects (Post/Redirect/Get) so the resulting page
+    has no ``?tenant=``/``?clear_tenant=`` lingering in the URL. This removes the
+    intermittent bug where clearing left the old slug in the query string (the
+    GET form dragged the still-selected ``<select>`` value along), causing the
+    middleware to re-resolve ``request.tenant`` and the view to load stale tenant
+    data while the chrome showed "Global".
+    """
+    if not request.user.is_superuser:
+        raise Http404()
+
+    next_url = request.POST.get('next') or request.META.get('HTTP_REFERER') or ''
+    if not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        next_url = reverse('dashboard_home')
+    else:
+        # Strip any legacy tenant/clear params so the post-redirect GET resolves
+        # purely from the session we set below (the single source of truth).
+        parsed = urlparse(next_url)
+        kept = [
+            (k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+            if k not in {'tenant', 'clear_tenant'}
+        ]
+        next_url = urlunparse(parsed._replace(query=urlencode(kept)))
+
+    clear = (request.POST.get('clear_tenant') or '').strip().lower() in {'1', 'true', 'yes', 'on'}
+    slug = (request.POST.get('tenant') or '').strip().lower()
+
+    if clear or not slug or slug == 'clear':
+        request.session.pop('superadmin_tenant_id', None)
+    else:
+        selected = Tenant.objects.filter(slug=slug).first()
+        if selected:
+            request.session['superadmin_tenant_id'] = selected.id
+        else:
+            request.session.pop('superadmin_tenant_id', None)
+            messages.error(request, 'That tenant could not be found.')
+
+    return redirect(next_url)
 
 
 def _resolve_dashboard_course(request, course_slug, tenant=None):
@@ -5436,6 +5488,185 @@ def _resolve_dashboard_course(request, course_slug, tenant=None):
             'Multiple tenants have this course slug. Select Tenant View for exact tenant context.'
         )
     return courses_qs.first()
+
+
+def _generate_temp_password(length=12):
+    import secrets
+    import string
+    alphabet = string.ascii_letters + string.digits
+    raw = ''.join(secrets.choice(alphabet) for _ in range(length))
+    return f"{raw[:5]}-{raw[5:]}"
+
+
+def _user_can_manage_tenant_admins(user, tenant):
+    if tenant is None:
+        return False
+    if user.is_superuser:
+        return True
+    return TenantMembership.objects.filter(
+        tenant=tenant,
+        user=user,
+        role='tenant_admin',
+        is_active=True,
+    ).exists()
+
+
+def _active_tenant_admin_count(tenant):
+    return TenantMembership.objects.filter(
+        tenant=tenant,
+        role='tenant_admin',
+        is_active=True,
+    ).count()
+
+
+def _send_tenant_admin_welcome_email(user, password, tenant, request):
+    if not user.email:
+        return False
+    tenant_name = tenant.name if tenant else 'your academy'
+    login_url = get_tenant_public_home_url(request, tenant)
+    if login_url:
+        login_url = f"{login_url.rstrip('/')}/login/"
+    else:
+        login_url = request.build_absolute_uri(reverse('login'))
+    message = (
+        f"Hi {user.get_full_name() or user.username},\n\n"
+        f"You have been granted admin access to {tenant_name}.\n\n"
+        f"Username: {user.username}\n"
+        f"Temporary password: {password}\n\n"
+        f"Sign in: {login_url}\n\n"
+        f"You will be asked to set a new password on first login."
+    )
+    send_mail(
+        subject=f"Your {tenant_name} admin account",
+        message=message,
+        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@localhost'),
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+    return True
+
+
+@staff_member_required
+@require_http_methods(["GET", "POST"])
+def dashboard_tenant_admins(request):
+    """Let tenant admins add or remove other admins on their account."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required to manage admins.')
+        return redirect('dashboard_home')
+
+    if not _user_can_manage_tenant_admins(request.user, tenant):
+        messages.error(request, 'Only account admins can manage admin access.')
+        return redirect('dashboard_home')
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or 'create').strip().lower()
+
+        if action in {'disable', 'enable'}:
+            try:
+                target_user_id = int(request.POST.get('user_id'))
+            except (TypeError, ValueError):
+                messages.error(request, 'Invalid user.')
+                return redirect('dashboard_tenant_admins')
+
+            membership = TenantMembership.objects.filter(
+                tenant=tenant,
+                user_id=target_user_id,
+                role='tenant_admin',
+            ).select_related('user').first()
+            if not membership:
+                messages.error(request, 'Admin account not found for this tenant.')
+                return redirect('dashboard_tenant_admins')
+
+            if action == 'disable':
+                if membership.user_id == request.user.id and _active_tenant_admin_count(tenant) <= 1:
+                    messages.error(request, 'You cannot remove the only active admin on this account.')
+                    return redirect('dashboard_tenant_admins')
+                membership.is_active = False
+                membership.save(update_fields=['is_active', 'updated_at'])
+                if not TenantMembership.objects.filter(
+                    user=membership.user,
+                    role='tenant_admin',
+                    is_active=True,
+                ).exists():
+                    membership.user.is_staff = False
+                    membership.user.save(update_fields=['is_staff'])
+                messages.success(request, f'Removed admin access for {membership.user.username}.')
+            else:
+                membership.is_active = True
+                membership.save(update_fields=['is_active', 'updated_at'])
+                membership.user.is_staff = True
+                membership.user.is_active = True
+                membership.user.save(update_fields=['is_staff', 'is_active'])
+                messages.success(request, f'Restored admin access for {membership.user.username}.')
+
+            return redirect('dashboard_tenant_admins')
+
+        username = (request.POST.get('username') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        password = request.POST.get('password') or ''
+
+        if not username:
+            messages.error(request, 'Username is required.')
+            return redirect('dashboard_tenant_admins')
+
+        generated_password = False
+        if not password:
+            password = _generate_temp_password()
+            generated_password = True
+
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            if email and User.objects.filter(email__iexact=email).exists():
+                messages.error(request, f'Email "{email}" is already used by another account.')
+                return redirect('dashboard_tenant_admins')
+            user = User.objects.create_user(username=username, email=email, password=password)
+            is_new = True
+        else:
+            is_new = False
+            user.set_password(password)
+            if email:
+                user.email = email
+
+        user.is_staff = True
+        user.is_active = True
+        user.save()
+
+        TenantMembership.objects.update_or_create(
+            tenant=tenant,
+            user=user,
+            defaults={
+                'role': 'tenant_admin',
+                'is_active': True,
+                'must_change_password': True,
+            },
+        )
+
+        emailed = _send_tenant_admin_welcome_email(user, password, tenant, request)
+        if emailed:
+            messages.success(
+                request,
+                f'{"Created" if is_new else "Updated"} admin {user.username}. Login details were emailed to {email}.',
+            )
+        elif generated_password:
+            messages.success(
+                request,
+                f'{"Created" if is_new else "Updated"} admin {user.username}. Temporary password: {password}',
+            )
+        else:
+            messages.success(request, f'{"Created" if is_new else "Updated"} admin access for {user.username}.')
+
+        return redirect('dashboard_tenant_admins')
+
+    tenant_admins = TenantMembership.objects.filter(
+        tenant=tenant,
+        role='tenant_admin',
+    ).select_related('user').order_by('-is_active', 'user__username')
+
+    return render(request, 'dashboard/tenant_admins.html', {
+        'tenant': tenant,
+        'tenant_admins': tenant_admins,
+    })
 
 
 @staff_member_required

@@ -51,6 +51,7 @@ urlpatterns = [
 
     # Dashboard URLs (Admin-facing, for developers)
     path('dashboard/', dashboard_views.dashboard_home, name='dashboard_home'),
+    path('dashboard/set-tenant/', dashboard_views.dashboard_set_tenant, name='dashboard_set_tenant'),
     path('dashboard/analytics/', dashboard_views.dashboard_analytics, name='dashboard_analytics'),
     path('dashboard/courses/', dashboard_views.dashboard_courses, name='dashboard_courses'),
     path('dashboard/categories/', dashboard_views.dashboard_categories, name='dashboard_categories'),
@@ -113,6 +114,7 @@ urlpatterns = [
     path('dashboard/payments/stripe/callback/', dashboard_views.dashboard_stripe_connect_callback, name='dashboard_stripe_connect_callback'),
     path('dashboard/payments/stripe/own-keys/', dashboard_views.dashboard_save_stripe_own_keys, name='dashboard_save_stripe_own_keys'),
     path('dashboard/branding-settings/', dashboard_views.dashboard_branding_settings, name='dashboard_branding_settings'),
+    path('dashboard/tenant-admins/', dashboard_views.dashboard_tenant_admins, name='dashboard_tenant_admins'),
     path('dashboard/domain-settings/<int:domain_id>/verify/', dashboard_views.dashboard_verify_domain, name='dashboard_verify_domain'),
     path('dashboard/domain-settings/<int:domain_id>/make-primary/', dashboard_views.dashboard_make_primary_domain, name='dashboard_make_primary_domain'),
 

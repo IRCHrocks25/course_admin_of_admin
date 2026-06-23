@@ -285,24 +285,26 @@
             {% if user.is_superuser %}
             <div class="mb-5 p-3 rounded-lg border border-cyan-electric/20 bg-cyan-electric/5">
                 <div class="text-[11px] uppercase tracking-wider text-cyan-electric/80 mb-2 font-semibold">Tenant View</div>
-                <form method="get" action="" class="space-y-2">
+                <form method="post" action="{% url 'dashboard_set_tenant' %}" class="space-y-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <select name="tenant" onchange="this.form.submit()" class="w-full bg-[#0a0e27]/70 border border-cyan-electric/30 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-cyan-electric/60">
                         <option value="">Global Superadmin View</option>
                         {% for opt in dashboard_available_tenants %}
-                        <option value="{{ opt.slug }}" {% if tenant and tenant.id == opt.id %}selected{% endif %}>
+                        <option value="{{ opt.slug }}" {% if dashboard_impersonated_tenant and dashboard_impersonated_tenant.id == opt.id %}selected{% endif %}>
                             {{ opt.name }}{% if opt.is_archived %} (Archived){% endif %}
                         </option>
                         {% endfor %}
                     </select>
-                    {% if tenant %}
+                    {% if dashboard_impersonated_tenant %}
                     <button type="submit" name="clear_tenant" value="1" class="w-full px-3 py-1.5 rounded-md text-xs border border-cyan-electric/30 text-cyan-electric hover:bg-cyan-electric/10 transition-all">
                         <i class="fas fa-rotate-left mr-1"></i> Clear Tenant View
                     </button>
                     {% endif %}
                 </form>
-                {% if dashboard_impersonating and tenant %}
+                {% if dashboard_impersonating and dashboard_impersonated_tenant %}
                 <div class="text-[11px] text-cyan-electric/90 mt-2">
-                    Impersonating: <span class="font-semibold">{{ tenant.name }}</span>
+                    Impersonating: <span class="font-semibold">{{ dashboard_impersonated_tenant.name }}</span>
                 </div>
                 {% endif %}
             </div>
@@ -401,6 +403,10 @@
                         <a href="{% url 'dashboard_branding_settings' %}" class="nav-item {% if 'branding' in cur %}is-active{% endif %}">
                             <i class="fas fa-palette nav-icon"></i>
                             <span>Branding</span>
+                        </a>
+                        <a href="{% url 'dashboard_tenant_admins' %}" class="nav-item {% if cur == 'dashboard_tenant_admins' %}is-active{% endif %}">
+                            <i class="fas fa-user-shield nav-icon"></i>
+                            <span>Account Admins</span>
                         </a>
                     </div>
                 </div>
