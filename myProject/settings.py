@@ -289,6 +289,22 @@ elif DEBUG:
 else:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
+# ─── GHL (GoHighLevel) integration ───
+# Read directly from the environment by myApp/integrations/ghl/config.py.
+# Surfaced here for discoverability and a single configured-state flag.
+GHL_CLIENT_ID = os.getenv("GHL_CLIENT_ID", "").strip()
+GHL_CLIENT_SECRET = os.getenv("GHL_CLIENT_SECRET", "").strip()
+# The ONE central redirect URI registered in the GHL marketplace app. Must match
+# what is registered EXACTLY (e.g. https://app.courseforge.com/ghl/callback).
+GHL_REDIRECT_URI = os.getenv("GHL_REDIRECT_URI", "").strip()
+GHL_WEBHOOK_PUBLIC_KEY = os.getenv("GHL_WEBHOOK_PUBLIC_KEY", "").strip()
+GHL_SCOPES = os.getenv("GHL_SCOPES", "").strip()
+# Optional dedicated key for encrypting stored OAuth tokens. If unset we derive
+# one from SECRET_KEY (see integrations/ghl/crypto.py).
+GHL_TOKEN_ENCRYPTION_KEY = os.getenv("GHL_TOKEN_ENCRYPTION_KEY", "").strip()
+GHL_ENABLED_GLOBALLY = bool(GHL_CLIENT_ID and GHL_CLIENT_SECRET and GHL_REDIRECT_URI)
+
+
 cache_backend = (os.getenv('CACHE_BACKEND', 'locmem') or 'locmem').strip().lower()
 
 if cache_backend == 'db':

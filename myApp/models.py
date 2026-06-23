@@ -27,6 +27,9 @@ class Tenant(models.Model):
     stripe_customer_id = models.CharField(max_length=120, blank=True, default='')
     stripe_subscription_id = models.CharField(max_length=120, blank=True, default='')
     setup_fee_paid = models.BooleanField(default=False)
+    # GHL (GoHighLevel) integration opt-in. Default off; connecting via OAuth
+    # flips this true. All GHL UI, webhooks, sync jobs and API calls gate on it.
+    ghl_enabled = models.BooleanField(default=False)
     referral_code = models.CharField(max_length=24, unique=True, blank=True, default='')
     referred_by = models.ForeignKey(
         'self',
@@ -1452,4 +1455,10 @@ class EventRegistration(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.event.title}"
+
+
+# ─── GHL (GoHighLevel) integration models ───
+# Defined in a sibling module to keep this file focused; imported here so
+# makemigrations/Django register them under the myApp app label.
+from .models_ghl import GHLConnection, GHLLink  # noqa: E402,F401
 

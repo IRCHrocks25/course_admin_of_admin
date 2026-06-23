@@ -1,0 +1,108 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}GoHighLevel Integration{% endblock %}
+{% block page_title %}GoHighLevel Integration{% endblock %}
+
+{% block content %}
+<style>
+  .ghl-card { background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.12);
+              border-radius: 12px; padding: 22px; max-width: 720px; }
+  .ghl-row { display: flex; justify-content: space-between; align-items: center; gap: 16px;
+             padding: 10px 0; border-bottom: 0.5px solid rgba(255,255,255,0.06); }
+  .ghl-row:last-child { border-bottom: 0; }
+  .ghl-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+              border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .ghl-pill.ok   { color: #19d27c; background: rgba(25,210,124,0.12); }
+  .ghl-pill.err  { color: #ff5d5d; background: rgba(255,93,93,0.12); }
+  .ghl-pill.off  { color: #9aa3ad; background: rgba(154,163,173,0.12); }
+  .ghl-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px;
+             border-radius: 9px; font-size: 13px; font-weight: 600; border: 0; cursor: pointer;
+             text-decoration: none; }
+  .ghl-btn.primary { background: #00e5ff; color: #03121a; }
+  .ghl-btn.danger  { background: transparent; color: #ff7a7a; border: 0.5px solid rgba(255,122,122,0.4); }
+  .ghl-muted { color: #9aa3ad; font-size: 13px; }
+  .ghl-banner { padding: 10px 14px; border-radius: 9px; margin-bottom: 16px; font-size: 13px; }
+  .ghl-banner.ok  { background: rgba(25,210,124,0.12); color: #19d27c; }
+  .ghl-banner.err { background: rgba(255,93,93,0.12); color: #ff7a7a; }
+  code.ghl-mono { font-family: ui-monospace, monospace; font-size: 12px; color: #cbd5e1; }
+</style>
+
+{% if ghl_status == 'connected' %}
+  <div class="ghl-banner ok">✓ GoHighLevel connected successfully.</div>
+{% elif ghl_status == 'error' %}
+  <div class="ghl-banner err">Connection failed. Please try again or contact support.</div>
+{% elif ghl_status == 'needs_location' %}
+  <div class="ghl-banner err">Authorization returned an agency-level token. Please install on a specific sub-account (location).</div>
+{% endif %}
+
+<div class="ghl-card">
+  {% if not ghl_configured %}
+    <div class="ghl-row">
+      <div>
+        <strong>GoHighLevel is not configured on this server.</strong>
+        <div class="ghl-muted">Server credentials are missing. Contact your administrator.</div>
+      </div>
+      <span class="ghl-pill off">Unavailable</span>
+    </div>
+  {% elif connection %}
+    <div class="ghl-row">
+      <div><strong>Status</strong></div>
+      {% if connection.is_healthy %}
+        <span class="ghl-pill ok">● Connected</span>
+      {% elif connection.sync_status == 'error' %}
+        <span class="ghl-pill err">● Error</span>
+      {% else %}
+        <span class="ghl-pill off">● {{ connection.get_sync_status_display }}</span>
+      {% endif %}
+    </div>
+    <div class="ghl-row">
+      <div><strong>Sub-account (location)</strong></div>
+      <code class="ghl-mono">{{ connection.ghl_location_id }}</code>
+    </div>
+    {% if connection.ghl_company_id %}
+    <div class="ghl-row">
+      <div><strong>Agency (company)</strong></div>
+      <code class="ghl-mono">{{ connection.ghl_company_id }}</code>
+    </div>
+    {% endif %}
+    <div class="ghl-row">
+      <div><strong>Connected</strong></div>
+      <span class="ghl-muted">{{ connection.connected_at|date:"M j, Y, g:i a" }}</span>
+    </div>
+    <div class="ghl-row">
+      <div><strong>Token refreshes</strong></div>
+      <span class="ghl-muted">
+        {% if connection.last_refreshed_at %}last {{ connection.last_refreshed_at|date:"M j, g:i a" }} ·{% endif %}
+        expires {{ connection.token_expires_at|date:"M j, g:i a"|default:"—" }}
+      </span>
+    </div>
+    {% if connection.status_detail %}
+    <div class="ghl-row">
+      <div><strong>Detail</strong></div>
+      <span class="ghl-muted">{{ connection.status_detail }}</span>
+    </div>
+    {% endif %}
+    <div class="ghl-row">
+      <div class="ghl-muted">Scopes: {% for s in scopes %}<code class="ghl-mono">{{ s }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+      <form method="post" action="{% url 'ghl_disconnect' %}" onsubmit="return confirm('Disconnect GoHighLevel? Syncing will stop.');">
+        {% csrf_token %}
+        <button type="submit" class="ghl-btn danger">Disconnect</button>
+      </form>
+    </div>
+  {% else %}
+    <div class="ghl-row">
+      <div>
+        <strong>Connect your GoHighLevel sub-account</strong>
+        <div class="ghl-muted">Authorize CourseForge to sync course activity to your GHL contacts.</div>
+      </div>
+      <span class="ghl-pill off">Not connected</span>
+    </div>
+    <div class="ghl-row" style="justify-content:flex-end;">
+      <form method="post" action="{% url 'ghl_connect' %}">
+        {% csrf_token %}
+        <button type="submit" class="ghl-btn primary">Connect GoHighLevel</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -67,7 +67,18 @@
       "PowerShell(python manage.py check 2>&1 | Select-Object -Last 10)",
       "Bash(grep -vE \"base\\\\.html$\")",
       "PowerShell(python manage.py check 2>&1 | Select-Object -Last 6)",
-      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 4)"
+      "PowerShell(python manage.py check 2>&1 | Select-Object -Last 4)",
+      "Read(//e/New Downloads/New_clone_projects/course_admin_of_admin-1/**)",
+      "Bash(git -C 'E:/New Downloads/New_clone_projects/course_admin_of_admin' status --short)",
+      "Bash(git -C 'E:/New Downloads/New_clone_projects/course_admin_of_admin-1' status --short)",
+      "Bash(git -C 'E:/New Downloads/New_clone_projects/course_admin_of_admin-1' diff -- myApp/models.py)",
+      "Bash(git -C 'E:/New Downloads/New_clone_projects/course_admin_of_admin-1' diff -- myProject/urls.py)",
+      "Bash(git -C 'E:/New Downloads/New_clone_projects/course_admin_of_admin-1' commit -m ' *)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py makemigrations myApp)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py migrate myApp)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py check)",
+      "Bash(USE_LOCAL_SQLITE=True python -c ' *)",
+      "Bash(USE_LOCAL_SQLITE=True python manage.py ghl_refresh_tokens --dry-run)"
     ]
   }
 }
