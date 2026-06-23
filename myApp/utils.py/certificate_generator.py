@@ -305,7 +305,7 @@ def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id
     c.rect(inner_margin, inner_margin, width - 2*inner_margin, height - 2*inner_margin)
 
     # ===== Logo in top left =====
-    logo_url = "https://res.cloudinary.com/dwooadxdj/image/upload/v1771294639/copy_of_copy_of_fluentory_-_branding-05_ijgdpz_a6f568_7b4fc3.png"
+    logo_url = "https://cdn.katalyst-crm.com/t1/cloudinary/fluentory-branding-logo.png"
     logo_size = 80  # Define logo size first
     try:
         logo_response = requests.get(logo_url, timeout=5)
