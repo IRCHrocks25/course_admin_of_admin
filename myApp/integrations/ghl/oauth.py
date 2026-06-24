@@ -39,13 +39,18 @@ class GHLOAuthError(Exception):
 
 def build_authorize_url(state: str) -> str:
     """Build the GHL consent URL the admin is redirected to."""
+    client_id = config.client_id()
     params = {
         "response_type": "code",
-        "client_id": config.client_id(),
+        "client_id": client_id,
         "redirect_uri": config.redirect_uri(),
         "scope": config.scopes(),
         "state": state,
     }
+    # GHL pins the install to a specific app version; version_id is the client_id
+    # prefix before the '-' (matches GHL's own whitelabel install link).
+    if "-" in client_id:
+        params["version_id"] = client_id.split("-", 1)[0]
     return f"{config.AUTHORIZE_URL}?{urlencode(params)}"
 
 
