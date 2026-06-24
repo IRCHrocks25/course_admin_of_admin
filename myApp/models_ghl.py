@@ -17,6 +17,7 @@ creds belong on one row; mappings hang off it via FK.
 """
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
@@ -161,3 +162,34 @@ class GHLLink(models.Model):
     def __str__(self):
         who = self.student.email if self.student_id else "unmatched"
         return f"GHLLink[{self.tenant.slug}] {self.ghl_contact_id} -> {who}"
+
+
+class GhlEmbedSession(models.Model):
+    """Audit trail for GHL sidebar auto-logins. Captures the real GHL identity
+    behind each embed login so owner-fallback impersonations are attributable."""
+
+    tenant = models.ForeignKey("myApp.Tenant", on_delete=models.CASCADE, related_name="ghl_embed_sessions")
+    connection = models.ForeignKey("myApp.GHLConnection", on_delete=models.SET_NULL, null=True, blank=True)
+    ghl_location_id = models.CharField(max_length=128, blank=True, default="")
+    ghl_user_id = models.CharField(max_length=128, blank=True, default="")
+    ghl_email = models.CharField(max_length=255, blank=True, default="")
+    ghl_user_name = models.CharField(max_length=255, blank=True, default="")
+    ghl_role = models.CharField(max_length=64, blank=True, default="")
+    ghl_user_type = models.CharField(max_length=64, blank=True, default="")
+    resolved_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    impersonated_owner = models.BooleanField(default=False)
+    django_session_key = models.CharField(max_length=64, blank=True, default="")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["tenant", "created_at"]),
+            models.Index(fields=["ghl_location_id"]),
+        ]
+
+    def __str__(self):
+        return f"GhlEmbedSession(t={self.tenant_id}, loc={self.ghl_location_id}, owner={self.impersonated_owner})"
