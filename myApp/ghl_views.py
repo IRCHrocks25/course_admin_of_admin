@@ -13,12 +13,13 @@ import logging
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login as auth_login
+from django.contrib.auth import get_user_model, login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -234,8 +235,6 @@ def ghl_sso(request):
     if not getattr(request, "tenant", None) or request.tenant.id != data["t"]:
         return render(request, "ghl/embed_error.html", status=403)
 
-    from django.contrib.auth import get_user_model
-
     user = get_user_model().objects.filter(id=data["u"]).first()
     if not user:
         return render(request, "ghl/embed_error.html", status=403)
@@ -246,7 +245,9 @@ def ghl_sso(request):
     request.session["ghl_embed"] = True
     request.session["ghl_actor"] = {"embed_session_id": data["e"]}
 
+    # Open-redirect guard: only allow local relative paths. url_has_allowed_host_and_scheme
+    # with allowed_hosts=None rejects //evil.com, /\evil.com, and scheme:... payloads.
     nxt = request.GET.get("next", "/dashboard")
-    if not nxt.startswith("/"):
+    if not url_has_allowed_host_and_scheme(nxt, allowed_hosts=None):
         nxt = "/dashboard"
     return redirect(nxt)

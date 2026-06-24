@@ -43,6 +43,10 @@ if platform_base_domain:
     ALLOWED_HOSTS.add(platform_base_domain)
     ALLOWED_HOSTS.add(f'.{platform_base_domain}')
 
+# Expose as an uppercase Django setting for code that derives tenant hosts
+# (e.g. the GHL embed view's tenant-host redirect).
+PLATFORM_BASE_DOMAIN = platform_base_domain
+
 # Local dev subdomain routing (e.g. acme.lvh.me:8000).
 if DEBUG:
     ALLOWED_HOSTS.add('lvh.me')

@@ -75,3 +75,48 @@ class EmbedViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/ghl/sso", resp["Location"])
         self.assertEqual(GhlEmbedSession.objects.count(), 1)
+
+
+from myApp.integrations.ghl import sso
+
+
+@override_settings(ALLOWED_HOSTS=["*"])
+class SsoViewTests(TestCase):
+    # Tenant resolves from the host subdomain slug via TenantMiddleware.
+    HOST = "ncd.localhost"
+
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="NCD", slug="ncd", is_active=True)
+        self.user = User.objects.create_user(username="u", email="u@ncd.com", password="x")
+        self.audit = GhlEmbedSession.objects.create(tenant=self.tenant, ghl_location_id="L")
+        self.client = Client()
+
+    def _token(self, tenant_id=None):
+        return sso.issue(
+            user_id=self.user.id,
+            tenant_id=tenant_id or self.tenant.id,
+            embed_session_id=self.audit.id,
+        )
+
+    def test_valid_token_logs_in_and_redirects(self):
+        resp = self.client.get(f"/ghl/sso?t={self._token()}&next=/dashboard", HTTP_HOST=self.HOST)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], "/dashboard")
+        self.assertIn("_auth_user_id", self.client.session)
+        self.assertTrue(self.client.session.get("ghl_embed"))
+
+    def test_replayed_token_returns_403(self):
+        token = self._token()
+        self.client.get(f"/ghl/sso?t={token}", HTTP_HOST=self.HOST)
+        resp = self.client.get(f"/ghl/sso?t={token}", HTTP_HOST=self.HOST)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_wrong_tenant_returns_403(self):
+        other = Tenant.objects.create(name="X", slug="x", is_active=True)
+        resp = self.client.get(f"/ghl/sso?t={self._token(tenant_id=other.id)}", HTTP_HOST=self.HOST)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_open_redirect_blocked(self):
+        resp = self.client.get(f"/ghl/sso?t={self._token()}&next=//evil.com", HTTP_HOST=self.HOST)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], "/dashboard")
