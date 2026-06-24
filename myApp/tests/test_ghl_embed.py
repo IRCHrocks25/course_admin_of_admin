@@ -40,3 +40,38 @@ class ResolveEmbedUserTests(TestCase):
         user, impersonated = embed_helper.resolve_user(self.tenant, ctx)
         self.assertEqual(user, self.owner)
         self.assertTrue(impersonated)
+
+
+from django.test import Client, override_settings
+from myApp.models_ghl import GHLConnection
+import json
+
+SECRET = "embed-secret"
+
+
+@override_settings(GHL_SHARED_SECRET_KEY=SECRET, ALLOW_ALL_HOSTS=True)
+class EmbedViewTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="NCD", slug="ncd")
+        owner = User.objects.create_user(username="o", email="o@ncd.com", password="x")
+        TenantMembership.objects.create(tenant=self.tenant, user=owner, role="tenant_admin", is_active=True)
+        GHLConnection.objects.create(tenant=self.tenant, ghl_location_id="LOC123")
+        self.client = Client()
+
+    def _blob(self, payload):
+        from myApp.tests.test_ghl_user_context import _cryptojs_encrypt
+        return _cryptojs_encrypt(json.dumps(payload), SECRET)
+
+    def test_missing_blob_renders_unauthorized(self):
+        resp = self.client.get("/ghl/embed")
+        self.assertContains(resp, "Open from a sub-account", status_code=200)
+
+    def test_unknown_location_renders_not_connected(self):
+        resp = self.client.get("/ghl/embed", {"encryptedUserData": self._blob({"locationId": "NOPE"})})
+        self.assertContains(resp, "not connected", status_code=200)
+
+    def test_known_location_redirects_to_sso(self):
+        resp = self.client.get("/ghl/embed", {"encryptedUserData": self._blob({"locationId": "LOC123", "email": "o@ncd.com"})})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/ghl/sso", resp["Location"])
+        self.assertEqual(GhlEmbedSession.objects.count(), 1)

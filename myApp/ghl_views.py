@@ -11,15 +11,21 @@ Phase 0 surface:
 """
 import logging
 
+from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from .integrations.ghl import config, oauth, state
+from .integrations.ghl import embed as ghl_embed_helper
+from .integrations.ghl import sso, user_context
 from .models import GHLConnection
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import resolve_request_tenant
@@ -169,3 +175,78 @@ def ghl_disconnect(request):
         tenant.save(update_fields=["ghl_enabled", "updated_at"])
     messages.success(request, "GoHighLevel disconnected.")
     return redirect("ghl_settings")
+
+
+# ─── Embed + SSO views ───
+
+def _tenant_host(tenant):
+    override = getattr(settings, "GHL_EMBED_HOST_OVERRIDE", "").strip()
+    base = override or getattr(settings, "PLATFORM_BASE_DOMAIN", "").strip()
+    if getattr(tenant, "custom_domain", ""):
+        return tenant.custom_domain
+    if base:
+        return f"{tenant.slug}.{base}"
+    return tenant.slug
+
+
+@csrf_exempt
+@xframe_options_exempt
+@require_http_methods(["GET"])
+def ghl_embed(request):
+    blob = request.GET.get("encryptedUserData") or request.GET.get("userData") or ""
+    ctx = user_context.decrypt(blob, settings.GHL_SHARED_SECRET_KEY)
+    if not ctx or not ctx.location_id or (ctx.type or "").lower() == "agency":
+        return render(request, "ghl/embed_unauthorized.html")
+
+    connection = (
+        GHLConnection.objects.select_related("tenant")
+        .filter(ghl_location_id=ctx.location_id)
+        .first()
+    )
+    if not connection:
+        return render(request, "ghl/embed_not_connected.html")
+
+    tenant = connection.tenant
+    user, impersonated = ghl_embed_helper.resolve_user(tenant, ctx)
+    if user is None:
+        return render(request, "ghl/embed_not_connected.html")
+
+    audit = ghl_embed_helper.record_session(
+        tenant=tenant, connection=connection, ctx=ctx,
+        user=user, impersonated=impersonated, request=request,
+    )
+
+    token = sso.issue(user_id=user.id, tenant_id=tenant.id, embed_session_id=audit.id)
+    host = _tenant_host(tenant)
+    scheme = "http" if getattr(settings, "GHL_EMBED_HOST_OVERRIDE", "") else "https"
+    return redirect(f"{scheme}://{host}/ghl/sso?t={token}&next=/dashboard")
+
+
+@xframe_options_exempt
+@require_http_methods(["GET"])
+def ghl_sso(request):
+    token = request.GET.get("t", "")
+    try:
+        data = sso.consume(token)
+    except sso.SsoError:
+        return render(request, "ghl/embed_error.html", status=403)
+
+    if not getattr(request, "tenant", None) or request.tenant.id != data["t"]:
+        return render(request, "ghl/embed_error.html", status=403)
+
+    from django.contrib.auth import get_user_model
+
+    user = get_user_model().objects.filter(id=data["u"]).first()
+    if not user:
+        return render(request, "ghl/embed_error.html", status=403)
+
+    # AUTHENTICATION_BACKENDS is unset in this project (only ModelBackend active),
+    # so no explicit backend= argument is required.
+    auth_login(request, user)
+    request.session["ghl_embed"] = True
+    request.session["ghl_actor"] = {"embed_session_id": data["e"]}
+
+    nxt = request.GET.get("next", "/dashboard")
+    if not nxt.startswith("/"):
+        nxt = "/dashboard"
+    return redirect(nxt)
