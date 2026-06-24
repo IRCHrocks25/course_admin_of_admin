@@ -304,6 +304,21 @@ GHL_SCOPES = os.getenv("GHL_SCOPES", "").strip()
 GHL_TOKEN_ENCRYPTION_KEY = os.getenv("GHL_TOKEN_ENCRYPTION_KEY", "").strip()
 GHL_ENABLED_GLOBALLY = bool(GHL_CLIENT_ID and GHL_CLIENT_SECRET and GHL_REDIRECT_URI)
 
+# GHL Custom Page (sidebar embed)
+GHL_SHARED_SECRET_KEY = os.getenv("GHL_SHARED_SECRET_KEY", "").strip()
+GHL_EMBED_FRAME_ANCESTORS = os.getenv(
+    "GHL_EMBED_FRAME_ANCESTORS",
+    "https://*.gohighlevel.com https://*.leadconnectorhq.com",
+).strip()
+GHL_EMBED_FRAME_ANCESTORS_CSP = f"frame-ancestors 'self' {GHL_EMBED_FRAME_ANCESTORS}"
+# Tenant-host override for local dev (e.g. "lvh.me:8000"); blank in prod.
+GHL_EMBED_HOST_OVERRIDE = os.getenv("GHL_EMBED_HOST_OVERRIDE", "").strip()
+GHL_SSO_TTL_SECONDS = int(os.getenv("GHL_SSO_TTL_SECONDS", "60"))
+
+# Required so the session cookie survives inside the GHL third-party iframe.
+SESSION_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SECURE = True
+
 
 cache_backend = (os.getenv('CACHE_BACKEND', 'locmem') or 'locmem').strip().lower()
 
