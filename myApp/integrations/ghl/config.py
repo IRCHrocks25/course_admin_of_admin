@@ -21,10 +21,26 @@ API_VERSION = "2021-07-28"
 # We target a Sub-account (Location) install, not an agency (Company) install.
 USER_TYPE = "Location"
 
-# Default scopes if GHL_SCOPES is unset. Keep minimal for Phase 0/1:
-# read/write contacts so we can map + tag, and locations.readonly to confirm
-# the connected sub-account. Widen later as pipes grow.
-_DEFAULT_SCOPES = "contacts.readonly contacts.write locations.readonly"
+# Default scopes if GHL_SCOPES is unset. We request the full Sub-Account-
+# compatible set up front so later phases (course migration, CRM sync, webhooks)
+# need NO partner re-consent. Keep this in sync with
+# business-center/select-subaccount-scopes.js. Sensitive-but-unused scopes
+# (e.g. users.write) are deliberately excluded per the "no unused sensitive
+# scopes" policy — add one only when code actually uses it.
+_DEFAULT_SCOPES = (
+    "contacts.readonly contacts.write "
+    "opportunities.readonly opportunities.write "
+    "locations.readonly "
+    "locations/customValues.readonly locations/customValues.write "
+    "locations/tags.readonly locations/tags.write "
+    "locations/tasks.readonly "
+    "calendars.readonly calendars.write "
+    "calendars/events.readonly calendars/events.write "
+    "conversations.readonly conversations.write "
+    "conversations/message.readonly conversations/message.write "
+    "users.readonly businesses.readonly forms.readonly "
+    "surveys.readonly workflows.readonly"
+)
 
 
 def _env(name, default=""):
