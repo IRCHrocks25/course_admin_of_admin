@@ -49,7 +49,7 @@ import json
 SECRET = "embed-secret"
 
 
-@override_settings(GHL_SHARED_SECRET_KEY=SECRET, ALLOW_ALL_HOSTS=True)
+@override_settings(GHL_SHARED_SECRET_KEY=SECRET, ALLOWED_HOSTS=["*"])
 class EmbedViewTests(TestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(name="NCD", slug="ncd")
@@ -75,6 +75,11 @@ class EmbedViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/ghl/sso", resp["Location"])
         self.assertEqual(GhlEmbedSession.objects.count(), 1)
+
+    def test_agency_context_renders_unauthorized(self):
+        blob = self._blob({"locationId": "LOC123", "type": "agency"})
+        resp = self.client.get("/ghl/embed", {"encryptedUserData": blob})
+        self.assertContains(resp, "Open from a sub-account", status_code=200)
 
 
 from myApp.integrations.ghl import sso
@@ -104,6 +109,12 @@ class SsoViewTests(TestCase):
         self.assertEqual(resp["Location"], "/dashboard")
         self.assertIn("_auth_user_id", self.client.session)
         self.assertTrue(self.client.session.get("ghl_embed"))
+        from django.conf import settings
+        out = resp.cookies[settings.SESSION_COOKIE_NAME].OutputString()
+        self.assertIn("Partitioned", out)
+        self.assertNotIn("partitioned=True", out)
+        self.assertIn("SameSite=None", out)
+        self.assertIn("Secure", out)
 
     def test_replayed_token_returns_403(self):
         token = self._token()

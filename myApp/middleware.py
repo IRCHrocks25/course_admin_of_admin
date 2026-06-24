@@ -296,6 +296,30 @@ class ForcePasswordChangeMiddleware:
         return self.get_response(request)
 
 
+from django.contrib.sessions.middleware import SessionMiddleware
+
+
+class EmbedAwareSessionMiddleware(SessionMiddleware):
+    """Session cookie is SameSite=Lax by default; for GHL-embed sessions it must
+    be SameSite=None; Secure; Partitioned (CHIPS) so it survives inside the GHL
+    iframe. Scoped to embed sessions so normal sessions keep their stronger
+    SameSite=Lax posture."""
+
+    def process_response(self, request, response):
+        is_embed = bool(
+            getattr(request, "session", None) and request.session.get("ghl_embed")
+        )
+        response = super().process_response(request, response)
+        if is_embed:
+            from django.conf import settings as dj_settings
+            morsel = response.cookies.get(dj_settings.SESSION_COOKIE_NAME)
+            if morsel is not None:
+                morsel["samesite"] = "None"
+                morsel["secure"] = True
+                morsel["partitioned"] = True  # registered by the shim at top of file
+        return response
+
+
 class GhlEmbedFrameMiddleware:
     """Allow GHL to iframe embed responses; everyone else keeps X-Frame-Options.
 
@@ -322,14 +346,7 @@ class GhlEmbedFrameMiddleware:
 
         response.headers["Content-Security-Policy"] = settings.GHL_EMBED_FRAME_ANCESTORS_CSP
         response.headers.pop("X-Frame-Options", None)
-
-        # Make the session cookie usable in a third-party iframe (CHIPS).
-        # The "partitioned" attribute is registered at module import (see top),
-        # so this renders a bare `Partitioned` flag on Python 3.12 and 3.14 alike.
-        morsel = response.cookies.get(settings.SESSION_COOKIE_NAME)
-        if morsel is not None:
-            morsel["samesite"] = "None"
-            morsel["secure"] = True
-            morsel["partitioned"] = True
+        # Tell XFrameOptionsMiddleware to skip re-adding DENY regardless of order.
+        response.xframe_options_exempt = True
         return response
 

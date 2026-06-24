@@ -33,7 +33,7 @@ from .integrations.ghl import embed as ghl_embed_helper
 from .integrations.ghl import sso, user_context
 from .integrations.ghl import webhook as ghl_webhook_mod
 from .models import GHLConnection
-from .models_ghl import GHLLink
+from .models_ghl import GHLLink, GhlEmbedSession
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import resolve_request_tenant
 
@@ -149,7 +149,8 @@ def ghl_callback(request):
             minted = oauth.get_location_token(
                 token_payload.get("access_token"), company_id, location_id or ""
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("GHL callback: location-token mint failed for %s (companyId=%s): %s", tenant.slug, company_id, exc)
             minted = None
         if minted and minted.get("locationId"):
             token_payload = minted
@@ -262,9 +263,20 @@ def ghl_sso(request):
 
     # AUTHENTICATION_BACKENDS is unset in this project (only ModelBackend active),
     # so no explicit backend= argument is required.
+    audit = GhlEmbedSession.objects.filter(id=data["e"]).first()
     auth_login(request, user)
     request.session["ghl_embed"] = True
-    request.session["ghl_actor"] = {"embed_session_id": data["e"]}
+    request.session["ghl_actor"] = {
+        "embed_session_id": data["e"],
+        "ghl_user_id": audit.ghl_user_id if audit else "",
+        "email": audit.ghl_email if audit else "",
+        "name": audit.ghl_user_name if audit else "",
+        "role": audit.ghl_role if audit else "",
+        "location_id": audit.ghl_location_id if audit else "",
+    }
+    if audit and request.session.session_key:
+        audit.django_session_key = request.session.session_key
+        audit.save(update_fields=["django_session_key"])
 
     # Open-redirect guard: only allow local relative paths. url_has_allowed_host_and_scheme
     # with allowed_hosts=None rejects //evil.com, /\evil.com, and scheme:... payloads.
@@ -312,7 +324,7 @@ def ghl_webhook(request):
 
     if etype == "ContactDelete":
         contact_id = str(event.get("id") or event.get("contactId") or "").strip()
-        GHLLink.objects.filter(tenant=tenant, ghl_contact_id=contact_id).update(sync_status="error")
+        GHLLink.objects.filter(tenant=tenant, ghl_contact_id=contact_id).delete()
         return JsonResponse({"status": "ok"})
 
     return JsonResponse({"status": "ignored"})

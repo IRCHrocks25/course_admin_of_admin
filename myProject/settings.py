@@ -101,7 +101,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Must be after SecurityMiddleware
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'myApp.middleware.EmbedAwareSessionMiddleware',
     'myApp.middleware.ProtectiveThrottleMiddleware',
     'myApp.middleware.TenantMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -319,11 +319,6 @@ GHL_EMBED_FRAME_ANCESTORS_CSP = f"frame-ancestors 'self' {GHL_EMBED_FRAME_ANCEST
 # Tenant-host override for local dev (e.g. "lvh.me:8000"); blank in prod.
 GHL_EMBED_HOST_OVERRIDE = os.getenv("GHL_EMBED_HOST_OVERRIDE", "").strip()
 GHL_SSO_TTL_SECONDS = int(os.getenv("GHL_SSO_TTL_SECONDS", "60"))
-
-# Required so the session cookie survives inside the GHL third-party iframe.
-SESSION_COOKIE_SAMESITE = "None"
-SESSION_COOKIE_SECURE = True
-
 
 cache_backend = (os.getenv('CACHE_BACKEND', 'locmem') or 'locmem').strip().lower()
 
