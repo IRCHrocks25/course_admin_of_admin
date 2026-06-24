@@ -1,5 +1,5 @@
 """One-time, short-lived token to carry an authenticated identity from the
-platform-host /ghl/embed view to the tenant-host /ghl/sso view."""
+platform-host /leadconnector/embed view to the tenant-host /leadconnector/sso view."""
 from __future__ import annotations
 
 import uuid

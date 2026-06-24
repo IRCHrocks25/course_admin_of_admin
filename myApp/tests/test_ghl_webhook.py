@@ -45,12 +45,12 @@ class WebhookViewTests(TestCase):
         body = json.dumps(payload).encode()
         sig = base64.b64encode(_priv.sign(body)).decode()
         return self.client.post(
-            "/ghl/webhook", data=body, content_type="application/json",
+            "/leadconnector/webhook", data=body, content_type="application/json",
             HTTP_X_GHL_SIGNATURE=sig,
         )
 
     def test_bad_signature_rejected(self):
-        resp = self.client.post("/ghl/webhook", data=b"{}", content_type="application/json",
+        resp = self.client.post("/leadconnector/webhook", data=b"{}", content_type="application/json",
                                 HTTP_X_GHL_SIGNATURE="bad")
         self.assertEqual(resp.status_code, 401)
 

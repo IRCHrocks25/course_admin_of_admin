@@ -12,7 +12,7 @@ class FrameMiddlewareTests(TestCase):
         return mw(req)
 
     def test_embed_path_sets_csp_and_drops_xfo(self):
-        resp = self._run("/ghl/embed")
+        resp = self._run("/leadconnector/embed")
         self.assertIn("frame-ancestors", resp.headers.get("Content-Security-Policy", ""))
         self.assertNotIn("X-Frame-Options", resp.headers)
         self.assertTrue(getattr(resp, "xframe_options_exempt", False))

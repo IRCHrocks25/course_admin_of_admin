@@ -242,7 +242,7 @@ def ghl_embed(request):
     token = sso.issue(user_id=user.id, tenant_id=tenant.id, embed_session_id=audit.id)
     host = _tenant_host(tenant)
     scheme = "http" if getattr(settings, "GHL_EMBED_HOST_OVERRIDE", "") else "https"
-    return redirect(f"{scheme}://{host}/ghl/sso?t={token}&next=/dashboard")
+    return redirect(f"{scheme}://{host}/leadconnector/sso?t={token}&next=/dashboard")
 
 
 @xframe_options_exempt

@@ -63,22 +63,22 @@ class EmbedViewTests(TestCase):
         return _cryptojs_encrypt(json.dumps(payload), SECRET)
 
     def test_missing_blob_renders_unauthorized(self):
-        resp = self.client.get("/ghl/embed")
+        resp = self.client.get("/leadconnector/embed")
         self.assertContains(resp, "Open from a sub-account", status_code=200)
 
     def test_unknown_location_renders_not_connected(self):
-        resp = self.client.get("/ghl/embed", {"encryptedUserData": self._blob({"locationId": "NOPE"})})
+        resp = self.client.get("/leadconnector/embed", {"encryptedUserData": self._blob({"locationId": "NOPE"})})
         self.assertContains(resp, "not connected", status_code=200)
 
     def test_known_location_redirects_to_sso(self):
-        resp = self.client.get("/ghl/embed", {"encryptedUserData": self._blob({"locationId": "LOC123", "email": "o@ncd.com"})})
+        resp = self.client.get("/leadconnector/embed", {"encryptedUserData": self._blob({"locationId": "LOC123", "email": "o@ncd.com"})})
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/ghl/sso", resp["Location"])
+        self.assertIn("/leadconnector/sso", resp["Location"])
         self.assertEqual(GhlEmbedSession.objects.count(), 1)
 
     def test_agency_context_renders_unauthorized(self):
         blob = self._blob({"locationId": "LOC123", "type": "agency"})
-        resp = self.client.get("/ghl/embed", {"encryptedUserData": blob})
+        resp = self.client.get("/leadconnector/embed", {"encryptedUserData": blob})
         self.assertContains(resp, "Open from a sub-account", status_code=200)
 
 
@@ -104,7 +104,7 @@ class SsoViewTests(TestCase):
         )
 
     def test_valid_token_logs_in_and_redirects(self):
-        resp = self.client.get(f"/ghl/sso?t={self._token()}&next=/dashboard", HTTP_HOST=self.HOST)
+        resp = self.client.get(f"/leadconnector/sso?t={self._token()}&next=/dashboard", HTTP_HOST=self.HOST)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], "/dashboard")
         self.assertIn("_auth_user_id", self.client.session)
@@ -118,16 +118,16 @@ class SsoViewTests(TestCase):
 
     def test_replayed_token_returns_403(self):
         token = self._token()
-        self.client.get(f"/ghl/sso?t={token}", HTTP_HOST=self.HOST)
-        resp = self.client.get(f"/ghl/sso?t={token}", HTTP_HOST=self.HOST)
+        self.client.get(f"/leadconnector/sso?t={token}", HTTP_HOST=self.HOST)
+        resp = self.client.get(f"/leadconnector/sso?t={token}", HTTP_HOST=self.HOST)
         self.assertEqual(resp.status_code, 403)
 
     def test_wrong_tenant_returns_403(self):
         other = Tenant.objects.create(name="X", slug="x", is_active=True)
-        resp = self.client.get(f"/ghl/sso?t={self._token(tenant_id=other.id)}", HTTP_HOST=self.HOST)
+        resp = self.client.get(f"/leadconnector/sso?t={self._token(tenant_id=other.id)}", HTTP_HOST=self.HOST)
         self.assertEqual(resp.status_code, 403)
 
     def test_open_redirect_blocked(self):
-        resp = self.client.get(f"/ghl/sso?t={self._token()}&next=//evil.com", HTTP_HOST=self.HOST)
+        resp = self.client.get(f"/leadconnector/sso?t={self._token()}&next=//evil.com", HTTP_HOST=self.HOST)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp["Location"], "/dashboard")

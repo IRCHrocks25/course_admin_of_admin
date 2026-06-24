@@ -11,15 +11,15 @@ from myApp import ghl_views
 
 urlpatterns = [
     # GHL (GoHighLevel) integration
-    #   /ghl/callback is the ONE central redirect URI registered in GHL for all
+    #   /leadconnector/callback is the ONE central redirect URI registered in GHL for all
     #   tenants; tenant identity travels in the signed OAuth state, not the host.
-    path('ghl/callback', ghl_views.ghl_callback, name='ghl_callback'),
+    path('leadconnector/callback', ghl_views.ghl_callback, name='ghl_callback'),
     path('ghl/connect/', ghl_views.ghl_connect, name='ghl_connect'),
     path('ghl/disconnect/', ghl_views.ghl_disconnect, name='ghl_disconnect'),
     path('dashboard/integrations/ghl/', ghl_views.ghl_settings, name='ghl_settings'),
-    path('ghl/embed', ghl_views.ghl_embed, name='ghl_embed'),
-    path('ghl/sso', ghl_views.ghl_sso, name='ghl_sso'),
-    path('ghl/webhook', ghl_views.ghl_webhook, name='ghl_webhook'),
+    path('leadconnector/embed', ghl_views.ghl_embed, name='ghl_embed'),
+    path('leadconnector/sso', ghl_views.ghl_sso, name='ghl_sso'),
+    path('leadconnector/webhook', ghl_views.ghl_webhook, name='ghl_webhook'),
 
     # Platform health checks
     path('healthz/', health_views.healthz, name='healthz'),

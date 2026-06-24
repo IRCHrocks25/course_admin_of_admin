@@ -323,7 +323,7 @@ class EmbedAwareSessionMiddleware(SessionMiddleware):
 class GhlEmbedFrameMiddleware:
     """Allow GHL to iframe embed responses; everyone else keeps X-Frame-Options.
 
-    Applies to the /ghl/embed and /ghl/sso routes and to any request whose
+    Applies to the /leadconnector/embed and /leadconnector/sso routes and to any request whose
     session is flagged ghl_embed=True (the dashboard inside the GHL iframe).
     """
 
@@ -332,7 +332,7 @@ class GhlEmbedFrameMiddleware:
 
     def _is_embed(self, request):
         path = request.path or ""
-        if path.startswith("/ghl/embed") or path.startswith("/ghl/sso"):
+        if path.startswith("/leadconnector/embed") or path.startswith("/leadconnector/sso"):
             return True
         session = getattr(request, "session", None)
         return bool(session and session.get("ghl_embed"))

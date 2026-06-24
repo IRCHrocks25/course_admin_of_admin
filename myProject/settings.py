@@ -300,7 +300,7 @@ else:
 GHL_CLIENT_ID = os.getenv("GHL_CLIENT_ID", "").strip()
 GHL_CLIENT_SECRET = os.getenv("GHL_CLIENT_SECRET", "").strip()
 # The ONE central redirect URI registered in the GHL marketplace app. Must match
-# what is registered EXACTLY (e.g. https://app.courseforge.com/ghl/callback).
+# what is registered EXACTLY (e.g. https://app.courseforge.com/leadconnector/callback).
 GHL_REDIRECT_URI = os.getenv("GHL_REDIRECT_URI", "").strip()
 GHL_WEBHOOK_PUBLIC_KEY = os.getenv("GHL_WEBHOOK_PUBLIC_KEY", "").strip()
 GHL_SCOPES = os.getenv("GHL_SCOPES", "").strip()

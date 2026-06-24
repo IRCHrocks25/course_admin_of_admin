@@ -12,9 +12,9 @@ The app needs three URLs, all on the prod host, **no trailing slashes** (Django 
 
 | Purpose             | URL                                              |
 | ------------------- | ------------------------------------------------ |
-| OAuth redirect      | `https://courseforge.katek-ai.com/ghl/callback`  |
-| Custom Page (embed) | `https://courseforge.katek-ai.com/ghl/embed`     |
-| Webhook             | `https://courseforge.katek-ai.com/ghl/webhook`   |
+| OAuth redirect      | `https://courseforge.katek-ai.com/leadconnector/callback`  |
+| Custom Page (embed) | `https://courseforge.katek-ai.com/leadconnector/embed`     |
+| Webhook             | `https://courseforge.katek-ai.com/leadconnector/webhook`   |
 
 ---
 
@@ -93,7 +93,7 @@ workflows.readonly
 App → **Settings → Redirect URLs** → Add exactly:
 
 ```
-https://courseforge.katek-ai.com/ghl/callback
+https://courseforge.katek-ai.com/leadconnector/callback
 ```
 
 Exact match — scheme, host, path, no trailing slash. Mismatch → `redirect_uri_mismatch`.
@@ -105,10 +105,10 @@ Exact match — scheme, host, path, no trailing slash. Mismatch → `redirect_ur
 App → **Custom Pages / App Pages** (a.k.a. "Custom Menu Link") → Add:
 
 - **Page name / menu label:** `CourseForge Academy`
-- **Page URL:** `https://courseforge.katek-ai.com/ghl/embed`
+- **Page URL:** `https://courseforge.katek-ai.com/leadconnector/embed`
 - **Icon:** reuse `static/img/courseforge-icon-512.png` if it allows an upload.
 
-How it works: GHL loads `/ghl/embed` in an iframe with an `encryptedUserData` blob → CourseForge decrypts it with the **Shared Secret** (Step 8) → finds the tenant by GHL `locationId` → auto-logs the user in → renders their academy dashboard in the iframe.
+How it works: GHL loads `/leadconnector/embed` in an iframe with an `encryptedUserData` blob → CourseForge decrypts it with the **Shared Secret** (Step 8) → finds the tenant by GHL `locationId` → auto-logs the user in → renders their academy dashboard in the iframe.
 
 ---
 
@@ -116,7 +116,7 @@ How it works: GHL loads `/ghl/embed` in an iframe with an `encryptedUserData` bl
 
 App → **Webhooks**:
 
-- **Webhook URL:** `https://courseforge.katek-ai.com/ghl/webhook`
+- **Webhook URL:** `https://courseforge.katek-ai.com/leadconnector/webhook`
 - **Events:** CourseForge handles **Contact** events today (others ignored safely). Subscribe broadly (no re-consent cost): Webhooks → Events tab, DevTools → Console, paste `business-center/enable-webhook-events.js`, Enter.
 
 ---
@@ -138,7 +138,7 @@ Set these on the **Railway prod service** for CourseForge:
 |---|---|
 | `GHL_CLIENT_ID` | Step 8 |
 | `GHL_CLIENT_SECRET` | Step 8 |
-| `GHL_REDIRECT_URI` | `https://courseforge.katek-ai.com/ghl/callback` |
+| `GHL_REDIRECT_URI` | `https://courseforge.katek-ai.com/leadconnector/callback` |
 | `GHL_SHARED_SECRET_KEY` | Step 8 (Advanced Settings → Auth) |
 | `GHL_WEBHOOK_PUBLIC_KEY` | Step 7 |
 | `GHL_TOKEN_ENCRYPTION_KEY` | generate (below) |
@@ -179,7 +179,7 @@ After setting env vars, redeploy so they take effect.
 
 | Symptom | Fix |
 |---|---|
-| `redirect_uri_mismatch` | The Redirect URL isn't exactly `https://courseforge.katek-ai.com/ghl/callback` (trailing slash / scheme). |
+| `redirect_uri_mismatch` | The Redirect URL isn't exactly `https://courseforge.katek-ai.com/leadconnector/callback` (trailing slash / scheme). |
 | Embed: **"Open from a sub-account"** | Opened at agency level / no `locationId`. Open from inside a sub-account. |
 | Embed: **"Academy not connected"** | That sub-account hasn't done step A. Run Connect first. |
 | Iframe **blank** | Confirm the deploy includes `GhlEmbedFrameMiddleware` and `GHL_EMBED_FRAME_ANCESTORS` covers `*.gohighlevel.com *.leadconnectorhq.com`. |

@@ -21,7 +21,7 @@ class CallbackCompanyInstallTests(TestCase):
             "expires_in": 3600, "locationId": "LOC9", "companyId": "CO1", "scope": "x",
         }
         token = state.encode(self.tenant.id)
-        resp = self.client.get("/ghl/callback", {"code": "abc", "state": token})
+        resp = self.client.get("/leadconnector/callback", {"code": "abc", "state": token})
         mock_mint.assert_called_once()
         conn = GHLConnection.objects.get(tenant=self.tenant)
         self.assertEqual(conn.ghl_location_id, "LOC9")
