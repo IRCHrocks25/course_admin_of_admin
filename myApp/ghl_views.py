@@ -24,10 +24,16 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+import json
+
+from django.http import HttpResponse, JsonResponse
+
 from .integrations.ghl import config, oauth, state
 from .integrations.ghl import embed as ghl_embed_helper
 from .integrations.ghl import sso, user_context
+from .integrations.ghl import webhook as ghl_webhook_mod
 from .models import GHLConnection
+from .models_ghl import GHLLink
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import resolve_request_tenant
 
@@ -251,3 +257,47 @@ def ghl_sso(request):
     if not url_has_allowed_host_and_scheme(nxt, allowed_hosts=None):
         nxt = "/dashboard"
     return redirect(nxt)
+
+
+# ─── Webhook receiver ───
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def ghl_webhook(request):
+    raw = request.body  # must read before parsing
+    sig = request.headers.get("X-GHL-Signature", "")
+    if not ghl_webhook_mod.verify(raw, sig):
+        return HttpResponse(status=401)
+
+    try:
+        event = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return HttpResponse(status=400)
+
+    location_id = str(event.get("locationId") or "").strip()
+    connection = (
+        GHLConnection.objects.select_related("tenant")
+        .filter(ghl_location_id=location_id)
+        .first()
+    )
+    if not connection:
+        return JsonResponse({"status": "ignored"})
+
+    etype = event.get("type", "")
+    tenant = connection.tenant
+
+    if etype in ("ContactCreate", "ContactUpdate"):
+        contact_id = str(event.get("id") or event.get("contactId") or "").strip()
+        if contact_id:
+            GHLLink.objects.update_or_create(
+                tenant=tenant, ghl_contact_id=contact_id,
+                defaults={"connection": connection, "sync_status": "active"},
+            )
+        return JsonResponse({"status": "ok"})
+
+    if etype == "ContactDelete":
+        contact_id = str(event.get("id") or event.get("contactId") or "").strip()
+        GHLLink.objects.filter(tenant=tenant, ghl_contact_id=contact_id).update(sync_status="error")
+        return JsonResponse({"status": "ok"})
+
+    return JsonResponse({"status": "ignored"})

@@ -19,6 +19,7 @@ urlpatterns = [
     path('dashboard/integrations/ghl/', ghl_views.ghl_settings, name='ghl_settings'),
     path('ghl/embed', ghl_views.ghl_embed, name='ghl_embed'),
     path('ghl/sso', ghl_views.ghl_sso, name='ghl_sso'),
+    path('ghl/webhook', ghl_views.ghl_webhook, name='ghl_webhook'),
 
     # Platform health checks
     path('healthz/', health_views.healthz, name='healthz'),
