@@ -121,9 +121,9 @@ App → **Webhooks**:
 
 ---
 
-## 7. Webhook signing (Ed25519)
+## 7. Webhook signing (Ed25519) — nothing to do
 
-App → Webhooks → **Public Key** → copy → set as `GHL_WEBHOOK_PUBLIC_KEY`. CourseForge verifies each webhook's `X-GHL-Signature` over the raw body with this key. If empty, send a test event first, then copy it.
+There is **no per-app webhook key** in GHL. HighLevel signs all marketplace webhooks with **one global public key**, published in their docs. CourseForge bakes that Ed25519 key in as the default (`_GHL_GLOBAL_ED25519_PUBLIC_KEY` in `settings.py`) and verifies the `X-GHL-Signature` header over the raw body, so webhooks verify with no config. Only set `GHL_WEBHOOK_PUBLIC_KEY` if GHL ever rotates the global key. (The legacy RSA `X-WH-Signature` is deprecated 2026-07-01; we use the Ed25519 path.)
 
 ---
 
@@ -140,7 +140,7 @@ Set these on the **Railway prod service** for CourseForge:
 | `GHL_CLIENT_SECRET` | Step 8 |
 | `GHL_REDIRECT_URI` | `https://courseforge.katek-ai.com/leadconnector/callback` |
 | `GHL_SHARED_SECRET_KEY` | Step 8 (Advanced Settings → Auth) |
-| `GHL_WEBHOOK_PUBLIC_KEY` | Step 7 |
+| `GHL_WEBHOOK_PUBLIC_KEY` | **skip** — global key baked into `settings.py` (see Step 7) |
 | `GHL_TOKEN_ENCRYPTION_KEY` | generate (below) |
 | `GHL_SCOPES` | leave **blank** (uses `_DEFAULT_SCOPES`) |
 | `PLATFORM_BASE_DOMAIN` | `courseforge.katek-ai.com` (so the embed builds `<slug>.courseforge.katek-ai.com` redirects) |
@@ -184,14 +184,14 @@ After setting env vars, redeploy so they take effect.
 | Embed: **"Academy not connected"** | That sub-account hasn't done step A. Run Connect first. |
 | Iframe **blank** | Confirm the deploy includes `GhlEmbedFrameMiddleware` and `GHL_EMBED_FRAME_ANCESTORS` covers `*.gohighlevel.com *.leadconnectorhq.com`. |
 | Logged out / loop in iframe | Session cookie needs `SameSite=None; Secure; Partitioned`. Prod is HTTPS so this works; if behind a proxy, ensure `Secure` isn't stripped. |
-| Webhook **401** | `GHL_WEBHOOK_PUBLIC_KEY` mismatch, or GHL's header isn't `X-GHL-Signature`. Confirm key; adjust `ghl_webhook` if the header name differs. |
+| Webhook **401** | Signature failed. We use GHL's global Ed25519 key + `X-GHL-Signature` (confirmed in GHL docs). If GHL rotated the global key, set `GHL_WEBHOOK_PUBLIC_KEY` to the new value to override the baked-in default. |
 | Company/agency install error | Distribution must be **Sub-Account** (Step 2). Multi-location agency picker isn't built yet. |
 
 ---
 
 ## Confirm against live GHL (safe fallbacks already in code)
-1. Webhook signature **header name/casing** (code expects `X-GHL-Signature`).
-2. Contact webhook **id key** (code accepts `id` or `contactId`).
+1. ~~Webhook signature header name~~ — confirmed `X-GHL-Signature` (Ed25519) per GHL docs.
+2. Contact webhook **id key** (code accepts `id` or `contactId`) — confirm against a real payload.
 
 ## Logo / favicon assets (this repo, `static/img/`)
 - `courseforge-icon-512.png` — **upload as the marketplace app logo** (Step 1).

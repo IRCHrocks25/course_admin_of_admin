@@ -302,7 +302,13 @@ GHL_CLIENT_SECRET = os.getenv("GHL_CLIENT_SECRET", "").strip()
 # The ONE central redirect URI registered in the GHL marketplace app. Must match
 # what is registered EXACTLY (e.g. https://app.courseforge.com/leadconnector/callback).
 GHL_REDIRECT_URI = os.getenv("GHL_REDIRECT_URI", "").strip()
-GHL_WEBHOOK_PUBLIC_KEY = os.getenv("GHL_WEBHOOK_PUBLIC_KEY", "").strip()
+# HighLevel signs marketplace webhooks with ONE global public key (not per-app).
+# This is GHL's published Ed25519 key for the X-GHL-Signature header; baked in as
+# the default so webhooks verify out of the box. Override via env only if GHL
+# rotates it. (Legacy RSA X-WH-Signature is deprecated 2026-07-01.)
+# Source: https://marketplace.gohighlevel.com/docs/webhook/WebhookIntegrationGuide/
+_GHL_GLOBAL_ED25519_PUBLIC_KEY = "MCowBQYDK2VwAyEAi2HR1srL4o18O8BRa7gVJY7G7bupbN3H9AwJrHCDiOg="
+GHL_WEBHOOK_PUBLIC_KEY = os.getenv("GHL_WEBHOOK_PUBLIC_KEY", _GHL_GLOBAL_ED25519_PUBLIC_KEY).strip()
 GHL_SCOPES = os.getenv("GHL_SCOPES", "").strip()
 # Optional dedicated key for encrypting stored OAuth tokens. If unset we derive
 # one from SECRET_KEY (see integrations/ghl/crypto.py).

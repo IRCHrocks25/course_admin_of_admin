@@ -63,3 +63,16 @@ class WebhookViewTests(TestCase):
         resp = self._post({"type": "InvoicePaid", "locationId": "LOC1"})
         self.assertEqual(resp.status_code, 200)
         self.assertJSONEqual(resp.content, {"status": "ignored"})
+
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+
+class DefaultWebhookKeyTests(SimpleTestCase):
+    """GHL's webhook public key is global; we bake it in as the settings default
+    so webhooks verify without per-env config."""
+
+    def test_default_key_is_valid_ed25519(self):
+        # No override -> uses settings default (GHL's published global key).
+        key = webhook._load_public_key()
+        self.assertIsInstance(key, Ed25519PublicKey)
