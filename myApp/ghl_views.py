@@ -141,6 +141,21 @@ def ghl_callback(request):
     location_id = token_payload.get("locationId")
     company_id = token_payload.get("companyId", "")
 
+    if not location_id and company_id:
+        # Agency/Company install: mint a Location-scoped token. With Sub-Account
+        # distribution + chooselocation this is a fallback; multi-location agency
+        # picker is deferred — we use whatever location the mint resolves.
+        try:
+            minted = oauth.get_location_token(
+                token_payload.get("access_token"), company_id, location_id or ""
+            )
+        except Exception:
+            minted = None
+        if minted and minted.get("locationId"):
+            token_payload = minted
+            location_id = minted.get("locationId")
+            company_id = minted.get("companyId", company_id)
+
     # We target a Sub-account install, so locationId should be present. An
     # agency-only token (companyId, no locationId) can't be auto-bound to a
     # location here; surface it rather than silently storing a half-connection.
