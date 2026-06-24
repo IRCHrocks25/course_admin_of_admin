@@ -10,6 +10,17 @@ from django.urls import reverse
 from django.db.models import F
 from .models import Tenant, TenantDomain, TenantMembership, StudentIPLog
 
+import http.cookies as _http_cookies
+
+# CHIPS: register the "Partitioned" cookie attribute for Python < 3.14 so the
+# embed session cookie can carry a bare `Partitioned` flag (required by Chrome
+# for cookies inside the GHL third-party iframe). Adding it to _flags makes
+# OutputString render it as a bare flag instead of `partitioned=True`. No-op on
+# 3.14+ where it is already reserved.
+if "partitioned" not in _http_cookies.Morsel._reserved:
+    _http_cookies.Morsel._reserved["partitioned"] = "Partitioned"
+_http_cookies.Morsel._flags.add("partitioned")
+
 
 class ProtectiveThrottleMiddleware:
     """
@@ -313,16 +324,12 @@ class GhlEmbedFrameMiddleware:
         response.headers.pop("X-Frame-Options", None)
 
         # Make the session cookie usable in a third-party iframe (CHIPS).
+        # The "partitioned" attribute is registered at module import (see top),
+        # so this renders a bare `Partitioned` flag on Python 3.12 and 3.14 alike.
         morsel = response.cookies.get(settings.SESSION_COOKIE_NAME)
         if morsel is not None:
             morsel["samesite"] = "None"
             morsel["secure"] = True
-            try:
-                morsel["partitioned"] = True  # Python 3.14+ http.cookies
-            except Exception:
-                # Older Python: append manually so Chrome accepts the cookie.
-                if "; Partitioned" not in morsel.OutputString():
-                    morsel._reserved.setdefault("partitioned", "Partitioned")
-                    morsel.__setitem__("partitioned", True)
+            morsel["partitioned"] = True
         return response
 

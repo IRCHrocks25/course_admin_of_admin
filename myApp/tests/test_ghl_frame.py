@@ -24,3 +24,23 @@ class FrameMiddlewareTests(TestCase):
     def test_non_embed_keeps_deny(self):
         resp = self._run("/dashboard/")
         self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
+
+    def test_embed_session_cookie_is_partitioned(self):
+        from django.conf import settings
+
+        rf = RequestFactory()
+        req = rf.get("/ghl/sso")
+        req.session = {}
+
+        def view(r):
+            resp = HttpResponse("ok")
+            resp.set_cookie(settings.SESSION_COOKIE_NAME, "abc")
+            return resp
+
+        resp = GhlEmbedFrameMiddleware(view)(req)
+        out = resp.cookies[settings.SESSION_COOKIE_NAME].OutputString()
+        # Must be a bare `Partitioned` flag (not `partitioned=True`) for CHIPS.
+        self.assertIn("Partitioned", out)
+        self.assertNotIn("partitioned=True", out)
+        self.assertIn("SameSite=None", out)
+        self.assertIn("Secure", out)
