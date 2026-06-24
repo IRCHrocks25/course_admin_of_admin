@@ -52,6 +52,8 @@ def decrypt(blob: str, secret: str) -> Optional[GhlUserContext]:
         if pad < 1 or pad > 16:
             return None
         data = json.loads(padded[:-pad].decode("utf-8"))
+        if not isinstance(data, dict):
+            return None
     except Exception:
         return None
     return GhlUserContext(

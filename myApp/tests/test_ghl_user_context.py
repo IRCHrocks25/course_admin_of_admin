@@ -38,8 +38,21 @@ class UserContextTests(SimpleTestCase):
         self.assertEqual(ctx.location_id, "LOC123")
         self.assertEqual(ctx.email, "a@b.com")
 
-    def test_tampered_blob_returns_none(self):
+    def test_invalid_base64_returns_none(self):
         self.assertIsNone(user_context.decrypt("not-base64!!", self.SECRET))
+
+    def test_tampered_ciphertext_returns_none(self):
+        blob = _cryptojs_encrypt('{"locationId":"X"}', self.SECRET)
+        raw = base64.b64decode(blob)
+        # Flip a byte in the ciphertext region (after the 16-byte Salted__+salt header).
+        tampered = raw[:17] + bytes([raw[17] ^ 0xFF]) + raw[18:]
+        self.assertIsNone(
+            user_context.decrypt(base64.b64encode(tampered).decode(), self.SECRET)
+        )
+
+    def test_non_dict_json_returns_none(self):
+        blob = _cryptojs_encrypt("[1, 2, 3]", self.SECRET)
+        self.assertIsNone(user_context.decrypt(blob, self.SECRET))
 
     def test_wrong_secret_returns_none(self):
         blob = _cryptojs_encrypt('{"locationId":"X"}', self.SECRET)
