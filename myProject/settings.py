@@ -107,6 +107,7 @@ MIDDLEWARE = [
     'myApp.middleware.ForcePasswordChangeMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'myApp.middleware.GhlEmbedFrameMiddleware',
 ]
 
 ROOT_URLCONF = 'myProject.urls'

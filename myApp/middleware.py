@@ -284,3 +284,45 @@ class ForcePasswordChangeMiddleware:
 
         return self.get_response(request)
 
+
+class GhlEmbedFrameMiddleware:
+    """Allow GHL to iframe embed responses; everyone else keeps X-Frame-Options.
+
+    Applies to the /ghl/embed and /ghl/sso routes and to any request whose
+    session is flagged ghl_embed=True (the dashboard inside the GHL iframe).
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def _is_embed(self, request):
+        path = request.path or ""
+        if path.startswith("/ghl/embed") or path.startswith("/ghl/sso"):
+            return True
+        session = getattr(request, "session", None)
+        return bool(session and session.get("ghl_embed"))
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if not self._is_embed(request):
+            return response
+
+        from django.conf import settings
+
+        response.headers["Content-Security-Policy"] = settings.GHL_EMBED_FRAME_ANCESTORS_CSP
+        response.headers.pop("X-Frame-Options", None)
+
+        # Make the session cookie usable in a third-party iframe (CHIPS).
+        morsel = response.cookies.get(settings.SESSION_COOKIE_NAME)
+        if morsel is not None:
+            morsel["samesite"] = "None"
+            morsel["secure"] = True
+            try:
+                morsel["partitioned"] = True  # Python 3.14+ http.cookies
+            except Exception:
+                # Older Python: append manually so Chrome accepts the cookie.
+                if "; Partitioned" not in morsel.OutputString():
+                    morsel._reserved.setdefault("partitioned", "Partitioned")
+                    morsel.__setitem__("partitioned", True)
+        return response
+
