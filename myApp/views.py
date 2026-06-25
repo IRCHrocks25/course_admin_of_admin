@@ -2132,59 +2132,12 @@ def lesson_detail(request, course_slug, lesson_slug):
 
     all_modules = list(course.modules.all())
 
-    # Determine which lessons are accessible (using prefetched data, no N+1)
-    accessible_lessons = []
-    completed_set = set(completed_lessons)
-    if all_lessons:
-        first_lesson = all_lessons[0]
-        accessible_lessons.append(first_lesson.id)
-
-        for current_lesson in all_lessons[1:]:
-            is_first_in_module = False
-            current_module_lessons_list = lessons_by_module.get(current_lesson.module_id or 0, [])
-            if current_lesson.module_id and current_module_lessons_list:
-                first_lesson_in_module = current_module_lessons_list[0]
-                if first_lesson_in_module.id == current_lesson.id:
-                    is_first_in_module = True
-                    current_module_index = next((idx for idx, m in enumerate(all_modules) if m.id == current_lesson.module_id), None)
-                    if current_module_index and current_module_index > 0:
-                        prev_module = all_modules[current_module_index - 1]
-                        prev_module_lessons_list = lessons_by_module.get(prev_module.id, [])
-                        if prev_module_lessons_list and any(lid in completed_set for lid in [l.id for l in prev_module_lessons_list]):
-                            accessible_lessons.append(current_lesson.id)
-                            continue
-
-            if not is_first_in_module:
-                if current_lesson.module_id and current_module_lessons_list:
-                    current_lesson_index = next((idx for idx, l in enumerate(current_module_lessons_list) if l.id == current_lesson.id), None)
-                    if current_lesson_index is not None and current_lesson_index > 0:
-                        previous_lesson_in_module = current_module_lessons_list[current_lesson_index - 1]
-                        if previous_lesson_in_module.id in completed_set:
-                            accessible_lessons.append(current_lesson.id)
-                            continue
-
-                # Fallback: all previous lessons overall completed
-                prev_ids = [l.id for l in all_lessons if l.order < current_lesson.order or (l.order == current_lesson.order and l.id < current_lesson.id)]
-                if all(pid in completed_set for pid in prev_ids):
-                    accessible_lessons.append(current_lesson.id)
-
-        # Check if current lesson is locked
-        lesson_locked = lesson.id not in accessible_lessons
-
-        # If lesson is locked, redirect to first incomplete lesson or show message
-        if lesson_locked:
-            # Find first incomplete lesson
-            first_incomplete = None
-            for l in all_lessons:
-                if l.id not in completed_lessons:
-                    first_incomplete = l
-                    break
-
-            if first_incomplete:
-                messages.warning(request, 'Please complete previous lessons before accessing this one.')
-                return redirect('lesson_detail', course_slug=course_slug, lesson_slug=first_incomplete.slug)
-            else:
-                messages.info(request, 'All lessons completed!')
+    # All lessons are open from the start. Quizzes are optional across every
+    # tenant (LessonQuiz.is_required is False), so no lesson is gated behind
+    # completing or passing a previous one — every lesson is accessible and
+    # nothing is locked.
+    accessible_lessons = [l.id for l in all_lessons]
+    lesson_locked = False
 
     # Work out next lesson (using prefetched data)
     next_lesson = None

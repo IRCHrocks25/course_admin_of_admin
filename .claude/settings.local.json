@@ -78,7 +78,10 @@
       "Bash(USE_LOCAL_SQLITE=True python manage.py migrate myApp)",
       "Bash(USE_LOCAL_SQLITE=True python manage.py check)",
       "Bash(USE_LOCAL_SQLITE=True python -c ' *)",
-      "Bash(USE_LOCAL_SQLITE=True python manage.py ghl_refresh_tokens --dry-run)"
+      "Bash(USE_LOCAL_SQLITE=True python manage.py ghl_refresh_tokens --dry-run)",
+      "Bash(xargs grep -l \"padlock\\\\|lock\\\\|unlock\\\\|locked\")",
+      "PowerShell(python manage.py make_quizzes_optional --dry-run)",
+      "PowerShell(python -c \"import ast; ast.parse\\(open\\('myApp/views.py', encoding='utf-8'\\).read\\(\\)\\); print\\('views.py OK'\\)\")"
     ]
   }
 }
