@@ -130,6 +130,16 @@
                         {% endfor %}
                     </div>
                 </section>
+                {% elif lesson.description %}
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                    <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                        <i class="fas fa-sticky-note text-cyan-electric"></i>
+                        Lesson Notes
+                    </h2>
+                    <div class="prose prose-invert max-w-none text-gray-300 leading-relaxed">
+                        {{ lesson.description|linebreaks }}
+                    </div>
+                </section>
                 {% endif %}
                 
                 <!-- This Lesson Will Produce -->
