@@ -25,6 +25,13 @@
   .ghl-banner.ok  { background: rgba(25,210,124,0.12); color: #19d27c; }
   .ghl-banner.err { background: rgba(255,93,93,0.12); color: #ff7a7a; }
   code.ghl-mono { font-family: ui-monospace, monospace; font-size: 12px; color: #cbd5e1; }
+  /* Light theme: the colors above are tuned for the dark shell. Remap the muted
+     text, code values and borders so they stay readable on a white background. */
+  .brand-theme-light .ghl-muted { color: #475569; }
+  .brand-theme-light code.ghl-mono { color: #1e293b; }
+  .brand-theme-light .ghl-card { background: #ffffff; border-color: rgba(15,23,42,0.12); }
+  .brand-theme-light .ghl-row { border-bottom-color: rgba(15,23,42,0.08); }
+  .brand-theme-light .ghl-pill.off { color: #475569; background: rgba(71,85,105,0.12); }
 </style>
 
 {% if ghl_status == 'connected' %}
