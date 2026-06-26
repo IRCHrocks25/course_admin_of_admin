@@ -217,9 +217,24 @@ def _tenant_host(tenant):
 @require_http_methods(["GET"])
 def ghl_embed(request):
     blob = request.GET.get("encryptedUserData") or request.GET.get("userData") or ""
+    if not blob:
+        logger.warning("GHL embed: no user-context param (GET keys=%s)", list(request.GET.keys()))
+        return render(request, "ghl/embed_unauthorized.html",
+                      {"reason": "GHL sent no user-context to this page"})
     ctx = user_context.decrypt(blob, settings.GHL_SHARED_SECRET_KEY)
-    if not ctx or not ctx.location_id or (ctx.type or "").lower() == "agency":
-        return render(request, "ghl/embed_unauthorized.html")
+    if ctx is None:
+        logger.warning("GHL embed: decrypt FAILED (shared-secret mismatch or bad blob); blob_len=%d", len(blob))
+        return render(request, "ghl/embed_unauthorized.html",
+                      {"reason": "could not decrypt the GHL context (Shared Secret mismatch)"})
+    if (ctx.type or "").lower() == "agency" or not ctx.location_id:
+        logger.warning(
+            "GHL embed: non-location context type=%r user_type=%r location_id=%r company_id=%r",
+            ctx.type, ctx.user_type, ctx.location_id, ctx.company_id,
+        )
+        reason = ("opened at agency level (open it inside a specific sub-account)"
+                  if (ctx.type or "").lower() == "agency"
+                  else "GHL context had no sub-account id")
+        return render(request, "ghl/embed_unauthorized.html", {"reason": reason})
 
     connection = (
         GHLConnection.objects.select_related("tenant")

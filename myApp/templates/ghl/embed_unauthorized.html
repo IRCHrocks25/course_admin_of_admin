@@ -3,4 +3,5 @@
 <body style="font-family:system-ui;padding:2rem;text-align:center">
 <h2>Open from a sub-account</h2>
 <p>This page must be opened from inside a GoHighLevel sub-account.</p>
+{% if reason %}<p style="font-size:12px;color:#999;margin-top:1.5rem">Diagnostic: {{ reason }}</p>{% endif %}
 </body></html>
