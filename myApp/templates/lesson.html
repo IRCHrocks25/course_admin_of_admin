@@ -136,12 +136,35 @@
                         <i class="fas fa-sticky-note text-cyan-electric"></i>
                         Lesson Notes
                     </h2>
-                    <div class="prose prose-invert max-w-none text-gray-300 leading-relaxed">
-                        {{ lesson.description|linebreaks }}
+                    <div class="prose prose-invert max-w-none text-gray-300 leading-relaxed [&_a]:text-cyan-electric [&_a]:underline [&_a:hover]:opacity-80">
+                        {{ lesson.description|urlize|linebreaks }}
                     </div>
                 </section>
                 {% endif %}
-                
+
+                {# Resource links as CTA buttons for lessons WITHOUT a video — the video-info chips above only render when a video exists, so no-video lessons (workbook, glossary, forms, downloads) would otherwise show no link #}
+                {% if not lesson.video_url and not lesson.get_vimeo_embed_url and not lesson.google_drive_url %}
+                {% if lesson.workbook_url or lesson.resources_url %}
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">Resources</h3>
+                    <div class="flex flex-wrap gap-3">
+                        {% if lesson.workbook_url %}
+                        <a href="{{ lesson.workbook_url }}" target="_blank" rel="noopener" class="px-4 py-2 bg-cyan-electric text-[#0a0e27] font-semibold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 transition-opacity">
+                            <i class="fas fa-file-arrow-down"></i>
+                            Download Workbook
+                        </a>
+                        {% endif %}
+                        {% if lesson.resources_url %}
+                        <a href="{{ lesson.resources_url }}" target="_blank" rel="noopener" class="px-4 py-2 bg-cyan-electric/15 border border-cyan-electric/40 text-cyan-electric font-semibold rounded-lg text-sm flex items-center gap-2 hover:bg-cyan-electric/25 transition-colors">
+                            <i class="fas fa-folder-open"></i>
+                            View Resources
+                        </a>
+                        {% endif %}
+                    </div>
+                </section>
+                {% endif %}
+                {% endif %}
+
                 <!-- This Lesson Will Produce -->
                 {% if lesson.get_outcomes_list %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
