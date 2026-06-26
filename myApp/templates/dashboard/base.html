@@ -404,6 +404,10 @@
                             <i class="fas fa-palette nav-icon"></i>
                             <span>Branding</span>
                         </a>
+                        <a href="{% url 'ghl_settings' %}" class="nav-item {% if cur == 'ghl_settings' %}is-active{% endif %}">
+                            <i class="fas fa-plug nav-icon"></i>
+                            <span>Integrations</span>
+                        </a>
                         <a href="{% url 'dashboard_tenant_admins' %}" class="nav-item {% if cur == 'dashboard_tenant_admins' %}is-active{% endif %}">
                             <i class="fas fa-user-shield nav-icon"></i>
                             <span>Account Admins</span>
