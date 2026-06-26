@@ -62,24 +62,38 @@ class EmbedViewTests(TestCase):
         from myApp.tests.test_ghl_user_context import _cryptojs_encrypt
         return _cryptojs_encrypt(json.dumps(payload), SECRET)
 
-    def test_missing_blob_renders_unauthorized(self):
+    def _resolve(self, payload_dict):
+        return self.client.post(
+            "/leadconnector/embed/resolve",
+            data=json.dumps({"payload": self._blob(payload_dict)}),
+            content_type="application/json",
+        )
+
+    def test_embed_page_does_postmessage_handshake(self):
         resp = self.client.get("/leadconnector/embed")
-        self.assertContains(resp, "Open from a sub-account", status_code=200)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "REQUEST_USER_DATA")  # the postMessage handshake
 
-    def test_unknown_location_renders_not_connected(self):
-        resp = self.client.get("/leadconnector/embed", {"encryptedUserData": self._blob({"locationId": "NOPE"})})
-        self.assertContains(resp, "not connected", status_code=200)
+    def test_resolve_no_payload(self):
+        resp = self.client.post("/leadconnector/embed/resolve",
+                                data=json.dumps({}), content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["ok"])
 
-    def test_known_location_redirects_to_sso(self):
-        resp = self.client.get("/leadconnector/embed", {"encryptedUserData": self._blob({"locationId": "LOC123", "email": "o@ncd.com"})})
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn("/leadconnector/sso", resp["Location"])
+    def test_resolve_unknown_location_not_connected(self):
+        body = self._resolve({"activeLocation": "NOPE"}).json()
+        self.assertFalse(body["ok"])
+        self.assertIn("connected", body["reason"])
+
+    def test_resolve_known_location_returns_sso_redirect(self):
+        body = self._resolve({"activeLocation": "LOC123", "email": "o@ncd.com"}).json()
+        self.assertTrue(body["ok"])
+        self.assertIn("/leadconnector/sso", body["redirect"])
         self.assertEqual(GhlEmbedSession.objects.count(), 1)
 
-    def test_agency_context_renders_unauthorized(self):
-        blob = self._blob({"locationId": "LOC123", "type": "agency"})
-        resp = self.client.get("/leadconnector/embed", {"encryptedUserData": blob})
-        self.assertContains(resp, "Open from a sub-account", status_code=200)
+    def test_resolve_accepts_locationId_fallback(self):
+        body = self._resolve({"locationId": "LOC123", "email": "o@ncd.com"}).json()
+        self.assertTrue(body["ok"])
 
 
 from myApp.integrations.ghl import sso

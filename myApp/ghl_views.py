@@ -216,25 +216,32 @@ def _tenant_host(tenant):
 @xframe_options_exempt
 @require_http_methods(["GET"])
 def ghl_embed(request):
-    blob = request.GET.get("encryptedUserData") or request.GET.get("userData") or ""
-    if not blob:
-        logger.warning("GHL embed: no user-context param (GET keys=%s)", list(request.GET.keys()))
-        return render(request, "ghl/embed_unauthorized.html",
-                      {"reason": "GHL sent no user-context to this page"})
-    ctx = user_context.decrypt(blob, settings.GHL_SHARED_SECRET_KEY)
+    """GHL Custom Page. GHL delivers the encrypted user-context to the iframe via
+    postMessage (NOT the URL), so we serve a tiny handshake page that requests it
+    and hands the payload to /leadconnector/embed/resolve."""
+    return render(request, "ghl/embed.html")
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def ghl_embed_resolve(request):
+    """Decrypt the GHL user-context (delivered via the embed handshake), resolve
+    the sub-account -> tenant -> user, and return the tenant-host SSO URL to
+    navigate the iframe to. JSON in (`{"payload": "..."}`), JSON out."""
+    try:
+        payload = (json.loads(request.body.decode("utf-8") or "{}").get("payload") or "").strip()
+    except Exception:
+        payload = (request.POST.get("payload") or "").strip()
+    if not payload:
+        return JsonResponse({"ok": False, "reason": "GoHighLevel sent no sub-account context"})
+
+    ctx = user_context.decrypt(payload, settings.GHL_SHARED_SECRET_KEY)
     if ctx is None:
-        logger.warning("GHL embed: decrypt FAILED (shared-secret mismatch or bad blob); blob_len=%d", len(blob))
-        return render(request, "ghl/embed_unauthorized.html",
-                      {"reason": "could not decrypt the GHL context (Shared Secret mismatch)"})
-    if (ctx.type or "").lower() == "agency" or not ctx.location_id:
-        logger.warning(
-            "GHL embed: non-location context type=%r user_type=%r location_id=%r company_id=%r",
-            ctx.type, ctx.user_type, ctx.location_id, ctx.company_id,
-        )
-        reason = ("opened at agency level (open it inside a specific sub-account)"
-                  if (ctx.type or "").lower() == "agency"
-                  else "GHL context had no sub-account id")
-        return render(request, "ghl/embed_unauthorized.html", {"reason": reason})
+        logger.warning("GHL embed: decrypt FAILED (shared-secret mismatch); len=%d", len(payload))
+        return JsonResponse({"ok": False, "reason": "could not decrypt the GoHighLevel context (Shared Secret mismatch)"})
+    if not ctx.location_id:
+        logger.warning("GHL embed: no sub-account in context type=%r company_id=%r", ctx.type, ctx.company_id)
+        return JsonResponse({"ok": False, "reason": "open this from inside a specific sub-account"})
 
     connection = (
         GHLConnection.objects.select_related("tenant")
@@ -242,22 +249,21 @@ def ghl_embed(request):
         .first()
     )
     if not connection:
-        return render(request, "ghl/embed_not_connected.html")
+        return JsonResponse({"ok": False, "reason": "this sub-account isn't connected to a CourseForge academy yet"})
 
     tenant = connection.tenant
     user, impersonated = ghl_embed_helper.resolve_user(tenant, ctx)
     if user is None:
-        return render(request, "ghl/embed_not_connected.html")
+        return JsonResponse({"ok": False, "reason": "no academy admin to sign in as"})
 
     audit = ghl_embed_helper.record_session(
         tenant=tenant, connection=connection, ctx=ctx,
         user=user, impersonated=impersonated, request=request,
     )
-
     token = sso.issue(user_id=user.id, tenant_id=tenant.id, embed_session_id=audit.id)
     host = _tenant_host(tenant)
     scheme = "http" if getattr(settings, "GHL_EMBED_HOST_OVERRIDE", "") else "https"
-    return redirect(f"{scheme}://{host}/leadconnector/sso?t={token}&next=/dashboard")
+    return JsonResponse({"ok": True, "redirect": f"{scheme}://{host}/leadconnector/sso?t={token}&next=/dashboard"})
 
 
 @xframe_options_exempt

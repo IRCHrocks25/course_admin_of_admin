@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>CourseForge</title><meta name="robots" content="noindex,nofollow">
+<style>html,body{height:100%;margin:0}body{font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#333;text-align:center;padding:2rem}.muted{color:#999;font-size:13px;margin-top:1rem;max-width:32rem}</style></head>
+<body>
+<h2 id="h">Loading your academy…</h2>
+<p class="muted" id="m">Connecting to GoHighLevel…</p>
+<script>
+(function(){
+  var settled=false;
+  function showError(reason){
+    settled=true;
+    document.getElementById('h').textContent='Open from a sub-account';
+    document.getElementById('m').textContent=reason||'This page must be opened from inside a GoHighLevel sub-account.';
+  }
+  function resolve(payload){
+    settled=true;
+    fetch('/leadconnector/embed/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payload:payload})})
+      .then(function(r){return r.json();})
+      .then(function(j){ if(j&&j.ok&&j.redirect){ window.location.href=j.redirect; } else { showError(j&&j.reason); } })
+      .catch(function(){ showError('could not reach CourseForge'); });
+  }
+  // Fallback: some GHL setups append the blob as a query param.
+  var q=new URLSearchParams(window.location.search);
+  var qp=q.get('encryptedUserData')||q.get('userData');
+  if(qp){ resolve(qp); return; }
+  // Primary path: GHL posts the encrypted context into the iframe on request.
+  function onMsg(e){
+    var d=e&&e.data;
+    if(d&&d.message==='REQUEST_USER_DATA_RESPONSE'&&typeof d.payload==='string'){
+      window.removeEventListener('message',onMsg);
+      if(!settled) resolve(d.payload);
+    }
+  }
+  window.addEventListener('message',onMsg);
+  if(window.parent){ window.parent.postMessage({message:'REQUEST_USER_DATA'},'*'); }
+  setTimeout(function(){ if(!settled) showError('GoHighLevel did not send a sub-account context'); },8000);
+})();
+</script>
+</body></html>

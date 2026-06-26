@@ -18,6 +18,7 @@ urlpatterns = [
     path('ghl/disconnect/', ghl_views.ghl_disconnect, name='ghl_disconnect'),
     path('dashboard/integrations/ghl/', ghl_views.ghl_settings, name='ghl_settings'),
     path('leadconnector/embed', ghl_views.ghl_embed, name='ghl_embed'),
+    path('leadconnector/embed/resolve', ghl_views.ghl_embed_resolve, name='ghl_embed_resolve'),
     path('leadconnector/sso', ghl_views.ghl_sso, name='ghl_sso'),
     path('leadconnector/webhook', ghl_views.ghl_webhook, name='ghl_webhook'),
 

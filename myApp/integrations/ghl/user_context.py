@@ -57,7 +57,9 @@ def decrypt(blob: str, secret: str) -> Optional[GhlUserContext]:
     except Exception:
         return None
     return GhlUserContext(
-        location_id=str(data.get("locationId") or "").strip(),
+        # GHL's Custom Page user-context uses `activeLocation` for the sub-account
+        # id; `locationId` is the OAuth-token field. Accept either.
+        location_id=str(data.get("activeLocation") or data.get("locationId") or "").strip(),
         user_id=str(data.get("userId") or "").strip(),
         company_id=str(data.get("companyId") or "").strip(),
         user_type=str(data.get("userType") or "").strip(),
