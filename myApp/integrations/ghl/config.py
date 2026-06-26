@@ -9,7 +9,7 @@ import os
 
 # ─── Endpoints (V2 / LeadConnector) ───
 # Where the user is sent to choose a sub-account and authorize the app.
-AUTHORIZE_URL = "https://marketplace.leadconnectorhq.com/oauth/chooselocation"
+AUTHORIZE_URL = "https://marketplace.leadconnectorhq.com/v2/oauth/chooselocation"
 # Token mint + refresh, and agency->location token exchange.
 TOKEN_URL = "https://services.leadconnectorhq.com/oauth/token"
 LOCATION_TOKEN_URL = "https://services.leadconnectorhq.com/oauth/locationToken"

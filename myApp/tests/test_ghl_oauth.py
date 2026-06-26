@@ -17,6 +17,8 @@ class AuthorizeUrlTests(SimpleTestCase):
     )
     def test_includes_version_id_from_client_id(self):
         url = oauth.build_authorize_url("state123")
+        # Must hit the V2 chooselocation endpoint (the non-v2 one bounces to the GHL dashboard).
+        self.assertTrue(url.startswith("https://marketplace.leadconnectorhq.com/v2/oauth/chooselocation?"))
         self.assertIn("client_id=appid123-verxyz", url)
         self.assertIn("version_id=appid123", url)
         self.assertIn("state=state123", url)
