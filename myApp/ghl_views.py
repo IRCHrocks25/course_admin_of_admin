@@ -32,7 +32,8 @@ from .integrations.ghl import config, oauth, state
 from .integrations.ghl import embed as ghl_embed_helper
 from .integrations.ghl import sso, user_context
 from .integrations.ghl import webhook as ghl_webhook_mod
-from .models import GHLConnection
+from .integrations.ghl import events_sync
+from .models import Event, GHLConnection
 from .models_ghl import GHLLink, GhlEmbedSession
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import resolve_request_tenant
@@ -346,6 +347,20 @@ def ghl_webhook(request):
     if etype == "ContactDelete":
         contact_id = str(event.get("id") or event.get("contactId") or "").strip()
         GHLLink.objects.filter(tenant=tenant, ghl_contact_id=contact_id).delete()
+        return JsonResponse({"status": "ok"})
+
+    if etype in ("AppointmentCreate", "AppointmentUpdate"):
+        appt = event.get("appointment") or event
+        events_sync.apply_ghl_event(tenant, appt.get("calendarId", ""), appt)
+        return JsonResponse({"status": "ok"})
+
+    if etype == "AppointmentDelete":
+        appt = event.get("appointment") or event
+        appt_id = str(appt.get("id") or "").strip()
+        if appt_id:
+            Event.objects.filter(
+                tenant=tenant, source="ghl", ghl_event_id=appt_id
+            ).delete()
         return JsonResponse({"status": "ok"})
 
     return JsonResponse({"status": "ignored"})

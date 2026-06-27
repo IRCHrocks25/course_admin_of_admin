@@ -1393,13 +1393,25 @@ class Event(models.Model):
     # Access
     join_link = models.URLField(max_length=500, blank=True, help_text="Zoom/Google Meet link — only shown to registered users")
 
+    # Provenance. GHL-synced events carry the source ids so re-syncs upsert
+    # (never duplicate) and manually-created events are never clobbered.
+    SOURCE_CHOICES = [('manual', 'Manual'), ('ghl', 'GHL')]
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    ghl_event_id = models.CharField(max_length=128, blank=True, default='')
+    ghl_calendar_id = models.CharField(max_length=128, blank=True, default='')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['event_date', 'start_time']
         constraints = [
-            models.UniqueConstraint(fields=['tenant', 'slug'], name='uniq_event_tenant_slug')
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='uniq_event_tenant_slug'),
+            models.UniqueConstraint(
+                fields=['tenant', 'ghl_event_id'],
+                condition=models.Q(source='ghl'),
+                name='uniq_event_tenant_ghl_event',
+            ),
         ]
 
     def __str__(self):
