@@ -249,6 +249,13 @@ STORAGES = {
     },
 }
 
+# Serve static through WhiteNoise via the staticfiles finders so static still
+# works with DEBUG=False even when STATIC_ROOT is unpopulated. Railway's
+# Railpack builder does not run `collectstatic` (nor the Procfile release step),
+# so without this, every /static/ asset 404s once DEBUG is off. Proper follow-up:
+# run collectstatic at build for compression + hashed immutable caching.
+WHITENOISE_USE_FINDERS = True
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
