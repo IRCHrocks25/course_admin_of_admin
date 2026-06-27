@@ -5,6 +5,7 @@ from .models import (
     Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse,
     PricingTier, TenantNotification, TenantNotificationDelivery,
     ForumCategory, ForumPost, ForumComment, ForumReaction,
+    GHLConnection,
 )
 
 
@@ -262,4 +263,22 @@ class ForumCommentAdmin(admin.ModelAdmin):
 class ForumReactionAdmin(admin.ModelAdmin):
     list_display = ['user', 'reaction_type', 'post', 'comment', 'created_at']
     list_filter = ['reaction_type', 'tenant']
+
+
+# ========== GHL INTEGRATION ==========
+
+@admin.register(GHLConnection)
+class GHLConnectionAdmin(admin.ModelAdmin):
+    """Per-tenant GHL connection. ``event_calendar_ids`` is the editable
+    allowlist of GHL calendar ids whose events sync into live Events (comma
+    separated). Encrypted tokens are never exposed in the admin."""
+    list_display = ['tenant', 'ghl_location_id', 'event_calendar_ids', 'sync_status', 'token_expires_at', 'updated_at']
+    list_filter = ['sync_status']
+    search_fields = ['tenant__name', 'tenant__slug', 'ghl_location_id']
+    fields = ['tenant', 'ghl_location_id', 'ghl_company_id', 'event_calendar_ids',
+              'scope', 'sync_status', 'status_detail', 'token_expires_at',
+              'connected_at', 'last_refreshed_at']
+    readonly_fields = ['tenant', 'ghl_location_id', 'ghl_company_id', 'scope',
+                       'sync_status', 'status_detail', 'token_expires_at',
+                       'connected_at', 'last_refreshed_at']
     search_fields = ['user__username']
