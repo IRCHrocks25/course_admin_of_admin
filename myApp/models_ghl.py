@@ -50,6 +50,9 @@ class GHLConnection(models.Model):
     token_expires_at = models.DateTimeField(null=True, blank=True)
 
     scope = models.TextField(blank=True, default="")
+    # Comma-separated GHL calendar ids whose events sync into live Events (the
+    # webinar / class-booking calendars). Empty = this tenant syncs no events.
+    event_calendar_ids = models.TextField(blank=True, default="")
     sync_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="connected")
     status_detail = models.CharField(max_length=255, blank=True, default="")
 
