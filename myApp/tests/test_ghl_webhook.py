@@ -89,7 +89,9 @@ class WebhookAppointmentTests(TestCase):
 
     def setUp(self):
         self.tenant = Tenant.objects.create(name="NCD", slug="ncd-appt")
-        GHLConnection.objects.create(tenant=self.tenant, ghl_location_id="LOCA")
+        GHLConnection.objects.create(
+            tenant=self.tenant, ghl_location_id="LOCA", event_calendar_ids="CALW",
+        )
         self.client = Client()
 
     def _post(self, payload):
@@ -107,6 +109,14 @@ class WebhookAppointmentTests(TestCase):
         self.assertEqual(ev.join_link, "https://zoom.us/j/777")
         self.assertEqual(ev.ghl_calendar_id, "CALW")
         self.assertEqual(ev.source, "ghl")
+
+    def test_appointment_on_unlisted_calendar_ignored(self):
+        # An appointment on a calendar that is not in event_calendar_ids (e.g. a
+        # sales call) must NOT become a live Event.
+        payload = {**self.APPT, "appointment": {**self.APPT["appointment"], "calendarId": "CAL_SALES"}}
+        resp = self._post(payload)
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Event.objects.filter(tenant=self.tenant, ghl_event_id="appt_77").exists())
 
     def test_appointment_delete_removes_event(self):
         self._post(self.APPT)

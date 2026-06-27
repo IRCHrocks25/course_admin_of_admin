@@ -42,7 +42,7 @@ class Command(BaseCommand):
 
         upserted = failed = 0
         for conn in connections:
-            cal_ids = [c.strip() for c in (conn.event_calendar_ids or "").split(",") if c.strip()]
+            cal_ids = conn.event_calendar_id_list
             if not cal_ids:
                 continue
 

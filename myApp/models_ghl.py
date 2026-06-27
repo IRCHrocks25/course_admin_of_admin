@@ -116,6 +116,11 @@ class GHLConnection(models.Model):
     def is_healthy(self):
         return self.sync_status == "connected" and bool(self.access_token_encrypted)
 
+    @property
+    def event_calendar_id_list(self):
+        """Parsed allowlist of calendar ids whose events sync into live Events."""
+        return [c.strip() for c in (self.event_calendar_ids or "").split(",") if c.strip()]
+
 
 class GHLLink(models.Model):
     """Maps a GHL contact to a CourseForge student (email is the join key).
