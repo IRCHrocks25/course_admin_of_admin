@@ -351,8 +351,13 @@ def ghl_webhook(request):
 
     if etype in ("AppointmentCreate", "AppointmentUpdate"):
         appt = event.get("appointment") or event
-        events_sync.apply_ghl_event(tenant, appt.get("calendarId", ""), appt)
-        return JsonResponse({"status": "ok"})
+        cal_id = str(appt.get("calendarId") or "").strip()
+        allowed = set(connection.event_calendar_id_list)
+        if cal_id and cal_id in allowed:
+            events_sync.apply_ghl_event(tenant, cal_id, appt)
+            return JsonResponse({"status": "ok"})
+        # Appointment on a non-event calendar (e.g. a sales call) -> not a live event.
+        return JsonResponse({"status": "ignored"})
 
     if etype == "AppointmentDelete":
         appt = event.get("appointment") or event
