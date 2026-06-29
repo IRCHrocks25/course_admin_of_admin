@@ -14,9 +14,9 @@ the whole read-refresh-persist cycle with ``select_for_update`` on the
 connection row so only one worker rotates at a time and the new token is
 persisted atomically.
 """
-import logging
 from datetime import timedelta
-from urllib.parse import urlencode
+import logging
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 from django.db import transaction
@@ -37,8 +37,20 @@ class GHLOAuthError(Exception):
 
 # ─── Authorize ───
 
+def _with_state(install_url: str, state: str) -> str:
+    parts = urlsplit(install_url)
+    query = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+             if key != "state"]
+    query.append(("state", state))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
 def build_authorize_url(state: str) -> str:
     """Build the GHL consent URL the admin is redirected to."""
+    fixed_install_url = config.install_url()
+    if fixed_install_url:
+        return _with_state(fixed_install_url, state)
+
     client_id = config.client_id()
     params = {
         "response_type": "code",

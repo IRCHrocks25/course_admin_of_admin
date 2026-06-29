@@ -1,30 +1,35 @@
 import os
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 from django.test import SimpleTestCase
 
-from myApp.integrations.ghl import oauth
+from myApp.integrations.ghl import config, oauth
 
 
 class AuthorizeUrlTests(SimpleTestCase):
-    @mock.patch.dict(
-        os.environ,
-        {
-            "GHL_CLIENT_ID": "appid123-verxyz",
-            "GHL_REDIRECT_URI": "https://courseforge.katek-ai.com/leadconnector/callback",
-        },
-        clear=False,
-    )
-    def test_includes_version_id_from_client_id(self):
+    @mock.patch.dict(os.environ, {"GHL_INSTALL_URL": "", "GHL_SCOPES": ""}, clear=False)
+    def test_uses_fixed_marketplace_install_url_and_appends_state(self):
         url = oauth.build_authorize_url("state123")
-        # Must hit the V2 chooselocation endpoint (the non-v2 one bounces to the GHL dashboard).
-        self.assertTrue(url.startswith("https://marketplace.leadconnectorhq.com/v2/oauth/chooselocation?"))
-        self.assertIn("client_id=appid123-verxyz", url)
-        self.assertIn("version_id=appid123", url)
-        self.assertIn("state=state123", url)
-        self.assertIn("leadconnector%2Fcallback", url)
+        parsed = urlsplit(url)
+        params = parse_qs(parsed.query)
 
-    @mock.patch.dict(os.environ, {"GHL_CLIENT_ID": "plainid"}, clear=False)
-    def test_no_version_id_when_client_id_has_no_suffix(self):
-        url = oauth.build_authorize_url("s")
-        self.assertNotIn("version_id=", url)
+        self.assertEqual(
+            f"{parsed.scheme}://{parsed.netloc}{parsed.path}",
+            "https://marketplace.leadconnectorhq.com/v2/oauth/chooselocation",
+        )
+        self.assertEqual(params["client_id"], ["6a3c63e708b022331c8b15d5-mqspg6bj"])
+        self.assertEqual(params["version_id"], ["6a3c63e708b022331c8b15d5"])
+        self.assertEqual(params["state"], ["state123"])
+        self.assertIn("leadconnector%2Fcallback", url)
+        self.assertIn("funnels%2Fpage.readonly", url)
+        self.assertIn("funnels%2Ffunnel.readonly", url)
+        self.assertIn("funnels%2Fpagecount.readonly", url)
+
+    @mock.patch.dict(os.environ, {"GHL_INSTALL_URL": "", "GHL_SCOPES": ""}, clear=False)
+    def test_default_scopes_match_fixed_install_url(self):
+        scopes = config.scopes().split()
+
+        self.assertIn("funnels/page.readonly", scopes)
+        self.assertIn("funnels/funnel.readonly", scopes)
+        self.assertIn("funnels/pagecount.readonly", scopes)
