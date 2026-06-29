@@ -326,7 +326,7 @@ GHL_ENABLED_GLOBALLY = bool(GHL_CLIENT_ID and GHL_CLIENT_SECRET and GHL_REDIRECT
 GHL_SHARED_SECRET_KEY = os.getenv("GHL_SHARED_SECRET_KEY", "").strip()
 GHL_EMBED_FRAME_ANCESTORS = os.getenv(
     "GHL_EMBED_FRAME_ANCESTORS",
-    "https://*.gohighlevel.com https://*.leadconnectorhq.com",
+    "https://*.gohighlevel.com https://*.leadconnectorhq.com https://app.industryrockstars.ch",
 ).strip()
 GHL_EMBED_FRAME_ANCESTORS_CSP = f"frame-ancestors 'self' {GHL_EMBED_FRAME_ANCESTORS}"
 # Tenant-host override for local dev (e.g. "lvh.me:8000"); blank in prod.

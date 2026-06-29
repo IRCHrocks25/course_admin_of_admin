@@ -19,12 +19,20 @@
              border-radius: 9px; font-size: 13px; font-weight: 600; border: 0; cursor: pointer;
              text-decoration: none; }
   .ghl-btn.primary { background: #00e5ff; color: #03121a; }
+  .ghl-btn.secondary { background: rgba(255,255,255,0.08); color: #e2e8f0; border: 0.5px solid rgba(255,255,255,0.18); }
   .ghl-btn.danger  { background: transparent; color: #ff7a7a; border: 0.5px solid rgba(255,122,122,0.4); }
   .ghl-muted { color: #9aa3ad; font-size: 13px; }
   .ghl-banner { padding: 10px 14px; border-radius: 9px; margin-bottom: 16px; font-size: 13px; }
   .ghl-banner.ok  { background: rgba(25,210,124,0.12); color: #19d27c; }
   .ghl-banner.err { background: rgba(255,93,93,0.12); color: #ff7a7a; }
   code.ghl-mono { font-family: ui-monospace, monospace; font-size: 12px; color: #cbd5e1; }
+  .ghl-section { margin-top: 18px; padding-top: 18px; border-top: 0.5px solid rgba(255,255,255,0.12); }
+  .ghl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 14px 0; }
+  .ghl-stat { border: 0.5px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px; }
+  .ghl-stat strong { display: block; font-size: 22px; margin-bottom: 4px; }
+  .ghl-calendar { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 0.5px solid rgba(255,255,255,0.06); }
+  .ghl-calendar input { margin-top: 3px; }
+  .ghl-textarea { width: 100%; min-height: 74px; margin-top: 10px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.2); color: inherit; padding: 10px; font-family: ui-monospace, monospace; font-size: 12px; }
   /* Light theme: the colors above are tuned for the dark shell. Remap the muted
      text, code values and borders so they stay readable on a white background. */
   .brand-theme-light .ghl-muted { color: #475569; }
@@ -32,6 +40,11 @@
   .brand-theme-light .ghl-card { background: #ffffff; border-color: rgba(15,23,42,0.12); }
   .brand-theme-light .ghl-row { border-bottom-color: rgba(15,23,42,0.08); }
   .brand-theme-light .ghl-pill.off { color: #475569; background: rgba(71,85,105,0.12); }
+  .brand-theme-light .ghl-section,
+  .brand-theme-light .ghl-stat,
+  .brand-theme-light .ghl-calendar { border-color: rgba(15,23,42,0.10); }
+  .brand-theme-light .ghl-btn.secondary { background: #f8fafc; color: #0f172a; border-color: rgba(15,23,42,0.14); }
+  .brand-theme-light .ghl-textarea { background: #ffffff; color: #0f172a; border-color: rgba(15,23,42,0.16); }
 </style>
 
 {% if ghl_status == 'connected' %}
@@ -94,6 +107,60 @@
       <form method="post" action="{% url 'ghl_disconnect' %}" onsubmit="return confirm('Disconnect GoHighLevel? Syncing will stop.');">
         {% csrf_token %}
         <button type="submit" class="ghl-btn danger">Disconnect</button>
+      </form>
+    </div>
+
+    <div class="ghl-section">
+      <h3 style="margin:0 0 6px;">Synced data</h3>
+      <p class="ghl-muted" style="margin:0;">Current backfill state for this CourseForge tenant.</p>
+      <div class="ghl-grid">
+        <div class="ghl-stat">
+          <strong>{{ ghl_event_count }}</strong>
+          <span class="ghl-muted">{{ ghl_event_count }} GHL event{{ ghl_event_count|pluralize }}</span>
+        </div>
+        <div class="ghl-stat">
+          <strong>{{ ghl_contact_link_count }}</strong>
+          <span class="ghl-muted">{{ ghl_contact_link_count }} GHL contact link{{ ghl_contact_link_count|pluralize }}</span>
+        </div>
+        <div class="ghl-stat">
+          <strong>{{ selected_calendar_ids|length }}</strong>
+          <span class="ghl-muted">Selected event calendars</span>
+        </div>
+      </div>
+      <form method="post" action="{% url 'ghl_settings' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="run_event_sync">
+        <button type="submit" class="ghl-btn secondary">Run event sync now</button>
+      </form>
+    </div>
+
+    <div class="ghl-section">
+      <h3 style="margin:0 0 6px;">GHL live-event calendars</h3>
+      <p class="ghl-muted" style="margin:0 0 12px;">Choose the GHL calendars that should backfill into CourseForge Events.</p>
+      {% if calendar_error %}
+        <div class="ghl-banner err">{{ calendar_error }}</div>
+      {% endif %}
+      <form method="post" action="{% url 'ghl_settings' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_event_calendars">
+        {% if calendar_options %}
+          {% for calendar in calendar_options %}
+            <label class="ghl-calendar">
+              <input type="checkbox" name="event_calendar_ids" value="{{ calendar.id }}" {% if calendar.id in selected_calendar_ids %}checked{% endif %}>
+              <span>
+                <strong>{{ calendar.name }}</strong>
+                <span class="ghl-muted">ID <code class="ghl-mono">{{ calendar.id }}</code>{% if calendar.calendarType %} · {{ calendar.calendarType }}{% endif %}</span>
+              </span>
+            </label>
+          {% endfor %}
+        {% else %}
+          <p class="ghl-muted">Calendar list unavailable. Paste one calendar ID per line below.</p>
+        {% endif %}
+        <label class="ghl-muted" for="manual_event_calendar_ids">Manual calendar IDs</label>
+        <textarea id="manual_event_calendar_ids" class="ghl-textarea" name="manual_event_calendar_ids" placeholder="SYNPd6R2VT33qbZtesiK">{{ selected_calendar_ids_text }}</textarea>
+        <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+          <button type="submit" class="ghl-btn primary">Save selected calendars</button>
+        </div>
       </form>
     </div>
   {% else %}

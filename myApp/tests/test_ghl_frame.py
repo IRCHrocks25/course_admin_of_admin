@@ -20,6 +20,7 @@ class FrameMiddlewareTests(TestCase):
     def test_embed_session_dashboard_allows_frame(self):
         resp = self._run("/dashboard/", session={"ghl_embed": True})
         self.assertIn("leadconnectorhq.com", resp.headers.get("Content-Security-Policy", ""))
+        self.assertIn("app.industryrockstars.ch", resp.headers.get("Content-Security-Policy", ""))
         self.assertNotIn("X-Frame-Options", resp.headers)
         self.assertTrue(getattr(resp, "xframe_options_exempt", False))
 

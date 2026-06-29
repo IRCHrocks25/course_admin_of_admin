@@ -10,6 +10,7 @@ Phase 0 surface:
   * ``ghl_disconnect`` — revoke locally + flip the feature flag off.
 """
 import logging
+import re
 
 from django.conf import settings
 from django.contrib import messages
@@ -28,7 +29,7 @@ import json
 
 from django.http import HttpResponse, JsonResponse
 
-from .integrations.ghl import config, oauth, state
+from .integrations.ghl import calendar_api, config, event_backfill, oauth, state
 from .integrations.ghl import embed as ghl_embed_helper
 from .integrations.ghl import sso, user_context
 from .integrations.ghl import webhook as ghl_webhook_mod
@@ -68,6 +69,18 @@ def _settings_redirect(request, tenant, status):
     return redirect(f"{base}{reverse('ghl_settings')}?ghl={status}")
 
 
+def _normalize_calendar_ids(values):
+    seen = set()
+    normalized = []
+    for value in values:
+        for part in re.split(r"[\s,]+", value or ""):
+            item = part.strip()
+            if item and item not in seen:
+                seen.add(item)
+                normalized.append(item)
+    return normalized
+
+
 # ─── Views ───
 
 @login_required
@@ -78,12 +91,61 @@ def ghl_settings(request):
         return redirect("dashboard_home")
 
     connection = GHLConnection.objects.filter(tenant=tenant).first()
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if connection is None:
+            messages.error(request, "Connect GoHighLevel before configuring sync.")
+            return redirect("ghl_settings")
+
+        if action == "save_event_calendars":
+            selected = request.POST.getlist("event_calendar_ids")
+            manual = request.POST.get("manual_event_calendar_ids", "")
+            calendar_ids = _normalize_calendar_ids([*selected, manual])
+            connection.event_calendar_ids = ",".join(calendar_ids)
+            connection.save(update_fields=["event_calendar_ids", "updated_at"])
+            messages.success(request, "GHL live-event calendars saved.")
+            return redirect("ghl_settings")
+
+        if action == "run_event_sync":
+            result = event_backfill.sync_connection_events(connection)
+            if result.failed:
+                messages.error(request, f"GHL event sync finished with {result.failed} failure(s).")
+            elif result.skipped:
+                messages.warning(request, "Select at least one GHL calendar before syncing events.")
+            else:
+                messages.success(request, f"GHL event sync complete: {result.upserted} event(s) processed.")
+            return redirect("ghl_settings")
+
+        messages.error(request, "Unknown GHL integration action.")
+        return redirect("ghl_settings")
+
+    calendar_options = []
+    calendar_error = ""
+    if connection and connection.is_healthy:
+        fresh = event_backfill.ensure_fresh_connection(connection)
+        if fresh is None:
+            calendar_error = "Could not refresh the GHL token. Reconnect GoHighLevel, then try again."
+        else:
+            connection = fresh
+            try:
+                calendar_options = calendar_api.get_calendars(
+                    connection.get_access_token(), connection.ghl_location_id)
+            except Exception as exc:
+                calendar_error = f"Could not load calendars from GHL: {exc}"
+
+    selected_calendar_ids = connection.event_calendar_id_list if connection else []
     ctx = {
         "tenant": tenant,
         "connection": connection,
         "ghl_configured": config.is_configured(),
         "ghl_status": request.GET.get("ghl", ""),
         "scopes": config.scopes().split(),
+        "calendar_options": calendar_options,
+        "calendar_error": calendar_error,
+        "selected_calendar_ids": selected_calendar_ids,
+        "selected_calendar_ids_text": "\n".join(selected_calendar_ids),
+        "ghl_event_count": Event.objects.filter(tenant=tenant, source="ghl").count(),
+        "ghl_contact_link_count": GHLLink.objects.filter(tenant=tenant).count(),
     }
     return render(request, "dashboard/ghl_settings.html", ctx)
 
