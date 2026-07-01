@@ -98,7 +98,7 @@
                 
                 <!-- Action Buttons -->
                 <div class="flex gap-4 pt-4">
-                    <button type="submit" class="flex-1 px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
+                    <button type="submit" class="flex-1 px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
                         <i class="fas fa-upload mr-2"></i> Upload Quiz
                     </button>
                     <a href="{% url 'dashboard_quizzes' %}" class="px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all text-center">
@@ -169,7 +169,7 @@
                 
                 <!-- Action Buttons -->
                 <div class="flex gap-4 pt-4">
-                    <button type="submit" class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-accent to-purple-600 text-white rounded-full font-bold hover:from-purple-accent/90 hover:to-purple-600/90 transition-all" {% if not openai_available %}disabled{% endif %}>
+                    <button type="submit" class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-accent to-purple-600 text-on-accent-gradient rounded-full font-bold hover:from-purple-accent/90 hover:to-purple-600/90 transition-all" {% if not openai_available %}disabled{% endif %}>
                         <i class="fas fa-magic mr-2"></i> Generate Quiz with AI
                     </button>
                     <a href="{% url 'dashboard_quizzes' %}" class="px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all text-center">
@@ -194,7 +194,7 @@
             </div>
             <div class="relative flex items-center justify-center">
                 <div class="w-20 h-20 bg-gradient-to-br from-purple-accent to-cyan-electric rounded-full flex items-center justify-center shadow-2xl shadow-purple-accent/50">
-                    <i class="fas fa-robot text-4xl text-[#0a0e27] animate-pulse"></i>
+                    <i class="fas fa-robot text-4xl text-on-accent-primary animate-pulse"></i>
                 </div>
             </div>
         </div>

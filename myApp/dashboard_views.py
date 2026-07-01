@@ -2991,9 +2991,6 @@ Only return valid JSON, no additional text."""
         raise Exception(f'AI generation failed: {str(e)}')
 
 
-TRAINING_WEBHOOK_URL = 'https://katalyst-crm2.fly.dev/webhook/425e8e67-2aa6-4c50-b67f-0162e2496b51'
-
-
 def _extract_lesson_text_for_chatbot(lesson):
     """Extract text content from lesson for chatbot training (transcript replacement for AI-generated lessons)"""
     parts = []
@@ -3020,41 +3017,107 @@ def _extract_lesson_text_for_chatbot(lesson):
     return '\n\n'.join(p.strip() for p in parts if p and p.strip()) or lesson.title
 
 
-def _send_lesson_to_chatbot_webhook(lesson):
-    """Send lesson content to training webhook for AI chatbot. Returns True on success, False on failure."""
-    transcript = _extract_lesson_text_for_chatbot(lesson)
-    if not transcript:
-        return False
-    payload = {
-        'transcript': transcript,
-        'lesson_id': lesson.id,
-        'lesson_title': lesson.title,
-        'course_name': lesson.course.name,
-        'lesson_slug': lesson.slug,
-    }
-    try:
-        response = requests.post(TRAINING_WEBHOOK_URL, json=payload, timeout=30, headers={'Content-Type': 'application/json'})
-        if response.status_code == 200:
-            data = response.json()
-            webhook_id = data.get('chatbot_webhook_id') or data.get('webhook_id') or data.get('id')
-            if webhook_id:
-                lesson.ai_chatbot_webhook_id = str(webhook_id)
-            lesson.ai_chatbot_training_status = 'trained'
-            lesson.ai_chatbot_trained_at = timezone.now()
-            lesson.ai_chatbot_enabled = True
-            lesson.ai_chatbot_training_error = ''
-            lesson.save()
-            return True
-        else:
-            lesson.ai_chatbot_training_status = 'failed'
-            lesson.ai_chatbot_training_error = f"Webhook returned {response.status_code}: {response.text[:200]}"
-            lesson.save()
-            return False
-    except Exception as e:
+def get_lesson_context_for_chatbot(lesson, max_chars=12000):
+    """Build runtime context for the per-lesson coach from the lesson row."""
+    lesson_context = (lesson.transcription or '').strip()
+    if not lesson_context:
+        lesson_context = _extract_lesson_text_for_chatbot(lesson)
+    return (lesson_context or '')[:max_chars]
+
+
+def mark_lesson_chatbot_ready(lesson):
+    """
+    Mark a lesson's AI assistant as trained when it has enough content.
+    No external webhook — content on the lesson row is the source of truth.
+    """
+    transcript = get_lesson_context_for_chatbot(lesson)
+    if not transcript.strip():
+        lesson.ai_chatbot_enabled = False
         lesson.ai_chatbot_training_status = 'failed'
-        lesson.ai_chatbot_training_error = str(e)
-        lesson.save()
+        lesson.ai_chatbot_training_error = 'No lesson content to train on.'
+        lesson.save(update_fields=[
+            'ai_chatbot_enabled',
+            'ai_chatbot_training_status',
+            'ai_chatbot_training_error',
+        ])
         return False
+
+    lesson.ai_chatbot_enabled = True
+    lesson.ai_chatbot_training_status = 'trained'
+    lesson.ai_chatbot_trained_at = timezone.now()
+    lesson.ai_chatbot_training_error = ''
+    lesson.save(update_fields=[
+        'ai_chatbot_enabled',
+        'ai_chatbot_training_status',
+        'ai_chatbot_trained_at',
+        'ai_chatbot_training_error',
+    ])
+    return True
+
+
+def mark_lesson_chatbot_ready_async(lesson):
+    """Fire-and-forget chatbot ready marking for background lesson creation."""
+    lesson_id = lesson.id
+
+    def _worker():
+        from django.db import connection
+        connection.close()
+        fresh = Lesson.objects.filter(id=lesson_id).select_related('course', 'tenant').first()
+        if fresh:
+            mark_lesson_chatbot_ready(fresh)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def lesson_chatbot_openai_reply(lesson, user_message):
+    """Answer a student question using only this lesson's stored content."""
+    if not OPENAI_AVAILABLE:
+        raise Exception('OpenAI is not available. Please install the openai package.')
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        raise Exception('OPENAI_API_KEY is not configured.')
+
+    lesson_context = get_lesson_context_for_chatbot(lesson)
+    if not lesson_context.strip():
+        raise Exception('This lesson has no content available for the AI assistant.')
+
+    client = OpenAI(api_key=api_key)
+    model_name = 'gpt-4o-mini'
+    course_name = lesson.course.name if lesson.course_id else 'this course'
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {
+                'role': 'system',
+                'content': (
+                    f'You are an AI lesson coach for "{lesson.title}" '
+                    f'in the course "{course_name}". '
+                    'Answer only using the lesson content provided. '
+                    'When the student asks you to summarize, simplify, or reformat the lesson '
+                    '(for example: "5-bullet version", "5-bullet summary", "3-step action plan", '
+                    '"delegation guide"), create that output yourself from the lesson content. '
+                    'Do not say the lesson lacks a pre-written version—produce the requested format. '
+                    'If a specific fact is not supported by the lesson, do not invent it. '
+                    'For general questions not answered in the lesson, say so clearly and '
+                    'suggest what part of the lesson the student should review.'
+                    f'\n\nLesson content:\n{lesson_context}'
+                ),
+            },
+            {'role': 'user', 'content': user_message},
+        ],
+        max_tokens=500,
+        temperature=0.4,
+    )
+    _log_openai_usage(
+        'lesson_chatbot',
+        response,
+        tenant=lesson.tenant,
+        course=lesson.course,
+        lesson=lesson,
+        model_name=model_name,
+    )
+    reply = response.choices[0].message.content
+    return (reply or '').strip()
 
 
 def _get_ai_gen_cache_key(course_id):
@@ -3244,11 +3307,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                         print(f'[Background] Quiz created for lesson: {lesson_title[:50]} ({qc} questions)')
                 except Exception as eq:
                     print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
-                # Auto-send to chatbot training webhook so AI learns from each lesson
-                if _send_lesson_to_chatbot_webhook(lesson):
-                    print(f'[Background] Chatbot trained for lesson: {lesson_title[:50]}')
-                else:
-                    print(f'[Background] Chatbot training failed for lesson: {lesson_title[:50]}')
+                # Auto-enable per-lesson AI assistant from stored lesson content
+                mark_lesson_chatbot_ready_async(lesson)
+                print(f'[Background] Chatbot ready queued for lesson: {lesson_title[:50]}')
                 items_done += 1
                 pct = min(90, 15 + int(75 * items_done / total_items))
                 _update_ai_gen_progress(course_id, course_name, 'creating_content', progress=pct, total=total_items, current=f'Lesson: {lesson_title[:50]}')
@@ -3610,8 +3671,8 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
             except Exception as eq:
                 print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
 
-            if _send_lesson_to_chatbot_webhook(lesson):
-                print(f'[Background] Chatbot trained for appended lesson: {lesson_title[:50]}')
+            mark_lesson_chatbot_ready_async(lesson)
+            print(f'[Background] Chatbot ready queued for appended lesson: {lesson_title[:50]}')
 
             next_order += 1
             pct = min(95, 15 + int(80 * (idx + 1) / total_items))

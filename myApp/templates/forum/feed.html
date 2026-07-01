@@ -9,20 +9,25 @@
 <style>
     .forum-page {
         --forum-card: #ffffff;
-        --forum-card-border: rgba(0,0,0,0.12);
+        --forum-card-border: rgba(0,0,0,0.08);
         --forum-text: #191919;
         --forum-text-muted: #5e5e5e;
         --forum-blue: #0a66c2;
         --forum-blue-hover: #004182;
         --forum-comment-bg: #f3f2ef;
         --forum-input-bg: #ffffff;
-        --forum-input-border: #d1d1d1;
+        --forum-input-border: #d1d5db;
         --forum-divider: #e8e8e8;
+        --forum-page-bg: #eef3f8;
     }
-    .forum-page { min-height: calc(100vh - 72px); padding: 16px 12px 28px; }
+    .forum-page { min-height: calc(100vh - 72px); padding: 16px 12px 28px; background: var(--forum-page-bg); }
     .forum-shell { max-width: 1180px; margin: 0 auto; }
     @media (min-width: 640px) { .forum-page { padding: 24px 16px 36px; } }
-    .forum-card { background: var(--forum-card); border: 1px solid var(--forum-card-border); box-shadow: none; }
+    .forum-card {
+        background: var(--forum-card);
+        border: 1px solid var(--forum-card-border);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
     .forum-text-primary { color: var(--forum-text) !important; }
     .forum-text-muted { color: var(--forum-text-muted) !important; }
     .forum-border { border-color: var(--forum-divider) !important; }
@@ -88,14 +93,37 @@
         color: #6b7280;
     }
     .forum-modal-tools button:hover { background: #f3f4f6; color: #374151; }
+    .forum-feed-search {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--forum-input-border);
+        border-radius: 10px;
+        font-size: 13px;
+        background: var(--forum-input-bg);
+        color: var(--forum-text);
+    }
+    .forum-feed-search:focus {
+        outline: none;
+        border-color: var(--forum-blue);
+        box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.12);
+    }
+    .forum-feed-search-wrap { position: relative; }
+    .forum-sidebar-stack { display: flex; flex-direction: column; gap: 16px; }
+    @media (min-width: 1024px) {
+        .forum-sidebar-stack { position: sticky; top: 6rem; }
+    }
+    .forum-search-col { order: -1; }
+    @media (min-width: 1024px) {
+        .forum-search-col { order: unset; grid-column: 3; grid-row: 1; }
+    }
 </style>
 
 <div class="forum-page">
-<div class="forum-shell grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_300px] gap-5 w-full">
+<div class="forum-shell grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)_300px] gap-5 w-full items-start">
 
     <!-- Left Sidebar: Profile Card -->
-    <div class="hidden lg:block">
-        <div class="forum-card rounded-xl overflow-hidden sticky top-24">
+    <div class="hidden lg:block lg:self-start">
+        <div class="forum-card rounded-xl overflow-hidden">
             <!-- Profile Banner -->
             <div class="h-16 bg-[#eef5fd] border-b border-[#d7e8fb]"></div>
             <div class="px-4 pb-4 -mt-6">
@@ -121,7 +149,7 @@
     </div>
 
     <!-- Center Column: Feed -->
-    <div>
+    <div class="min-w-0">
         <!-- Create Post Composer -->
         <div class="forum-card rounded-xl mb-4 overflow-hidden">
             <div class="px-4 pt-4 pb-3 flex items-center gap-3">
@@ -153,12 +181,12 @@
         <!-- Category Filter Pills -->
         {% if categories %}
         <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-1">
-            <a href="{% url 'forum_feed' %}{% if sort == 'popular' %}?sort=popular{% endif %}"
+            <a href="{% url 'forum_feed' %}{% if search_query or sort == 'popular' %}?{% endif %}{% if search_query %}q={{ search_query|urlencode }}{% endif %}{% if search_query and sort == 'popular' %}&{% endif %}{% if sort == 'popular' %}sort=popular{% endif %}"
                class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border {% if not active_category %}bg-white text-[#0a66c2] border-[#0a66c2]{% else %}bg-white border-[#666666]/30 forum-text-muted hover:border-[#0a66c2] hover:text-[#0a66c2]{% endif %}">
                 All
             </a>
             {% for cat in categories %}
-            <a href="{% url 'forum_feed' %}?category={{ cat.slug }}{% if sort == 'popular' %}&sort=popular{% endif %}"
+            <a href="{% url 'forum_feed' %}?category={{ cat.slug }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}"
                class="px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border {% if active_category == cat.slug %}bg-white text-[#0a66c2] border-[#0a66c2]{% else %}bg-white border-[#666666]/30 forum-text-muted hover:border-[#0a66c2] hover:text-[#0a66c2]{% endif %}">
                 {{ cat.name }}
             </a>
@@ -171,10 +199,10 @@
             <div class="flex-1 border-t forum-border"></div>
             <div class="flex items-center gap-1 text-xs forum-text-muted">
                 <span>Sort by:</span>
-                <a href="{% url 'forum_feed' %}{% if active_category %}?category={{ active_category }}{% endif %}"
+                <a href="{% url 'forum_feed' %}?{% if active_category %}category={{ active_category }}&{% endif %}{% if search_query %}q={{ search_query|urlencode }}{% endif %}"
                    class="px-2 py-1 rounded {% if sort == 'recent' %}font-bold text-[#0a66c2]{% endif %}">Recent</a>
                 <span>&middot;</span>
-                <a href="{% url 'forum_feed' %}?sort=popular{% if active_category %}&category={{ active_category }}{% endif %}"
+                <a href="{% url 'forum_feed' %}?sort=popular{% if active_category %}&category={{ active_category }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                    class="px-2 py-1 rounded {% if sort == 'popular' %}font-bold text-[#0a66c2]{% endif %}">Popular</a>
             </div>
             <div class="flex-1 border-t forum-border"></div>
@@ -186,13 +214,21 @@
         {% empty %}
         <div class="forum-card rounded-xl p-8 text-center">
             <div class="w-16 h-16 rounded-full bg-[#0a66c2]/10 flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-comments text-2xl text-[#0a66c2]"></i>
+                <i class="fas fa-{% if search_query %}search{% else %}comments{% endif %} text-2xl text-[#0a66c2]"></i>
             </div>
+            {% if search_query %}
+            <h3 class="font-semibold text-lg mb-2 forum-text-primary">No results found</h3>
+            <p class="text-sm mb-4 forum-text-muted">No posts match &ldquo;{{ search_query }}&rdquo;. Try different keywords.</p>
+            <a href="{% url 'forum_feed' %}{% if active_category %}?category={{ active_category }}{% if sort == 'popular' %}&sort=popular{% endif %}{% elif sort == 'popular' %}?sort=popular{% endif %}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#0a66c2] bg-white text-[#0a66c2] text-sm font-semibold hover:bg-[#eef5fd] transition-colors shadow-sm">
+                Clear search
+            </a>
+            {% else %}
             <h3 class="font-semibold text-lg mb-2 forum-text-primary">No posts yet</h3>
             <p class="text-sm mb-4 forum-text-muted">Be the first to share something with the community!</p>
             <button type="button" onclick="focusComposer()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#0a66c2] bg-white text-[#0a66c2] text-sm font-semibold hover:bg-[#eef5fd] transition-colors shadow-sm">
                 <i class="fas fa-plus"></i> Create Post
             </button>
+            {% endif %}
         </div>
         {% endfor %}
 
@@ -200,7 +236,7 @@
         {% if page_obj.has_other_pages %}
         <div class="flex items-center justify-center gap-2 mt-6">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-all hover:bg-[#0a66c2]/5 hover:border-[#0a66c2]/30 forum-text-primary" style="border-color: var(--forum-card-border);">
+            <a href="?page={{ page_obj.previous_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-all hover:bg-[#0a66c2]/5 hover:border-[#0a66c2]/30 forum-text-primary" style="border-color: var(--forum-card-border);">
                 <i class="fas fa-chevron-left mr-1"></i> Previous
             </a>
             {% endif %}
@@ -208,7 +244,7 @@
                 Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
             </span>
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-all hover:bg-[#0a66c2]/5 hover:border-[#0a66c2]/30 forum-text-primary" style="border-color: var(--forum-card-border);">
+            <a href="?page={{ page_obj.next_page_number }}{% if active_category %}&category={{ active_category }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="px-4 py-2 rounded-lg border text-sm font-medium transition-all hover:bg-[#0a66c2]/5 hover:border-[#0a66c2]/30 forum-text-primary" style="border-color: var(--forum-card-border);">
                 Next <i class="fas fa-chevron-right ml-1"></i>
             </a>
             {% endif %}
@@ -216,10 +252,13 @@
         {% endif %}
     </div>
 
-    <!-- Right Sidebar -->
-    <div class="hidden lg:block">
-        <div class="sticky top-24 space-y-4">
+    <!-- Right Sidebar (search + members; search moves to top on mobile) -->
+    <div class="forum-search-col lg:self-start">
+        <div class="forum-sidebar-stack">
+            {% include "forum/_feed_search.html" %}
+
             <!-- Active Members -->
+            <div class="hidden lg:block">
             {% if top_posters %}
             <div class="forum-card rounded-xl p-4">
                 <h4 class="font-semibold text-sm mb-3 forum-text-primary">
@@ -242,16 +281,17 @@
                 </div>
             </div>
             {% endif %}
+            </div>
 
             <!-- Trending Categories -->
             {% if categories %}
-            <div class="forum-card rounded-xl p-4">
+            <div class="forum-card rounded-xl p-4 hidden lg:block">
                 <h4 class="font-semibold text-sm mb-3 forum-text-primary">
                     <i class="fas fa-hashtag text-[#0a66c2] mr-1.5"></i>Topics
                 </h4>
                 <div class="space-y-1">
                     {% for cat in categories %}
-                    <a href="{% url 'forum_feed' %}?category={{ cat.slug }}" class="block px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#0a66c2]/5 forum-text-muted hover:text-[#0a66c2]">
+                    <a href="{% url 'forum_feed' %}?category={{ cat.slug }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if sort == 'popular' %}&sort=popular{% endif %}" class="block px-3 py-2 rounded-lg text-xs font-medium transition-all hover:bg-[#0a66c2]/5 forum-text-muted hover:text-[#0a66c2]">
                         {{ cat.name }}
                         {% if cat.description %}
                         <span class="block text-[10px] mt-0.5 opacity-70">{{ cat.description }}</span>
@@ -458,4 +498,6 @@ function toggleReaction(targetType, targetId, reactionType, btn) {
     });
 }
 </script>
+{% include "forum/_submit_guard.html" %}
+{% include "forum/_image_viewer.html" %}
 {% endblock %}

@@ -42,10 +42,10 @@
                     <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
                         {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
                         <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
-                            {% if module_lesson.id == lesson.id %}bg-cyan-electric text-[#0a0e27] sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
+                            {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                             {{ forloop.counter }}
                         </div>
-                        <span class="flex-1 text-sm leading-snug {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                        <span class="flex-1 text-sm leading-snug sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
                             {{ module_lesson.title }}
                         </span>
                         {% if module_lesson.id in completed_lessons %}
@@ -81,10 +81,10 @@
                                 <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
                                     {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
                                     <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
-                                        {% if module_lesson.id == lesson.id %}bg-cyan-electric text-[#0a0e27] sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
+                                        {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                                         {{ forloop.counter }}
                                     </div>
-                                    <span class="flex-1 text-sm leading-snug {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                                    <span class="flex-1 text-sm leading-snug sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
                                         {{ module_lesson.title }}
                                     </span>
                                     {% if module_lesson.id in completed_lessons %}
@@ -150,139 +150,217 @@
         background: rgba(226, 232, 240, 0.08) !important;
     }
 
-    /* ============================================
-       LIGHT THEME - Improved
-       ============================================ */
+    /* LIGHT THEME — Corporate B/W navigation */
     .brand-theme-light .sidebar-left-desktop > div {
         background: #ffffff !important;
-        border-color: #e5e7eb !important;
-        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+        border-color: #e5e5e5 !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        backdrop-filter: none !important;
+        padding: 1.25rem 1rem !important;
     }
-
-    /* Section divider under Program header */
+    .brand-theme-light .sidebar-left-desktop .text-cyan-electric,
+    .brand-theme-light .sidebar-left-desktop .text-cyan-electric\/70,
+    .brand-theme-light .sidebar-left-desktop .text-cyan-electric\/80,
+    .brand-theme-light .sidebar-left-desktop .hover\:text-cyan-electric:hover {
+        color: #737373 !important;
+    }
+    .brand-theme-light .sidebar-left-desktop [class*="border-cyan-electric"] {
+        border-color: #e5e5e5 !important;
+    }
+    .brand-theme-light .sidebar-left-desktop [class*="bg-cyan-electric"],
+    .brand-theme-light .sidebar-left-desktop .hover\:bg-cyan-electric\/5:hover,
+    .brand-theme-light .sidebar-left-desktop .hover\:bg-cyan-electric\/10:hover {
+        background-color: transparent !important;
+    }
     .brand-theme-light .sidebar-section-divider {
-        border-bottom-color: #f1f5f9 !important;
+        border-bottom-color: #e5e5e5 !important;
+        margin-bottom: 1.25rem !important;
+        padding-bottom: 1rem !important;
     }
-
-    /* Uppercase labels ("PROGRAM", "RESOURCES") — cyan in dark, teal-slate in light */
     .brand-theme-light .sidebar-label {
-        color: var(--brand-accent-primary) !important;
-        letter-spacing: 0.12em;
+        color: #a3a3a3 !important;
+        font-size: 0.6875rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.14em !important;
     }
-
-    /* Main course title */
     .brand-theme-light .sidebar-title {
-        color: #0f172a !important; /* slate-900 for strong hierarchy */
+        color: #141414 !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        line-height: 1.35 !important;
     }
-
-    /* Progress bar */
     .brand-theme-light .sidebar-progress-track {
-        background: #e2e8f0 !important; /* slate-200 */
+        background: #e5e5e5 !important;
+        height: 3px !important;
+        border-radius: 9999px !important;
     }
     .brand-theme-light .sidebar-progress-bar {
-        background: linear-gradient(90deg, var(--brand-accent-primary), var(--brand-accent-secondary)) !important;
+        background: #141414 !important;
+        background-image: none !important;
+        height: 3px !important;
+        border-radius: 9999px !important;
     }
     .brand-theme-light .sidebar-progress-text {
-        color: #64748b !important; /* slate-500 */
+        color: #737373 !important;
+        font-size: 0.6875rem !important;
     }
-
-    /* Module heading ("Module 1: Introduction...") */
+    .brand-theme-light .sidebar-module {
+        border-top: 1px solid #e5e5e5;
+        padding-top: 0.875rem;
+    }
+    .brand-theme-light .sidebar-module:first-child {
+        border-top: none;
+        padding-top: 0;
+    }
     .brand-theme-light .sidebar-module-title {
-        color: #0f172a !important;
+        color: #141414 !important;
+        font-size: 0.8125rem !important;
+        font-weight: 600 !important;
+        padding: 0.375rem 0;
+        margin-bottom: 0.25rem !important;
     }
-    .brand-theme-light .sidebar-module-title:hover {
-        color: var(--brand-accent-primary) !important;
-    }
+    .brand-theme-light .sidebar-module-title:hover { color: #525252 !important; }
     .brand-theme-light .sidebar-module-title .fa-chevron-down {
-        color: #94a3b8 !important;
+        color: #a3a3a3 !important;
+        font-size: 0.625rem !important;
     }
-
-    /* Default lesson row */
+    .brand-theme-light .sidebar-left-desktop .module-content {
+        padding-left: 0.625rem !important;
+        margin-top: 0.25rem;
+        border-left: 1px solid #f0f0f0;
+        margin-left: 0.375rem;
+    }
     .brand-theme-light .sidebar-lesson {
-        color: #334155 !important; /* slate-700 */
-    }
-    .brand-theme-light .sidebar-lesson span {
-        color: #334155 !important;
+        color: #525252 !important;
+        border-radius: 0.375rem !important;
+        border-left: 2px solid transparent !important;
+        padding: 0.5rem 0.5rem 0.5rem 0.375rem !important;
+        margin-bottom: 0.125rem;
     }
     .brand-theme-light .sidebar-lesson:hover {
-        background: #f8fafc !important;
+        background: #fafafa !important;
+        color: #141414 !important;
     }
-
-    /* Lesson number circle (default state) — darker bg for better contrast on white */
+    .brand-theme-light .sidebar-lesson-title { color: inherit !important; }
     .brand-theme-light .sidebar-lesson-number {
-        background: #334155 !important; /* slate-700 */
-        color: #ffffff !important;
+        width: 1.375rem !important;
+        height: 1.375rem !important;
+        font-size: 0.625rem !important;
+        font-weight: 600 !important;
+        background: transparent !important;
+        border: 1px solid #d4d4d4 !important;
+        color: #737373 !important;
     }
-    /* Extra specificity to beat global light-theme text overrides */
-    .brand-theme-light .sidebar-lesson .sidebar-lesson-number,
-    .brand-theme-light .sidebar-lesson span.sidebar-lesson-number {
-        color: #ffffff !important;
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson.sidebar-lesson-active,
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson-active.bg-cyan-electric\/20 {
+        background: #fafafa !important;
+        border-left: 2px solid #141414 !important;
     }
-    .brand-theme-light .sidebar-lesson-locked .sidebar-lesson-number,
-    .brand-theme-light .sidebar-lesson-locked > div:first-child {
-        background: #cbd5e1 !important; /* slate-300 */
-        color: #64748b !important;
-    }
-
-    /* Active lesson — the currently selected lesson */
-    .brand-theme-light .sidebar-lesson-active {
-        background: #f3f8ff !important;
-        border-left-color: var(--brand-accent-primary) !important;
-    }
-    .brand-theme-light .sidebar-lesson-active span {
-        color: var(--brand-accent-primary) !important;
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson-active .sidebar-lesson-title,
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson-active .text-cyan-electric {
+        color: #141414 !important;
         font-weight: 600 !important;
     }
-    .brand-theme-light .sidebar-lesson-number-active {
-        background: var(--brand-accent-primary) !important;
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson:not(.sidebar-lesson-active) .sidebar-lesson-title,
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson:not(.sidebar-lesson-active) .text-gray-300 {
+        color: #525252 !important;
+        font-weight: 400 !important;
+    }
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson-number-active,
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson-number-active.bg-cyan-electric {
+        background: #141414 !important;
+        border-color: #141414 !important;
         color: #ffffff !important;
     }
-
-
-    .brand-theme-light .sidebar-check {
-        color: #10b981 !important; /* emerald-500 */
+    .brand-theme-light .sidebar-left-desktop .sidebar-lesson-number.bg-gray-700 {
+        background: transparent !important;
+        border: 1px solid #d4d4d4 !important;
+        color: #737373 !important;
     }
-
-    /* Locked lesson row */
+    .brand-theme-light .sidebar-left-desktop .sidebar-check.text-green-400 {
+        color: #737373 !important;
+    }
     .brand-theme-light .sidebar-lesson-locked {
-        opacity: 1 !important; /* replace opacity trick with explicit muted colors */
+        opacity: 1 !important;
+        padding: 0.5rem 0.5rem 0.5rem 0.375rem !important;
     }
-    .brand-theme-light .sidebar-lesson-locked span {
-        color: #94a3b8 !important; /* slate-400 */
+    .brand-theme-light .sidebar-lesson-locked span { color: #a3a3a3 !important; }
+    .brand-theme-light .sidebar-lesson-locked > div:first-child {
+        background: transparent !important;
+        border: 1px solid #e5e5e5 !important;
+        color: #d4d4d4 !important;
+        width: 1.375rem !important;
+        height: 1.375rem !important;
+        font-size: 0.625rem !important;
     }
     .brand-theme-light .sidebar-lesson-locked .fa-lock {
-        color: #cbd5e1 !important;
+        color: #d4d4d4 !important;
+        font-size: 0.625rem !important;
     }
-
-    /* Resources list */
     .brand-theme-light .sidebar-resource {
-        color: #334155 !important;
+        color: #525252 !important;
+        border-radius: 0.375rem !important;
+        padding: 0.5rem 0.375rem !important;
     }
-    .brand-theme-light .sidebar-resource:hover {
-        background: #f8fafc !important;
-    }
+    .brand-theme-light .sidebar-resource:hover { background: #fafafa !important; }
     .brand-theme-light .sidebar-resource span {
-        color: #334155 !important;
+        color: #525252 !important;
+        font-size: 0.8125rem !important;
     }
-    .brand-theme-light .sidebar-resource:hover span {
-        color: var(--brand-accent-primary) !important;
-    }
-    .brand-theme-light .sidebar-resource i {
-        color: var(--brand-accent-primary) !important;
-    }
-
-    /* Scrollbar styling for light mode */
-    .brand-theme-light .sidebar-scroll::-webkit-scrollbar {
-        width: 6px;
-    }
-    .brand-theme-light .sidebar-scroll::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .brand-theme-light .sidebar-scroll::-webkit-scrollbar-thumb {
-        background: #e2e8f0;
+    .brand-theme-light .sidebar-resource:hover span { color: #141414 !important; }
+    .brand-theme-light .sidebar-resource i { color: #a3a3a3 !important; }
+    .brand-theme-light .sidebar-resource:hover i { color: #525252 !important; }
+    .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar { width: 5px; }
+    .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+    .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar-thumb {
+        background: #e5e5e5;
         border-radius: 3px;
     }
-    .brand-theme-light .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-        background: #cbd5e1;
+    .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+        background: #d4d4d4;
+    }
+
+    /* Center column: 20% | 60% | 20% with readable max-width */
+    @media (min-width: 1024px) {
+        .center-content-rail {
+            margin-left: 20%;
+            margin-right: 20%;
+            width: 60%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+        .center-content-inner {
+            width: 100%;
+            max-width: 720px;
+            margin-left: auto;
+            margin-right: auto;
+            padding-left: 1.25rem;
+            padding-right: 1.25rem;
+            box-sizing: border-box;
+        }
     }
 </style>
+
+<script>
+    document.querySelectorAll('.module-toggle').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const moduleId = this.dataset.module;
+            const content = document.querySelector(`.module-content[data-module="${moduleId}"]`);
+            const icon = this.querySelector('i');
+            if (!content) return;
+            content.classList.toggle('hidden');
+            if (icon) icon.classList.toggle('rotate-180');
+        });
+    });
+
+    document.querySelectorAll('.module-content').forEach(function(content) {
+        const hasActive = content.querySelector('.sidebar-lesson-active');
+        const moduleId = content.dataset.module;
+        const toggle = document.querySelector('.module-toggle[data-module="' + moduleId + '"]');
+        const icon = toggle ? toggle.querySelector('i') : null;
+        if (!hasActive) {
+            content.classList.add('hidden');
+            if (icon) icon.classList.add('rotate-180');
+        }
+    });
+</script>

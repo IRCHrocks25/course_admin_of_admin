@@ -12,7 +12,7 @@
             <h2 class="text-2xl font-bold mb-2">All Quizzes</h2>
             <p class="text-gray-400">Manage quizzes across all lessons</p>
         </div>
-        <a href="{% url 'dashboard_upload_quiz' %}" class="px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
+        <a href="{% url 'dashboard_upload_quiz' %}" class="px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
             <i class="fas fa-upload mr-2"></i> Upload Quiz
         </a>
     </div>
@@ -32,7 +32,7 @@
                 <input type="text" name="search" value="{{ search_query }}" placeholder="Search quizzes, lessons, or courses..." 
                     class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-electric/50">
             </div>
-            <button type="submit" class="px-6 py-2 bg-cyan-electric text-[#0a0e27] rounded-lg font-semibold hover:bg-cyan-electric/90 transition-all">
+            <button type="submit" class="px-6 py-2 bg-cyan-electric text-on-accent-primary rounded-lg font-semibold hover:bg-cyan-electric/90 transition-all">
                 <i class="fas fa-filter mr-2"></i>Filter
             </button>
             {% if course_filter or search_query %}
@@ -94,7 +94,7 @@
                 {% endif %}
             </p>
             <div class="flex gap-3 justify-center">
-                <a href="{% url 'dashboard_upload_quiz' %}" class="px-6 py-3 bg-cyan-electric text-[#0a0e27] rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
+                <a href="{% url 'dashboard_upload_quiz' %}" class="px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
                     <i class="fas fa-upload mr-2"></i> Upload Quiz
                 </a>
                 <a href="{% url 'dashboard_lessons' %}" class="px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all">

@@ -1,0 +1,26 @@
+<form method="get" class="forum-feed-search-form" data-no-loader>
+    {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+    {% if sort == 'popular' %}<input type="hidden" name="sort" value="popular">{% endif %}
+    <div class="forum-card rounded-xl p-4 mb-4 lg:mb-0">
+        <h4 class="font-semibold text-sm mb-3 forum-text-primary flex items-center gap-2">
+            <i class="fas fa-search text-[#0a66c2] text-xs"></i>Search community
+        </h4>
+        <div class="forum-feed-search-wrap">
+            <input
+                type="search"
+                name="q"
+                value="{{ search_query }}"
+                class="forum-feed-search"
+                placeholder="Posts, topics, members..."
+                autocomplete="off"
+                aria-label="Search community"
+            >
+        </div>
+        {% if search_query %}
+        <div class="mt-2 flex items-center justify-between gap-2">
+            <span class="text-[11px] forum-text-muted truncate">Showing results for &ldquo;{{ search_query }}&rdquo;</span>
+            <a href="{% url 'forum_feed' %}{% if active_category %}?category={{ active_category }}{% if sort == 'popular' %}&sort=popular{% endif %}{% elif sort == 'popular' %}?sort=popular{% endif %}" class="text-[11px] font-semibold text-[#0a66c2] hover:underline whitespace-nowrap">Clear</a>
+        </div>
+        {% endif %}
+    </div>
+</form>

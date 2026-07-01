@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
-from django.db.models import Count, Prefetch
+from django.db.models import Count, Prefetch, Q
 from django.db import IntegrityError, transaction
 from django.utils.text import slugify
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -137,11 +137,22 @@ def forum_feed(request):
 
     active_category = request.GET.get('category', '')
     sort = request.GET.get('sort', 'recent')
+    search_query = request.GET.get('q', '').strip()
 
     posts = ForumPost.objects.filter(tenant=tenant).select_related('author', 'category')
 
     if active_category:
         posts = posts.filter(category__slug=active_category)
+
+    if search_query:
+        posts = posts.filter(
+            Q(content__icontains=search_query)
+            | Q(author__username__icontains=search_query)
+            | Q(author__first_name__icontains=search_query)
+            | Q(author__last_name__icontains=search_query)
+            | Q(category__name__icontains=search_query)
+            | Q(comments__content__icontains=search_query)
+        ).distinct()
 
     posts = posts.annotate(
         comment_count=Count('comments', distinct=True),
@@ -227,10 +238,9 @@ def forum_feed(request):
 
     user_post_count = ForumPost.objects.filter(tenant=tenant, author=request.user).count()
 
-    # Bug 15: restrict to authors who are currently active members of this
-    # tenant. Otherwise the widget keeps showing alumni who already left.
+    # Top posters among current active members (sidebar widget).
     active_member_ids = TenantMembership.objects.filter(
-        tenant=tenant, is_active=True
+        tenant=tenant, is_active=True,
     ).values_list('user_id', flat=True)
     top_posters = (
         ForumPost.objects.filter(tenant=tenant, author_id__in=active_member_ids)
@@ -244,6 +254,7 @@ def forum_feed(request):
         'categories': categories,
         'active_category': active_category,
         'sort': sort,
+        'search_query': search_query,
         'user_reactions': user_reactions,
         'reaction_counts': reaction_counts,
         'comments_by_post': comments_by_post,

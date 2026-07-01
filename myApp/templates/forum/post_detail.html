@@ -44,9 +44,10 @@
 
     <!-- Post -->
     {% with author_name=post.author.get_full_name|default:post.author.username role=role_map|dictget:post.author_id post_reactions=user_reactions|dictget:post.id post_counts=reaction_counts|dictget:post.id %}
+    <div id="post-{{ post.id }}" class="forum-post-root">
     <div class="forum-card rounded-xl p-6 mb-5">
         <!-- Author Header -->
-        <div class="flex items-start gap-3 mb-4">
+        <div class="forum-post-view-header flex items-start gap-3 mb-4">
             <div class="w-12 h-12 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-lg shadow-sm overflow-hidden">
                 {% if role == 'Instructor' and tenant_branding.logo_url %}
                 <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
@@ -98,24 +99,26 @@
         </div>
 
         <!-- Content -->
-        <div class="text-sm leading-relaxed mb-4 forum-text-primary">
+        <div class="forum-post-view-body text-sm leading-relaxed mb-4 forum-text-primary">
             {{ post.content|linebreaksbr }}
         </div>
         {% if post.image %}
         <div class="mb-4 rounded-lg overflow-hidden">
-            <img src="{{ post.image.url }}" alt="Post image" class="w-full max-h-[500px] object-cover rounded-lg" loading="lazy">
+            <img src="{{ post.image.url }}" alt="Post image" data-forum-image-view
+                class="forum-post-image-viewable w-full max-h-[500px] object-cover rounded-lg" loading="lazy"
+                role="button" tabindex="0" aria-label="View full size image">
         </div>
         {% endif %}
 
         <!-- Reactions -->
-        <div class="border-t pt-3 forum-border">
+        <div class="forum-post-view-reactions border-t pt-3 forum-border">
             {% with target_type="post" target_id=post.id active_reactions=post_reactions counts=post_counts %}
             {% include "forum/_reaction_bar.html" %}
             {% endwith %}
         </div>
     </div>
-    {% endwith %}
 
+    <div class="forum-post-view-comments">
     <!-- Add Comment -->
     <div class="forum-card rounded-xl p-4 mb-5">
         <form method="post" action="{% url 'forum_add_comment' post_id=post.id %}">
@@ -171,6 +174,9 @@
         {% endif %}
     </div>
     {% endif %}
+    </div>
+    </div>
+    {% endwith %}
 </div>
 </div>
 
@@ -218,4 +224,6 @@ function toggleReaction(targetType, targetId, reactionType, btn) {
     });
 }
 </script>
+{% include "forum/_submit_guard.html" %}
+{% include "forum/_image_viewer.html" %}
 {% endblock %}

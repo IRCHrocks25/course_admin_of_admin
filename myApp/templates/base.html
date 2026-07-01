@@ -88,35 +88,145 @@
 
         .brand-nav {
             background: var(--brand-surface);
-            border-bottom: 1px solid var(--brand-border);
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        }
+        .brand-theme-dark .brand-nav {
+            border-bottom-color: rgba(255, 255, 255, 0.08);
+        }
+        .brand-nav-shell {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
+        }
+        .brand-nav-right {
+            display: none;
+            align-items: center;
+            gap: clamp(1rem, 2.5vw, 2rem);
+        }
+        @media (min-width: 768px) {
+            .brand-nav-right {
+                display: flex;
+            }
         }
         .brand-nav-link {
-            color: var(--brand-text-primary);
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+            line-height: 1;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            transition: color 0.15s ease;
+            white-space: nowrap;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .brand-theme-dark .brand-nav-link {
+            color: #94a3b8;
         }
         .brand-nav-link:hover {
-            color: var(--brand-accent-primary);
+            color: #334155;
         }
-        .brand-nav-cta {
-            color: var(--brand-text-primary);
-            background: var(--brand-bg-solid);
-            border-color: color-mix(in srgb, var(--brand-accent-primary) 50%, transparent);
+        .brand-theme-dark .brand-nav-link:hover {
+            color: #e2e8f0;
+        }
+        .brand-nav-link.is-active {
+            color: #1e293b;
+            font-weight: 600;
+        }
+        .brand-theme-dark .brand-nav-link.is-active {
+            color: #f8fafc;
+        }
+        .brand-nav-divider {
+            width: 1px;
+            height: 18px;
+            background: rgba(15, 23, 42, 0.12);
+            flex-shrink: 0;
+        }
+        .brand-theme-dark .brand-nav-divider {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .brand-nav-theme {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            cursor: pointer;
+            transition: color 0.15s ease;
+        }
+        .brand-theme-dark .brand-nav-theme {
+            color: #94a3b8;
+        }
+        .brand-nav-theme:hover {
+            color: #334155;
+        }
+        .brand-theme-dark .brand-nav-theme:hover {
+            color: #e2e8f0;
+        }
+        .brand-nav-mobile-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.375rem;
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            cursor: pointer;
+        }
+        @media (min-width: 768px) {
+            .brand-nav-mobile-btn {
+                display: none;
+            }
         }
         .brand-mobile-menu {
+            display: none;
             background: var(--brand-menu-bg);
+            border-top: 1px solid var(--brand-menu-border);
+        }
+        .brand-mobile-menu.is-open {
+            display: block;
+        }
+        @media (min-width: 768px) {
+            .brand-mobile-menu {
+                display: none !important;
+            }
+        }
+        .brand-mobile-menu .brand-nav-link {
+            display: block;
+            padding: 0.625rem 0;
+        }
+        .brand-mobile-menu-footer {
+            margin-top: 0.5rem;
+            padding-top: 0.75rem;
             border-top: 1px solid var(--brand-menu-border);
         }
         .brand-logo-main {
             width: auto;
             height: auto;
-            max-height: 64px;
-            max-width: clamp(140px, 22vw, 320px);
+            max-height: 36px;
+            max-width: clamp(120px, 20vw, 240px);
             object-fit: contain;
             object-position: left center;
         }
+        .brand-nav-wordmark {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
         @media (max-width: 640px) {
             .brand-logo-main {
-                max-height: 52px;
-                max-width: 190px;
+                max-height: 32px;
+                max-width: 150px;
             }
         }
 
@@ -128,6 +238,9 @@
         .text-purple-accent { color: var(--brand-accent-secondary) !important; }
 
         .bg-cyan-electric { background-color: var(--brand-accent-primary) !important; }
+        .text-on-accent-primary { color: var(--brand-accent-on-primary) !important; }
+        .text-on-accent-secondary { color: var(--brand-accent-on-secondary) !important; }
+        .text-on-accent-gradient { color: var(--brand-accent-on-gradient) !important; }
         .bg-cyan-electric\/20 { background-color: color-mix(in srgb, var(--brand-accent-primary) 20%, transparent) !important; }
         .bg-cyan-electric\/15 { background-color: color-mix(in srgb, var(--brand-accent-primary) 15%, transparent) !important; }
         .bg-cyan-electric\/10 { background-color: color-mix(in srgb, var(--brand-accent-primary) 10%, transparent) !important; }
@@ -166,6 +279,27 @@
         .to-purple-accent { --tw-gradient-to: var(--brand-accent-secondary) var(--tw-gradient-to-position) !important; }
 
         .brand-theme-light .text-white { color: #0f172a !important; }
+        /* Solid/gradient accent buttons must keep on-color text in light mode */
+        .brand-theme-light .bg-cyan-electric.text-white,
+        .brand-theme-light .bg-cyan-electric.text-on-accent-primary {
+            color: var(--brand-accent-on-primary) !important;
+        }
+        .brand-theme-light .bg-purple-accent.text-white,
+        .brand-theme-light .bg-purple-accent.text-on-accent-secondary {
+            color: var(--brand-accent-on-secondary) !important;
+        }
+        .brand-theme-light [class*="bg-gradient-to"].text-white[class*="from-cyan-electric"],
+        .brand-theme-light [class*="bg-gradient-to"].text-white[class*="from-purple-accent"],
+        .brand-theme-light [class*="bg-gradient-to"].text-white[class*="to-cyan-electric"],
+        .brand-theme-light [class*="bg-gradient-to"].text-white[class*="to-purple-accent"],
+        .brand-theme-light [class*="bg-gradient-to"].text-white[class*="to-purple-600"],
+        .brand-theme-light [class*="bg-gradient-to"].text-on-accent-gradient {
+            color: var(--brand-accent-on-gradient) !important;
+        }
+        .brand-theme-light [class*="from-green-5"].text-white,
+        .brand-theme-light [class*="to-emerald-6"].text-white {
+            color: #ffffff !important;
+        }
         .brand-theme-light .text-gray-100,
         .brand-theme-light .text-gray-200,
         .brand-theme-light .text-gray-300,
@@ -195,11 +329,24 @@
         .brand-theme-light [class*="from-cyan-electric"] { --tw-gradient-from: #1e3a8a var(--tw-gradient-from-position) !important; --tw-gradient-to: rgba(30, 58, 138, 0) var(--tw-gradient-to-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
         .brand-theme-light [class*="via-cyan-electric"] { --tw-gradient-stops: var(--tw-gradient-from), #1e3a8a var(--tw-gradient-via-position), var(--tw-gradient-to) !important; }
         .brand-theme-light [class*="to-cyan-electric"] { --tw-gradient-to: #1e3a8a var(--tw-gradient-to-position) !important; }
-        .brand-theme-light input[type="file"]::file-selector-button,
-        .brand-theme-light input[type="file"]::-webkit-file-upload-button {
-            background-color: rgba(30, 58, 138, 0.12) !important;
-            color: #1e3a8a !important;
-            border-color: rgba(30, 58, 138, 0.30) !important;
+        /* File inputs: Tailwind file: variants paint neon cyan on ::file-selector-button */
+        input[type="file"]::file-selector-button,
+        input[type="file"]::-webkit-file-upload-button {
+            background-color: var(--brand-accent-primary) !important;
+            color: var(--brand-accent-on-primary) !important;
+            border: 1px solid transparent !important;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        input[type="file"]::file-selector-button:hover,
+        input[type="file"]::-webkit-file-upload-button:hover {
+            opacity: 0.9;
+        }
+        /* Light mode: cyan tint chips/badges need stronger text contrast */
+        .brand-theme-light [class*="bg-cyan-electric/"][class*="text-cyan-electric"],
+        .brand-theme-light [class*="bg-cyan-electric/"] [class*="text-cyan-electric"] {
+            color: #0f172a !important;
         }
         /* Neutral tracks (e.g. progress bar backgrounds) → light gray */
         .brand-theme-light .bg-gray-700,
@@ -260,6 +407,24 @@
         .brand-theme-light [class*="text-rose-3"],
         .brand-theme-light [class*="text-rose-4"] { color: #be123c !important; }
 
+        /* Light mode: hardcoded dark text on accent surfaces is unreadable */
+        .brand-theme-light .bg-cyan-electric.text-\[\#0a0e27\],
+        .brand-theme-light [class*="bg-cyan-electric"].text-\[\#0a0e27\],
+        .brand-theme-light .bg-cyan-electric .text-\[\#0a0e27\],
+        .brand-theme-light [class*="bg-cyan-electric"] .text-\[\#0a0e27\] {
+            color: var(--brand-accent-on-primary) !important;
+        }
+        .brand-theme-light [class*="from-cyan-electric"][class*="to-purple"].text-\[\#0a0e27\],
+        .brand-theme-light [class*="from-cyan-electric"][class*="to-purple-accent"].text-\[\#0a0e27\],
+        .brand-theme-light [class*="to-cyan-electric"][class*="from-purple"].text-\[\#0a0e27\],
+        .brand-theme-light [class*="from-cyan-electric"][class*="to-purple"] .text-\[\#0a0e27\],
+        .brand-theme-light [class*="from-cyan-electric"][class*="to-purple-accent"] .text-\[\#0a0e27\],
+        .brand-theme-light [class*="to-cyan-electric"][class*="from-purple"] .text-\[\#0a0e27\],
+        .brand-theme-light [class*="bg-gradient-to"][class*="from-cyan-electric"] .text-\[\#0a0e27\],
+        .brand-theme-light [class*="bg-gradient-to"][class*="to-cyan-electric"] .text-\[\#0a0e27\] {
+            color: var(--brand-accent-on-gradient) !important;
+        }
+
         /* Theme transition */
         .theme-transitioning,
         .theme-transitioning *,
@@ -299,79 +464,93 @@
     </div>
     <!-- Top Navigation Bar -->
     <nav class="brand-nav sticky top-0 z-50">
-        <div class="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-            <!-- Left: Logo -->
-            <a href="{% url 'home' %}" class="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity">
-                {% if tenant_branding.logo_url %}
-                <img 
-                    src="{{ tenant_branding.logo_url }}"
-                    alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
-                    class="brand-logo-main"
-                    loading="eager"
-                >
-                {% else %}
-                <img 
-                    src="https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png"
-                    alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
-                    class="brand-logo-main"
-                    loading="eager"
-                >
-                {% endif %}
-                {% if not tenant_branding.logo_url %}
-                <div class="text-sm sm:text-lg font-bold text-white hidden sm:block">{{ tenant_branding.brand_name|default:"CourseForge" }}</div>
-                {% endif %}
-            </a>
-            
+        <div class="brand-nav-shell">
+            <!-- Brand -->
+            <div class="brand-nav-brand flex items-center min-w-0">
+                <a href="{% url 'home' %}" class="flex items-center gap-2 sm:gap-3 hover:opacity-85 transition-opacity min-w-0">
+                    {% if tenant_branding.logo_url %}
+                    <img
+                        src="{{ tenant_branding.logo_url }}"
+                        alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
+                        class="brand-logo-main"
+                        loading="eager"
+                    >
+                    {% else %}
+                    <img
+                        src="https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png"
+                        alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
+                        class="brand-logo-main"
+                        loading="eager"
+                    >
+                    {% endif %}
+                    {% if not tenant_branding.logo_url %}
+                    <div class="brand-nav-wordmark hidden sm:block">{{ tenant_branding.brand_name|default:"CourseForge" }}</div>
+                    {% endif %}
+                </a>
+            </div>
+
             <!-- Mobile Menu Button -->
-            <button id="mobile-menu-btn" class="md:hidden p-2 brand-nav-link transition-colors">
-                <i class="fas fa-bars text-xl"></i>
+            <button id="mobile-menu-btn" class="brand-nav-mobile-btn" aria-label="Open menu" aria-expanded="false">
+                <i class="fas fa-bars text-lg"></i>
             </button>
-            
-            <!-- Right: Navigation Links (Desktop) -->
-            <div class="hidden md:flex items-center gap-6 lg:gap-8">
-                <a href="{% url 'courses' %}" class="text-sm font-medium brand-nav-link transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
-                <a href="{% url 'events' %}" class="text-sm font-medium brand-nav-link transition-colors">Events</a>
+
+            <!-- Right: Nav + utilities (Desktop) -->
+            <div class="brand-nav-right">
+                <a href="{% url 'courses' %}" class="brand-nav-link {% if '/courses' in request.path %}is-active{% endif %}">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
                 {% if user.is_authenticated %}
-                <a href="{% url 'forum_feed' %}" class="text-sm font-medium brand-nav-link transition-colors">Community</a>
-                <a href="{% url 'student_certifications' %}" class="text-sm font-medium brand-nav-link transition-colors">Certifications</a>
+                <a href="{% url 'forum_feed' %}" class="brand-nav-link {% if '/community' in request.path %}is-active{% endif %}">Community</a>
+                {% endif %}
+                <a href="{% url 'events' %}" class="brand-nav-link {% if '/events' in request.path %}is-active{% endif %}">Events</a>
+                {% if user.is_authenticated %}
+                <a href="{% url 'student_certifications' %}" class="brand-nav-link {% if '/my-certifications' in request.path %}is-active{% endif %}">Certifications</a>
                 {% endif %}
                 {% if user.is_staff %}
-                <a href="{% url 'dashboard_home' %}" class="text-sm font-medium brand-nav-link transition-colors">Admin</a>
+                <a href="{% url 'dashboard_home' %}" class="brand-nav-link {% if '/dashboard' in request.path %}is-active{% endif %}">Admin</a>
                 {% endif %}
                 {% if user.is_superuser %}
-                <a href="{% url 'superadmin_home' %}" class="text-sm font-medium brand-nav-link transition-colors">Super Admin</a>
+                <a href="{% url 'superadmin_home' %}" class="brand-nav-link {% if '/superadmin' in request.path %}is-active{% endif %}">Super Admin</a>
                 {% endif %}
                 {% if user.is_authenticated %}
-                <button onclick="toggleTheme()" class="p-2 rounded-lg brand-nav-link transition-colors hover:bg-cyan-electric/10" title="Toggle theme" aria-label="Toggle theme">
+                <span class="brand-nav-divider" aria-hidden="true"></span>
+                <button onclick="toggleTheme()" class="brand-nav-theme" title="Toggle theme" aria-label="Toggle theme">
                     <i class="fas fa-moon text-sm" id="theme-icon-moon" style="display:{% if effective_theme_mode == 'light' %}inline{% else %}none{% endif %}"></i>
                     <i class="fas fa-sun text-sm" id="theme-icon-sun" style="display:{% if effective_theme_mode != 'light' %}inline{% else %}none{% endif %}"></i>
                 </button>
+                <a href="{% url 'logout' %}" class="brand-nav-link">Log Out</a>
+                {% else %}
+                <span class="brand-nav-divider" aria-hidden="true"></span>
+                <a href="{% url 'login' %}" class="brand-nav-link">Log In</a>
                 {% endif %}
-                <a href="{% url 'logout' %}" class="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-cyan-electric/10 hover:border-cyan-electric/70 transition-all brand-nav-cta">Log Out</a>
             </div>
         </div>
-        
+
         <!-- Mobile Menu (Hidden by default) -->
-        <div id="mobile-menu" class="hidden md:hidden brand-mobile-menu">
-            <div class="px-4 py-4 space-y-3">
-                <a href="{% url 'courses' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
-                <a href="{% url 'events' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Events</a>
+        <div id="mobile-menu" class="brand-mobile-menu">
+            <div class="px-6 py-4 space-y-1">
+                <a href="{% url 'courses' %}" class="brand-nav-link {% if '/courses' in request.path %}is-active{% endif %}">{% if user.is_authenticated %}Dashboard{% else %}Courses{% endif %}</a>
                 {% if user.is_authenticated %}
-                <a href="{% url 'forum_feed' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Community</a>
-                <a href="{% url 'student_certifications' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Certifications</a>
+                <a href="{% url 'forum_feed' %}" class="brand-nav-link {% if '/community' in request.path %}is-active{% endif %}">Community</a>
+                {% endif %}
+                <a href="{% url 'events' %}" class="brand-nav-link {% if '/events' in request.path %}is-active{% endif %}">Events</a>
+                {% if user.is_authenticated %}
+                <a href="{% url 'student_certifications' %}" class="brand-nav-link {% if '/my-certifications' in request.path %}is-active{% endif %}">Certifications</a>
                 {% endif %}
                 {% if user.is_staff %}
-                <a href="{% url 'dashboard_home' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Admin</a>
+                <a href="{% url 'dashboard_home' %}" class="brand-nav-link {% if '/dashboard' in request.path %}is-active{% endif %}">Admin</a>
                 {% endif %}
                 {% if user.is_superuser %}
-                <a href="{% url 'superadmin_home' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">Super Admin</a>
+                <a href="{% url 'superadmin_home' %}" class="brand-nav-link {% if '/superadmin' in request.path %}is-active{% endif %}">Super Admin</a>
                 {% endif %}
-                {% if user.is_authenticated %}
-                <button onclick="toggleTheme()" class="w-full text-left block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors">
-                    <i class="fas fa-adjust mr-2"></i>Toggle Theme
-                </button>
-                {% endif %}
-                <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm font-medium brand-nav-link hover:bg-cyan-electric/10 rounded-lg transition-colors border border-cyan-electric/30">Log Out</a>
+                <div class="brand-mobile-menu-footer space-y-2">
+                    {% if user.is_authenticated %}
+                    <button onclick="toggleTheme()" class="brand-nav-link w-full text-left">
+                        <i class="fas fa-moon mr-2 text-xs"></i>Toggle theme
+                    </button>
+                    <a href="{% url 'logout' %}" class="brand-nav-link">Log Out</a>
+                    {% else %}
+                    <a href="{% url 'login' %}" class="brand-nav-link">Log In</a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </nav>
@@ -384,14 +563,17 @@
             
             if (mobileMenuBtn && mobileMenu) {
                 mobileMenuBtn.addEventListener('click', function() {
-                    mobileMenu.classList.toggle('hidden');
+                    const isOpen = mobileMenu.classList.contains('is-open');
+                    mobileMenu.classList.toggle('is-open');
+                    mobileMenuBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                    mobileMenuBtn.setAttribute('aria-label', isOpen ? 'Open menu' : 'Close menu');
                     const icon = mobileMenuBtn.querySelector('i');
-                    if (mobileMenu.classList.contains('hidden')) {
-                        icon.classList.remove('fa-times');
-                        icon.classList.add('fa-bars');
-                    } else {
+                    if (mobileMenu.classList.contains('is-open')) {
                         icon.classList.remove('fa-bars');
                         icon.classList.add('fa-times');
+                    } else {
+                        icon.classList.remove('fa-times');
+                        icon.classList.add('fa-bars');
                     }
                 });
             }
@@ -442,7 +624,7 @@
                 </div>
                 <div class="relative flex items-center justify-center">
                     <div class="w-16 h-16 bg-gradient-to-br from-cyan-electric to-purple-accent rounded-full flex items-center justify-center shadow-2xl shadow-cyan-electric/50">
-                        <i class="fas fa-spinner text-2xl text-[#0a0e27] animate-spin"></i>
+                        <i class="fas fa-spinner text-2xl text-on-accent-primary animate-spin"></i>
                     </div>
                 </div>
             </div>
@@ -526,7 +708,7 @@
             class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent shadow-2xl shadow-cyan-electric/50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ring-2 ring-cyan-electric/30"
             aria-label="Sprint Coach"
         >
-            <i class="fas fa-brain text-2xl text-[#0a0e27]"></i>
+            <i class="fas fa-brain text-2xl text-on-accent-primary"></i>
         </button>
     </div>
 
@@ -536,7 +718,7 @@
         <div class="flex items-center justify-between p-4 border-b border-cyan-electric/20 bg-[#0a0e27]">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center shadow-lg shadow-cyan-electric/20">
-                    <i class="fas fa-brain text-lg text-[#0a0e27]"></i>
+                    <i class="fas fa-brain text-lg text-on-accent-primary"></i>
                 </div>
                 <div>
                     <h3 class="font-bold text-white text-base">Sprint Coach</h3>
@@ -555,7 +737,7 @@
         <div id="coach-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
             <div class="flex items-start gap-3">
                 <div class="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-brain text-sm text-[#0a0e27]"></i>
+                    <i class="fas fa-brain text-sm text-on-accent-primary"></i>
                 </div>
                 <div class="flex-1 bg-[#1a1f3a] border border-cyan-electric/20 rounded-2xl rounded-tl-md px-4 py-3">
                     <p class="text-sm text-gray-200 leading-relaxed">
@@ -604,7 +786,7 @@
                 ></textarea>
                 <button 
                     onclick="sendCoachMessage()" 
-                    class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 flex items-center justify-center text-white shadow-lg shadow-cyan-electric/20 transition-all flex-shrink-0"
+                    class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 flex items-center justify-center text-on-accent-gradient shadow-lg shadow-cyan-electric/20 transition-all flex-shrink-0"
                 >
                     <i class="fas fa-paper-plane text-base"></i>
                 </button>
@@ -681,7 +863,7 @@
             thinkingMessage.className = 'flex items-start gap-3';
             thinkingMessage.innerHTML = `
                 <div class="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-brain text-sm text-[#0a0e27]"></i>
+                    <i class="fas fa-brain text-sm text-on-accent-primary"></i>
                 </div>
                 <div class="flex-1 bg-[#1a1f3a] border border-cyan-electric/20 rounded-2xl rounded-tl-md px-4 py-3">
                     <div class="flex items-center gap-2 text-cyan-electric">
@@ -697,7 +879,7 @@
             setTimeout(() => {
                 thinkingMessage.innerHTML = `
                     <div class="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0">
-                        <i class="fas fa-brain text-sm text-[#0a0e27]"></i>
+                        <i class="fas fa-brain text-sm text-on-accent-primary"></i>
                     </div>
                     <div class="flex-1 bg-[#1a1f3a] border border-cyan-electric/20 rounded-2xl rounded-tl-md px-4 py-3">
                         <p class="text-sm text-gray-200 leading-relaxed">I'm here to help! This is a placeholder response. Connect me to your AI backend to get real answers based on your lesson content.</p>

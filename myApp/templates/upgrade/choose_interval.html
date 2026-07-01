@@ -33,7 +33,7 @@
         <a href="{% url 'upgrade_checkout' tier.code 'yearly' %}{% if delivery_id %}?delivery_id={{ delivery_id }}{% endif %}"
            class="group block rounded-xl border border-cyan-electric/30 bg-cyan-electric/5 p-6 hover:border-cyan-electric/50 hover:bg-cyan-electric/10 transition-all relative">
             {% if yearly_savings > 0 %}
-            <div class="absolute -top-3 right-4 px-3 py-0.5 rounded-full bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] text-xs font-bold">
+            <div class="absolute -top-3 right-4 px-3 py-0.5 rounded-full bg-gradient-to-r from-cyan-electric to-purple-accent text-on-accent-gradient text-xs font-bold">
                 Save {{ yearly_savings|cents_to_dollars }}/yr
             </div>
             {% endif %}

@@ -1,17 +1,18 @@
-<!-- Right Column: AI Lesson Coach - Modern Chatbot Interface -->
-<!-- Mobile: Hidden (use floating chat head instead) -->
-<!-- Desktop: Fixed to right viewport edge -->
+<!-- Right Column: AI Lesson Coach -->
 <div class="hidden lg:block lg:fixed lg:right-0 lg:top-24 lg:w-[20%] lg:z-40 sidebar-right-desktop">
     <div class="bg-[#0a0e27]/90 backdrop-blur-md border border-cyan-electric/10 rounded-xl lg:rounded-l-xl lg:rounded-r-none lg:sticky lg:top-24 lg:h-[calc(100vh-6rem)] lg:overflow-hidden flex flex-col sidebar-scroll border-r lg:border-r-0">
-        <!-- Chat Header -->
         <div class="flex items-center gap-3 px-4 py-3 border-b border-cyan-electric/10 bg-gradient-to-r from-cyan-electric/5 to-transparent chat-header">
             <div class="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-cyan-electric via-purple-accent to-cyan-electric flex items-center justify-center shadow-lg shadow-cyan-electric/20 flex-shrink-0 chat-avatar">
+                {% if tenant_branding.logo_url or tenant.logo %}
                 <img
-                    src="{% if tenant_branding.logo_url %}{{ tenant_branding.logo_url }}{% elif tenant.logo %}{{ tenant.logo.url }}{% else %}https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png{% endif %}"
+                    src="{% if tenant_branding.logo_url %}{{ tenant_branding.logo_url }}{% else %}{{ tenant.logo.url }}{% endif %}"
                     alt="{{ tenant_branding.brand_name|default:'Tenant' }} Logo"
                     class="w-full h-full object-cover"
                     loading="lazy"
                 >
+                {% else %}
+                <i class="fas fa-robot text-white text-sm"></i>
+                {% endif %}
             </div>
             <div class="flex-1 min-w-0">
                 <div class="text-sm font-bold text-white truncate leading-tight chat-header-title">
@@ -34,19 +35,21 @@
                 <i class="fas fa-trash-alt text-[10px]"></i>
             </button>
         </div>
-        
-        <!-- Chat Messages Area -->
+
         <div id="chat-messages" class="flex-1 overflow-y-auto px-3 py-4 space-y-5 sidebar-scroll">
-            <!-- Welcome Message -->
             <div class="chat-message ai-message">
                 <div class="flex items-start gap-2.5">
                     <div class="w-6 h-6 rounded-full overflow-hidden bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0 mt-0.5 chat-message-avatar">
+                        {% if tenant_branding.logo_url or tenant.logo %}
                         <img
-                            src="{% if tenant_branding.logo_url %}{{ tenant_branding.logo_url }}{% elif tenant.logo %}{{ tenant.logo.url }}{% else %}https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png{% endif %}"
+                            src="{% if tenant_branding.logo_url %}{{ tenant_branding.logo_url }}{% else %}{{ tenant.logo.url }}{% endif %}"
                             alt="{{ tenant_branding.brand_name|default:'Tenant' }} Logo"
                             class="w-full h-full object-cover"
                             loading="lazy"
                         >
+                        {% else %}
+                        <i class="fas fa-robot text-white text-[10px]"></i>
+                        {% endif %}
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="bg-[#0d1230] border border-cyan-electric/15 rounded-2xl rounded-tl-md px-3.5 py-3 chat-bubble">
@@ -70,8 +73,7 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Quick Action Suggestions -->
+
             <div id="quick-suggestions" class="space-y-1.5 ml-8">
                 <button class="quick-suggestion-btn w-full text-left px-3 py-2 bg-cyan-electric/5 border border-cyan-electric/15 rounded-lg hover:bg-cyan-electric/15 hover:border-cyan-electric/30 transition-all text-[11px] font-medium text-cyan-electric/80 hover:text-cyan-electric" data-action="bullet-summary">
                     <i class="fas fa-list-ul mr-1.5 text-[10px]"></i>5-bullet summary
@@ -84,19 +86,18 @@
                 </button>
             </div>
         </div>
-        
-        <!-- Chat Input Area -->
+
         <div class="border-t border-cyan-electric/10 bg-[#080b1e] p-3 chat-input-area">
             <div class="flex items-end gap-2">
-                <textarea 
-                    id="chat-input" 
-                    rows="1" 
-                    placeholder="Ask me anything..." 
+                <textarea
+                    id="chat-input"
+                    rows="1"
+                    placeholder="Ask me anything..."
                     class="flex-1 bg-[#0d1230] border border-cyan-electric/15 rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder-gray-500 focus:outline-none focus:border-cyan-electric/40 focus:ring-1 focus:ring-cyan-electric/15 resize-none transition-all leading-[1.5]"
                     style="min-height: 40px; max-height: 100px;"
                 ></textarea>
-                <button 
-                    id="send-message" 
+                <button
+                    id="send-message"
                     class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 flex items-center justify-center text-white shadow-lg shadow-cyan-electric/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 chat-send-btn"
                     title="Send message"
                 >
@@ -116,9 +117,6 @@
 </div>
 
 <style>
-    /* ============================================
-       DARK THEME - Accent readability safeguards
-       ============================================ */
     .brand-theme-dark .chat-header-status,
     .brand-theme-dark .chat-header-status span:not(.chat-status-dot),
     .brand-theme-dark .quick-suggestion-btn,
@@ -126,9 +124,7 @@
     .brand-theme-dark .quick-suggestion-btn:hover {
         color: #e2e8f0 !important;
     }
-    .brand-theme-dark .chat-status-dot {
-        background: #e2e8f0 !important;
-    }
+    .brand-theme-dark .chat-status-dot { background: #e2e8f0 !important; }
     .brand-theme-dark .quick-suggestion-btn {
         background: rgba(56, 189, 248, 0.12) !important;
         border-color: rgba(56, 189, 248, 0.4) !important;
@@ -143,183 +139,139 @@
     .brand-theme-dark .sidebar-right-desktop .hover\:text-cyan-electric:hover {
         color: #e2e8f0 !important;
     }
-    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric,
-    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/10,
-    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/15,
-    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/20,
-    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/30,
-    .brand-theme-dark .sidebar-right-desktop .border-cyan-electric\/40 {
+    .brand-theme-dark .sidebar-right-desktop [class*="border-cyan-electric"] {
         border-color: rgba(226, 232, 240, 0.28) !important;
     }
-    .brand-theme-dark .sidebar-right-desktop .bg-cyan-electric\/5,
-    .brand-theme-dark .sidebar-right-desktop .bg-cyan-electric\/10,
-    .brand-theme-dark .sidebar-right-desktop .hover\:bg-cyan-electric\/10:hover,
-    .brand-theme-dark .sidebar-right-desktop .hover\:bg-cyan-electric\/15:hover {
+    .brand-theme-dark .sidebar-right-desktop [class*="bg-cyan-electric"] {
         background: rgba(226, 232, 240, 0.08) !important;
     }
 
-    /* ============================================
-       CHATBOT SIDEBAR - LIGHT THEME (Improved)
-       ============================================ */
-
-    /* Outer container — solid white with soft shadow */
+    /* LIGHT THEME — Corporate B/W */
     .brand-theme-light .sidebar-right-desktop > div {
         background: #ffffff !important;
-        border-color: #e5e7eb !important;
-        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px 0 rgba(15, 23, 42, 0.03);
-    }
-
-    /* --- HEADER --- */
-    .brand-theme-light .chat-header {
-        background: linear-gradient(to right, #f0fdff, #ffffff) !important;
-        border-bottom-color: #e5e7eb !important;
-    }
-    .brand-theme-light .chat-header-title {
-        color: #0f172a !important; /* slate-900 — was white, invisible on white bg */
-    }
-    .brand-theme-light .chat-header-status {
-        color: var(--brand-accent-primary) !important;
-    }
-    .brand-theme-light .chat-header-status span:not(.chat-status-dot) {
-        color: var(--brand-accent-primary) !important;
-    }
-    .brand-theme-light .chat-status-dot {
-        background: var(--brand-accent-primary) !important;
-        box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.15);
-    }
-    .brand-theme-light .chat-clear-btn {
-        background: #f1f5f9 !important;
-        color: #64748b !important;
-    }
-    .brand-theme-light .chat-clear-btn:hover {
-        background: #e2e8f0 !important;
-        color: var(--brand-accent-primary) !important;
-    }
-
-    /* Avatar keeps the cyan→purple gradient — looks great on white */
-    .brand-theme-light .chat-avatar,
-    .brand-theme-light .chat-message-avatar {
-        box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
-    }
-
-    /* Keep chat area clean and bright */
-    .brand-theme-light .sidebar-right-desktop #chat-messages {
-        background: #ffffff !important;
-    }
-
-    /* --- AI MESSAGE BUBBLE --- */
-    /* The key fix: bubble needs a visible tint on white, not dark navy */
-    .brand-theme-light .chat-bubble {
-        background: #f8fafc !important; /* slate-50 */
-        border-color: #e2e8f0 !important; /* slate-200 */
-    }
-    .brand-theme-light .chat-bubble-text {
-        color: #1e293b !important; /* slate-800 — strong readability */
-    }
-    /* Dynamic AI bubbles injected by JS in lesson.html */
-    .brand-theme-light .sidebar-right-desktop .ai-message .bg-\[\#0a0e27\]\/60 {
-        background: #f8fafc !important;
-        border-color: #e2e8f0 !important;
+        border-color: #e5e5e5 !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
         backdrop-filter: none !important;
     }
-    .brand-theme-light .sidebar-right-desktop .ai-message .text-gray-200 {
-        color: #1e293b !important;
+    .brand-theme-light .sidebar-right-desktop .text-cyan-electric,
+    .brand-theme-light .sidebar-right-desktop .text-cyan-electric\/70,
+    .brand-theme-light .sidebar-right-desktop .text-cyan-electric\/80,
+    .brand-theme-light .sidebar-right-desktop .hover\:text-cyan-electric:hover {
+        color: #525252 !important;
     }
-    .brand-theme-light .sidebar-right-desktop .ai-message .text-gray-400 {
-        color: #64748b !important;
+    .brand-theme-light .sidebar-right-desktop [class*="border-cyan-electric"] {
+        border-color: #e5e5e5 !important;
     }
-    .brand-theme-light .chat-timestamp {
-        color: #94a3b8 !important; /* slate-400 */
+    .brand-theme-light .sidebar-right-desktop [class*="bg-cyan-electric"],
+    .brand-theme-light .sidebar-right-desktop .from-cyan-electric,
+    .brand-theme-light .sidebar-right-desktop .from-cyan-electric\/5,
+    .brand-theme-light .sidebar-right-desktop .to-purple-accent,
+    .brand-theme-light .sidebar-right-desktop .via-purple-accent,
+    .brand-theme-light .sidebar-right-desktop .bg-gradient-to-r,
+    .brand-theme-light .sidebar-right-desktop .bg-gradient-to-br:not(.chat-send-btn) {
+        background: #f5f5f5 !important;
+        background-image: none !important;
     }
-
-    /* --- QUICK SUGGESTION BUTTONS --- */
+    .brand-theme-light .sidebar-right-desktop .shadow-cyan-electric\/20,
+    .brand-theme-light .sidebar-right-desktop .shadow-lg {
+        box-shadow: none !important;
+    }
+    .brand-theme-light .chat-header {
+        background: #ffffff !important;
+        border-bottom-color: #e5e5e5 !important;
+    }
+    .brand-theme-light .chat-header-title { color: #141414 !important; }
+    .brand-theme-light .chat-header-status,
+    .brand-theme-light .chat-header-status span:not(.chat-status-dot) { color: #737373 !important; }
+    .brand-theme-light .chat-status-dot {
+        background: #737373 !important;
+        box-shadow: none !important;
+        animation: none !important;
+    }
+    .brand-theme-light .chat-clear-btn {
+        background: #f5f5f5 !important;
+        color: #737373 !important;
+    }
+    .brand-theme-light .chat-clear-btn:hover {
+        background: #e5e5e5 !important;
+        color: #141414 !important;
+    }
+    .brand-theme-light .chat-avatar,
+    .brand-theme-light .chat-message-avatar {
+        background: #e5e5e5 !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        border: 1px solid #e5e5e5;
+    }
+    .brand-theme-light .chat-avatar i,
+    .brand-theme-light .chat-message-avatar i { color: #525252 !important; }
+    .brand-theme-light .sidebar-right-desktop #chat-messages { background: #ffffff !important; }
+    .brand-theme-light .chat-bubble,
+    .brand-theme-light .sidebar-right-desktop .ai-message .bg-\[\#0d1230\],
+    .brand-theme-light .sidebar-right-desktop .ai-message .bg-\[\#0a0e27\]\/60 {
+        background: #fafafa !important;
+        border-color: #e5e5e5 !important;
+        backdrop-filter: none !important;
+    }
+    .brand-theme-light .chat-bubble-text,
+    .brand-theme-light .sidebar-right-desktop .ai-message .text-gray-200 { color: #141414 !important; }
+    .brand-theme-light .sidebar-right-desktop .ai-message .text-gray-400 { color: #737373 !important; }
+    .brand-theme-light .chat-timestamp { color: #a3a3a3 !important; }
     .brand-theme-light .quick-suggestion-btn {
-        background: #f8fafc !important;
-        border-color: #e2e8f0 !important;
-        color: var(--brand-accent-primary) !important;
+        background: #ffffff !important;
+        border-color: #e5e5e5 !important;
+        color: #525252 !important;
     }
     .brand-theme-light .quick-suggestion-btn:hover {
-        background: #f1f5f9 !important;
-        border-color: var(--brand-accent-primary) !important;
-        color: var(--brand-accent-primary) !important;
+        background: #f5f5f5 !important;
+        border-color: #d4d4d4 !important;
+        color: #141414 !important;
     }
-    .brand-theme-light .quick-suggestion-btn i {
-        color: var(--brand-accent-primary) !important;
-    }
-
-    /* --- INPUT AREA --- */
+    .brand-theme-light .quick-suggestion-btn i { color: #737373 !important; }
+    .brand-theme-light .quick-suggestion-btn:hover i { color: #141414 !important; }
     .brand-theme-light .chat-input-area {
-        background: #f8fafc !important; /* subtle divider from message area */
-        border-top-color: #e5e7eb !important;
+        background: #fafafa !important;
+        border-top-color: #e5e5e5 !important;
     }
     .brand-theme-light .sidebar-right-desktop #chat-input {
         background: #ffffff !important;
-        color: #0f172a !important;
-        border-color: #cbd5e1 !important; /* slate-300, more visible than the old rgba */
+        color: #141414 !important;
+        border-color: #d4d4d4 !important;
     }
-    .brand-theme-light .sidebar-right-desktop #chat-input::placeholder {
-        color: #94a3b8 !important;
-    }
+    .brand-theme-light .sidebar-right-desktop #chat-input::placeholder { color: #a3a3a3 !important; }
     .brand-theme-light .sidebar-right-desktop #chat-input:focus {
-        border-color: var(--brand-accent-primary) !important;
-        box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.12) !important;
+        border-color: #141414 !important;
+        box-shadow: 0 0 0 2px rgba(20, 20, 20, 0.08) !important;
+        --tw-ring-color: transparent !important;
     }
-    .brand-theme-light .chat-send-btn {
-        box-shadow: 0 2px 8px rgba(6, 182, 212, 0.25) !important;
-        background: linear-gradient(135deg, var(--brand-accent-primary), var(--brand-accent-secondary)) !important;
-    }
-    .brand-theme-light .chat-send-btn i {
+    .brand-theme-light .sidebar-right-desktop .chat-send-btn,
+    .brand-theme-light .sidebar-right-desktop #send-message {
+        background: #141414 !important;
+        background-image: none !important;
+        box-shadow: none !important;
         color: #ffffff !important;
-        opacity: 1 !important;
     }
-    .brand-theme-light .chat-send-btn .chat-send-icon {
+    .brand-theme-light .sidebar-right-desktop .chat-send-btn:hover,
+    .brand-theme-light .sidebar-right-desktop #send-message:hover {
+        background: #000000 !important;
+    }
+    .brand-theme-light .sidebar-right-desktop .chat-send-icon {
         color: #ffffff !important;
-        opacity: 1 !important;
+        fill: #ffffff !important;
     }
-    .brand-theme-light .chat-input-hint {
-        color: #94a3b8 !important;
-    }
-
-    /* --- USER MESSAGES (for when they appear) --- */
-    /* If user messages follow the same .chat-bubble pattern with a different class,
-       you may want a distinct tint. Adjust as needed: */
-    .brand-theme-light .user-message .chat-bubble {
-        background: #f8fafc !important;
-        border-color: #e2e8f0 !important;
-    }
-    .brand-theme-light .user-message .chat-bubble-text {
-        color: #0f172a !important;
-    }
-    /* Dynamic user bubble/avatar injected by JS */
+    .brand-theme-light .chat-input-hint,
+    .brand-theme-light .chat-input-hint i { color: #a3a3a3 !important; }
     .brand-theme-light .sidebar-right-desktop .user-message .bg-gradient-to-br {
-        background: linear-gradient(
-            135deg,
-            color-mix(in srgb, var(--brand-accent-primary) 70%, white 30%),
-            color-mix(in srgb, var(--brand-accent-secondary) 78%, white 22%)
-        ) !important;
+        background: #e5e5e5 !important;
+        background-image: none !important;
     }
     .brand-theme-light .sidebar-right-desktop .user-message p.text-\[\#0a0e27\] {
-        color: #0f172a !important;
+        color: #141414 !important;
     }
     .brand-theme-light .sidebar-right-desktop .user-message .bg-gray-700 {
-        background: #cbd5e1 !important;
+        background: #e5e5e5 !important;
     }
     .brand-theme-light .sidebar-right-desktop .user-message .bg-gray-700 i {
-        color: #475569 !important;
-    }
-
-    /* --- SCROLLBAR --- */
-    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar {
-        width: 6px;
-    }
-    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar-thumb {
-        background: #e2e8f0;
-        border-radius: 3px;
-    }
-    .brand-theme-light .sidebar-right-desktop .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-        background: #cbd5e1;
+        color: #525252 !important;
     }
 </style>

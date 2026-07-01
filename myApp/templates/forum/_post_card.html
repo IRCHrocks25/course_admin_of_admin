@@ -2,7 +2,7 @@
 {% with author_name=post.author.get_full_name|default:post.author.username role=role_map|dictget:post.author_id post_reactions=user_reactions|dictget:post.id post_counts=reaction_counts|dictget:post.id %}
 <div class="forum-card rounded-xl p-4 mb-3" id="post-{{ post.id }}">
     <!-- Author Header -->
-    <div class="flex items-start gap-3 mb-3">
+    <div class="forum-post-view-header flex items-start gap-3 mb-3">
         <div class="w-12 h-12 rounded-full bg-white border border-[#0a66c2]/30 flex items-center justify-center flex-shrink-0 text-[#0a66c2] font-bold text-sm overflow-hidden">
             {% if role == 'Instructor' and tenant_branding.logo_url %}
             <img src="{{ tenant_branding.logo_url }}" alt="{{ tenant_branding.brand_name|default:'Tenant' }} logo" class="w-full h-full object-cover">
@@ -54,12 +54,14 @@
     </div>
 
     <!-- Post Content -->
-    <div class="text-[15px] leading-relaxed mb-3 forum-text-primary">
+    <div class="forum-post-view-body text-[15px] leading-relaxed mb-3 forum-text-primary">
         {{ post.content|linebreaksbr }}
     </div>
     {% if post.image %}
     <div class="mb-3 rounded-lg overflow-hidden">
-        <img src="{{ post.image.url }}" alt="Post image" class="w-full max-h-96 object-cover rounded-lg" loading="lazy">
+        <img src="{{ post.image.url }}" alt="Post image" data-forum-image-view
+            class="forum-post-image-viewable w-full max-h-96 object-cover rounded-lg" loading="lazy"
+            role="button" tabindex="0" aria-label="View full size image">
     </div>
     {% endif %}
 
@@ -68,7 +70,7 @@
 
     <!-- Reactions + Comments Footer -->
     <div class="flex items-center justify-between gap-2">
-        <div class="flex-1">
+        <div class="forum-post-view-reactions flex-1">
             {% with target_type="post" target_id=post.id active_reactions=post_reactions counts=post_counts %}
             {% include "forum/_reaction_bar.html" %}
             {% endwith %}
@@ -81,7 +83,7 @@
 
     <!-- Inline comments -->
     {% with post_comments=comments_by_post|dictget:post.id %}
-    <div id="post-comments-{{ post.id }}" class="hidden border-t mt-3 pt-3 forum-border">
+    <div id="post-comments-{{ post.id }}" class="forum-post-view-comments hidden border-t mt-3 pt-3 forum-border">
         <form method="post" action="{% url 'forum_add_comment' post_id=post.id %}" class="mb-4">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}#post-{{ post.id }}">

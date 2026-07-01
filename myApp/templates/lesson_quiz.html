@@ -11,20 +11,20 @@
     {% include '_left_sidebar.html' %}
 
     <div class="w-full pt-6 center-content-rail">
-        <div class="w-full center-content-inner max-w-4xl mx-auto">
+        <div class="w-full center-content-inner max-w-4xl mx-auto quiz-page">
             <div class="mb-6">
                 <!-- Quiz Header -->
                 <div class="mb-8">
                     <div class="flex items-center gap-3 mb-4">
-                        <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-accent to-cyan-electric flex items-center justify-center">
+                        <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-accent to-cyan-electric flex items-center justify-center quiz-header-icon">
                             <i class="fas fa-question-circle text-2xl quiz-accent-on-text"></i>
                         </div>
                         <div>
-                            <h1 class="text-3xl lg:text-4xl font-bold">
+                            <h1 class="text-3xl lg:text-4xl font-bold quiz-page-title">
                                 {{ lesson.title }} Quiz
                             </h1>
                             <p class="text-gray-400 text-sm mt-1">
-                                {{ questions|length }} question{{ questions|length|pluralize }} &middot; Passing score: {{ quiz.passing_score }}% &middot; <span class="text-red-400 font-semibold">Required</span>
+                                {{ questions|length }} question{{ questions|length|pluralize }} &middot; Passing score: {{ quiz.passing_score }}% &middot; <span class="text-red-400 font-semibold quiz-required-badge">Required</span>
                             </p>
                         </div>
                     </div>
@@ -71,7 +71,7 @@
                         <a 
                             href="{% url 'lesson_detail' course.slug next_lesson.slug %}" 
                             id="next-lesson-btn"
-                            class="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-bold rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                            class="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-on-accent-gradient font-bold rounded-xl transition-all transform hover:scale-105 shadow-lg quiz-primary-btn"
                             onclick="this.classList.add('opacity-50', 'cursor-wait'); this.querySelector('span').textContent = 'Loading...';"
                         >
                             <span>Continue to Next Lesson</span>
@@ -107,24 +107,24 @@
                 <form method="post" class="space-y-6" id="quiz-form">
                     {% csrf_token %}
                     {% for question in questions %}
-                    <div class="bg-gradient-to-br from-[#0a0e27]/80 to-[#1a1f3a]/80 backdrop-blur-sm border border-cyan-electric/20 rounded-xl p-6 hover:border-cyan-electric/40 transition-all">
+                    <div class="bg-gradient-to-br from-[#0a0e27]/80 to-[#1a1f3a]/80 backdrop-blur-sm border border-cyan-electric/20 rounded-xl p-6 hover:border-cyan-electric/40 transition-all quiz-question-card">
                         <div class="flex items-start gap-4 mb-4">
-                            <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center font-bold quiz-accent-on-text">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center font-bold quiz-accent-on-text quiz-question-number">
                                 {{ forloop.counter }}
                             </div>
                             <div class="flex-1">
-                                <div class="font-semibold text-lg text-white mb-4">
+                                <div class="font-semibold text-lg text-white mb-4 quiz-question-text">
                                     {{ question.text }}
                                 </div>
                                 <div class="space-y-3">
-                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
+                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group quiz-option">
                                         <input type="radio" name="q_{{ question.id }}" value="A" class="mt-1 text-cyan-electric focus:ring-cyan-electric" required>
                                         <div class="flex-1">
                                             <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">A.</span>
                                             <span class="text-gray-300 ml-2">{{ question.option_a }}</span>
                                         </div>
                                     </label>
-                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
+                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group quiz-option">
                                         <input type="radio" name="q_{{ question.id }}" value="B" class="mt-1 text-cyan-electric focus:ring-cyan-electric">
                                         <div class="flex-1">
                                             <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">B.</span>
@@ -132,7 +132,7 @@
                                         </div>
                                     </label>
                                     {% if question.option_c %}
-                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
+                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group quiz-option">
                                         <input type="radio" name="q_{{ question.id }}" value="C" class="mt-1 text-cyan-electric focus:ring-cyan-electric">
                                         <div class="flex-1">
                                             <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">C.</span>
@@ -141,7 +141,7 @@
                                     </label>
                                     {% endif %}
                                     {% if question.option_d %}
-                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group">
+                                    <label class="flex items-start gap-3 p-3 rounded-lg border border-cyan-electric/20 hover:border-cyan-electric/40 hover:bg-cyan-electric/5 cursor-pointer transition-all group quiz-option">
                                         <input type="radio" name="q_{{ question.id }}" value="D" class="mt-1 text-cyan-electric focus:ring-cyan-electric">
                                         <div class="flex-1">
                                             <span class="font-medium text-cyan-electric/70 group-hover:text-cyan-electric quiz-option-letter">D.</span>
@@ -160,7 +160,7 @@
                             <i class="fas fa-arrow-left"></i>
                             <span>Back to Lesson</span>
                         </a>
-                        <button type="submit" class="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 font-bold text-lg transition-all transform hover:scale-105 shadow-lg shadow-cyan-electric/20 flex items-center gap-2 quiz-accent-on-text" id="quiz-submit-btn">
+                        <button type="submit" class="px-8 py-3 rounded-xl bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 font-bold text-lg transition-all transform hover:scale-105 shadow-lg shadow-cyan-electric/20 flex items-center gap-2 quiz-accent-on-text quiz-primary-btn" id="quiz-submit-btn">
                             <span id="quiz-submit-text">Submit Quiz</span>
                             <i class="fas fa-paper-plane" id="quiz-submit-icon"></i>
                         </button>
@@ -187,7 +187,10 @@
         canvas.height = window.innerHeight;
         
         const confetti = [];
-        const colors = ['#00f0ff', '#a855f7', '#00ff88', '#ff00ff', '#ffff00', '#00ffff'];
+        const isLightTheme = document.body.classList.contains('brand-theme-light');
+        const colors = isLightTheme
+            ? ['#141414', '#525252', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5']
+            : ['#00f0ff', '#a855f7', '#00ff88', '#ff00ff', '#ffff00', '#00ffff'];
         
         class ConfettiPiece {
             constructor() {
@@ -253,51 +256,127 @@
 {% endif %}
 
 <style>
-    /* Make quiz container slightly narrower to avoid overlap with AI coach */
     @media (min-width: 1024px) {
         .center-content-inner.max-w-4xl {
-            max-width: 48rem; /* 768px - slightly narrower than default */
+            max-width: 48rem;
             padding-left: 1rem;
             padding-right: 1rem;
         }
     }
-    
     @media (min-width: 1280px) {
         .center-content-inner.max-w-4xl {
-            max-width: 52rem; /* 832px - slightly wider on xl screens */
+            max-width: 52rem;
         }
     }
 
-    .brand-theme-light .bg-gradient-to-br.from-\[\#0a0e27\]\/80.to-\[\#1a1f3a\]\/80,
-    .brand-theme-light .bg-\[\#0a0e27\]\/60,
-    .brand-theme-light .bg-\[\#0d1230\],
-    .brand-theme-light .bg-\[\#080b1e\] {
-        background: rgba(255,255,255,0.94) !important;
-    }
-    .brand-theme-light .text-gray-300,
-    .brand-theme-light .text-gray-400 { color: #475569 !important; }
-    .brand-theme-light .border-cyan-electric\/10,
-    .brand-theme-light .border-cyan-electric\/20,
-    .brand-theme-light .border-cyan-electric\/30,
-    .brand-theme-light .border-cyan-electric\/40 { border-color: rgba(15,23,42,.12) !important; }
-
-    /* Auto-contrast text for accent/gradient blocks based on tenant colors */
     .quiz-accent-on-text {
         color: var(--brand-accent-on-gradient) !important;
     }
-
-    /* Keep answer option labels readable when dark accent colors are selected */
-    .brand-theme-dark .quiz-option-letter {
-        color: #ffffff !important;
-    }
-
-    /* Keep back button readable in dark mode */
+    .brand-theme-dark .quiz-option-letter { color: #ffffff !important; }
     .brand-theme-dark .quiz-back-btn {
         color: #ffffff !important;
         border-color: rgba(255,255,255,0.28) !important;
     }
     .brand-theme-dark .quiz-back-btn:hover {
         background: rgba(255,255,255,0.08) !important;
+    }
+
+    /* QUIZ PAGE - LIGHT THEME (Corporate B/W) */
+    .brand-theme-light .quiz-page-title { color: #141414 !important; }
+    .brand-theme-light .quiz-page .text-gray-300,
+    .brand-theme-light .quiz-page .text-gray-400 { color: #737373 !important; }
+    .brand-theme-light .quiz-page .quiz-required-badge,
+    .brand-theme-light .quiz-page .text-red-400 { color: #525252 !important; }
+    .brand-theme-light .quiz-page .quiz-header-icon,
+    .brand-theme-light .quiz-page .quiz-question-number {
+        background: #141414 !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        color: #ffffff !important;
+    }
+    .brand-theme-light .quiz-page .quiz-question-card {
+        background: #ffffff !important;
+        background-image: none !important;
+        border-color: #e5e5e5 !important;
+        backdrop-filter: none !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .brand-theme-light .quiz-page .quiz-question-card:hover { border-color: #d4d4d4 !important; }
+    .brand-theme-light .quiz-page .quiz-question-text,
+    .brand-theme-light .quiz-page .text-white { color: #141414 !important; }
+    .brand-theme-light .quiz-page .quiz-option {
+        border-color: #e5e5e5 !important;
+        background: #ffffff !important;
+    }
+    .brand-theme-light .quiz-page .quiz-option:hover {
+        border-color: #d4d4d4 !important;
+        background: #fafafa !important;
+    }
+    .brand-theme-light .quiz-page .quiz-option-letter,
+    .brand-theme-light .quiz-page .text-cyan-electric,
+    .brand-theme-light .quiz-page .text-cyan-electric\/70 { color: #737373 !important; }
+    .brand-theme-light .quiz-page .quiz-option:hover .quiz-option-letter { color: #141414 !important; }
+    .brand-theme-light .quiz-page .quiz-option .text-gray-300 { color: #525252 !important; }
+    .brand-theme-light .quiz-page .quiz-option input[type="radio"] { accent-color: #141414; }
+    .brand-theme-light .quiz-page [class*="border-cyan-electric"] { border-color: #e5e5e5 !important; }
+    .brand-theme-light .quiz-page .hover\:bg-cyan-electric\/5:hover,
+    .brand-theme-light .quiz-page .hover\:bg-cyan-electric\/10:hover { background: #fafafa !important; }
+    .brand-theme-light .quiz-page .quiz-back-btn {
+        color: #525252 !important;
+        border-color: #d4d4d4 !important;
+        background: #ffffff !important;
+    }
+    .brand-theme-light .quiz-page .quiz-back-btn:hover {
+        color: #141414 !important;
+        border-color: #a3a3a3 !important;
+        background: #fafafa !important;
+    }
+    .brand-theme-light .quiz-page .quiz-primary-btn,
+    .brand-theme-light .quiz-page #quiz-submit-btn {
+        background: #141414 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+    .brand-theme-light .quiz-page .quiz-primary-btn:hover,
+    .brand-theme-light .quiz-page #quiz-submit-btn:hover { background: #000000 !important; }
+    .brand-theme-light .quiz-page .quiz-primary-btn i,
+    .brand-theme-light .quiz-page #quiz-submit-btn i { color: #ffffff !important; }
+    .brand-theme-light .quiz-page #quiz-result {
+        background: #fafafa !important;
+        background-image: none !important;
+        border-color: #e5e5e5 !important;
+        backdrop-filter: none !important;
+    }
+    .brand-theme-light .quiz-page #quiz-result [class*="border-green-"],
+    .brand-theme-light .quiz-page #quiz-result [class*="border-yellow-"] { border-color: #e5e5e5 !important; }
+    .brand-theme-light .quiz-page #quiz-result [class*="bg-green-"],
+    .brand-theme-light .quiz-page #quiz-result [class*="bg-yellow-"],
+    .brand-theme-light .quiz-page #quiz-result [class*="from-green-"],
+    .brand-theme-light .quiz-page #quiz-result [class*="from-yellow-"] {
+        background: #f5f5f5 !important;
+        background-image: none !important;
+    }
+    .brand-theme-light .quiz-page #quiz-result .text-green-400,
+    .brand-theme-light .quiz-page #quiz-result .text-yellow-400,
+    .brand-theme-light .quiz-page #quiz-result .text-white { color: #141414 !important; }
+    .brand-theme-light .quiz-page #quiz-result .text-gray-300,
+    .brand-theme-light .quiz-page #quiz-result .text-gray-400 { color: #737373 !important; }
+    .brand-theme-light .quiz-page #quiz-result a[class*="from-green-"],
+    .brand-theme-light .quiz-page #quiz-result a[class*="to-emerald-"] {
+        background: #141414 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+    }
+    .brand-theme-light .quiz-page #quiz-result a[class*="border-cyan"] {
+        color: #525252 !important;
+        border-color: #d4d4d4 !important;
+        background: #ffffff !important;
+    }
+    .brand-theme-light .quiz-page #quiz-result a[class*="border-cyan"]:hover {
+        color: #141414 !important;
+        background: #fafafa !important;
     }
 </style>
 {% endblock %}

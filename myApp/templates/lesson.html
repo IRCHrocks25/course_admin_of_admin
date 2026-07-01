@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block title %}{{ lesson.title }} - {{ course.name }}{% endblock %}
+{% block main_content_classes %}w-full max-w-none mx-0 px-0 py-0 lesson-main-shell{% endblock %}
 
 {% block content %}
 <!-- Confetti Canvas (celebration on lesson completion) -->
@@ -16,7 +17,7 @@
     <!-- Desktop: Constrained to middle rail (viewport - left sidebar - right sidebar) -->
     <!-- Mobile/Tablet: Full width -->
     <div class="w-full pt-6 center-content-rail">
-        <div class="w-full center-content-inner">
+        <div class="w-full center-content-inner lesson-page">
         <!-- AI-Generated Hero Banner (only show if image exists) -->
         {% if lesson.ai_hero_image_url %}
         <figure class="mb-6 rounded-xl overflow-hidden border border-cyan-electric/10">
@@ -28,7 +29,7 @@
         {% endif %}
 
         <!-- Lesson Title -->
-        <h1 class="text-4xl lg:text-2xl font-semibold mb-6">{{ lesson.title }}</h1>
+        <h1 class="text-4xl lg:text-2xl font-semibold mb-6 lesson-page-title">{{ lesson.title }}</h1>
         
         <!-- Video Container (only show if video exists) -->
         {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
@@ -60,7 +61,7 @@
                     <iframe src="{{ lesson.get_video_embed_url }}" title="{{ lesson.title }}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe>
                 {% endif %}
                 <div class="absolute top-3 left-3">
-                    <span class="bg-cyan-electric/90 text-[#0a0e27] text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold">
+                    <span class="bg-cyan-electric/90 text-on-accent-primary text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold">
                         {{ lesson.get_lesson_type_display }}
                     </span>
                 </div>
@@ -68,6 +69,10 @@
             
             <!-- Video Info Chips -->
             <div class="flex flex-wrap gap-3 mb-6">
+                <span class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/20 rounded-full text-xs flex items-center gap-2">
+                    <i class="fas fa-clock text-cyan-electric"></i>
+                    {{ lesson.get_formatted_duration }}
+                </span>
                 {% if current_lesson_progress and video_watch_percentage > 0 %}
                 <span class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/20 rounded-full text-xs flex items-center gap-2">
                     <i class="fas fa-eye text-cyan-electric"></i>
@@ -93,7 +98,7 @@
             <!-- Lesson Content Sections -->
             <div class="space-y-6">
                 <!-- What You'll Learn Today -->
-                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-4">What You'll Learn Today</h3>
                     <p class="text-gray-300 leading-relaxed">
                         {{ lesson.ai_full_description|default:lesson.description|default:"Learn the fundamentals of live streaming and how to engage your audience in real-time." }}
@@ -102,7 +107,7 @@
                 
                 <!-- Lesson Notes / Content Blocks -->
                 {% if lesson.content and lesson.content.blocks %}
-                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
                         <i class="fas fa-sticky-note text-cyan-electric"></i>
                         Lesson Notes
@@ -131,7 +136,7 @@
                     </div>
                 </section>
                 {% elif lesson.description %}
-                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
                         <i class="fas fa-sticky-note text-cyan-electric"></i>
                         Lesson Notes
@@ -145,11 +150,11 @@
                 {# Resource links as CTA buttons for lessons WITHOUT a video — the video-info chips above only render when a video exists, so no-video lessons (workbook, glossary, forms, downloads) would otherwise show no link #}
                 {% if not lesson.video_url and not lesson.get_vimeo_embed_url and not lesson.google_drive_url %}
                 {% if lesson.workbook_url or lesson.resources_url %}
-                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-4">Resources</h3>
                     <div class="flex flex-wrap gap-3">
                         {% if lesson.workbook_url %}
-                        <a href="{{ lesson.workbook_url }}" target="_blank" rel="noopener" class="px-4 py-2 bg-cyan-electric text-[#0a0e27] font-semibold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 transition-opacity">
+                        <a href="{{ lesson.workbook_url }}" target="_blank" rel="noopener" class="px-4 py-2 bg-cyan-electric text-on-accent-primary font-semibold rounded-lg text-sm flex items-center gap-2 hover:opacity-90 transition-opacity">
                             <i class="fas fa-file-arrow-down"></i>
                             Download Workbook
                         </a>
@@ -167,7 +172,7 @@
 
                 <!-- This Lesson Will Produce -->
                 {% if lesson.get_outcomes_list %}
-                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-6">This Lesson Will Produce</h3>
                     <ul class="space-y-4">
                         {% for outcome in lesson.get_outcomes_list %}
@@ -184,11 +189,11 @@
                 
                 <!-- Lesson Quiz Section -->
                 {% if lesson_quiz %}
-                <section class="bg-gradient-to-br from-purple-accent/10 to-cyan-electric/10 backdrop-blur-sm border border-purple-accent/20 rounded-xl p-6">
+                <section class="bg-gradient-to-br from-purple-accent/10 to-cyan-electric/10 backdrop-blur-sm border border-purple-accent/20 rounded-xl p-6 lesson-quiz-card">
                     <div class="flex items-start justify-between mb-4">
                         <div class="flex-1">
                             <div class="flex items-center gap-3 mb-2">
-                                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-accent to-cyan-electric flex items-center justify-center">
+                                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-accent to-cyan-electric flex items-center justify-center lesson-quiz-icon-wrap">
                                     <i class="lesson-quiz-icon fas fa-question-circle text-white text-lg"></i>
                                 </div>
                                 <div class="flex items-center gap-2">
@@ -295,7 +300,7 @@
                     <!-- Complete lesson and navigate to next module -->
                     <button 
                         id="continue-next-module-btn" 
-                        class="w-full py-4 px-6 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-bold text-lg rounded-xl shadow-lg shadow-cyan-electric/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
+                        class="w-full py-4 px-6 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-on-accent-gradient font-bold text-lg rounded-xl shadow-lg shadow-cyan-electric/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 lesson-primary-btn"
                     >
                         <i class="fas fa-arrow-right"></i>
                         <span>Continue to Next Module</span>
@@ -304,7 +309,7 @@
                     <!-- Finish lesson (all modules done) -->
                     <button 
                         id="finish-lesson-btn" 
-                        class="w-full py-4 px-6 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-bold text-lg rounded-xl shadow-lg shadow-cyan-electric/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
+                        class="w-full py-4 px-6 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-on-accent-gradient font-bold text-lg rounded-xl shadow-lg shadow-cyan-electric/20 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 lesson-primary-btn"
                     >
                         <i class="fas fa-check-circle"></i>
                         <span>Finish Lesson</span>
@@ -333,7 +338,7 @@
                         <button 
                             type="button"
                             id="lesson-error-close"
-                            class="px-5 py-2 rounded-full bg-gradient-to-r from-cyan-electric to-purple-accent text-[#0a0e27] font-semibold text-sm hover:from-cyan-electric/90 hover:to-purple-accent/90 focus:outline-none focus:ring-2 focus:ring-cyan-electric/60"
+                            class="px-5 py-2 rounded-full bg-gradient-to-r from-cyan-electric to-purple-accent text-on-accent-gradient font-semibold text-sm hover:from-cyan-electric/90 hover:to-purple-accent/90 focus:outline-none focus:ring-2 focus:ring-cyan-electric/60 lesson-primary-btn"
                         >
                             Got it
                         </button>
@@ -353,22 +358,7 @@
 <style>
     /* Custom styles for edge-pinned sidebars and center content rail */
     
-    /* Center Content Rail - Constrained to space between fixed sidebars */
-    /* Layout: Left 20% | Center 60% | Right 20% */
     @media (min-width: 1024px) {
-        .center-content-rail {
-            margin-left: 20%;
-            margin-right: 20%;
-            width: 60%;
-            min-width: 0; /* Prevent overflow */
-        }
-        
-        /* Remove gutters completely for maximum video width */
-        .center-content-inner {
-            padding-left: 0;
-            padding-right: 0;
-        }
-        
         /* Ensure sidebars scroll smoothly */
         .sidebar-scroll {
             scrollbar-width: thin;
@@ -393,13 +383,13 @@
         }
     }
     
-    /* Ensure video uses absolute maximum width */
+    /* Video & hero stay within the readable column */
     @media (min-width: 1024px) {
         .center-content-inner > div:first-child {
             width: 100% !important;
             max-width: 100% !important;
-            padding-left: 0.5rem;
-            padding-right: 0.5rem;
+            padding-left: 0;
+            padding-right: 0;
         }
         
         /* Video player container - no constraints */
@@ -468,197 +458,204 @@
         transform: translateX(2px);
     }
 
-    /* ============================================
-       LESSON DETAIL PAGE - LIGHT THEME (Improved)
-       ============================================ */
+    /* LESSON PAGE - LIGHT THEME (Corporate B/W) */
+    .brand-theme-light .lesson-main-shell {
+        background: #f3f4f6 !important;
+        padding-bottom: 2rem !important;
+    }
+    .brand-theme-light .lesson-page-title { color: #141414 !important; }
 
     /* --- CARD BACKGROUNDS --- */
-    /* Solid white cards with subtle shadow instead of translucent overlays */
-    .brand-theme-light .bg-\[\#0a0e27\]\/60 {
+    .brand-theme-light .lesson-page .lesson-card,
+    .brand-theme-light .lesson-page .lesson-quiz-card,
+    .brand-theme-light .lesson-page .bg-\[\#0a0e27\]\/60 {
         background: #ffffff !important;
-        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px 0 rgba(15, 23, 42, 0.03);
+        backdrop-filter: none !important;
+        border-color: #e5e5e5 !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     }
-    .brand-theme-light .bg-\[\#0d1230\] {
+    .brand-theme-light .lesson-page .bg-\[\#0d1230\] {
         background: #f8fafc !important;
     }
-    .brand-theme-light .bg-\[\#080b1e\] {
+    .brand-theme-light .lesson-page .bg-\[\#080b1e\] {
         background: #f8fafc !important;
     }
 
     /* --- TEXT HIERARCHY --- */
-    /* Proper hierarchy instead of flattening everything to one gray */
-    .brand-theme-light .text-white {
-        color: #0f172a !important; /* slate-900 — strong for headings */
+    .brand-theme-light .lesson-page .text-white {
+        color: #141414 !important;
     }
-    .brand-theme-light .text-gray-200,
-    .brand-theme-light .text-gray-300 {
-        color: #334155 !important; /* slate-700 — body text */
+    .brand-theme-light .lesson-page .text-gray-200,
+    .brand-theme-light .lesson-page .text-gray-300 {
+        color: #525252 !important;
     }
-    .brand-theme-light .text-gray-400 {
-        color: #64748b !important; /* slate-500 — secondary */
+    .brand-theme-light .lesson-page .text-gray-400 {
+        color: #737373 !important;
     }
-    .brand-theme-light .text-gray-500 {
-        color: #94a3b8 !important; /* slate-400 — muted */
+    .brand-theme-light .lesson-page .text-gray-500 {
+        color: #737373 !important;
     }
 
     /* --- BORDERS --- */
-    .brand-theme-light .border-cyan-electric\/10,
-    .brand-theme-light .border-cyan-electric\/15 {
-        border-color: #e5e7eb !important;
-    }
-    .brand-theme-light .border-cyan-electric\/20,
-    .brand-theme-light .border-cyan-electric\/30 {
-        border-color: #cbd5e1 !important;
-    }
-    .brand-theme-light .border-cyan-electric\/40,
-    .brand-theme-light .border-cyan-electric\/50 {
-        border-color: #06b6d4 !important;
+    .brand-theme-light .lesson-page [class*="border-cyan-electric"],
+    .brand-theme-light .lesson-page .border-purple-accent\/20 {
+        border-color: #e5e5e5 !important;
     }
 
     /* --- VIDEO INFO CHIPS --- */
-    .brand-theme-light .bg-cyan-electric\/10 {
-        background: #ecfeff !important; /* cyan-50 */
+    .brand-theme-light .lesson-page .bg-cyan-electric\/10,
+    .brand-theme-light .lesson-page .bg-cyan-electric\/20 {
+        background: #fafafa !important;
+        border-color: #e5e5e5 !important;
     }
-    .brand-theme-light .bg-cyan-electric\/10:hover,
-    .brand-theme-light .hover\:bg-cyan-electric\/20:hover {
-        background: #cffafe !important; /* cyan-100 */
+    .brand-theme-light .lesson-page .bg-cyan-electric\/10:hover,
+    .brand-theme-light .lesson-page .hover\:bg-cyan-electric\/20:hover {
+        background: #f5f5f5 !important;
     }
-    .brand-theme-light .bg-cyan-electric\/20 {
-        background: #cffafe !important;
-        border-color: #67e8f9 !important;
-    }
-    /* Cyan icon & text inside chips */
-    .brand-theme-light .text-cyan-electric {
-        color: #0891b2 !important; /* cyan-600 — readable on white */
+    .brand-theme-light .lesson-page .text-cyan-electric,
+    .brand-theme-light .lesson-page [class*="text-cyan-electric"] {
+        color: #737373 !important;
     }
 
-    /* --- LESSON TYPE BADGE (top-left of video) --- */
-    .brand-theme-light .bg-cyan-electric\/90 {
-        background: #0891b2 !important;
+    /* --- LESSON TYPE BADGE --- */
+    .brand-theme-light .lesson-page .bg-cyan-electric\/90 {
+        background: #141414 !important;
         color: #ffffff !important;
     }
 
-    /* --- "THIS LESSON WILL PRODUCE" CHECKMARKS --- */
-    /* Circle behind the checkmark */
-    .brand-theme-light section .bg-cyan-electric\/20.border {
-        background: #ecfeff !important;
-        border-color: #06b6d4 !important;
+    /* --- OUTCOMES CHECKMARKS --- */
+    .brand-theme-light .lesson-page section .bg-cyan-electric\/20.border {
+        background: #f3f4f6 !important;
+        border-color: #d1d5db !important;
+    }
+    .brand-theme-light .lesson-page section .bg-cyan-electric\/20.border i {
+        color: #374151 !important;
     }
 
-    /* --- LESSON NOTES (prose content) --- */
-    .brand-theme-light .prose-invert {
-        color: #334155 !important;
+    /* --- LESSON NOTES --- */
+    .brand-theme-light .lesson-page .prose-invert,
+    .brand-theme-light .lesson-page .prose-invert p,
+    .brand-theme-light .lesson-page .prose-invert li {
+        color: #4b5563 !important;
     }
-    .brand-theme-light .prose-invert p,
-    .brand-theme-light .prose-invert li {
-        color: #334155 !important;
+    .brand-theme-light .lesson-page .prose-invert h1,
+    .brand-theme-light .lesson-page .prose-invert h2,
+    .brand-theme-light .lesson-page .prose-invert h3,
+    .brand-theme-light .lesson-page .prose-invert h4 {
+        color: #111827 !important;
     }
-    .brand-theme-light .prose-invert h1,
-    .brand-theme-light .prose-invert h2,
-    .brand-theme-light .prose-invert h3,
-    .brand-theme-light .prose-invert h4 {
-        color: #0f172a !important;
+    .brand-theme-light .lesson-page blockquote {
+        border-left-color: #d1d5db !important;
+        color: #6b7280 !important;
+        background: #f9fafb;
     }
-    .brand-theme-light blockquote {
-        border-left-color: #06b6d4 !important;
-        color: #475569 !important;
-        background: #f8fafc;
-    }
-    .brand-theme-light blockquote cite {
-        color: #64748b !important;
+    .brand-theme-light .lesson-page .fa-sticky-note {
+        color: #6b7280 !important;
     }
 
-    /* ============================================
-       QUIZ SECTION — Cleaned up for light theme
-       ============================================ */
-    /* The gradient was too loud. Replace with a soft neutral card
-       that still feels distinct but doesn't scream. */
-    .brand-theme-light .bg-gradient-to-br.from-purple-accent\/10 {
-        background: #f8fafc !important;
+    /* --- QUIZ SECTION --- */
+    .brand-theme-light .lesson-page .bg-gradient-to-br.from-purple-accent\/10,
+    .brand-theme-light .lesson-page [class*="from-purple-accent"] {
+        background: #ffffff !important;
         background-image: none !important;
-        border-color: #e2e8f0 !important;
-        box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+        border-color: #e5e7eb !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
-    /* Quiz icon container — keep the branded gradient but smaller visual weight */
-    .brand-theme-light .from-purple-accent.to-cyan-electric,
-    .brand-theme-light .bg-gradient-to-br.from-purple-accent.to-cyan-electric {
-        background: linear-gradient(135deg, #8b5cf6, #06b6d4) !important;
-    }
-
-    /* "Required" red pill */
-    .brand-theme-light .bg-red-500\/20 {
-        background: #fef2f2 !important;
-        border-color: #fecaca !important;
-    }
-    .brand-theme-light .text-red-400 {
-        color: #dc2626 !important;
+    .brand-theme-light .lesson-page .from-purple-accent.to-cyan-electric,
+    .brand-theme-light .lesson-page .bg-gradient-to-br.from-purple-accent.to-cyan-electric,
+    .brand-theme-light .lesson-page .lesson-quiz-icon-wrap {
+        background: #141414 !important;
+        background-image: none !important;
     }
 
-    /* Yellow warning text ("You must pass this quiz...") */
-    .brand-theme-light .text-yellow-400 {
-        color: #b45309 !important; /* amber-700 — readable on white */
-    }
-    .brand-theme-light .bg-yellow-500\/10 {
-        background: #fffbeb !important; /* amber-50 */
-    }
-    .brand-theme-light .border-yellow-500\/30,
-    .brand-theme-light .border-yellow-500\/40 {
-        border-color: #fcd34d !important; /* amber-300 */
-    }
-
-    /* Green success (quiz passed) */
-    .brand-theme-light .text-green-400 {
-        color: #059669 !important; /* emerald-600 */
-    }
-    .brand-theme-light .bg-green-500\/10 {
-        background: #ecfdf5 !important; /* emerald-50 */
-    }
-    .brand-theme-light .border-green-500\/20,
-    .brand-theme-light .border-green-500\/40 {
-        border-color: #6ee7b7 !important; /* emerald-300 */
-    }
-
-    /* ============================================
-       PRIMARY ACTION BUTTONS (Finish Lesson, etc.)
-       ============================================ */
-    /* Keep the cyan→purple gradient — it's the brand CTA.
-       Just soften the shadow so it doesn't glow too harshly on white. */
-    .brand-theme-light .shadow-cyan-electric\/20 {
-        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2) !important;
-    }
-
-    /* Keep quiz CTA text readable on dark primary accents */
-    .brand-theme-light .quiz-cta-btn,
-    .brand-theme-light .quiz-cta-btn span,
-    .brand-theme-light .quiz-cta-btn i {
+    /* --- PRIMARY CTAs --- */
+    .brand-theme-light .lesson-page .lesson-primary-btn,
+    .brand-theme-light .lesson-page .bg-gradient-to-r.from-cyan-electric,
+    .brand-theme-light .lesson-page .quiz-cta-btn,
+    .brand-theme-light .lesson-page #continue-next-module-btn,
+    .brand-theme-light .lesson-page #finish-lesson-btn:not(:disabled),
+    .brand-theme-light #lesson-error-modal .lesson-primary-btn {
+        background: #141414 !important;
+        background-image: none !important;
         color: #ffffff !important;
+        box-shadow: none !important;
+        transform: none !important;
     }
-    .brand-theme-light .lesson-quiz-icon {
+    .brand-theme-light .lesson-page .lesson-primary-btn:hover,
+    .brand-theme-light .lesson-page .bg-gradient-to-r.from-cyan-electric:hover,
+    .brand-theme-light .lesson-page .quiz-cta-btn:hover,
+    .brand-theme-light .lesson-page #continue-next-module-btn:hover,
+    .brand-theme-light .lesson-page #finish-lesson-btn:not(:disabled):hover {
+        background: #000000 !important;
+    }
+    .brand-theme-light .lesson-page .shadow-cyan-electric\/20 {
+        box-shadow: none !important;
+    }
+    .brand-theme-light .lesson-page .quiz-cta-btn span,
+    .brand-theme-light .lesson-page .quiz-cta-btn i,
+    .brand-theme-light .lesson-page .lesson-quiz-icon {
         color: #ffffff !important;
     }
 
-    /* Disabled "Complete Quiz to Finish" button */
-    .brand-theme-light .bg-gray-600\/50 {
-        background: #e2e8f0 !important;
+    /* Resource download buttons */
+    .brand-theme-light .lesson-page a.bg-cyan-electric {
+        background: #141414 !important;
+        color: #ffffff !important;
+    }
+    .brand-theme-light .lesson-page a.bg-cyan-electric\/15 {
+        background: #ffffff !important;
+        border-color: #d4d4d4 !important;
+        color: #525252 !important;
     }
 
-    /* ============================================
-       ERROR MODAL
-       ============================================ */
+    /* Status — neutral grays */
+    .brand-theme-light .lesson-page .text-red-400,
+    .brand-theme-light .lesson-page .text-yellow-400 { color: #525252 !important; }
+    .brand-theme-light .lesson-page .bg-red-500\/20,
+    .brand-theme-light .lesson-page .bg-yellow-500\/10 { background: #fafafa !important; border-color: #e5e5e5 !important; }
+    .brand-theme-light .lesson-page .border-yellow-500\/30,
+    .brand-theme-light .lesson-page .border-yellow-500\/40,
+    .brand-theme-light .lesson-page .border-green-500\/20,
+    .brand-theme-light .lesson-page .border-green-500\/40 { border-color: #e5e5e5 !important; }
+    .brand-theme-light .lesson-page .text-green-400 { color: #141414 !important; }
+    .brand-theme-light .lesson-page .bg-green-500\/10 { background: #f5f5f5 !important; }
+    .brand-theme-light .lesson-page .bg-gray-600\/50,
+    .brand-theme-light .lesson-page #finish-lesson-btn:disabled {
+        background: #f5f5f5 !important;
+        color: #a3a3a3 !important;
+        border: 1px solid #e5e5e5 !important;
+    }
+
+    /* --- ERROR MODAL --- */
     .brand-theme-light #lesson-error-modal > div {
         background: #ffffff !important;
-        border-color: #e2e8f0 !important;
-        box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.2) !important;
+        border-color: #e5e5e5 !important;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08) !important;
     }
-    .brand-theme-light #lesson-error-modal .bg-red-500\/10 {
-        background: #fef2f2 !important;
+    .brand-theme-light #lesson-error-modal .text-white { color: #141414 !important; }
+    .brand-theme-light #lesson-error-modal .text-gray-300 { color: #525252 !important; }
+    .brand-theme-light .lesson-page .border-cyan-electric\/10.border-t {
+        border-top-color: #e5e7eb !important;
     }
 
-    /* ============================================
-       FINISH LESSON DIVIDER
-       ============================================ */
-    .brand-theme-light .border-cyan-electric\/10.border-t {
-        border-top-color: #e5e7eb !important;
+    /* --- CHAT (injected messages) --- */
+    .brand-theme-light .lesson-page .user-message .bg-gradient-to-br {
+        background: #e5e7eb !important;
+        background-image: none !important;
+        box-shadow: none !important;
+    }
+    .brand-theme-light .lesson-page .user-message p.text-\[\#0a0e27\] {
+        color: #111827 !important;
+    }
+    .brand-theme-light .lesson-page .ai-message .bg-\[\#0a0e27\]\/60 {
+        background: #f9fafb !important;
+        border-color: #e5e7eb !important;
+    }
+    .brand-theme-light .lesson-page .copy-message-btn {
+        color: #9ca3af !important;
+    }
+    .brand-theme-light .lesson-page .copy-message-btn:hover {
+        color: #4b5563 !important;
     }
 </style>
 <script>
@@ -719,7 +716,10 @@
         canvas.height = window.innerHeight;
 
         const confetti = [];
-        const colors = ['#00f0ff', '#a855f7', '#00ff88', '#ff00ff', '#ffff00', '#00ffff'];
+        const isLightTheme = document.body.classList.contains('brand-theme-light');
+        const colors = isLightTheme
+            ? ['#141414', '#525252', '#737373', '#a3a3a3', '#d4d4d4', '#e5e5e5']
+            : ['#00f0ff', '#a855f7', '#00ff88', '#ff00ff', '#ffff00', '#00ffff'];
 
         class ConfettiPiece {
             constructor() {
@@ -890,11 +890,14 @@
     
     function setupChatbotListeners() {
     const assistantLogoImg = document.querySelector('.chat-avatar img');
-    const assistantLogoUrl = assistantLogoImg?.getAttribute('src') || 'https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png';
+    const assistantLogoUrl = assistantLogoImg?.getAttribute('src') || '';
 
     function assistantAvatar(sizeClass = 'w-7 h-7', extraClass = '') {
+        const inner = assistantLogoUrl
+            ? `<img src="${assistantLogoUrl}" alt="Assistant Logo" class="w-full h-full object-cover" loading="lazy">`
+            : `<i class="fas fa-robot text-white text-xs"></i>`;
         return `<div class="${sizeClass} rounded-full overflow-hidden bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center flex-shrink-0 mt-0.5 ${extraClass}">
-                    <img src="${assistantLogoUrl}" alt="Assistant Logo" class="w-full h-full object-cover" loading="lazy">
+                    ${inner}
                 </div>`;
     }
     
@@ -907,7 +910,7 @@
                 <div class="flex-1 min-w-0 flex justify-end">
                     <div class="max-w-[85%]">
                         <div class="bg-gradient-to-br from-cyan-electric to-purple-accent rounded-2xl rounded-tr-sm px-4 py-3">
-                            <p class="text-sm text-[#0a0e27] font-medium leading-relaxed">${escapeHtml(message)}</p>
+                            <p class="text-sm text-on-accent-primary font-medium leading-relaxed">${escapeHtml(message)}</p>
                         </div>
                         <div class="text-xs text-gray-500 mt-1.5 mr-1 text-right">Just now</div>
                     </div>
@@ -1174,9 +1177,9 @@
     // Function to get action text
     function getActionText(action) {
         const actionMap = {
-            'bullet-summary': 'Give me the 5-bullet version.',
-            'action-plan': 'Turn this into a 3-step action plan.',
-            'delegate-instructions': 'Explain it like I\'m delegating this.',
+            'bullet-summary': 'Summarize this entire lesson in exactly 5 concise bullet points. Use only facts from the lesson content.',
+            'action-plan': 'Turn the key ideas from this lesson into a clear 3-step action plan I can follow.',
+            'delegate-instructions': 'Explain how to delegate the work from this lesson to someone on my team, using only what this lesson covers.',
             'promo-emails': 'Draft 3 promotional emails for this sprint.',
             'webinar-outline': 'Write a webinar outline based on this session.',
             'social-posts': 'Generate 5 social posts from this content.',
@@ -1233,11 +1236,9 @@
                 if (confirm('Clear all chat messages?')) {
                     // Remove all messages except the welcome message
                     const messages = chatMessages.querySelectorAll('.chat-message');
+                    const welcomeMessage = chatMessages.querySelector('.ai-message');
                     messages.forEach(msg => {
-                        // Check if this is the welcome message
-                        const isWelcome = msg.querySelector('.fa-sparkles') && 
-                                         msg.textContent.includes('Hi! I\'m your AI Lesson Coach');
-                        if (!isWelcome) {
+                        if (msg !== welcomeMessage) {
                             msg.remove();
                         }
                     });
@@ -1376,7 +1377,7 @@
                             completionHTML += `
                                 <a
                                     href="${nextLessonUrl}"
-                                    class="flex items-center justify-center gap-3 w-full px-6 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-[#0a0e27] font-bold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+                                    class="flex items-center justify-center gap-3 w-full px-6 py-3 bg-gradient-to-r from-cyan-electric to-purple-accent hover:from-cyan-electric/90 hover:to-purple-accent/90 text-on-accent-gradient font-bold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
                                 >
                                     <span>Continue to Next Lesson</span>
                                     <i class="fas fa-arrow-right"></i>

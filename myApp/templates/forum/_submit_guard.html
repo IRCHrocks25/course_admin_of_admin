@@ -1,0 +1,47 @@
+<script>
+(function() {
+    var FLAG = 'data-forum-submitting';
+
+    function isForumForm(form) {
+        return !!(form.closest('.forum-page') || form.closest('#forum-composer-modal'));
+    }
+
+    function busyLabel(btn) {
+        var t = (btn.textContent || '').trim().toLowerCase();
+        if (t.indexOf('save') !== -1) return 'Saving…';
+        if (t === 'post') return 'Posting…';
+        if (t === 'comment') return 'Commenting…';
+        if (t === 'reply') return 'Replying…';
+        if (t.indexOf('delete') !== -1) return 'Deleting…';
+        return 'Submitting…';
+    }
+
+    function lockForm(form) {
+        form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function(btn) {
+            btn.disabled = true;
+            if (btn.tagName === 'BUTTON' && !btn.dataset.forumOriginalHtml) {
+                btn.dataset.forumOriginalHtml = btn.innerHTML;
+                btn.innerHTML = busyLabel(btn);
+            }
+        });
+        form.querySelectorAll('textarea, input:not([type="hidden"]):not([type="submit"]), select').forEach(function(el) {
+            el.readOnly = el.tagName !== 'SELECT';
+            if (el.tagName === 'SELECT') el.disabled = true;
+        });
+    }
+
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        if (!form || form.tagName !== 'FORM' || !isForumForm(form)) return;
+
+        if (form.getAttribute(FLAG) === '1') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return;
+        }
+
+        form.setAttribute(FLAG, '1');
+        lockForm(form);
+    }, true);
+})();
+</script>
