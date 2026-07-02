@@ -437,7 +437,19 @@ class Lesson(models.Model):
         help_text="Status of AI training"
     )
     ai_chatbot_training_error = models.TextField(blank=True, help_text="Error message if training fails")
-    
+
+    # AI Audio Narration Fields (OpenAI TTS -> Cloudinary)
+    audio_url = models.URLField(blank=True, default='', help_text="Public URL of the AI-narrated MP3 for this lesson")
+    audio_status = models.CharField(max_length=20, default='pending', choices=[
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+    ], help_text="Status of AI audio narration generation")
+    audio_error = models.TextField(blank=True, default='', help_text="Error message if audio generation fails")
+    audio_duration_seconds = models.IntegerField(default=0, help_text="Duration of the narration MP3 in seconds")
+
     class Meta:
         ordering = ['order', 'id']
         constraints = [
@@ -487,6 +499,14 @@ class Lesson(models.Model):
         elif self.video_duration:
             return f"{self.video_duration}:00"
         return "Not set"
+
+    def get_audio_duration_display(self):
+        """Format audio narration duration in MM:SS format, or '' if unknown."""
+        if self.audio_duration_seconds:
+            minutes = self.audio_duration_seconds // 60
+            seconds = self.audio_duration_seconds % 60
+            return f"{minutes}:{seconds:02d}"
+        return ""
     
     def get_outcomes_list(self):
         """Return outcomes as a list"""
@@ -1099,6 +1119,7 @@ class AIUsageLog(models.Model):
         ('lesson_metadata', 'Lesson Metadata'),
         ('lesson_content', 'Lesson Content'),
         ('lesson_image', 'Lesson Image'),
+        ('lesson_audio', 'Lesson Audio'),
         ('lesson_quiz', 'Lesson Quiz'),
         ('course_exam', 'Course Exam'),
     ]

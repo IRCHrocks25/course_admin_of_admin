@@ -3291,6 +3291,13 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     generate_ai_lesson_image(ai_client, lesson, gen_settings)
                 # --- end AI Hero Image ---
 
+                # --- AI Audio Narration (non-blocking) ---
+                # Populates lesson.audio_url in a background thread; the
+                # lesson template renders an <audio> player when it lands.
+                from myApp.utils.lesson_audio import generate_lesson_audio_async
+                generate_lesson_audio_async(lesson)
+                # --- end AI Audio Narration ---
+
                 # Auto-generate quiz for this lesson
                 try:
                     quiz, _ = LessonQuiz.objects.get_or_create(

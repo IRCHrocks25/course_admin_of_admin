@@ -67,6 +67,7 @@ from .utils.access import has_course_access, has_event_access
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
 from .utils.tenancy import get_default_tenant
+from .utils.lesson_audio import generate_lesson_audio_async
 # Reuse the LLM helpers from dashboard_views so the per-lesson Regenerate button
 # uses the same prompts and OpenAI wiring as the course-creation pipeline.
 from .dashboard_views import (
@@ -2628,6 +2629,9 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                         if getattr(settings_obj, 'generate_image', True):
                             generate_ai_lesson_image(client, lesson, settings_obj)
 
+                        # Narrate the fresh content in the background.
+                        generate_lesson_audio_async(lesson)
+
                         messages.success(request, 'AI content generated.')
                     except Exception as e:
                         messages.error(request, f'AI generation failed: {e}')
@@ -2651,6 +2655,15 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                             messages.error(request, 'Hero image generation failed. Check server logs and Cloudinary config.')
                     except Exception as e:
                         messages.error(request, f'Hero image generation failed: {e}')
+
+        elif action == 'regenerate_audio':
+            if not OPENAI_AVAILABLE:
+                messages.error(request, 'OpenAI package is not installed on this server.')
+            elif not os.getenv('OPENAI_API_KEY'):
+                messages.error(request, 'OPENAI_API_KEY is not configured.')
+            else:
+                generate_lesson_audio_async(lesson)
+                messages.success(request, 'Audio narration is being generated in the background. Refresh in a minute to hear it.')
 
         elif action == 'upload_image':
             image_file = request.FILES.get('hero_image_file')

@@ -30,7 +30,23 @@
 
         <!-- Lesson Title -->
         <h1 class="text-4xl lg:text-2xl font-semibold mb-6 lesson-page-title">{{ lesson.title }}</h1>
-        
+
+        <!-- AI Audio Narration (only show if audio exists) -->
+        {% if lesson.audio_url %}
+        <div class="mb-6 p-4 bg-cyan-electric/5 border border-cyan-electric/15 rounded-xl">
+            <div class="flex items-center gap-2 mb-2 text-xs uppercase tracking-wider text-cyan-electric font-bold">
+                <i class="fas fa-headphones"></i>
+                Listen to this lesson
+                {% if lesson.get_audio_duration_display %}
+                <span class="text-gray-400 normal-case font-normal tracking-normal">({{ lesson.get_audio_duration_display }})</span>
+                {% endif %}
+            </div>
+            <audio controls preload="metadata" src="{{ lesson.audio_url }}" class="w-full">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+        {% endif %}
+
         <!-- Video Container (only show if video exists) -->
         {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
         <div class="mb-6">

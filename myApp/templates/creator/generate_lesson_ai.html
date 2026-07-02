@@ -372,6 +372,33 @@
             </div>
         </div>
 
+        <!-- AI Audio Narration -->
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mb-6">
+            <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fas fa-headphones text-cyan-electric"></i>
+                    Audio Narration
+                </h3>
+                <button type="submit" name="action" value="regenerate_audio"
+                    class="px-3 py-1 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-xs font-medium hover:bg-purple-accent/30 transition-all text-purple-accent">
+                    <i class="fas fa-wand-magic-sparkles mr-1"></i>
+                    {% if lesson.audio_url %}Regenerate with AI{% else %}Generate with AI{% endif %}
+                </button>
+            </div>
+
+            {% if lesson.audio_url %}
+                <audio controls preload="metadata" src="{{ lesson.audio_url }}" class="w-full">
+                    Your browser does not support the audio element.
+                </audio>
+            {% elif lesson.audio_status == 'processing' %}
+                <p class="text-sm text-gray-400"><i class="fas fa-spinner fa-spin mr-2 text-cyan-electric"></i>Audio narration is being generated in the background. Refresh this page in a minute.</p>
+            {% elif lesson.audio_status == 'failed' %}
+                <p class="text-sm text-red-400"><i class="fas fa-triangle-exclamation mr-2"></i>Audio generation failed{% if lesson.audio_error %}: {{ lesson.audio_error|truncatechars:200 }}{% endif %}</p>
+            {% else %}
+                <p class="text-sm text-gray-400">No audio narration yet. Generate one with AI — it reads the lesson title, outcomes, and content aloud on the student page.</p>
+            {% endif %}
+        </div>
+
         <!-- AI Generated Content Sections -->
         <div class="space-y-6">
             <!-- 1. Clean Lesson Title -->
