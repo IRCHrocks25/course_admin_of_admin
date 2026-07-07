@@ -63,6 +63,10 @@
                 <input type="checkbox" name="is_active" {% if tenant.is_active %}checked{% endif %}>
                 <span>Active</span>
             </label>
+            <label class="flex items-center gap-2 text-sm text-gray-300">
+                <input type="checkbox" name="show_sponsor_name" {% if tenant_branding.show_sponsor_name %}checked{% endif %}>
+                <span>Show sponsor label (Sponsor: {{ tenant.name }}) in student nav</span>
+            </label>
             <button class="px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/30 transition">
                 Save Tenant Settings
             </button>
@@ -78,6 +82,7 @@
             <input type="hidden" name="custom_domain" value="{{ tenant.custom_domain|default:'' }}">
             <input type="hidden" name="primary_color" value="{{ tenant.primary_color }}">
             {% if tenant.is_active %}<input type="hidden" name="is_active" value="on">{% endif %}
+            {% if tenant_branding.show_sponsor_name %}<input type="hidden" name="show_sponsor_name" value="on">{% endif %}
             <div>
                 <label class="block text-sm text-gray-300 mb-1">Chatbot Webhook</label>
                 <input name="chatbot_webhook" value="{{ config.chatbot_webhook }}" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">

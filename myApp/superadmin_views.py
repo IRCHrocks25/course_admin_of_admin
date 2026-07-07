@@ -36,7 +36,7 @@ from .models import (
     UserProgress,
 )
 from .utils.domains import ensure_temporary_domain, normalize_domain, get_platform_base_domain
-from .utils.branding import ensure_tenant_branding
+from .utils.branding import ensure_tenant_branding, get_tenant_branding
 
 
 def superadmin_required(view_func):
@@ -260,6 +260,15 @@ def superadmin_tenant_detail(request, tenant_id):
         config.chatbot_webhook = request.POST.get('chatbot_webhook', config.chatbot_webhook).strip()
         config.vimeo_team_id = request.POST.get('vimeo_team_id', config.vimeo_team_id).strip()
         config.accredible_issuer_id = request.POST.get('accredible_issuer_id', config.accredible_issuer_id).strip()
+
+        # ensure_tenant_branding may have seeded branding on a separate instance;
+        # reload so we don't clobber it when toggling the sponsor label.
+        config.refresh_from_db(fields=['features'])
+        features = config.features or {}
+        branding = features.get('branding') or {}
+        branding['show_sponsor_name'] = request.POST.get('show_sponsor_name') == 'on'
+        features['branding'] = branding
+        config.features = features
         config.save()
 
         messages.success(request, 'Tenant settings updated.')
@@ -293,6 +302,7 @@ def superadmin_tenant_detail(request, tenant_id):
         'stats': stats,
         'tenant_admins': tenant_admins,
         'tenant_domains': tenant_domains,
+        'tenant_branding': get_tenant_branding(tenant),
     })
 
 

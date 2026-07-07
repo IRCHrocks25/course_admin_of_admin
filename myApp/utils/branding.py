@@ -5,6 +5,11 @@ from ..models import TenantConfig
 
 HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
+# Logo shown in the student nav bar. This is the *platform* logo (not the
+# tenant's uploaded logo, which is used on login/forum/sidebars). Tenants may
+# override it via branding.platform_logo_url.
+DEFAULT_PLATFORM_LOGO_URL = 'https://cdn.katalyst-crm.com/t1/SOP%20Master%20logo%20placeholder.png'
+
 
 def _trim(text, max_len=120):
     text = (text or '').strip()
@@ -78,6 +83,8 @@ def build_default_branding(tenant, profile=None):
     return {
         'brand_name': name,
         'brand_short_name': short_name,
+        'platform_logo_url': DEFAULT_PLATFORM_LOGO_URL,
+        'show_sponsor_name': True,
         'theme_mode': 'light',
         'accent_primary': '#00f0ff',
         'accent_secondary': '#a855f7',
@@ -116,6 +123,10 @@ def get_tenant_branding(tenant):
         return _with_derived_accent_colors({
             'brand_name': 'CourseForge',
             'brand_short_name': 'CourseForge',
+            'platform_logo_url': DEFAULT_PLATFORM_LOGO_URL,
+            # Platform host (no tenant): never show a sponsor label.
+            'show_sponsor_name': False,
+            'sponsor_name': '',
             'theme_mode': 'light',
             'accent_primary': '#00f0ff',
             'accent_secondary': '#a855f7',
@@ -145,6 +156,19 @@ def get_tenant_branding(tenant):
     # Lets templates fall back to the per-theme default accent (neutral in
     # light mode) instead of forcing the built-in neon for un-branded tenants.
     merged['accent_is_custom'] = bool(branding.get('accent_primary') or branding.get('accent_secondary'))
+
+    # Platform logo shown in the student nav bar (falls back to the default).
+    if not merged.get('platform_logo_url'):
+        merged['platform_logo_url'] = DEFAULT_PLATFORM_LOGO_URL
+
+    # Sponsor label: explicit branding flag wins, else default True.
+    if 'show_sponsor_name' in branding:
+        merged['show_sponsor_name'] = bool(branding.get('show_sponsor_name'))
+    else:
+        merged['show_sponsor_name'] = bool(merged.get('show_sponsor_name', True))
+    # sponsor_name is always computed from tenant.name (never stored).
+    merged['sponsor_name'] = (tenant.name or merged.get('brand_name') or '').strip()
+
     if not merged.get('logo_url') and getattr(tenant, 'logo', None):
         try:
             merged['logo_url'] = tenant.logo.url

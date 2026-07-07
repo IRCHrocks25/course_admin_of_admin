@@ -50,6 +50,13 @@
                     <p class="text-xs text-gray-400 mt-1">Applies to the student-facing course experience (dashboard, lessons, quizzes, and catalog pages).</p>
                 </div>
                 <div>
+                    <label class="flex items-start gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="checkbox" name="show_sponsor_name" value="1" {% if branding.show_sponsor_name %}checked{% endif %} class="mt-0.5">
+                        <span>Show sponsor label</span>
+                    </label>
+                    <p class="text-xs text-gray-400 mt-1">Displays <strong>Sponsor: {{ tenant.name }}</strong> beside the platform logo in the student nav bar.</p>
+                </div>
+                <div>
                     <label class="block text-sm text-gray-300 mb-1">Primary Accent Color</label>
                     <div class="flex items-center gap-2">
                         <input id="accent-primary-picker" type="color" value="{{ branding.accent_primary|default:'#00f0ff' }}" class="h-10 w-14 rounded bg-[#0a0e27] border border-white/20 p-1">

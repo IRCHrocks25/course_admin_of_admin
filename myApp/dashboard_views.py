@@ -5924,6 +5924,7 @@ def dashboard_branding_settings(request):
             'theme_mode': theme_mode,
             'accent_primary': accent_primary,
             'accent_secondary': accent_secondary,
+            'show_sponsor_name': request.POST.get('show_sponsor_name') == '1',
             'headline_line1': (request.POST.get('headline_line1') or current_branding.get('headline_line1', '')).strip(),
             'headline_line2': (request.POST.get('headline_line2') or current_branding.get('headline_line2', '')).strip(),
             'headline_line3': (request.POST.get('headline_line3') or current_branding.get('headline_line3', '')).strip(),

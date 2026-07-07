@@ -94,9 +94,9 @@
             border-bottom-color: rgba(255, 255, 255, 0.08);
         }
         .brand-nav-shell {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 1.5rem;
+            max-width: none;
+            margin: 0;
+            padding: 0 2rem;
             min-height: 56px;
             display: flex;
             align-items: center;
@@ -222,6 +222,40 @@
             letter-spacing: 0.04em;
             text-transform: uppercase;
             color: #94a3b8;
+        }
+        .brand-nav-branding {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.75rem;
+            min-width: 0;
+            flex-shrink: 1;
+            text-decoration: none;
+        }
+        .brand-sponsor-name {
+            font-size: 0.5rem;
+            font-weight: 400;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            text-align: left;
+            color: #0f172a;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: clamp(120px, 28vw, 360px);
+        }
+        .brand-theme-dark .brand-sponsor-name {
+            color: #e2e8f0;
+        }
+        @media (min-width: 640px) {
+            .brand-nav-branding {
+                gap: 1.25rem;
+            }
+            .brand-sponsor-name {
+                font-size: 0.5625rem;
+                max-width: clamp(160px, 32vw, 420px);
+            }
         }
         @media (max-width: 640px) {
             .brand-logo-main {
@@ -467,24 +501,15 @@
         <div class="brand-nav-shell">
             <!-- Brand -->
             <div class="brand-nav-brand flex items-center min-w-0">
-                <a href="{% url 'home' %}" class="flex items-center gap-2 sm:gap-3 hover:opacity-85 transition-opacity min-w-0">
-                    {% if tenant_branding.logo_url %}
+                <a href="{% url 'home' %}" class="brand-nav-branding hover:opacity-85 transition-opacity">
                     <img
-                        src="{{ tenant_branding.logo_url }}"
-                        alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
+                        src="{{ tenant_branding.platform_logo_url|default:'https://cdn.katalyst-crm.com/t1/SOP%20Master%20logo%20placeholder.png' }}"
+                        alt="{{ tenant_branding.brand_name|default:'CourseForge' }}"
                         class="brand-logo-main"
                         loading="eager"
                     >
-                    {% else %}
-                    <img
-                        src="https://katalyst-crm.com/wp-content/uploads/2024/09/K-1.png"
-                        alt="{{ tenant_branding.brand_name|default:'CourseForge' }} Logo"
-                        class="brand-logo-main"
-                        loading="eager"
-                    >
-                    {% endif %}
-                    {% if not tenant_branding.logo_url %}
-                    <div class="brand-nav-wordmark hidden sm:block">{{ tenant_branding.brand_name|default:"CourseForge" }}</div>
+                    {% if tenant and tenant_branding.show_sponsor_name and tenant_branding.sponsor_name %}
+                    <span class="brand-sponsor-name">Sponsor: {{ tenant_branding.sponsor_name }}</span>
                     {% endif %}
                 </a>
             </div>
