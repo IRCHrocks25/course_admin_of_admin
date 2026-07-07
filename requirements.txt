@@ -11,6 +11,7 @@ attrs==25.3.0
 autobahn==24.4.2
 Automat==25.4.16
 beautifulsoup4==4.13.3
+bleach==6.2.0
 billiard==4.2.1
 CacheControl==0.12.14
 cachetools==5.5.2

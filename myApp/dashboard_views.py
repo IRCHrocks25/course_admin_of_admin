@@ -5,6 +5,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import user_passes_test
 from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.db.models import Count, Q
 from django.conf import settings
 from django.core.mail import send_mail
@@ -5945,7 +5946,12 @@ def dashboard_branding_settings(request):
             return redirect('dashboard_branding_settings')
 
         landing_mode = (request.POST.get('landing_mode') or custom_pages.get('landing_mode') or 'default').strip()
-        custom_pages['landing_mode'] = 'custom' if landing_mode == 'custom' else 'default'
+        if landing_mode == 'cms':
+            custom_pages['landing_mode'] = 'cms'
+        elif landing_mode == 'custom':
+            custom_pages['landing_mode'] = 'custom'
+        else:
+            custom_pages['landing_mode'] = 'default'
         signup_mode = (request.POST.get('signup_mode') or custom_pages.get('signup_mode') or 'default').strip()
         custom_pages['signup_mode'] = 'custom' if signup_mode == 'custom' else 'default'
         login_mode = (request.POST.get('login_mode') or custom_pages.get('login_mode') or 'default').strip()
@@ -6075,16 +6081,32 @@ def dashboard_branding_settings(request):
         features['custom_pages'] = custom_pages
         config.features = features
         config.save(update_fields=['features', 'updated_at'])
-        mode_message = 'custom HTML' if custom_pages.get('landing_mode') == 'custom' else 'default template'
+        if custom_pages.get('landing_mode') == 'cms':
+            _ensure_landing_cms_template(config, tenant)
+        mode_message = {
+            'cms': 'visual CMS editor',
+            'custom': 'custom HTML',
+        }.get(custom_pages.get('landing_mode'), 'default template')
         html_len = len((custom_pages.get('landing_html') or '').strip())
         messages.success(request, f'Branding updated successfully. Landing mode: {mode_message}. HTML size: {html_len} chars.')
         return redirect('dashboard_branding_settings')
+
+    cms_template_html = ''
+    cms_schema = {'sections': [], 'defaults': {}, 'link_targets': []}
+    cms_content = custom_pages.get('landing_cms_content') or {}
+    if custom_pages.get('landing_mode') == 'cms':
+        from myApp.cms.storage import get_landing_cms_template_html
+        from myApp.cms.parser import build_schema
+        cms_template_html = get_landing_cms_template_html(config, tenant.id)
+        if cms_template_html:
+            cms_schema = build_schema(cms_template_html)
 
     return render(request, 'dashboard/branding_settings.html', {
         'tenant': tenant,
         'branding': current_branding,
         'custom_pages': custom_pages,
         'landing_mode': custom_pages.get('landing_mode', 'default'),
+        'landing_cms_published': custom_pages.get('landing_cms_published', False),
         'landing_html': custom_pages.get('landing_html', ''),
         'signup_mode': custom_pages.get('signup_mode', 'default'),
         'signup_html': custom_pages.get('signup_html', ''),
@@ -6094,7 +6116,345 @@ def dashboard_branding_settings(request):
         'signup_html_sample': SIGNUP_HTML_SAMPLE,
         'login_html_sample': LOGIN_HTML_SAMPLE,
         'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
+        'cms_schema': cms_schema,
+        'cms_content': cms_content,
     })
+
+
+# ========== LANDING PAGE CMS ==========
+
+def _landing_cms_tenant_config(request):
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        return None, None, JsonResponse({'success': False, 'error': 'Tenant context required.'}, status=400)
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+    return tenant, config, None
+
+
+def _ensure_landing_cms_template(config, tenant):
+    from myApp.cms.storage import get_landing_cms_template_html, save_landing_cms_template_html
+    from myApp.cms.templates import get_default_landing_cms_template
+
+    template_html = get_landing_cms_template_html(config, tenant.id)
+    if not template_html:
+        template_html = get_default_landing_cms_template(tenant)
+        save_landing_cms_template_html(config, tenant.id, template_html)
+        config.save(update_fields=['features', 'updated_at'])
+    return template_html
+
+
+@staff_member_required
+def dashboard_landing_cms_editor(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_branding_settings')
+    ensure_tenant_branding(tenant)
+    custom_pages = (config.features or {}).get('custom_pages') or {}
+    if custom_pages.get('landing_mode') != 'cms':
+        custom_pages['landing_mode'] = 'cms'
+        config.features = config.features or {}
+        config.features['custom_pages'] = custom_pages
+        config.save(update_fields=['features', 'updated_at'])
+
+    template_html = _ensure_landing_cms_template(config, tenant)
+    from myApp.cms.parser import build_schema
+    from myApp.cms.storage import get_landing_cms_content
+    schema = build_schema(template_html)
+    saved_custom_html = (custom_pages.get('landing_html') or '').strip()
+    return render(request, 'dashboard/cms_landing_editor.html', {
+        'tenant': tenant,
+        'branding': get_tenant_branding(tenant),
+        'schema': schema,
+        'content': get_landing_cms_content(config),
+        'published': custom_pages.get('landing_cms_published', False),
+        'tenant_site_url': get_tenant_public_home_url(request, tenant),
+        'has_saved_custom_html': bool(saved_custom_html),
+        'saved_custom_html_chars': len(saved_custom_html),
+        'ai_available': bool(os.getenv('OPENAI_API_KEY')),
+    })
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_save(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    content = payload.get('content')
+    if not isinstance(content, dict):
+        return JsonResponse({'success': False, 'error': 'content must be an object.'}, status=400)
+    from myApp.cms.storage import save_landing_cms_content
+    save_landing_cms_content(config, content)
+    config.save(update_fields=['features', 'updated_at'])
+    return JsonResponse({'success': True})
+
+
+@staff_member_required
+@require_http_methods(['GET', 'POST'])
+@xframe_options_sameorigin
+def dashboard_landing_cms_preview(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    from myApp.cms.parser import build_schema
+    from myApp.cms.renderer import merge_with_defaults, render_site
+    from myApp.cms.storage import get_landing_cms_content, get_landing_cms_template_html
+
+    template_html = _ensure_landing_cms_template(config, tenant)
+    schema = build_schema(template_html)
+    if request.method == 'POST':
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+        content = payload.get('content') if isinstance(payload.get('content'), dict) else get_landing_cms_content(config)
+    else:
+        content = get_landing_cms_content(config)
+    merged = merge_with_defaults(content, schema.get('defaults'))
+    branding = get_tenant_branding(tenant)
+    html = render_site(
+        template_html,
+        merged,
+        preview=True,
+        site_settings={'title': branding.get('brand_name', tenant.name)},
+    )
+    from django.http import HttpResponse
+    return HttpResponse(html, content_type='text/html; charset=utf-8')
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_publish(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    from myApp.cms.storage import set_landing_cms_published
+    custom_pages = (config.features or {}).get('custom_pages') or {}
+    custom_pages['landing_mode'] = 'cms'
+    config.features = config.features or {}
+    config.features['custom_pages'] = custom_pages
+    set_landing_cms_published(config, True)
+    config.save(update_fields=['features', 'updated_at'])
+    return JsonResponse({'success': True, 'published': True})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_upload_image(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    upload = request.FILES.get('file') or request.FILES.get('image')
+    if not upload:
+        return JsonResponse({'success': False, 'error': 'No file uploaded.'}, status=400)
+    ext = (upload.name.rsplit('.', 1)[-1] if '.' in upload.name else 'jpg').lower()
+    key = f"cms_landing/tenant_{tenant.id}/{uuid.uuid4().hex}.{ext}"
+    content_type = upload.content_type or 'image/jpeg'
+    data = upload.read()
+    url = ''
+    try:
+        from myApp.utils import iceberg
+        if iceberg.is_configured():
+            url = iceberg.upload_bytes(data, key, content_type)
+    except Exception:
+        url = ''
+    if not url and CLOUDINARY_UPLOAD_AVAILABLE:
+        try:
+            result = cloudinary_uploader.upload(data, folder=f'cms_landing/tenant_{tenant.id}')
+            url = result.get('secure_url') or result.get('url') or ''
+        except Exception:
+            url = ''
+    if not url:
+        return JsonResponse({'success': False, 'error': 'Image upload failed. Configure Iceberg or Cloudinary.'}, status=500)
+    return JsonResponse({'success': True, 'url': url})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_import_html(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    from myApp.cms.annotator import auto_annotate_html
+    from myApp.cms.html_utils import coerce_full_html_document, normalize_custom_html_input, should_passthrough_landing_html
+    from myApp.cms.parser import build_schema
+    from myApp.cms.storage import save_landing_cms_content, save_landing_cms_template_html
+
+    raw_html = ''
+    force = False
+    use_ai = False
+    if request.content_type and 'application/json' in request.content_type:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+        source = (payload.get('source') or '').strip()
+        force = bool(payload.get('force'))
+        use_ai = bool(payload.get('use_ai'))
+        if source == 'stored_custom_html':
+            custom_pages = (config.features or {}).get('custom_pages') or {}
+            raw_html = (custom_pages.get('landing_html') or '').strip()
+        else:
+            raw_html = (payload.get('html') or '').strip()
+    else:
+        raw_html = (request.POST.get('html') or '').strip()
+        force = request.POST.get('force') == '1'
+        use_ai = request.POST.get('use_ai') == '1'
+        upload = request.FILES.get('html_file')
+        if upload:
+            from myApp.cms.html_utils import decode_uploaded_html_bytes
+            raw_html = decode_uploaded_html_bytes(upload.read())
+
+    raw_html = normalize_custom_html_input(raw_html)
+    if not raw_html:
+        return JsonResponse({'success': False, 'error': 'HTML is required.'}, status=400)
+    if len(raw_html) > 500_000:
+        return JsonResponse({'success': False, 'error': 'HTML exceeds 500KB limit.'}, status=400)
+
+    raw_html = coerce_full_html_document(raw_html)
+    if not should_passthrough_landing_html(raw_html):
+        raw_html = _sanitize_uploaded_html(raw_html, page_kind='landing')
+
+    annotated = None
+    ai_used = False
+    ai_error = ''
+    if use_ai:
+        from myApp.cms.ai_annotator import AIAnnotationError, ai_annotate_html
+        try:
+            annotated, ai_response = ai_annotate_html(raw_html)
+            ai_used = True
+            _log_openai_usage(
+                feature='cms_ai_annotate',
+                response=ai_response,
+                tenant=tenant,
+                model_name='gpt-4o-mini',
+            )
+        except AIAnnotationError as exc:
+            ai_error = str(exc)
+        except Exception:
+            ai_error = 'AI annotation failed unexpectedly.'
+    if annotated is None:
+        annotated = auto_annotate_html(raw_html, force=force)
+    schema = build_schema(annotated)
+    if not schema.get('sections'):
+        return JsonResponse({'success': False, 'error': 'No editable fields found after annotation.'}, status=400)
+
+    custom_pages = (config.features or {}).get('custom_pages') or {}
+    custom_pages['landing_mode'] = 'cms'
+    custom_pages['landing_cms_content'] = {}
+    custom_pages['landing_cms_published'] = False
+    custom_pages['landing_cms_template_source'] = 'imported'
+    custom_pages['landing_html'] = raw_html
+    config.features = config.features or {}
+    config.features['custom_pages'] = custom_pages
+    save_landing_cms_template_html(config, tenant.id, annotated)
+    save_landing_cms_content(config, {})
+    config.save(update_fields=['features', 'updated_at'])
+    return JsonResponse({
+        'success': True,
+        'schema': schema,
+        'field_count': sum(len(s.get('fields') or []) for s in schema.get('sections') or []),
+        'ai_used': ai_used,
+        'ai_error': ai_error,
+    })
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_reset_template(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    from myApp.cms.storage import save_landing_cms_content, save_landing_cms_template_html
+    from myApp.cms.templates import get_default_landing_cms_template
+
+    template_html = get_default_landing_cms_template(tenant)
+    custom_pages = (config.features or {}).get('custom_pages') or {}
+    custom_pages['landing_mode'] = 'cms'
+    custom_pages['landing_cms_content'] = {}
+    custom_pages['landing_cms_published'] = False
+    custom_pages['landing_cms_template_source'] = 'default'
+    config.features = config.features or {}
+    config.features['custom_pages'] = custom_pages
+    save_landing_cms_template_html(config, tenant.id, template_html)
+    save_landing_cms_content(config, {})
+    config.save(update_fields=['features', 'updated_at'])
+    from myApp.cms.parser import build_schema
+    return JsonResponse({'success': True, 'schema': build_schema(template_html)})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_annotate_element(request):
+    """Mark one element of the tenant's landing template as editable (visual annotate mode)."""
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    css_path = (payload.get('path') or '').strip()
+    if not css_path:
+        return JsonResponse({'success': False, 'error': 'Element path is required.'}, status=400)
+
+    from myApp.cms.annotator import annotate_element
+    from myApp.cms.parser import build_schema
+    from myApp.cms.storage import save_landing_cms_template_html
+
+    template_html = _ensure_landing_cms_template(config, tenant)
+    new_html, field_id, err = annotate_element(
+        template_html,
+        css_path,
+        label=(payload.get('label') or '').strip()[:80],
+        field_type=(payload.get('field_type') or '').strip(),
+    )
+    if err:
+        return JsonResponse({'success': False, 'error': err}, status=400)
+    save_landing_cms_template_html(config, tenant.id, new_html)
+    config.save(update_fields=['features', 'updated_at'])
+    return JsonResponse({'success': True, 'field_id': field_id, 'schema': build_schema(new_html)})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_remove_annotation(request):
+    """Remove an editable-field annotation from the tenant's landing template."""
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    field_id = (payload.get('field_id') or '').strip()
+    if not field_id:
+        return JsonResponse({'success': False, 'error': 'field_id is required.'}, status=400)
+
+    from myApp.cms.annotator import remove_annotation
+    from myApp.cms.parser import build_schema
+    from myApp.cms.storage import get_landing_cms_content, save_landing_cms_content, save_landing_cms_template_html
+
+    template_html = _ensure_landing_cms_template(config, tenant)
+    new_html, err = remove_annotation(template_html, field_id)
+    if err:
+        return JsonResponse({'success': False, 'error': err}, status=400)
+    save_landing_cms_template_html(config, tenant.id, new_html)
+    # Drop any saved value for the removed field so it no longer overrides the template.
+    content = get_landing_cms_content(config)
+    section_id, _, field_key = field_id.partition('.')
+    if section_id in content and isinstance(content[section_id], dict):
+        content[section_id].pop(field_key, None)
+        if not content[section_id]:
+            content.pop(section_id, None)
+        save_landing_cms_content(config, content)
+    config.save(update_fields=['features', 'updated_at'])
+    return JsonResponse({'success': True, 'schema': build_schema(new_html)})
 
 
 # ========== EVENT MANAGEMENT (dashboard) ==========

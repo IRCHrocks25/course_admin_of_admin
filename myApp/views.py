@@ -471,6 +471,37 @@ def _render_tenant_custom_html(request, tenant, custom_html):
     })
 
 
+def _render_tenant_cms_landing(request, tenant, custom_pages):
+    """Render annotation-based CMS landing page for a tenant."""
+    from myApp.cms.parser import build_schema
+    from myApp.cms.renderer import merge_with_defaults, render_site
+    from myApp.cms.storage import get_landing_cms_content, get_landing_cms_template_html
+
+    try:
+        config = tenant.config
+    except TenantConfig.DoesNotExist:
+        return None
+
+    template_html = get_landing_cms_template_html(config, tenant.id)
+    if not template_html:
+        from myApp.cms.templates import get_default_landing_cms_template
+        from myApp.cms.storage import save_landing_cms_template_html
+        template_html = get_default_landing_cms_template(tenant)
+        save_landing_cms_template_html(config, tenant.id, template_html)
+        config.save(update_fields=['features', 'updated_at'])
+
+    schema = build_schema(template_html)
+    merged = merge_with_defaults(get_landing_cms_content(config), schema.get('defaults'))
+    branding = get_tenant_branding(tenant)
+    html = render_site(
+        template_html,
+        merged,
+        preview=False,
+        site_settings={'title': branding.get('brand_name', getattr(tenant, 'name', ''))},
+    )
+    return _render_tenant_custom_html(request, tenant, html)
+
+
 _CERTIFICATE_GENERATOR_FN = None
 _CERTIFICATE_GENERATOR_LOADED = False
 
@@ -596,6 +627,13 @@ def home(request):
         })
 
     custom_pages = _get_tenant_custom_pages(tenant)
+    if custom_pages.get('landing_mode') == 'cms':
+        published = bool(custom_pages.get('landing_cms_published'))
+        can_preview = request.user.is_authenticated and getattr(request.user, 'is_staff', False)
+        if published or can_preview:
+            rendered = _render_tenant_cms_landing(request, tenant, custom_pages)
+            if rendered is not None:
+                return rendered
     if custom_pages.get('landing_mode') == 'custom' and custom_pages.get('landing_html'):
         rendered = _render_tenant_custom_html(request, tenant, custom_pages.get('landing_html'))
         if rendered is not None:

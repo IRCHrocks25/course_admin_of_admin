@@ -83,7 +83,9 @@
       "PowerShell(python manage.py make_quizzes_optional --dry-run)",
       "PowerShell(python -c \"import ast; ast.parse\\(open\\('myApp/views.py', encoding='utf-8'\\).read\\(\\)\\); print\\('views.py OK'\\)\")",
       "PowerShell(python manage.py makemigrations myApp)",
-      "PowerShell(python manage.py generate_lesson_audio --lesson-id 19 --force)"
+      "PowerShell(python manage.py generate_lesson_audio --lesson-id 19 --force)",
+      "Bash(node --check _tmp_bridge.js)",
+      "Bash(rm _tmp_bridge.js)"
     ]
   }
 }

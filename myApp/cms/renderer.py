@@ -1,0 +1,396 @@
+"""Merge CMS content JSON into annotated HTML templates."""
+from __future__ import annotations
+
+import copy
+import re
+
+from bs4 import BeautifulSoup
+
+from .html_utils import soup_to_html_document
+
+try:
+    import bleach
+except ImportError:  # pragma: no cover
+    bleach = None
+
+ALLOWED_TAGS = ['p', 'strong', 'em', 'b', 'i', 'br', 'a', 'span']
+ALLOWED_ATTRS = {'a': ['href', 'title', 'target', 'rel']}
+
+
+def _sanitize_richtext(value: str) -> str:
+    if bleach is None:
+        return value
+    return bleach.clean(value or '', tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS, strip=True)
+
+
+def merge_with_defaults(content: dict | None, defaults: dict | None) -> dict:
+    content = copy.deepcopy(content or {})
+    defaults = defaults or {}
+    merged = copy.deepcopy(defaults)
+    for section_id, fields in content.items():
+        if str(section_id).startswith('_'):
+            merged[section_id] = fields
+            continue
+        if not isinstance(fields, dict):
+            continue
+        merged.setdefault(section_id, {})
+        merged[section_id].update(fields)
+    for key, value in content.items():
+        if str(key).startswith('_'):
+            merged[key] = value
+    return merged
+
+
+def _apply_brand_tokens(soup, brand: dict):
+    style_tag = soup.find('style', attrs={'data-tokens': True}) or soup.find('style')
+    if not style_tag or not style_tag.string or not brand:
+        return
+    css = style_tag.string
+    for key, value in brand.items():
+        css_var = key.replace('_', '-')
+        # Replacement callable: token values often start with digits ("0 10px…"),
+        # which would corrupt a "\1{value}" template into a bad group reference.
+        css = re.sub(
+            rf'(--{re.escape(css_var)}\s*:\s*)[^;]+(;)',
+            lambda m, v=str(value): m.group(1) + v + m.group(2),
+            css,
+            count=1,
+        )
+    style_tag.string = css
+
+
+def _apply_field(element, field_type: str, value: str):
+    if value is None:
+        return
+    if field_type == 'text':
+        element.clear()
+        element.append(value)
+    elif field_type == 'richtext':
+        element.clear()
+        fragment = BeautifulSoup(_sanitize_richtext(value), 'lxml')
+        body = fragment.body
+        if body:
+            for child in list(body.children):
+                element.append(child.extract())
+    elif field_type == 'image':
+        element['src'] = value
+        for attr in ('srcset', 'data-src', 'data-lazy-src'):
+            if element.has_attr(attr):
+                del element[attr]
+    elif field_type == 'link':
+        element['href'] = value
+    elif field_type == 'color':
+        style = element.get('style') or ''
+        if 'background' in (element.get('data-label') or '').lower():
+            style = re.sub(r'background-color\s*:\s*[^;]+;?', '', style)
+            style += f'background-color:{value};'
+        else:
+            style = re.sub(r'color\s*:\s*[^;]+;?', '', style)
+            style += f'color:{value};'
+        element['style'] = style.strip()
+    elif field_type == 'video':
+        source = element.find('source')
+        if source is not None:
+            source['src'] = value
+        else:
+            element['src'] = value
+
+
+def _apply_hidden_sections(soup, hidden_sections, *, preview: bool):
+    if not hidden_sections:
+        return
+    for section_id in hidden_sections:
+        for el in soup.select(f'[data-section="{section_id}"]'):
+            if preview:
+                style = el.get('style') or ''
+                if 'opacity:0.35' not in style:
+                    el['style'] = (style + ';opacity:0.35;pointer-events:none;').strip(';')
+            else:
+                style = el.get('style') or ''
+                el['style'] = (style + ';display:none!important;').strip(';')
+
+
+PREVIEW_BRIDGE_JS = r"""
+(function () {
+  'use strict';
+  var MODE = 'edit'; // edit | annotate | browse
+  var ANNOTATABLE = ['h1','h2','h3','h4','h5','h6','p','li','span','strong','em','small','label','figcaption','img','a','button','blockquote'];
+  var selectedEl = null;
+
+  var style = document.createElement('style');
+  style.textContent = [
+    '[data-cms-hover]{outline:2px dashed rgba(59,130,246,.95)!important;outline-offset:2px!important;cursor:pointer!important;}',
+    '[data-cms-selected]{outline:2px solid #2563eb!important;outline-offset:2px!important;}',
+    '[data-cms-annotate-hover]{outline:2px dashed rgba(217,119,6,.95)!important;outline-offset:2px!important;cursor:crosshair!important;background-color:rgba(251,191,36,.08)!important;}',
+    '@keyframes cmsFlash{0%{outline-color:#2563eb;box-shadow:0 0 0 6px rgba(37,99,235,.35);}100%{box-shadow:0 0 0 0 rgba(37,99,235,0);}}',
+    '[data-cms-flash]{outline:2px solid #2563eb!important;outline-offset:2px!important;animation:cmsFlash 1s ease-out 2;}',
+    '#__cms_chip{position:fixed;z-index:2147483647;background:#2563eb;color:#fff;font:600 11px/1 -apple-system,"Segoe UI",Roboto,sans-serif;padding:4px 8px;border-radius:5px;pointer-events:none;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.4);display:none;}',
+    '#__cms_chip.annotate{background:#b45309;}'
+  ].join('\n');
+  document.head.appendChild(style);
+
+  var chip = document.createElement('div');
+  chip.id = '__cms_chip';
+  document.body.appendChild(chip);
+
+  function post(msg) { try { parent.postMessage(msg, '*'); } catch (e) {} }
+
+  function closestEdit(el) {
+    while (el && el.nodeType === 1) {
+      if (el.hasAttribute && el.hasAttribute('data-edit')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function closestSection(el) {
+    while (el && el.nodeType === 1) {
+      if (el.hasAttribute && el.hasAttribute('data-section')) return el.getAttribute('data-section');
+      el = el.parentElement;
+    }
+    return '';
+  }
+
+  function isAnnotatable(el) {
+    if (!el || el.nodeType !== 1) return false;
+    var tag = el.tagName.toLowerCase();
+    if (ANNOTATABLE.indexOf(tag) === -1) return false;
+    if (el.hasAttribute('data-edit')) return false;
+    if (closestEdit(el.parentElement)) return false;
+    if (el.id === '__cms_chip') return false;
+    if (tag !== 'img' && (el.textContent || '').trim().length < 1) return false;
+    return true;
+  }
+
+  function cssPath(el) {
+    var parts = [];
+    while (el && el.nodeType === 1 && el.tagName.toLowerCase() !== 'html') {
+      var tag = el.tagName.toLowerCase();
+      if (tag === 'body') { parts.unshift('body'); break; }
+      var index = 1;
+      var sib = el.previousElementSibling;
+      while (sib) {
+        if (sib.tagName === el.tagName) index += 1;
+        sib = sib.previousElementSibling;
+      }
+      parts.unshift(tag + ':nth-of-type(' + index + ')');
+      el = el.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  function showChip(el, text, annotate) {
+    var rect = el.getBoundingClientRect();
+    chip.textContent = text;
+    chip.className = annotate ? 'annotate' : '';
+    chip.style.display = 'block';
+    var top = rect.top - 26;
+    if (top < 4) top = rect.bottom + 6;
+    chip.style.top = top + 'px';
+    chip.style.left = Math.max(4, rect.left) + 'px';
+  }
+
+  function hideChip() { chip.style.display = 'none'; }
+
+  function clearHover() {
+    document.querySelectorAll('[data-cms-hover]').forEach(function (n) { n.removeAttribute('data-cms-hover'); });
+    document.querySelectorAll('[data-cms-annotate-hover]').forEach(function (n) { n.removeAttribute('data-cms-annotate-hover'); });
+    hideChip();
+  }
+
+  function selectElement(el) {
+    if (selectedEl) selectedEl.removeAttribute('data-cms-selected');
+    selectedEl = el;
+    if (el) el.setAttribute('data-cms-selected', '1');
+  }
+
+  function findAnnotatable(start) {
+    var cur = start;
+    while (cur && cur.nodeType === 1 && !isAnnotatable(cur)) cur = cur.parentElement;
+    return (cur && isAnnotatable(cur)) ? cur : null;
+  }
+
+  // Edit and Annotate modes share one interaction model: annotated elements
+  // select their field; anything else editable offers one-click annotation.
+  document.addEventListener('mouseover', function (ev) {
+    if (MODE === 'browse') return;
+    clearHover();
+    var editEl = closestEdit(ev.target);
+    if (editEl) {
+      editEl.setAttribute('data-cms-hover', '1');
+      showChip(editEl, editEl.getAttribute('data-label') || editEl.getAttribute('data-edit'), false);
+      return;
+    }
+    var target = findAnnotatable(ev.target);
+    if (target) {
+      target.setAttribute('data-cms-annotate-hover', '1');
+      showChip(target, 'Click to make editable: <' + target.tagName.toLowerCase() + '>', true);
+    }
+  }, true);
+
+  document.addEventListener('mouseout', function () {
+    if (MODE !== 'browse') clearHover();
+  }, true);
+
+  document.addEventListener('click', function (ev) {
+    if (MODE === 'browse') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var editEl = closestEdit(ev.target);
+    if (editEl) {
+      selectElement(editEl);
+      post({ type: 'cms-element-selected', fieldId: editEl.getAttribute('data-edit') });
+      return;
+    }
+    var target = findAnnotatable(ev.target);
+    if (!target) return;
+    var tag = target.tagName.toLowerCase();
+    var suggestedType = 'text';
+    if (tag === 'img') suggestedType = 'image';
+    else if (tag === 'a') suggestedType = 'link';
+    else if (target.children.length > 0) suggestedType = 'richtext';
+    var snippet = tag === 'img'
+      ? (target.getAttribute('alt') || target.getAttribute('src') || '').slice(0, 80)
+      : (target.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    post({
+      type: 'cms-annotate-request',
+      path: cssPath(target),
+      tag: tag,
+      snippet: snippet,
+      suggestedType: suggestedType,
+      sectionId: closestSection(target)
+    });
+  }, true);
+
+  // Block form submits / keyboard nav side-effects while editing
+  document.addEventListener('submit', function (ev) {
+    if (MODE !== 'browse') { ev.preventDefault(); ev.stopPropagation(); }
+  }, true);
+
+  function applyFieldUpdate(fieldId, fieldType, value, fieldLabel) {
+    var nodes = document.querySelectorAll('[data-edit="' + fieldId.replace(/"/g, '\\"') + '"]');
+    nodes.forEach(function (el) {
+      if (fieldType === 'image') {
+        el.setAttribute('src', value);
+        el.removeAttribute('srcset');
+      } else if (fieldType === 'link') {
+        el.setAttribute('href', value);
+      } else if (fieldType === 'video') {
+        var source = el.querySelector('source');
+        if (source) { source.setAttribute('src', value); try { el.load(); } catch (e) {} }
+        else el.setAttribute('src', value);
+      } else if (fieldType === 'color') {
+        var label = (fieldLabel || el.getAttribute('data-label') || '').toLowerCase();
+        el.style[label.indexOf('background') !== -1 ? 'backgroundColor' : 'color'] = value;
+      } else if (fieldType === 'richtext') {
+        el.innerHTML = value;
+      } else {
+        el.textContent = value;
+      }
+    });
+  }
+
+  window.addEventListener('message', function (event) {
+    var data = event.data || {};
+    switch (data.type) {
+      case 'cms-mode':
+        MODE = data.mode || 'edit';
+        clearHover();
+        if (MODE === 'browse') selectElement(null);
+        break;
+      case 'cms-field-focus': {
+        var el = document.querySelector('[data-edit="' + String(data.fieldId).replace(/"/g, '\\"') + '"]');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          selectElement(el);
+          el.removeAttribute('data-cms-flash');
+          void el.offsetWidth;
+          el.setAttribute('data-cms-flash', '1');
+          setTimeout(function () { el.removeAttribute('data-cms-flash'); }, 2200);
+        }
+        break;
+      }
+      case 'cms-field-update':
+        applyFieldUpdate(String(data.fieldId), data.fieldType || 'text', data.value, data.fieldLabel);
+        break;
+      case 'cms-brand-update':
+        document.documentElement.style.setProperty('--' + String(data.cssVar), String(data.value));
+        break;
+      case 'cms-section-visibility': {
+        document.querySelectorAll('[data-section="' + String(data.sectionId).replace(/"/g, '\\"') + '"]').forEach(function (el) {
+          if (data.hidden) {
+            el.style.opacity = '0.3';
+            el.style.filter = 'grayscale(1)';
+          } else {
+            el.style.opacity = '';
+            el.style.filter = '';
+            el.style.pointerEvents = '';
+          }
+        });
+        break;
+      }
+    }
+  });
+
+  post({ type: 'cms-bridge-ready' });
+})();
+"""
+
+
+def _inject_preview_bridge(soup):
+    if soup.find(id='cms-preview-bridge'):
+        return
+    script = soup.new_tag('script', id='cms-preview-bridge')
+    script.string = PREVIEW_BRIDGE_JS
+    body = soup.body or soup
+    body.append(script)
+
+
+def render_site(html: str, content: dict | None, *, preview: bool = False, site_settings: dict | None = None) -> str:
+    original_html = html or ''
+    soup = BeautifulSoup(original_html, 'lxml')
+    content = content or {}
+
+    _apply_brand_tokens(soup, content.get('brand') or {})
+    hidden_sections = content.get('_hidden') or []
+
+    for element in soup.select('[data-edit]'):
+        edit_key = element.get('data-edit') or ''
+        if '.' not in edit_key:
+            continue
+        section_id, field_key = edit_key.split('.', 1)
+        section_content = content.get(section_id) or {}
+        if field_key not in section_content:
+            continue
+        field_type = element.get('data-type') or 'text'
+        _apply_field(element, field_type, section_content[field_key])
+
+    _apply_hidden_sections(soup, hidden_sections, preview=preview)
+
+    if site_settings:
+        title = (site_settings.get('title') or '').strip()
+        if title:
+            title_tag = soup.find('title')
+            if title_tag:
+                title_tag.string = title
+            else:
+                head = soup.head or soup.new_tag('head')
+                if not soup.head:
+                    soup.html.insert(0, head) if soup.html else None
+                head.append(soup.new_tag('title'))
+                head.title.string = title
+        description = (site_settings.get('description') or '').strip()
+        if description:
+            meta = soup.find('meta', attrs={'name': 'description'})
+            if meta:
+                meta['content'] = description
+            elif soup.head:
+                meta_tag = soup.new_tag('meta')
+                meta_tag['name'] = 'description'
+                meta_tag['content'] = description
+                soup.head.append(meta_tag)
+
+    if preview:
+        _inject_preview_bridge(soup)
+
+    return soup_to_html_document(soup, original_html)

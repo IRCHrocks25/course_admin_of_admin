@@ -1,0 +1,1203 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Landing Page Editor{% endblock %}
+{% block page_title %}Visual Landing Editor{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<style>
+/* ===== CMS Editor (scoped: cmx-) ===== */
+#cmx-editor{
+    margin:-1rem; display:flex; flex-direction:column; overflow:hidden;
+    background:#070b22; color:#e5e7eb;
+    font-size:13px; border-top:1px solid rgba(255,255,255,.06);
+}
+@media (min-width:640px){ #cmx-editor{ margin:-1.5rem; } }
+@media (min-width:1024px){ #cmx-editor{ margin:-2rem; } }
+
+/* Toolbar */
+.cmx-toolbar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:8px 14px; background:rgba(13,18,48,.92); backdrop-filter:blur(8px);
+    border-bottom:1px solid rgba(255,255,255,.08); z-index:20;
+}
+.cmx-toolbar-group{ display:flex; align-items:center; gap:8px; }
+.cmx-toolbar-spacer{ flex:1 1 auto; }
+.cmx-title{ font-weight:700; color:#fff; font-size:14px; line-height:1.1; }
+.cmx-subtitle{ font-size:11px; color:#8b93b5; }
+.cmx-btn{
+    display:inline-flex; align-items:center; gap:6px; padding:7px 12px;
+    border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04);
+    color:#d7dcf0; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+    transition:background .15s,border-color .15s,color .15s;
+}
+.cmx-btn:hover{ background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.25); }
+.cmx-btn:disabled{ opacity:.45; cursor:not-allowed; }
+.cmx-btn-icon{ padding:7px 9px; }
+.cmx-btn-primary{
+    background:linear-gradient(135deg,#3b82f6,#2563eb); border-color:transparent; color:#04121f;
+}
+.cmx-btn-primary:hover{ filter:brightness(1.1); background:linear-gradient(135deg,#3b82f6,#2563eb); }
+.cmx-btn-danger{ color:#fca5a5; border-color:rgba(248,113,113,.35); }
+.cmx-btn-danger:hover{ background:rgba(248,113,113,.12); }
+
+.cmx-seg{
+    display:inline-flex; padding:3px; border-radius:9px; background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.08);
+}
+.cmx-seg button{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:7px;
+    font-size:12px; font-weight:600; color:#9aa3c7; cursor:pointer; border:0; background:transparent;
+    transition:all .15s;
+}
+.cmx-seg button:hover{ color:#e5e7eb; }
+.cmx-seg button.active{ background:rgba(59,130,246,.18); color:#60a5fa; box-shadow:inset 0 0 0 1px rgba(59,130,246,.35); }
+.cmx-seg button.active.annotate{ background:rgba(251,191,36,.16); color:#fcd34d; box-shadow:inset 0 0 0 1px rgba(251,191,36,.4); }
+
+.cmx-status{ display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#8b93b5; padding:0 4px; }
+.cmx-status-dot{ width:8px; height:8px; border-radius:50%; background:#64748b; transition:background .2s; }
+.cmx-status.saving .cmx-status-dot{ background:#fbbf24; animation:cmxPulse 1s infinite; }
+.cmx-status.saved .cmx-status-dot{ background:#34d399; }
+.cmx-status.error .cmx-status-dot{ background:#f87171; }
+.cmx-status.dirty .cmx-status-dot{ background:#fbbf24; }
+@keyframes cmxPulse{ 50%{ opacity:.4; } }
+
+/* Body */
+.cmx-body{ display:flex; flex:1 1 auto; min-height:0; }
+
+/* Sidebar */
+.cmx-sidebar{
+    width:330px; flex:0 0 330px; display:flex; flex-direction:column; min-height:0;
+    background:#0b1030; border-right:1px solid rgba(255,255,255,.08);
+    transition:margin-left .2s ease;
+}
+.cmx-sidebar.collapsed{ margin-left:-330px; }
+.cmx-search{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); position:relative; }
+.cmx-search i{ position:absolute; left:22px; top:50%; transform:translateY(-50%); color:#5c6488; font-size:11px; }
+.cmx-search input{
+    width:100%; padding:7px 10px 7px 28px; border-radius:8px; background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.1); color:#fff; font-size:12px; outline:none;
+}
+.cmx-search input:focus{ border-color:rgba(59,130,246,.5); }
+.cmx-sections{ flex:1 1 auto; overflow-y:auto; padding:10px 12px 24px; }
+.cmx-sections::-webkit-scrollbar{ width:8px; }
+.cmx-sections::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.12); border-radius:4px; }
+
+.cmx-section{
+    border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-bottom:8px;
+    background:rgba(255,255,255,.025); overflow:hidden;
+}
+.cmx-section.hidden-section{ opacity:.55; }
+.cmx-section-head{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; cursor:pointer; user-select:none;
+}
+.cmx-section-head:hover{ background:rgba(255,255,255,.04); }
+.cmx-section-head .cmx-sec-icon{
+    width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+    background:rgba(59,130,246,.12); color:#60a5fa; font-size:11px; flex:0 0 26px;
+}
+.cmx-section-head .cmx-sec-label{ font-weight:600; color:#e8ebf7; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+.cmx-sec-count{ font-size:10px; color:#8b93b5; background:rgba(255,255,255,.07); border-radius:99px; padding:2px 7px; }
+.cmx-icon-btn{
+    width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center;
+    color:#8b93b5; background:transparent; border:0; cursor:pointer; font-size:11px; flex:0 0 24px;
+}
+.cmx-icon-btn:hover{ background:rgba(255,255,255,.1); color:#fff; }
+.cmx-sec-chevron{ transition:transform .18s; font-size:10px; color:#5c6488; }
+.cmx-section.open .cmx-sec-chevron{ transform:rotate(180deg); }
+.cmx-section-body{ display:none; padding:4px 10px 12px; border-top:1px solid rgba(255,255,255,.06); }
+.cmx-section.open .cmx-section-body{ display:block; }
+
+/* Fields */
+.cmx-field{ padding:8px 6px; border-radius:8px; margin-top:2px; }
+.cmx-field.flash{ background:rgba(59,130,246,.12); box-shadow:inset 0 0 0 1px rgba(59,130,246,.4); }
+.cmx-field-head{ display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+.cmx-field-head label{ font-size:11px; color:#aab2d4; font-weight:600; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cmx-type-badge{ font-size:9px; text-transform:uppercase; letter-spacing:.04em; color:#5c6488; border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:1px 5px; }
+.cmx-field-tools{ display:none; gap:2px; }
+.cmx-field:hover .cmx-field-tools{ display:inline-flex; }
+.cmx-input, .cmx-textarea{
+    width:100%; padding:7px 9px; border-radius:7px; background:#070b22;
+    border:1px solid rgba(255,255,255,.13); color:#fff; font-size:12px; outline:none;
+    transition:border-color .15s;
+}
+.cmx-input:focus, .cmx-textarea:focus{ border-color:rgba(59,130,246,.6); box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+.cmx-textarea{ resize:vertical; min-height:56px; font-family:inherit; line-height:1.45; }
+.cmx-hint{ font-size:10px; color:#5c6488; margin-top:3px; }
+
+.cmx-color-row{ display:flex; gap:6px; align-items:center; }
+.cmx-color-row input[type=color]{
+    width:34px; height:30px; padding:2px; border-radius:7px; background:#070b22;
+    border:1px solid rgba(255,255,255,.13); cursor:pointer; flex:0 0 34px;
+}
+.cmx-img-thumb{
+    width:100%; height:86px; border-radius:8px; border:1px dashed rgba(255,255,255,.2);
+    background-color:#070b22; background-size:cover; background-position:center;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; margin-bottom:6px;
+    color:#5c6488; font-size:11px; gap:6px; transition:border-color .15s;
+    position:relative; overflow:hidden;
+}
+.cmx-img-thumb:hover{ border-color:rgba(59,130,246,.6); color:#60a5fa; }
+.cmx-img-thumb.dragover{ border-color:#3b82f6; background-color:rgba(59,130,246,.08); }
+.cmx-img-thumb.has-img span{ background:rgba(4,10,25,.75); padding:3px 8px; border-radius:6px; }
+.cmx-img-thumb.uploading::after{
+    content:'Uploading…'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(4,10,25,.8); color:#60a5fa; font-weight:600;
+}
+
+/* Canvas / stage */
+.cmx-stage{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0; position:relative; }
+.cmx-annotate-banner{
+    display:none; align-items:center; gap:8px; padding:7px 14px; font-size:12px;
+    background:rgba(251,191,36,.12); border-bottom:1px solid rgba(251,191,36,.3); color:#fcd34d;
+}
+.cmx-stage.annotate .cmx-annotate-banner{ display:flex; }
+.cmx-canvas{
+    flex:1 1 auto; min-height:0; overflow:auto; display:flex; justify-content:center;
+    padding:18px; background:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size:22px 22px;
+}
+.cmx-device{
+    display:flex; flex-direction:column; width:100%; max-width:100%; height:100%;
+    border-radius:12px; overflow:hidden; background:#fff;
+    box-shadow:0 12px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1);
+    transition:max-width .25s ease; margin:0 auto;
+}
+.cmx-device.tablet{ max-width:768px; }
+.cmx-device.mobile{ max-width:390px; }
+.cmx-device-bar{
+    display:flex; align-items:center; gap:6px; padding:7px 12px; background:#12172e;
+    border-bottom:1px solid rgba(255,255,255,.08); flex:0 0 auto;
+}
+.cmx-device-bar .dot{ width:9px; height:9px; border-radius:50%; }
+.cmx-device-bar .dot.r{ background:#f87171; } .cmx-device-bar .dot.y{ background:#fbbf24; } .cmx-device-bar .dot.g{ background:#34d399; }
+.cmx-device-url{
+    flex:1 1 auto; text-align:center; font-size:10.5px; color:#8b93b5; background:rgba(255,255,255,.06);
+    border-radius:6px; padding:3px 10px; margin:0 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#cmx-preview-frame{ width:100%; flex:1 1 auto; border:0; background:#fff; min-height:0; }
+.cmx-frame-loading{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(7,11,34,.35); z-index:5; }
+.cmx-frame-loading.show{ display:flex; }
+.cmx-spinner{ width:26px; height:26px; border:3px solid rgba(96,165,250,.3); border-top-color:#60a5fa; border-radius:50%; animation:cmxSpin .7s linear infinite; }
+@keyframes cmxSpin{ to{ transform:rotate(360deg); } }
+
+/* Modals */
+.cmx-modal-backdrop{
+    position:fixed; inset:0; background:rgba(3,6,20,.7); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; z-index:60; padding:16px;
+}
+.cmx-modal-backdrop.show{ display:flex; }
+.cmx-modal{
+    width:100%; max-width:560px; background:#0d1230; border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.6); overflow:hidden;
+    max-height:90vh; display:flex; flex-direction:column;
+}
+.cmx-modal-head{ display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.08); }
+.cmx-modal-head h3{ font-size:14px; font-weight:700; color:#fff; flex:1; }
+.cmx-modal-body{ padding:16px 18px; overflow-y:auto; }
+.cmx-modal-foot{ display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid rgba(255,255,255,.08); }
+.cmx-label{ display:block; font-size:11px; font-weight:600; color:#aab2d4; margin:12px 0 5px; }
+.cmx-label:first-child{ margin-top:0; }
+.cmx-note{ font-size:11px; color:#8b93b5; line-height:1.5; }
+.cmx-warn{
+    display:flex; gap:8px; font-size:11px; color:#fcd34d; background:rgba(251,191,36,.08);
+    border:1px solid rgba(251,191,36,.25); border-radius:8px; padding:8px 10px; line-height:1.45; margin-top:12px;
+}
+.cmx-saved-card, .cmx-ai-card{
+    display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:10px;
+    margin-top:12px; cursor:default;
+}
+.cmx-saved-card{ background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.3); }
+.cmx-ai-card{ background:rgba(167,139,250,.08); border:1px solid rgba(167,139,250,.3); }
+#cmx-import-manual.dimmed{ opacity:.4; pointer-events:none; }
+.cmx-drop{
+    border:1.5px dashed rgba(255,255,255,.22); border-radius:10px; padding:18px; text-align:center;
+    color:#8b93b5; font-size:12px; cursor:pointer; transition:all .15s; margin-top:6px;
+}
+.cmx-drop:hover, .cmx-drop.dragover{ border-color:#3b82f6; color:#60a5fa; background:rgba(59,130,246,.06); }
+.cmx-code-snippet{
+    font-family:ui-monospace,Consolas,monospace; font-size:11px; color:#93c5fd; background:#070b22;
+    border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; margin-top:4px;
+    max-height:64px; overflow:hidden; text-overflow:ellipsis; line-height:1.5;
+}
+
+/* Toasts */
+#cmx-toasts{ position:fixed; bottom:18px; right:18px; z-index:80; display:flex; flex-direction:column; gap:8px; }
+.cmx-toast{
+    display:flex; align-items:center; gap:9px; padding:10px 14px; border-radius:10px; font-size:12px; font-weight:600;
+    background:#101636; border:1px solid rgba(255,255,255,.14); color:#e5e7eb;
+    box-shadow:0 8px 30px rgba(0,0,0,.5); animation:cmxToastIn .2s ease; max-width:340px;
+}
+.cmx-toast.success{ border-color:rgba(52,211,153,.4); } .cmx-toast.success i{ color:#34d399; }
+.cmx-toast.error{ border-color:rgba(248,113,113,.4); } .cmx-toast.error i{ color:#f87171; }
+.cmx-toast.info i{ color:#60a5fa; }
+@keyframes cmxToastIn{ from{ transform:translateY(8px); opacity:0; } }
+
+.cmx-empty{ text-align:center; padding:30px 14px; color:#8b93b5; font-size:12px; line-height:1.6; }
+.cmx-empty i{ font-size:22px; color:#3b4470; display:block; margin-bottom:8px; }
+
+@media (max-width:900px){
+    .cmx-sidebar{ position:absolute; top:0; bottom:0; left:0; z-index:30; box-shadow:8px 0 30px rgba(0,0,0,.45); }
+    .cmx-sidebar.collapsed{ margin-left:0; transform:translateX(-100%); }
+}
+
+/* Accent utility classes (theme-aware) */
+.cmx-card-title{ font-weight:700; color:#e8ebf7; font-size:12.5px; }
+.cmx-accent-text{ color:#60a5fa; }
+.cmx-purple-text{ color:#a78bfa; }
+.cmx-amber-text{ color:#fcd34d; }
+
+/* ===== Light theme ===== */
+.brand-theme-light #cmx-editor{ background:#eef1f7; color:#1f2937; border-top-color:#dbe1ee; }
+.brand-theme-light .cmx-toolbar{ background:rgba(255,255,255,.95); border-bottom-color:#dbe1ee; }
+.brand-theme-light .cmx-title{ color:#111827; }
+.brand-theme-light .cmx-subtitle{ color:#6b7280; }
+.brand-theme-light .cmx-status{ color:#6b7280; }
+.brand-theme-light .cmx-btn{ background:#fff; border-color:#cbd5e6; color:#374151; }
+.brand-theme-light .cmx-btn:hover{ background:#f1f5fd; border-color:#93b4f5; color:#1f2937; }
+.brand-theme-light .cmx-btn-primary{ background:linear-gradient(135deg,#3b82f6,#2563eb); border-color:transparent; color:#fff; }
+.brand-theme-light .cmx-btn-primary:hover{ background:linear-gradient(135deg,#3b82f6,#2563eb); }
+.brand-theme-light .cmx-btn-danger{ color:#b91c1c; border-color:rgba(185,28,28,.35); }
+.brand-theme-light .cmx-btn-danger:hover{ background:rgba(185,28,28,.08); }
+.brand-theme-light .cmx-seg{ background:#e6eaf3; border-color:#d3dae8; }
+.brand-theme-light .cmx-seg button{ color:#6b7280; }
+.brand-theme-light .cmx-seg button:hover{ color:#1f2937; }
+.brand-theme-light .cmx-seg button.active{ background:#fff; color:#1d4ed8; box-shadow:inset 0 0 0 1px rgba(37,99,235,.45); }
+.brand-theme-light .cmx-seg button.active.annotate{ background:#fff; color:#b45309; box-shadow:inset 0 0 0 1px rgba(180,83,9,.45); }
+.brand-theme-light .cmx-sidebar{ background:#f8f9fc; border-right-color:#dbe1ee; }
+.brand-theme-light .cmx-search{ border-bottom-color:#e5e9f2; }
+.brand-theme-light .cmx-search i{ color:#9ca3af; }
+.brand-theme-light .cmx-sections::-webkit-scrollbar-thumb{ background:rgba(15,23,42,.18); }
+.brand-theme-light .cmx-section{ background:#fff; border-color:#e2e7f2; }
+.brand-theme-light .cmx-section-head:hover{ background:#f4f6fb; }
+.brand-theme-light .cmx-section-head .cmx-sec-icon{ background:rgba(37,99,235,.1); color:#1d4ed8; }
+.brand-theme-light .cmx-section-head .cmx-sec-label{ color:#1f2937; }
+.brand-theme-light .cmx-sec-count{ color:#6b7280; background:#eef1f7; }
+.brand-theme-light .cmx-icon-btn{ color:#6b7280; }
+.brand-theme-light .cmx-icon-btn:hover{ background:#eef1f7; color:#111827; }
+.brand-theme-light .cmx-sec-chevron{ color:#9ca3af; }
+.brand-theme-light .cmx-section-body{ border-top-color:#e9edf5; }
+.brand-theme-light .cmx-field.flash{ background:rgba(37,99,235,.08); box-shadow:inset 0 0 0 1px rgba(37,99,235,.4); }
+.brand-theme-light .cmx-field-head label{ color:#4b5563; }
+.brand-theme-light .cmx-type-badge{ color:#9ca3af; border-color:#dbe1ee; }
+.brand-theme-light .cmx-input, .brand-theme-light .cmx-textarea, .brand-theme-light .cmx-search input{ background:#fff; border-color:#cbd5e6; color:#111827; }
+.brand-theme-light .cmx-input:focus, .brand-theme-light .cmx-textarea:focus, .brand-theme-light .cmx-search input:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.brand-theme-light .cmx-hint{ color:#8a94a6; }
+.brand-theme-light .cmx-color-row input[type=color]{ background:#fff; border-color:#cbd5e6; }
+.brand-theme-light .cmx-img-thumb{ background-color:#f4f6fb; border-color:#c6cfe2; color:#6b7280; }
+.brand-theme-light .cmx-img-thumb:hover{ border-color:#2563eb; color:#1d4ed8; }
+.brand-theme-light .cmx-canvas{ background:#e6eaf3 radial-gradient(rgba(15,23,42,.09) 1px, transparent 1px); background-size:22px 22px; }
+.brand-theme-light .cmx-annotate-banner{ background:rgba(180,83,9,.08); border-bottom-color:rgba(180,83,9,.25); color:#92400e; }
+.brand-theme-light .cmx-modal{ background:#fff; border-color:#e2e7f2; }
+.brand-theme-light .cmx-modal-head{ border-bottom-color:#e9edf5; }
+.brand-theme-light .cmx-modal-head h3{ color:#111827; }
+.brand-theme-light .cmx-modal-foot{ border-top-color:#e9edf5; }
+.brand-theme-light .cmx-label{ color:#4b5563; }
+.brand-theme-light .cmx-note{ color:#6b7280; }
+.brand-theme-light .cmx-warn{ color:#92400e; background:rgba(251,191,36,.14); border-color:rgba(180,83,9,.3); }
+.brand-theme-light .cmx-drop{ border-color:#c6cfe2; color:#6b7280; }
+.brand-theme-light .cmx-drop:hover, .brand-theme-light .cmx-drop.dragover{ border-color:#2563eb; color:#1d4ed8; background:rgba(37,99,235,.05); }
+.brand-theme-light .cmx-code-snippet{ color:#1d4ed8; background:#f4f6fb; border-color:#dbe1ee; }
+.brand-theme-light .cmx-toast{ background:#fff; border-color:#dbe1ee; color:#1f2937; }
+.brand-theme-light .cmx-saved-card{ background:rgba(37,99,235,.06); border-color:rgba(37,99,235,.3); }
+.brand-theme-light .cmx-ai-card{ background:rgba(124,58,237,.06); border-color:rgba(124,58,237,.3); }
+.brand-theme-light .cmx-card-title{ color:#111827; }
+.brand-theme-light .cmx-accent-text{ color:#1d4ed8; }
+.brand-theme-light .cmx-purple-text{ color:#7c3aed; }
+.brand-theme-light .cmx-amber-text{ color:#b45309; }
+.brand-theme-light .cmx-empty{ color:#6b7280; }
+.brand-theme-light .cmx-empty i{ color:#c2cbdd; }
+</style>
+
+<div id="cmx-editor">
+    <!-- ===== Toolbar ===== -->
+    <div class="cmx-toolbar">
+        <div class="cmx-toolbar-group">
+            <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-toggle-sidebar" title="Toggle panel"><i class="fas fa-bars"></i></button>
+            <a href="{% url 'dashboard_branding_settings' %}" class="cmx-btn cmx-btn-icon" title="Back to branding"><i class="fas fa-arrow-left"></i></a>
+            <div>
+                <div class="cmx-title">Landing Editor</div>
+                {% if tenant %}<div class="cmx-subtitle">{{ tenant.name }}</div>{% endif %}
+            </div>
+            <span class="cmx-status" id="cmx-status"><span class="cmx-status-dot"></span><span id="cmx-status-text">All changes saved</span></span>
+        </div>
+
+        <div class="cmx-toolbar-spacer"></div>
+
+        <div class="cmx-toolbar-group">
+            <div class="cmx-seg" id="cmx-mode-seg" title="Editor mode">
+                <button type="button" data-mode="edit" class="active"><i class="fas fa-pen"></i> Edit</button>
+                <button type="button" data-mode="annotate"><i class="fas fa-crosshairs"></i> Annotate</button>
+                <button type="button" data-mode="browse"><i class="fas fa-hand-pointer"></i> Interact</button>
+            </div>
+            <div class="cmx-seg" id="cmx-device-seg" title="Preview size">
+                <button type="button" data-device="desktop" class="active" title="Desktop"><i class="fas fa-desktop"></i></button>
+                <button type="button" data-device="tablet" title="Tablet"><i class="fas fa-tablet-alt"></i></button>
+                <button type="button" data-device="mobile" title="Mobile"><i class="fas fa-mobile-alt"></i></button>
+            </div>
+            <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-undo" title="Undo (Ctrl+Z)" disabled><i class="fas fa-undo"></i></button>
+            <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-redo" title="Redo (Ctrl+Shift+Z)" disabled><i class="fas fa-redo"></i></button>
+            <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-refresh" title="Refresh preview"><i class="fas fa-sync-alt"></i></button>
+        </div>
+
+        <div class="cmx-toolbar-group">
+            <button type="button" class="cmx-btn" id="cmx-import-open"><i class="fas fa-file-import"></i> Import HTML</button>
+            {% if tenant_site_url %}
+            <a href="{{ tenant_site_url }}" target="_blank" rel="noopener" class="cmx-btn"><i class="fas fa-external-link-alt"></i> Live site</a>
+            {% endif %}
+            <button type="button" class="cmx-btn cmx-btn-primary" id="cmx-publish">
+                <i class="fas fa-rocket"></i> <span id="cmx-publish-label">{% if published %}Published{% else %}Publish{% endif %}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== Body ===== -->
+    <div class="cmx-body">
+        <aside class="cmx-sidebar" id="cmx-sidebar">
+            <div class="cmx-search">
+                <i class="fas fa-search"></i>
+                <input type="text" id="cmx-search-input" placeholder="Search fields…" autocomplete="off">
+            </div>
+            <div class="cmx-sections" id="cmx-sections"></div>
+            <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:8px;">
+                <button type="button" class="cmx-btn cmx-btn-danger" id="cmx-reset-template" style="flex:1;justify-content:center;"><i class="fas fa-history"></i> Reset template</button>
+            </div>
+        </aside>
+
+        <section class="cmx-stage" id="cmx-stage">
+            <div class="cmx-annotate-banner">
+                <i class="fas fa-crosshairs"></i>
+                <span><strong>Annotate mode</strong> — click any text, image, button, or link in the preview to make it editable.</span>
+            </div>
+            <div class="cmx-canvas">
+                <div class="cmx-device" id="cmx-device">
+                    <div class="cmx-device-bar">
+                        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+                        <span class="cmx-device-url" id="cmx-device-url">{% if tenant_site_url %}{{ tenant_site_url }}{% else %}Landing page preview{% endif %}</span>
+                        <span style="font-size:10px;color:#5c6488;" id="cmx-device-size">100%</span>
+                    </div>
+                    <iframe id="cmx-preview-frame" title="Landing preview" src="{% url 'dashboard_landing_cms_preview' %}"></iframe>
+                </div>
+            </div>
+            <div class="cmx-frame-loading" id="cmx-frame-loading"><div class="cmx-spinner"></div></div>
+        </section>
+    </div>
+</div>
+
+<!-- ===== Import modal ===== -->
+<div class="cmx-modal-backdrop" id="cmx-import-modal">
+    <div class="cmx-modal">
+        <div class="cmx-modal-head">
+            <i class="fas fa-file-import cmx-accent-text"></i>
+            <h3>Import your landing page HTML</h3>
+            <button type="button" class="cmx-icon-btn" data-close-modal="cmx-import-modal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cmx-modal-body">
+            <p class="cmx-note">Bring your own design. We scan your HTML, detect sections, and mark headings, text, images, buttons and links as editable fields. You can add more fields later with <strong>Annotate</strong> mode.</p>
+
+            {% if has_saved_custom_html %}
+            <div class="cmx-saved-card" id="cmx-use-saved-card">
+                <input type="checkbox" id="cmx-use-saved" checked style="accent-color:#3b82f6;width:15px;height:15px;flex:0 0 15px;margin-top:2px;cursor:pointer;">
+                <div>
+                    <div class="cmx-card-title">Use my saved custom HTML <span class="cmx-accent-text">(recommended)</span></div>
+                    <div class="cmx-hint" style="margin-top:2px;">The landing HTML you saved in Branding Settings ({{ saved_custom_html_chars }} characters) — no need to paste it again.</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if ai_available %}
+            <div class="cmx-ai-card">
+                <input type="checkbox" id="cmx-use-ai" checked style="accent-color:#a78bfa;width:15px;height:15px;flex:0 0 15px;margin-top:2px;cursor:pointer;">
+                <div>
+                    <div class="cmx-card-title"><i class="fas fa-wand-magic-sparkles cmx-purple-text"></i> Annotate with AI</div>
+                    <div class="cmx-hint" style="margin-top:2px;">AI reads your page, names sections ("Hero banner", "Pricing"…), and makes every heading, paragraph, image, button and link editable — with friendly labels instead of tag names. Takes ~15 seconds.</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div id="cmx-import-manual">
+            <label class="cmx-label">Paste HTML</label>
+            <textarea id="cmx-import-textarea" rows="7" class="cmx-textarea" style="font-family:ui-monospace,Consolas,monospace;font-size:11px;" placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;…"></textarea>
+
+            <label class="cmx-label">Or upload a file</label>
+            <div class="cmx-drop" id="cmx-import-drop">
+                <i class="fas fa-upload"></i> Drop an .html file here, or click to browse
+                <input type="file" id="cmx-import-file" accept=".html,.htm,text/html" style="display:none;">
+            </div>
+            <div class="cmx-hint" id="cmx-import-file-name"></div>
+            </div>
+
+            <div class="cmx-warn">
+                <i class="fas fa-exclamation-triangle" style="margin-top:1px;"></i>
+                <span>Importing replaces your current template and clears all edits made in this editor. This cannot be undone.</span>
+            </div>
+        </div>
+        <div class="cmx-modal-foot">
+            <button type="button" class="cmx-btn" data-close-modal="cmx-import-modal">Cancel</button>
+            <button type="button" class="cmx-btn cmx-btn-primary" id="cmx-import-confirm"><i class="fas fa-file-import"></i> Import &amp; annotate</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Annotate modal ===== -->
+<div class="cmx-modal-backdrop" id="cmx-annotate-modal">
+    <div class="cmx-modal" style="max-width:440px;">
+        <div class="cmx-modal-head">
+            <i class="fas fa-crosshairs cmx-amber-text"></i>
+            <h3>Make this element editable</h3>
+            <button type="button" class="cmx-icon-btn" data-close-modal="cmx-annotate-modal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cmx-modal-body">
+            <label class="cmx-label">Selected element</label>
+            <div class="cmx-code-snippet" id="cmx-annotate-snippet"></div>
+
+            <label class="cmx-label" for="cmx-annotate-label">Field name</label>
+            <input type="text" id="cmx-annotate-label" class="cmx-input" placeholder="e.g. Hero headline" maxlength="80">
+
+            <label class="cmx-label" for="cmx-annotate-type">Field type</label>
+            <select id="cmx-annotate-type" class="cmx-input">
+                <option value="text">Text</option>
+                <option value="richtext">Rich text (keeps formatting)</option>
+                <option value="image">Image</option>
+                <option value="link">Link URL</option>
+            </select>
+            <div class="cmx-hint">The field appears in the side panel and updates the page live as you type.</div>
+        </div>
+        <div class="cmx-modal-foot">
+            <button type="button" class="cmx-btn" data-close-modal="cmx-annotate-modal">Cancel</button>
+            <button type="button" class="cmx-btn cmx-btn-primary" id="cmx-annotate-confirm"><i class="fas fa-plus"></i> Add editable field</button>
+        </div>
+    </div>
+</div>
+
+<div id="cmx-toasts"></div>
+
+{{ schema|json_script:"cms-schema-data" }}
+{{ content|json_script:"cms-content-data" }}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    'use strict';
+
+    /* ---------- Endpoints ---------- */
+    var URLS = {
+        save: '{% url "dashboard_landing_cms_save" %}',
+        preview: '{% url "dashboard_landing_cms_preview" %}',
+        publish: '{% url "dashboard_landing_cms_publish" %}',
+        upload: '{% url "dashboard_landing_cms_upload_image" %}',
+        importHtml: '{% url "dashboard_landing_cms_import_html" %}',
+        reset: '{% url "dashboard_landing_cms_reset_template" %}',
+        annotate: '{% url "dashboard_landing_cms_annotate_element" %}',
+        removeAnnotation: '{% url "dashboard_landing_cms_remove_annotation" %}'
+    };
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]') ? document.querySelector('[name=csrfmiddlewaretoken]').value : '';
+
+    /* ---------- State ---------- */
+    var schema = JSON.parse(document.getElementById('cms-schema-data').textContent || '{}');
+    var savedContent = JSON.parse(document.getElementById('cms-content-data').textContent || '{}');
+    var state = mergeDefaults(savedContent, schema.defaults || {});
+    if (!Array.isArray(state._hidden)) state._hidden = Array.isArray(savedContent._hidden) ? savedContent._hidden.slice() : [];
+    var dirty = false;
+    var mode = 'edit';
+    var saveTimer = null;
+    var undoStack = [], redoStack = [], lastSnapshotAt = 0;
+    var suppressFocusMsg = false;
+    var pendingAnnotate = null;
+
+    var ICONS = { menu:'fa-bars', layout:'fa-window-maximize', sparkles:'fa-star', grid:'fa-th-large',
+        'credit-card':'fa-credit-card', message:'fa-comment-alt', megaphone:'fa-bullhorn', palette:'fa-palette' };
+    var TYPE_LABEL = { text:'text', richtext:'rich', image:'image', link:'link', color:'color', video:'video' };
+
+    /* ---------- Elements ---------- */
+    var editor = document.getElementById('cmx-editor');
+    var sectionsWrap = document.getElementById('cmx-sections');
+    var frame = document.getElementById('cmx-preview-frame');
+    var frameLoading = document.getElementById('cmx-frame-loading');
+    var statusEl = document.getElementById('cmx-status');
+    var statusText = document.getElementById('cmx-status-text');
+    var publishBtn = document.getElementById('cmx-publish');
+    var publishLabel = document.getElementById('cmx-publish-label');
+    var undoBtn = document.getElementById('cmx-undo');
+    var redoBtn = document.getElementById('cmx-redo');
+    var deviceEl = document.getElementById('cmx-device');
+    var deviceSize = document.getElementById('cmx-device-size');
+    var stage = document.getElementById('cmx-stage');
+
+    /* ---------- Layout ---------- */
+    function sizeEditor() {
+        var top = editor.getBoundingClientRect().top;
+        editor.style.height = Math.max(420, window.innerHeight - top) + 'px';
+    }
+    sizeEditor();
+    window.addEventListener('resize', sizeEditor);
+
+    document.getElementById('cmx-toggle-sidebar').addEventListener('click', function () {
+        document.getElementById('cmx-sidebar').classList.toggle('collapsed');
+    });
+
+    /* ---------- Helpers ---------- */
+    function mergeDefaults(current, defaults) {
+        var merged = JSON.parse(JSON.stringify(defaults || {}));
+        Object.keys(current || {}).forEach(function (section) {
+            if (section.indexOf('_') === 0) { merged[section] = current[section]; return; }
+            merged[section] = Object.assign(merged[section] || {}, current[section] || {});
+        });
+        return merged;
+    }
+    function splitId(fieldId) {
+        var dot = fieldId.indexOf('.');
+        return [fieldId.slice(0, dot), fieldId.slice(dot + 1)];
+    }
+    function getValue(fieldId) {
+        var parts = splitId(fieldId);
+        return (state[parts[0]] && state[parts[0]][parts[1]] !== undefined) ? state[parts[0]][parts[1]] : '';
+    }
+    function toast(message, kind) {
+        kind = kind || 'info';
+        var icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+        var el = document.createElement('div');
+        el.className = 'cmx-toast ' + kind;
+        el.innerHTML = '<i class="fas ' + icons[kind] + '"></i><span></span>';
+        el.querySelector('span').textContent = message;
+        document.getElementById('cmx-toasts').appendChild(el);
+        setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(function () { el.remove(); }, 350); }, 3200);
+    }
+    function setStatus(cls, text) {
+        statusEl.className = 'cmx-status ' + cls;
+        statusText.textContent = text;
+    }
+    function api(url, body, isJson) {
+        var opts = { method: 'POST', headers: { 'X-CSRFToken': csrfToken } };
+        if (isJson === false) { opts.body = body; }
+        else { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body || {}); }
+        return fetch(url, opts).then(function (res) { return res.json(); });
+    }
+
+    /* ---------- History (undo/redo) ---------- */
+    function snapshot() {
+        var now = Date.now();
+        if (now - lastSnapshotAt < 500 && undoStack.length) return;
+        lastSnapshotAt = now;
+        undoStack.push(JSON.stringify(state));
+        if (undoStack.length > 60) undoStack.shift();
+        redoStack = [];
+        updateHistoryButtons();
+    }
+    function updateHistoryButtons() {
+        undoBtn.disabled = undoStack.length === 0;
+        redoBtn.disabled = redoStack.length === 0;
+    }
+    function applySnapshot(json) {
+        state = JSON.parse(json);
+        if (!Array.isArray(state._hidden)) state._hidden = [];
+        renderSidebar();
+        pushAllToPreview();
+        markDirty();
+    }
+    function undo() {
+        if (!undoStack.length) return;
+        redoStack.push(JSON.stringify(state));
+        applySnapshot(undoStack.pop());
+        updateHistoryButtons();
+    }
+    function redo() {
+        if (!redoStack.length) return;
+        undoStack.push(JSON.stringify(state));
+        applySnapshot(redoStack.pop());
+        updateHistoryButtons();
+    }
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+    document.addEventListener('keydown', function (ev) {
+        if (!(ev.ctrlKey || ev.metaKey)) return;
+        var key = ev.key.toLowerCase();
+        if (key === 'z' && !ev.shiftKey) { ev.preventDefault(); undo(); }
+        else if ((key === 'z' && ev.shiftKey) || key === 'y') { ev.preventDefault(); redo(); }
+        else if (key === 's') { ev.preventDefault(); saveNow(); }
+    });
+
+    /* ---------- Save ---------- */
+    function markDirty() {
+        dirty = true;
+        setStatus('dirty', 'Unsaved changes');
+        publishLabel.textContent = 'Publish changes';
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveNow, 900);
+    }
+    function saveNow() {
+        clearTimeout(saveTimer);
+        setStatus('saving', 'Saving…');
+        return api(URLS.save, { content: state }).then(function (data) {
+            if (data.success) { dirty = false; setStatus('saved', 'All changes saved'); }
+            else setStatus('error', data.error || 'Save failed');
+            return data;
+        }).catch(function () { setStatus('error', 'Save failed — check connection'); });
+    }
+    window.addEventListener('beforeunload', function (ev) {
+        if (dirty) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+
+    /* ---------- Preview messaging ---------- */
+    function postToFrame(msg) {
+        if (frame.contentWindow) { try { frame.contentWindow.postMessage(msg, '*'); } catch (e) {} }
+    }
+    function pushFieldToPreview(fieldId, fieldType, value, fieldLabel) {
+        if (fieldId.indexOf('brand.') === 0) {
+            postToFrame({ type: 'cms-brand-update', cssVar: fieldId.slice(6).replace(/_/g, '-'), value: value });
+        } else {
+            postToFrame({ type: 'cms-field-update', fieldId: fieldId, fieldType: fieldType, value: value, fieldLabel: fieldLabel });
+        }
+    }
+    function pushAllToPreview() {
+        (schema.sections || []).forEach(function (section) {
+            (section.fields || []).forEach(function (field) {
+                pushFieldToPreview(field.id, field.type, getValue(field.id), field.label);
+            });
+            postToFrame({
+                type: 'cms-section-visibility',
+                sectionId: section.id,
+                hidden: (state._hidden || []).indexOf(section.id) !== -1
+            });
+        });
+    }
+    function syncFrameState() {
+        postToFrame({ type: 'cms-mode', mode: mode });
+        (schema.sections || []).forEach(function (section) {
+            var hidden = (state._hidden || []).indexOf(section.id) !== -1;
+            postToFrame({ type: 'cms-section-visibility', sectionId: section.id, hidden: hidden });
+        });
+    }
+    function refreshPreview(preserveScroll) {
+        var scrollY = 0;
+        try { scrollY = preserveScroll && frame.contentWindow ? frame.contentWindow.scrollY : 0; } catch (e) {}
+        frameLoading.classList.add('show');
+        fetch(URLS.preview, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ content: state })
+        }).then(function (res) { return res.text(); }).then(function (html) {
+            var onLoad = function () {
+                frame.removeEventListener('load', onLoad);
+                frameLoading.classList.remove('show');
+                if (scrollY) { try { frame.contentWindow.scrollTo(0, scrollY); } catch (e) {} }
+            };
+            frame.addEventListener('load', onLoad);
+            frame.srcdoc = html;
+        }).catch(function () {
+            frameLoading.classList.remove('show');
+            toast('Could not refresh the preview.', 'error');
+        });
+    }
+    document.getElementById('cmx-refresh').addEventListener('click', function () { refreshPreview(true); });
+
+    window.addEventListener('message', function (event) {
+        var data = event.data || {};
+        if (data.type === 'cms-bridge-ready') {
+            frameLoading.classList.remove('show');
+            syncFrameState();
+        } else if (data.type === 'cms-element-selected') {
+            focusFieldRow(data.fieldId);
+        } else if (data.type === 'cms-annotate-request') {
+            openAnnotateModal(data);
+        }
+    });
+
+    /* ---------- Modes & devices ---------- */
+    var modeSeg = document.getElementById('cmx-mode-seg');
+    modeSeg.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('button[data-mode]');
+        if (!btn) return;
+        setMode(btn.getAttribute('data-mode'));
+    });
+    function setMode(next) {
+        mode = next;
+        modeSeg.querySelectorAll('button').forEach(function (b) {
+            var active = b.getAttribute('data-mode') === next;
+            b.classList.toggle('active', active);
+            b.classList.toggle('annotate', active && next === 'annotate');
+        });
+        stage.classList.toggle('annotate', next === 'annotate');
+        postToFrame({ type: 'cms-mode', mode: next });
+    }
+    document.getElementById('cmx-device-seg').addEventListener('click', function (ev) {
+        var btn = ev.target.closest('button[data-device]');
+        if (!btn) return;
+        this.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var device = btn.getAttribute('data-device');
+        deviceEl.className = 'cmx-device' + (device === 'desktop' ? '' : ' ' + device);
+        deviceSize.textContent = device === 'tablet' ? '768px' : device === 'mobile' ? '390px' : '100%';
+    });
+
+    /* ---------- Sidebar rendering ---------- */
+    function renderSidebar() {
+        sectionsWrap.innerHTML = '';
+        var sections = schema.sections || [];
+        if (!sections.length) {
+            var empty = document.createElement('div');
+            empty.className = 'cmx-empty';
+            empty.innerHTML = '<i class="fas fa-layer-group"></i>No editable fields yet.<br>Import your HTML or use Annotate mode to mark elements as editable.';
+            sectionsWrap.appendChild(empty);
+            return;
+        }
+        sections.forEach(function (section, idx) {
+            sectionsWrap.appendChild(buildSection(section, idx === 0));
+        });
+        applySearchFilter();
+    }
+
+    function buildSection(section, openByDefault) {
+        var isHidden = (state._hidden || []).indexOf(section.id) !== -1;
+        var wrap = document.createElement('div');
+        wrap.className = 'cmx-section' + (openByDefault ? ' open' : '') + (isHidden ? ' hidden-section' : '');
+        wrap.dataset.sectionId = section.id;
+
+        var head = document.createElement('div');
+        head.className = 'cmx-section-head';
+        head.innerHTML =
+            '<span class="cmx-sec-icon"><i class="fas ' + (ICONS[section.icon] || 'fa-window-maximize') + '"></i></span>' +
+            '<span class="cmx-sec-label"></span>' +
+            '<span class="cmx-sec-count">' + (section.fields || []).length + '</span>';
+        head.querySelector('.cmx-sec-label').textContent = section.label || section.id;
+
+        if (section.id !== 'brand') {
+            var eye = document.createElement('button');
+            eye.type = 'button';
+            eye.className = 'cmx-icon-btn';
+            eye.title = isHidden ? 'Show section on the live page' : 'Hide section from the live page';
+            eye.innerHTML = '<i class="fas ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
+            eye.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                snapshot();
+                var list = state._hidden || (state._hidden = []);
+                var pos = list.indexOf(section.id);
+                var nowHidden = pos === -1;
+                if (nowHidden) list.push(section.id); else list.splice(pos, 1);
+                wrap.classList.toggle('hidden-section', nowHidden);
+                eye.innerHTML = '<i class="fas ' + (nowHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
+                eye.title = nowHidden ? 'Show section on the live page' : 'Hide section from the live page';
+                postToFrame({ type: 'cms-section-visibility', sectionId: section.id, hidden: nowHidden });
+                markDirty();
+            });
+            head.appendChild(eye);
+        }
+
+        var chev = document.createElement('i');
+        chev.className = 'fas fa-chevron-down cmx-sec-chevron';
+        head.appendChild(chev);
+        head.addEventListener('click', function () { wrap.classList.toggle('open'); });
+        wrap.appendChild(head);
+
+        var body = document.createElement('div');
+        body.className = 'cmx-section-body';
+        (section.fields || []).forEach(function (field) { body.appendChild(buildField(field)); });
+        wrap.appendChild(body);
+        return wrap;
+    }
+
+    function buildField(field) {
+        var row = document.createElement('div');
+        row.className = 'cmx-field';
+        row.dataset.fieldId = field.id;
+        row.dataset.search = ((field.label || '') + ' ' + field.id).toLowerCase();
+
+        var head = document.createElement('div');
+        head.className = 'cmx-field-head';
+        var label = document.createElement('label');
+        label.textContent = field.label || field.id;
+        head.appendChild(label);
+        var badge = document.createElement('span');
+        badge.className = 'cmx-type-badge';
+        badge.textContent = TYPE_LABEL[field.type] || field.type;
+        head.appendChild(badge);
+
+        var tools = document.createElement('span');
+        tools.className = 'cmx-field-tools';
+        var resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'cmx-icon-btn';
+        resetBtn.title = 'Reset to original';
+        resetBtn.innerHTML = '<i class="fas fa-undo-alt"></i>';
+        resetBtn.addEventListener('click', function () { setFieldValue(field, field.default || '', true); });
+        tools.appendChild(resetBtn);
+        if (field.id.indexOf('brand.') !== 0) {
+            var unlink = document.createElement('button');
+            unlink.type = 'button';
+            unlink.className = 'cmx-icon-btn';
+            unlink.title = 'Remove this editable field';
+            unlink.innerHTML = '<i class="fas fa-unlink"></i>';
+            unlink.addEventListener('click', function () { removeAnnotation(field); });
+            tools.appendChild(unlink);
+        }
+        head.appendChild(tools);
+        row.appendChild(head);
+
+        row.appendChild(buildControl(field, row));
+        return row;
+    }
+
+    function setFieldValue(field, value, fromReset) {
+        snapshot();
+        var parts = splitId(field.id);
+        state[parts[0]] = state[parts[0]] || {};
+        state[parts[0]][parts[1]] = value;
+        pushFieldToPreview(field.id, field.type, value, field.label);
+        markDirty();
+        if (fromReset) {
+            var row = sectionsWrap.querySelector('[data-field-id="' + field.id + '"]');
+            if (row) {
+                var input = row.querySelector('.cmx-main-input');
+                if (input) input.value = value;
+                var thumb = row.querySelector('.cmx-img-thumb');
+                if (thumb) updateThumb(thumb, value);
+                var swatch = row.querySelector('input[type=color]');
+                if (swatch && /^#[0-9a-f]{6}$/i.test(value)) swatch.value = value;
+            }
+        }
+    }
+
+    function updateThumb(thumb, url) {
+        if (url) {
+            thumb.style.backgroundImage = 'url("' + url.replace(/"/g, '%22') + '")';
+            thumb.classList.add('has-img');
+            thumb.innerHTML = '<span><i class="fas fa-exchange-alt"></i> Replace image</span>';
+        } else {
+            thumb.style.backgroundImage = '';
+            thumb.classList.remove('has-img');
+            thumb.innerHTML = '<i class="fas fa-image"></i> Click or drop an image';
+        }
+    }
+
+    function buildControl(field, row) {
+        var value = getValue(field.id);
+        var wrap = document.createElement('div');
+
+        if (field.type === 'image') {
+            var thumb = document.createElement('div');
+            thumb.className = 'cmx-img-thumb';
+            updateThumb(thumb, value);
+            var fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.style.display = 'none';
+            var urlInput = document.createElement('input');
+            urlInput.type = 'url';
+            urlInput.className = 'cmx-input cmx-main-input';
+            urlInput.placeholder = 'https://… image URL';
+            urlInput.value = value;
+
+            function uploadFile(file) {
+                if (!file) return;
+                thumb.classList.add('uploading');
+                var fd = new FormData();
+                fd.append('file', file);
+                api(URLS.upload, fd, false).then(function (data) {
+                    thumb.classList.remove('uploading');
+                    if (data.success && data.url) {
+                        urlInput.value = data.url;
+                        updateThumb(thumb, data.url);
+                        setFieldValue(field, data.url);
+                        toast('Image uploaded', 'success');
+                    } else toast(data.error || 'Upload failed', 'error');
+                }).catch(function () {
+                    thumb.classList.remove('uploading');
+                    toast('Upload failed', 'error');
+                });
+            }
+            thumb.addEventListener('click', function () { fileInput.click(); });
+            fileInput.addEventListener('change', function () { uploadFile(fileInput.files[0]); });
+            ['dragover', 'dragenter'].forEach(function (evt) {
+                thumb.addEventListener(evt, function (ev) { ev.preventDefault(); thumb.classList.add('dragover'); });
+            });
+            ['dragleave', 'drop'].forEach(function (evt) {
+                thumb.addEventListener(evt, function (ev) { ev.preventDefault(); thumb.classList.remove('dragover'); });
+            });
+            thumb.addEventListener('drop', function (ev) {
+                if (ev.dataTransfer.files && ev.dataTransfer.files[0]) uploadFile(ev.dataTransfer.files[0]);
+            });
+            urlInput.addEventListener('input', function () {
+                updateThumb(thumb, urlInput.value);
+                setFieldValue(field, urlInput.value);
+            });
+            attachFocusSync(urlInput, field);
+            wrap.appendChild(thumb);
+            wrap.appendChild(fileInput);
+            wrap.appendChild(urlInput);
+
+        } else if (field.type === 'color') {
+            var rowEl = document.createElement('div');
+            rowEl.className = 'cmx-color-row';
+            var swatch = document.createElement('input');
+            swatch.type = 'color';
+            var text = document.createElement('input');
+            text.type = 'text';
+            text.className = 'cmx-input cmx-main-input';
+            text.value = value;
+            if (/^#[0-9a-f]{6}$/i.test(value)) swatch.value = value;
+            swatch.addEventListener('input', function () {
+                text.value = swatch.value;
+                setFieldValue(field, swatch.value);
+            });
+            text.addEventListener('input', function () {
+                if (/^#[0-9a-f]{6}$/i.test(text.value)) swatch.value = text.value;
+                setFieldValue(field, text.value);
+            });
+            attachFocusSync(text, field);
+            rowEl.appendChild(swatch);
+            rowEl.appendChild(text);
+            wrap.appendChild(rowEl);
+
+        } else if (field.type === 'richtext') {
+            var ta = document.createElement('textarea');
+            ta.className = 'cmx-textarea cmx-main-input';
+            ta.rows = 3;
+            ta.value = value;
+            ta.addEventListener('input', function () {
+                ta.style.height = 'auto';
+                ta.style.height = Math.min(220, ta.scrollHeight) + 'px';
+                setFieldValue(field, ta.value);
+            });
+            attachFocusSync(ta, field);
+            wrap.appendChild(ta);
+            var hint = document.createElement('div');
+            hint.className = 'cmx-hint';
+            hint.textContent = 'Basic HTML allowed: <strong>, <em>, <a>, <br>';
+            wrap.appendChild(hint);
+
+        } else {
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'cmx-input cmx-main-input';
+            input.value = value;
+            if (field.type === 'link') {
+                input.placeholder = 'https://… or #section';
+                input.setAttribute('list', 'cmx-link-targets');
+            }
+            input.addEventListener('input', function () { setFieldValue(field, input.value); });
+            attachFocusSync(input, field);
+            wrap.appendChild(input);
+        }
+        return wrap;
+    }
+
+    function attachFocusSync(input, field) {
+        input.addEventListener('focus', function () {
+            if (suppressFocusMsg) return;
+            if (field.id.indexOf('brand.') !== 0) postToFrame({ type: 'cms-field-focus', fieldId: field.id });
+        });
+    }
+
+    // datalist for link suggestions
+    var datalist = document.createElement('datalist');
+    datalist.id = 'cmx-link-targets';
+    (schema.link_targets || []).forEach(function (item) {
+        var opt = document.createElement('option');
+        opt.value = item.value;
+        opt.label = item.label;
+        datalist.appendChild(opt);
+    });
+    document.body.appendChild(datalist);
+
+    /* ---------- Two-way sync: preview click -> sidebar ---------- */
+    function focusFieldRow(fieldId) {
+        var row = sectionsWrap.querySelector('[data-field-id="' + fieldId + '"]');
+        if (!row) return;
+        var sidebar = document.getElementById('cmx-sidebar');
+        if (sidebar.classList.contains('collapsed')) sidebar.classList.remove('collapsed');
+        var section = row.closest('.cmx-section');
+        if (section && !section.classList.contains('open')) section.classList.add('open');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.add('flash');
+        setTimeout(function () { row.classList.remove('flash'); }, 1800);
+        var input = row.querySelector('.cmx-main-input');
+        if (input) {
+            suppressFocusMsg = true;
+            input.focus({ preventScroll: true });
+            setTimeout(function () { suppressFocusMsg = false; }, 100);
+        }
+    }
+
+    /* ---------- Search ---------- */
+    var searchInput = document.getElementById('cmx-search-input');
+    searchInput.addEventListener('input', applySearchFilter);
+    function applySearchFilter() {
+        var query = (searchInput.value || '').trim().toLowerCase();
+        sectionsWrap.querySelectorAll('.cmx-section').forEach(function (section) {
+            var any = false;
+            section.querySelectorAll('.cmx-field').forEach(function (row) {
+                var match = !query || row.dataset.search.indexOf(query) !== -1;
+                row.style.display = match ? '' : 'none';
+                if (match) any = true;
+            });
+            section.style.display = any ? '' : 'none';
+            if (query && any) section.classList.add('open');
+        });
+    }
+
+    /* ---------- Annotate flow ---------- */
+    function openModal(id) { document.getElementById(id).classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+    document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
+        btn.addEventListener('click', function () { closeModal(btn.getAttribute('data-close-modal')); });
+    });
+    document.querySelectorAll('.cmx-modal-backdrop').forEach(function (backdrop) {
+        backdrop.addEventListener('click', function (ev) { if (ev.target === backdrop) backdrop.classList.remove('show'); });
+    });
+
+    function openAnnotateModal(req) {
+        pendingAnnotate = req;
+        document.getElementById('cmx-annotate-snippet').textContent = '<' + req.tag + '> ' + (req.snippet || '');
+        var labelInput = document.getElementById('cmx-annotate-label');
+        labelInput.value = (req.snippet || '').split(' ').slice(0, 4).join(' ');
+        document.getElementById('cmx-annotate-type').value = req.suggestedType || 'text';
+        openModal('cmx-annotate-modal');
+        setTimeout(function () { labelInput.focus(); labelInput.select(); }, 50);
+    }
+
+    document.getElementById('cmx-annotate-confirm').addEventListener('click', function () {
+        if (!pendingAnnotate) return;
+        var btn = this;
+        btn.disabled = true;
+        api(URLS.annotate, {
+            path: pendingAnnotate.path,
+            label: document.getElementById('cmx-annotate-label').value.trim(),
+            field_type: document.getElementById('cmx-annotate-type').value
+        }).then(function (data) {
+            btn.disabled = false;
+            if (!data.success) { toast(data.error || 'Could not annotate element', 'error'); return; }
+            closeModal('cmx-annotate-modal');
+            schema = data.schema;
+            state = mergeDefaults(state, schema.defaults || {});
+            if (!Array.isArray(state._hidden)) state._hidden = [];
+            renderSidebar();
+            var fieldId = data.field_id;
+            var onLoad = function () {
+                frame.removeEventListener('load', onLoad);
+                setTimeout(function () {
+                    setMode('edit');
+                    postToFrame({ type: 'cms-field-focus', fieldId: fieldId });
+                    focusFieldRow(fieldId);
+                }, 150);
+            };
+            frame.addEventListener('load', onLoad);
+            refreshPreview(true);
+            toast('Editable field added', 'success');
+        }).catch(function () { btn.disabled = false; toast('Could not annotate element', 'error'); });
+    });
+
+    function removeAnnotation(field) {
+        if (!confirm('Remove "' + (field.label || field.id) + '" as an editable field? The element stays on the page but can no longer be edited here.')) return;
+        api(URLS.removeAnnotation, { field_id: field.id }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not remove field', 'error'); return; }
+            schema = data.schema;
+            var parts = splitId(field.id);
+            if (state[parts[0]]) delete state[parts[0]][parts[1]];
+            renderSidebar();
+            refreshPreview(true);
+            toast('Field removed', 'success');
+        }).catch(function () { toast('Could not remove field', 'error'); });
+    }
+
+    /* ---------- Import ---------- */
+    document.getElementById('cmx-import-open').addEventListener('click', function () { openModal('cmx-import-modal'); });
+    var importDrop = document.getElementById('cmx-import-drop');
+    var importFile = document.getElementById('cmx-import-file');
+    var importFileName = document.getElementById('cmx-import-file-name');
+    var pendingImportFile = null;
+    var useSavedCheckbox = document.getElementById('cmx-use-saved');
+    var useAiCheckbox = document.getElementById('cmx-use-ai');
+    var importManual = document.getElementById('cmx-import-manual');
+
+    function syncImportSource() {
+        if (useSavedCheckbox && importManual) importManual.classList.toggle('dimmed', useSavedCheckbox.checked);
+    }
+    if (useSavedCheckbox) {
+        useSavedCheckbox.addEventListener('change', syncImportSource);
+        syncImportSource();
+    }
+
+    importDrop.addEventListener('click', function () { importFile.click(); });
+    importFile.addEventListener('change', function () { setImportFile(importFile.files[0]); });
+    ['dragover', 'dragenter'].forEach(function (evt) {
+        importDrop.addEventListener(evt, function (ev) { ev.preventDefault(); importDrop.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function (evt) {
+        importDrop.addEventListener(evt, function (ev) { ev.preventDefault(); importDrop.classList.remove('dragover'); });
+    });
+    importDrop.addEventListener('drop', function (ev) {
+        if (ev.dataTransfer.files && ev.dataTransfer.files[0]) setImportFile(ev.dataTransfer.files[0]);
+    });
+    function setImportFile(file) {
+        pendingImportFile = file || null;
+        importFileName.textContent = file ? 'Selected: ' + file.name : '';
+    }
+
+    document.getElementById('cmx-import-confirm').addEventListener('click', function () {
+        var btn = this;
+        var useSaved = !!(useSavedCheckbox && useSavedCheckbox.checked);
+        var useAi = !!(useAiCheckbox && useAiCheckbox.checked);
+        var pasted = document.getElementById('cmx-import-textarea').value.trim();
+        if (!useSaved && !pasted && !pendingImportFile) { toast('Paste HTML, choose a file, or use your saved HTML.', 'error'); return; }
+        btn.disabled = true;
+        var originalHtml = btn.innerHTML;
+        btn.innerHTML = useAi
+            ? '<i class="fas fa-wand-magic-sparkles fa-fade"></i> Annotating with AI…'
+            : '<i class="fas fa-circle-notch fa-spin"></i> Importing…';
+        var request;
+        if (useSaved) {
+            request = api(URLS.importHtml, { source: 'stored_custom_html', force: true, use_ai: useAi });
+        } else if (pendingImportFile) {
+            var fd = new FormData();
+            fd.append('html_file', pendingImportFile);
+            fd.append('force', '1');
+            fd.append('use_ai', useAi ? '1' : '0');
+            request = api(URLS.importHtml, fd, false);
+        } else {
+            request = api(URLS.importHtml, { html: pasted, force: true, use_ai: useAi });
+        }
+        request.then(function (data) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            if (data.success) {
+                var how = data.ai_used ? 'AI found' : 'Found';
+                toast('Imported! ' + how + ' ' + (data.field_count || 0) + ' editable fields. Reloading…', 'success');
+                if (data.ai_error) toast('AI was unavailable (' + data.ai_error + ') — used automatic detection instead.', 'info');
+                dirty = false;
+                setTimeout(function () { window.location.reload(); }, 900);
+            } else toast(data.error || 'Import failed', 'error');
+        }).catch(function () { btn.disabled = false; btn.innerHTML = originalHtml; toast('Import failed', 'error'); });
+    });
+
+    /* ---------- Reset / publish ---------- */
+    document.getElementById('cmx-reset-template').addEventListener('click', function () {
+        if (!confirm('Reset to the default template? Your imported HTML and all edits will be lost.')) return;
+        api(URLS.reset, {}).then(function (data) {
+            if (data.success) { dirty = false; window.location.reload(); }
+            else toast(data.error || 'Reset failed', 'error');
+        });
+    });
+
+    publishBtn.addEventListener('click', function () {
+        publishBtn.disabled = true;
+        publishLabel.textContent = 'Publishing…';
+        saveNow().then(function () { return api(URLS.publish, {}); }).then(function (data) {
+            publishBtn.disabled = false;
+            if (data && data.success) {
+                publishLabel.textContent = 'Published';
+                toast('Landing page published — it is now live.', 'success');
+            } else {
+                publishLabel.textContent = 'Publish';
+                toast((data && data.error) || 'Publish failed', 'error');
+            }
+        }).catch(function () {
+            publishBtn.disabled = false;
+            publishLabel.textContent = 'Publish';
+            toast('Publish failed', 'error');
+        });
+    });
+
+    /* ---------- Init ---------- */
+    renderSidebar();
+    frameLoading.classList.add('show');
+});
+</script>
+{% endblock %}

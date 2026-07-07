@@ -103,6 +103,33 @@ def get_tenant_public_home_url(request, tenant):
     if tenant is None:
         return ''
 
+    def _is_local(value):
+        value = (value or '').lower()
+        return (
+            value in {'localhost', '127.0.0.1', '0.0.0.0', 'lvh.me'}
+            or value.startswith('127.')
+            or value.endswith('.local')
+            or value.endswith('.lvh.me')
+            or value.endswith('.localhost')
+        )
+
+    def _split_host_port(raw_host):
+        raw_host = (raw_host or '').strip()
+        if ':' not in raw_host:
+            return raw_host, ''
+        host, port = raw_host.rsplit(':', 1)
+        return host, port
+
+    # Local development: always point at the local tenant subdomain, never the
+    # production domains stored in the database.
+    if request:
+        req_host, req_port = _split_host_port(request.get_host())
+        if _is_local(req_host):
+            tenant_host = f'{tenant.slug}.lvh.me'
+            if req_port:
+                tenant_host = f'{tenant_host}:{req_port}'
+            return f'{request.scheme}://{tenant_host}/'
+
     # Prefer verified primary domain, then verified temporary, then configured custom,
     # then generated temporary domain.
     primary = tenant.domains.filter(is_primary=True, is_verified=True).first()
@@ -113,17 +140,6 @@ def get_tenant_public_home_url(request, tenant):
         or (tenant.custom_domain or '').strip().lower()
         or build_temporary_domain(tenant.slug)
     )
-
-    def _is_local(value):
-        value = (value or '').lower()
-        return value in {'localhost', '127.0.0.1'} or value.startswith('127.') or value.endswith('.local')
-
-    def _split_host_port(raw_host):
-        raw_host = (raw_host or '').strip()
-        if ':' not in raw_host:
-            return raw_host, ''
-        host, port = raw_host.rsplit(':', 1)
-        return host, port
 
     if domain:
         # Public/custom domains should default to HTTPS; local dev stays HTTP-friendly.

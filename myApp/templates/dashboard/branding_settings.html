@@ -73,7 +73,12 @@
             <div class="space-y-4">
                 <div class="rounded-lg border border-white/10 bg-[#0a0e27] p-3 text-sm text-gray-300">
                     Current mode:
-                    <span class="font-semibold text-cyan-300">{% if landing_mode == 'custom' %}Custom HTML{% else %}Default template{% endif %}</span>
+                    <span class="font-semibold text-cyan-300">
+                        {% if landing_mode == 'cms' %}Visual CMS{% elif landing_mode == 'custom' %}Custom HTML{% else %}Default template{% endif %}
+                    </span>
+                    {% if landing_mode == 'cms' %}
+                    · Published: <span class="font-semibold {% if landing_cms_published %}text-emerald-300{% else %}text-amber-300{% endif %}">{% if landing_cms_published %}Yes{% else %}Draft{% endif %}</span>
+                    {% endif %}
                     · Stored HTML:
                     <span class="font-semibold text-cyan-300">{{ landing_html|length }}</span> chars
                     {% if tenant_site_url %}
@@ -82,17 +87,29 @@
                 </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1">Landing Mode</label>
-                    <select name="landing_mode" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
-                        <option value="default" {% if landing_mode != 'custom' %}selected{% endif %}>Use platform template</option>
-                        <option value="custom" {% if landing_mode == 'custom' %}selected{% endif %}>Use custom HTML</option>
+                    <select name="landing_mode" id="landing-mode-select" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="default" {% if landing_mode == 'default' %}selected{% endif %}>Use platform template</option>
+                        <option value="cms" {% if landing_mode == 'cms' %}selected{% endif %}>Visual CMS editor (recommended)</option>
+                        <option value="custom" {% if landing_mode == 'custom' %}selected{% endif %}>Use custom HTML (advanced)</option>
                     </select>
-                    <p class="text-xs text-gray-400 mt-1">Custom HTML replaces the default landing page for your tenant domain.</p>
+                    <p class="text-xs text-gray-400 mt-1">Visual CMS lets you edit text, images, and links without touching HTML.</p>
                 </div>
-                <div>
+                <div id="landing-cms-panel" class="rounded-lg border border-cyan-electric/20 bg-cyan-electric/5 p-4 {% if landing_mode != 'cms' %}hidden{% endif %}">
+                    <p class="text-sm text-gray-200 mb-3">Open the visual editor to change hero copy, features, footer, and brand colors.</p>
+                    <a href="{% url 'dashboard_landing_cms_editor' %}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-electric/20 border border-cyan-electric/40 text-cyan-electric text-sm hover:bg-cyan-electric/30 transition">
+                        <i class="fas fa-paint-brush"></i>
+                        Open Visual Editor
+                    </a>
+                    {% if landing_mode == 'cms' and cms_schema.sections %}
+                    <p class="text-xs text-gray-400 mt-3">{{ cms_schema.sections|length }} editable section{{ cms_schema.sections|length|pluralize }} detected.</p>
+                    {% endif %}
+                </div>
+                <div id="landing-custom-panel" class="space-y-4 {% if landing_mode != 'custom' %}hidden{% endif %}">
+                    <div>
                     <label class="block text-sm text-gray-300 mb-1">Upload HTML file (recommended)</label>
                     <input id="landing-html-file" type="file" name="landing_html_file" accept=".html,.htm,text/html" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
                     <p class="text-xs text-gray-400 mt-1">For large pages, upload the .html file instead of pasting so the full <span class="text-cyan-300">&lt;head&gt;</span> and <span class="text-cyan-300">&lt;style&gt;</span> block are preserved.</p>
-                </div>
+                    </div>
                 <div>
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <label class="block text-sm text-gray-300">Or paste landing HTML</label>
@@ -120,6 +137,7 @@
                     <input type="checkbox" name="clear_landing_html" value="1" class="rounded">
                     Clear stored custom HTML
                 </label>
+                </div>
             </div>
         </div>
 
@@ -364,6 +382,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const landingTextarea = document.getElementById('landing-html-textarea');
     const landingHtmlStatus = document.getElementById('landing-html-status');
     const landingModeSelect = document.querySelector('select[name="landing_mode"]');
+    const landingCmsPanel = document.getElementById('landing-cms-panel');
+    const landingCustomPanel = document.getElementById('landing-custom-panel');
+    function syncLandingModePanels() {
+        if (!landingModeSelect) return;
+        const mode = landingModeSelect.value;
+        if (landingCmsPanel) landingCmsPanel.classList.toggle('hidden', mode !== 'cms');
+        if (landingCustomPanel) landingCustomPanel.classList.toggle('hidden', mode !== 'custom');
+    }
+    if (landingModeSelect) {
+        landingModeSelect.addEventListener('change', syncLandingModePanels);
+        syncLandingModePanels();
+    }
     const useSignupSampleBtn = document.getElementById('use-signup-sample');
     const signupTextarea = document.querySelector('textarea[name="signup_html"]');
     const signupModeSelect = document.querySelector('select[name="signup_mode"]');
