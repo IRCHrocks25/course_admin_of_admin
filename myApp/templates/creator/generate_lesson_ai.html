@@ -601,6 +601,87 @@
 
         <!-- Generation Settings -->
         {% include "components/_step_slider_assets.html" %}
+
+        {% if translation_languages %}
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-emerald-400/20 rounded-xl p-6 mt-8">
+            <h3 class="text-lg font-bold mb-1">Translations</h3>
+            <p class="text-sm text-gray-400 mb-4">Generate and approve localized versions of this lesson for your enabled tenant languages.</p>
+
+            <div class="flex flex-wrap gap-2 mb-6">
+                {% for lang in translation_languages %}
+                <a href="?translation_lang={{ lang }}"
+                   class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
+                   {% if lang == active_translation_lang %}bg-emerald-400/20 border-emerald-400/50 text-emerald-300{% else %}border-white/20 text-gray-300 hover:border-emerald-400/30{% endif %}">
+                    {% if lang == 'it' %}Italian{% elif lang == 'fil' %}Filipino{% else %}{{ lang|upper }}{% endif %}
+                    {% for code, tr in lesson_translations.items %}
+                        {% if code == lang %}
+                        <span class="ml-1 opacity-70">({{ tr.status }})</span>
+                        {% endif %}
+                    {% endfor %}
+                </a>
+                {% endfor %}
+            </div>
+
+            {% if active_translation_lang %}
+            <input type="hidden" name="translation_language" value="{{ active_translation_lang }}">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Translated Title</label>
+                    <input type="text" name="translation_title" value="{% if active_translation %}{{ active_translation.title|default:active_translation.ai_clean_title|default:'' }}{% endif %}"
+                           class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Translated Clean Title</label>
+                    <input type="text" name="translation_clean_title" value="{% if active_translation %}{{ active_translation.ai_clean_title|default:'' }}{% endif %}"
+                           class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Short Summary</label>
+                    <textarea name="translation_short_summary" rows="2"
+                              class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm resize-none">{% if active_translation %}{{ active_translation.ai_short_summary|default:'' }}{% endif %}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Full Description</label>
+                    <textarea name="translation_full_description" rows="5"
+                              class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm resize-none">{% if active_translation %}{{ active_translation.ai_full_description|default:'' }}{% endif %}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Outcomes (one per line)</label>
+                    <textarea name="translation_outcomes" rows="4"
+                              class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm resize-none">{% if active_translation %}{% for outcome in active_translation.get_outcomes_list %}{{ outcome }}{% if not forloop.last %}
+{% endif %}{% endfor %}{% endif %}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Coach Actions (one per line)</label>
+                    <textarea name="translation_coach_actions" rows="3"
+                              class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm resize-none">{% if active_translation %}{% for action in active_translation.get_coach_actions_list %}{{ action }}{% if not forloop.last %}
+{% endif %}{% endfor %}{% endif %}</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-300">Content Blocks (JSON)</label>
+                    <textarea name="translation_content_blocks" id="translation-content-blocks-input" rows="10"
+                              class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-xs font-mono resize-none"></textarea>
+                    {{ translation_content_data|json_script:"translation-content-data" }}
+                </div>
+                <div class="flex flex-wrap gap-3 pt-2">
+                    <button type="submit" name="action" value="generate_translation"
+                            class="px-5 py-2 bg-emerald-500/20 border border-emerald-400/40 rounded-full text-sm font-semibold hover:bg-emerald-500/30 transition-all text-emerald-300">
+                        <i class="fas fa-language mr-1"></i> Generate Translation
+                    </button>
+                    <button type="submit" name="action" value="edit_translation"
+                            class="px-5 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full text-sm font-medium hover:bg-cyan-electric/20 transition-all">
+                        Save Translation
+                    </button>
+                    <button type="submit" name="action" value="approve_translation"
+                            class="px-5 py-2 bg-emerald-500 text-white rounded-full text-sm font-bold hover:bg-emerald-500/90 transition-all">
+                        Publish Translation
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/20 rounded-xl p-6 mt-8">
             <h3 class="text-lg font-bold mb-1">Generation settings</h3>
             <p class="text-sm text-gray-400 mb-6">These shape the AI output when you click Regenerate.</p>
@@ -1728,6 +1809,17 @@
     });
 
     updateVideoPreview();
+
+    const translationContentEl = document.getElementById('translation-content-data');
+    const translationContentInput = document.getElementById('translation-content-blocks-input');
+    if (translationContentEl && translationContentInput) {
+        try {
+            const payload = JSON.parse(translationContentEl.textContent || '{}');
+            translationContentInput.value = JSON.stringify(payload, null, 2);
+        } catch (e) {
+            translationContentInput.value = '{"blocks": []}';
+        }
+    }
 
     if (verifyVimeoBtn) {
         verifyVimeoBtn.addEventListener('click', function() {

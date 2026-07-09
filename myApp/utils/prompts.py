@@ -6,6 +6,7 @@ call sites in dashboard_views.py.
 """
 from dataclasses import dataclass, asdict
 from typing import Tuple
+import json
 
 
 @dataclass(frozen=True)
@@ -316,3 +317,54 @@ Key outcomes:
 {outcomes_text}
 
 Write the image brief now. Output ONLY the brief — no preamble, no headings, no JSON, no quotes. 3-5 paragraphs of dense, concrete visual direction the image model can execute on."""
+
+
+LANGUAGE_NAMES = {
+    'it': 'Italian',
+    'fil': 'Filipino',
+    'es': 'Spanish',
+    'fr': 'French',
+    'de': 'German',
+    'pt': 'Portuguese',
+}
+
+
+def build_lesson_translation_prompt(lesson_payload, target_language_code):
+    """Build prompt to translate English lesson metadata + Editor.js blocks."""
+    language_name = LANGUAGE_NAMES.get(target_language_code, target_language_code)
+    content_json = json.dumps(lesson_payload.get('content_blocks', []), ensure_ascii=False, indent=2)
+    outcomes_json = json.dumps(lesson_payload.get('outcomes', []), ensure_ascii=False)
+    coach_json = json.dumps(lesson_payload.get('coach_actions', []), ensure_ascii=False)
+
+    return f"""You are an expert translator for online course content. Translate the following English lesson into natural, fluent {language_name}.
+
+Rules:
+- Translate all human-readable text fields.
+- Preserve JSON structure exactly.
+- Do NOT translate URLs, IDs, block types, or header levels.
+- Keep the same number of content blocks in the same order.
+- Use professional, educational tone appropriate for adult learners.
+
+English source:
+Title: {lesson_payload.get('title', '')}
+Short summary: {lesson_payload.get('short_summary', '')}
+Full description: {lesson_payload.get('full_description', '')}
+Outcomes: {outcomes_json}
+Coach actions: {coach_json}
+Content blocks: {content_json}
+
+Return JSON only:
+{{
+  "title": "translated title",
+  "short_summary": "translated summary",
+  "full_description": "translated description",
+  "outcomes": ["..."],
+  "coach_actions": ["..."],
+  "content": [
+    {{"type": "header", "text": "...", "level": 2}},
+    {{"type": "paragraph", "text": "..."}},
+    {{"type": "list", "style": "unordered", "items": ["..."]}},
+    {{"type": "quote", "text": "...", "caption": "..."}}
+  ]
+}}"""
+

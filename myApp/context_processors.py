@@ -1,6 +1,7 @@
 from .utils.branding import get_tenant_branding
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import get_default_tenant, is_clear_tenant_requested
+from .utils.localization import attach_localization_context
 from .models import TenantMembership, Tenant, TenantNotificationDelivery
 
 
@@ -123,4 +124,5 @@ def tenant_context(request):
         'dashboard_impersonating': dashboard_impersonating,
         'dashboard_default_tenant_slug': dashboard_default_tenant_slug,
         'pending_notification': pending_notification,
+        **attach_localization_context(request, tenant),
     }

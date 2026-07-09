@@ -105,8 +105,10 @@ MIDDLEWARE = [
     'myApp.middleware.ProtectiveThrottleMiddleware',
     'myApp.middleware.TenantMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'myApp.middleware.LanguageMiddleware',
     'myApp.middleware.StudentIPTrackingMiddleware',
     'myApp.middleware.ForcePasswordChangeMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -191,6 +193,14 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
+
+LANGUAGES = [
+    ('en-us', 'English'),
+    ('it', 'Italiano'),
+    ('fil', 'Filipino'),
+]
+
+LOCALE_PATHS = [BASE_DIR / 'locale']
 
 TIME_ZONE = 'UTC'
 

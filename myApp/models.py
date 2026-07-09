@@ -339,6 +339,35 @@ class CourseResource(models.Model):
         return self.file_url
 
 
+class CourseTranslation(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('approved', 'Approved'),
+    ]
+    SOURCE_CHOICES = [
+        ('manual', 'Manual'),
+        ('ai', 'AI'),
+    ]
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10)
+    name = models.CharField(max_length=200, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    short_description = models.CharField(max_length=1000, blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    translation_source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('course', 'language_code')]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f"{self.course.name} [{self.language_code}]"
+
+
 class Module(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='modules', null=True, blank=True)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
@@ -351,6 +380,34 @@ class Module(models.Model):
     
     def __str__(self):
         return f"{self.course.name} - {self.name}"
+
+
+class ModuleTranslation(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('approved', 'Approved'),
+    ]
+    SOURCE_CHOICES = [
+        ('manual', 'Manual'),
+        ('ai', 'AI'),
+    ]
+
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10)
+    name = models.CharField(max_length=200, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    translation_source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('module', 'language_code')]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f"{self.module.name} [{self.language_code}]"
 
 
 class Lesson(models.Model):
@@ -531,6 +588,71 @@ class Lesson(models.Model):
         return []
 
 
+class LessonTranslation(models.Model):
+    """Localized lesson content. English remains on Lesson; this table is optional per language."""
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('generated', 'Generated'),
+        ('approved', 'Approved'),
+        ('published', 'Published'),
+    ]
+    SOURCE_CHOICES = [
+        ('manual', 'Manual'),
+        ('ai', 'AI'),
+    ]
+
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10, help_text="ISO 639-1/639-2 code, e.g. it, fil")
+    title = models.CharField(max_length=200, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    ai_clean_title = models.CharField(max_length=200, blank=True, default='')
+    ai_short_summary = models.TextField(blank=True, default='')
+    ai_full_description = models.TextField(blank=True, default='')
+    ai_outcomes = models.JSONField(default=list, blank=True)
+    ai_coach_actions = models.JSONField(default=list, blank=True)
+    content = models.JSONField(default=dict, blank=True, help_text="Editor.js content blocks")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    translation_source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    audio_url = models.URLField(blank=True, default='')
+    audio_status = models.CharField(max_length=20, default='pending', choices=[
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+    ])
+    audio_duration_seconds = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('lesson', 'language_code')]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f"{self.lesson.title} [{self.language_code}]"
+
+    def get_outcomes_list(self):
+        if isinstance(self.ai_outcomes, list):
+            return self.ai_outcomes
+        if isinstance(self.ai_outcomes, str):
+            try:
+                return json.loads(self.ai_outcomes)
+            except Exception:
+                return []
+        return []
+
+    def get_coach_actions_list(self):
+        if isinstance(self.ai_coach_actions, list):
+            return self.ai_coach_actions
+        if isinstance(self.ai_coach_actions, str):
+            try:
+                return json.loads(self.ai_coach_actions)
+            except Exception:
+                return []
+        return []
+
+
 class LessonQuiz(models.Model):
     """Optional quiz that can be attached to a lesson."""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='lesson_quizzes', null=True, blank=True)
@@ -573,6 +695,69 @@ class LessonQuizQuestion(models.Model):
 
     def __str__(self):
         return f"Q{self.order} for {self.quiz.lesson.title}"
+
+
+class LessonQuizTranslation(models.Model):
+    """Localized quiz title and description."""
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('generated', 'Generated'),
+        ('approved', 'Approved'),
+        ('published', 'Published'),
+    ]
+    SOURCE_CHOICES = [
+        ('manual', 'Manual'),
+        ('ai', 'AI'),
+    ]
+
+    quiz = models.ForeignKey(LessonQuiz, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10)
+    title = models.CharField(max_length=200, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    translation_source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('quiz', 'language_code')]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f"Quiz translation [{self.language_code}] for {self.quiz.lesson.title}"
+
+
+class LessonQuizQuestionTranslation(models.Model):
+    """Localized quiz question text and options. correct_option stays on the base question."""
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('generated', 'Generated'),
+        ('approved', 'Approved'),
+        ('published', 'Published'),
+    ]
+    SOURCE_CHOICES = [
+        ('manual', 'Manual'),
+        ('ai', 'AI'),
+    ]
+
+    question = models.ForeignKey(LessonQuizQuestion, on_delete=models.CASCADE, related_name='translations')
+    language_code = models.CharField(max_length=10)
+    text = models.TextField(blank=True, default='')
+    option_a = models.CharField(max_length=300, blank=True, default='')
+    option_b = models.CharField(max_length=300, blank=True, default='')
+    option_c = models.CharField(max_length=300, blank=True, default='')
+    option_d = models.CharField(max_length=300, blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    translation_source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('question', 'language_code')]
+        ordering = ['language_code']
+
+    def __str__(self):
+        return f"Question translation [{self.language_code}] Q{self.question.order}"
 
 
 class LessonQuizAttempt(models.Model):
@@ -1076,6 +1261,16 @@ class TenantMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} @ {self.tenant.slug} ({self.role})"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    preferred_language = models.CharField(max_length=10, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Profile for {self.user.username}"
 
 
 class StudentIPLog(models.Model):

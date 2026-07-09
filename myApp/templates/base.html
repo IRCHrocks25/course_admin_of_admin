@@ -535,6 +535,16 @@
                 {% if user.is_superuser %}
                 <a href="{% url 'superadmin_home' %}" class="brand-nav-link {% if '/superadmin' in request.path %}is-active{% endif %}">Super Admin</a>
                 {% endif %}
+                {% if show_language_switcher %}
+                <label class="brand-nav-link inline-flex items-center gap-2">
+                    <i class="fas fa-globe text-sm"></i>
+                    <select id="language-switcher" class="bg-transparent border-none text-inherit cursor-pointer" onchange="setLanguage(this.value)">
+                        {% for item in enabled_language_choices %}
+                        <option value="{{ item.code }}" {% if item.code == current_language %}selected{% endif %}>{{ item.label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% endif %}
                 {% if user.is_authenticated %}
                 <span class="brand-nav-divider" aria-hidden="true"></span>
                 <button onclick="toggleTheme()" class="brand-nav-theme" title="Toggle theme" aria-label="Toggle theme">
@@ -627,6 +637,20 @@
             if (moon) moon.style.display = data.theme === 'light' ? 'inline' : 'none';
             if (sun) sun.style.display = data.theme === 'dark' ? 'inline' : 'none';
             setTimeout(function() { body.classList.remove('theme-transitioning'); }, 350);
+        });
+    }
+
+    function setLanguage(code) {
+        var csrfToken = '{{ csrf_token }}';
+        fetch('{% url "set_language_preference" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ language: code }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) window.location.reload();
         });
     }
     </script>

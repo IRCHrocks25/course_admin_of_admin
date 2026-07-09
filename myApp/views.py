@@ -34,6 +34,7 @@ from .models import (
     Course,
     CourseCategory,
     Lesson,
+    LessonTranslation,
     Module,
     Tenant,
     TenantConfig,
@@ -68,6 +69,22 @@ from .utils.domains import ensure_temporary_domain, get_platform_base_domain, ge
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
 from .utils.tenancy import get_default_tenant
 from .utils.lesson_audio import generate_lesson_audio_async
+from .utils.localization import (
+    get_tenant_language_config,
+    get_tenant_lesson_languages,
+    get_request_language,
+    resolve_lesson,
+    resolve_lesson_display,
+    resolve_quiz_display,
+    resolve_quiz_question_display,
+    build_lesson_title_map,
+    show_language_switcher,
+    get_translation_languages_for_tenant,
+    get_language_label,
+    SUPPORTED_LANGUAGES as LANGUAGE_LABELS,
+    set_user_preferred_language,
+    normalize_language_code,
+)
 # Reuse the LLM helpers from dashboard_views so the per-lesson Regenerate button
 # uses the same prompts and OpenAI wiring as the course-creation pipeline.
 from .dashboard_views import (
@@ -2088,6 +2105,11 @@ def course_detail(request, course_slug):
     )
     can_purchase = bool(course.price and stripe_ready and prereqs_met)
 
+    tenant = getattr(course, 'tenant', None) or getattr(request, 'tenant', None)
+    language_config = get_tenant_language_config(tenant)
+    active_language = get_request_language(request, tenant)
+    lesson_display_titles = build_lesson_title_map(ordered_lessons, active_language)
+
     return render(request, 'course_detail.html', {
         'course': course,
         'has_access': has_access,
@@ -2102,6 +2124,11 @@ def course_detail(request, course_slug):
         'continue_lesson': continue_lesson,
         'user_lessons_done': user_lessons_done,
         'user_progress_pct': user_progress_pct,
+        'active_language': active_language,
+        'enabled_languages': language_config['enabled'],
+        'show_language_switcher': show_language_switcher(tenant, language_config),
+        'language_labels': LANGUAGE_LABELS,
+        'lesson_display_titles': lesson_display_titles,
     })
 
 
@@ -2230,9 +2257,17 @@ def lesson_detail(request, course_slug, lesson_slug):
         latest_quiz_attempt = quiz_attempts.first() if quiz_attempts.exists() else None
         quiz_passed = quiz_attempts.filter(passed=True).exists()
 
+    tenant = getattr(course, 'tenant', None) or getattr(request, 'tenant', None)
+    language_config = get_tenant_language_config(tenant)
+    active_language = get_request_language(request, tenant)
+    lesson_display = resolve_lesson(lesson, active_language)
+    lesson_display_titles = build_lesson_title_map(all_lessons, active_language)
+    quiz_display = resolve_quiz_display(lesson_quiz, active_language) if lesson_quiz else None
+
     return render(request, 'lesson.html', {
         'course': course,
         'lesson': lesson,
+        'lesson_display': lesson_display,
         'progress_percentage': progress_percentage,
         'completed_lessons': completed_lessons,
         'accessible_lessons': accessible_lessons,
@@ -2245,10 +2280,16 @@ def lesson_detail(request, course_slug, lesson_slug):
         'has_more_modules': has_more_modules,
         'is_last_in_module': is_last_in_module,
         'lesson_quiz': lesson_quiz,
+        'quiz_display': quiz_display,
         'quiz_attempts': quiz_attempts,
         'latest_quiz_attempt': latest_quiz_attempt,
         'quiz_passed': quiz_passed,
         'orphan_lessons': [l for l in all_lessons if not l.module_id],
+        'active_language': active_language,
+        'enabled_languages': language_config['enabled'],
+        'show_language_switcher': show_language_switcher(tenant, language_config),
+        'language_labels': LANGUAGE_LABELS,
+        'lesson_display_titles': lesson_display_titles,
     })
 
 
@@ -2424,14 +2465,33 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
             'certificate_id': certificate_id,
         }
 
+    tenant = getattr(course, 'tenant', None) or getattr(request, 'tenant', None)
+    language_config = get_tenant_language_config(tenant)
+    active_language = get_request_language(request, tenant)
+    lesson_display = resolve_lesson(lesson, active_language)
+    quiz_display = resolve_quiz_display(quiz, active_language)
+    resolved_questions = [
+        resolve_quiz_question_display(q, active_language) for q in questions
+    ]
+    all_lessons_list = list(all_lessons)
+    lesson_display_titles = build_lesson_title_map(all_lessons_list, active_language)
+
     return render(request, 'lesson_quiz.html', {
         'course': course,
         'lesson': lesson,
+        'lesson_display': lesson_display,
         'quiz': quiz,
+        'quiz_display': quiz_display,
         'questions': questions,
+        'resolved_questions': resolved_questions,
         'result': result,
         'next_lesson': next_lesson,
         'orphan_lessons': [l for l in all_lessons if not l.module_id],
+        'active_language': active_language,
+        'enabled_languages': language_config['enabled'],
+        'show_language_switcher': show_language_switcher(tenant, language_config),
+        'language_labels': LANGUAGE_LABELS,
+        'lesson_display_titles': lesson_display_titles,
     })
 
 
@@ -2763,12 +2823,117 @@ def generate_lesson_ai(request, course_slug, lesson_id):
             lesson.save(update_fields=['ai_full_description', 'ai_generation_status'])
             messages.success(request, 'Full lesson description improved with AI.')
 
+        elif action == 'generate_translation':
+            language_code = normalize_language_code(request.POST.get('translation_language'))
+            tenant = course.tenant
+            enabled = get_translation_languages_for_tenant(tenant)
+            if language_code not in enabled:
+                messages.error(request, 'That language is not enabled for this tenant.')
+            elif not os.getenv('OPENAI_API_KEY'):
+                messages.error(request, 'OPENAI_API_KEY is not configured.')
+            else:
+                try:
+                    from myApp.utils.translation import generate_lesson_translation
+                    generate_lesson_translation(lesson, language_code)
+                    messages.success(
+                        request,
+                        f'{get_language_label(language_code)} draft translation generated. Review and publish when ready.',
+                    )
+                except Exception as e:
+                    messages.error(request, f'Translation failed: {e}')
+
+        elif action == 'edit_translation':
+            language_code = (request.POST.get('translation_language') or '').strip().lower()
+            if not language_code:
+                messages.error(request, 'Missing translation language.')
+            else:
+                translation, _ = LessonTranslation.objects.get_or_create(
+                    lesson=lesson,
+                    language_code=language_code,
+                )
+                translation.title = request.POST.get('translation_title', translation.title)
+                translation.ai_clean_title = request.POST.get('translation_clean_title', translation.ai_clean_title)
+                translation.ai_short_summary = request.POST.get('translation_short_summary', translation.ai_short_summary)
+                translation.ai_full_description = request.POST.get('translation_full_description', translation.ai_full_description)
+                translation.description = translation.ai_full_description
+                outcomes_text = request.POST.get('translation_outcomes', '')
+                if outcomes_text:
+                    translation.ai_outcomes = [o.strip() for o in outcomes_text.split('\n') if o.strip()]
+                coach_text = request.POST.get('translation_coach_actions', '')
+                if coach_text:
+                    translation.ai_coach_actions = [a.strip() for a in coach_text.split('\n') if a.strip()]
+                content_raw = request.POST.get('translation_content_blocks', '')
+                if content_raw:
+                    try:
+                        content_data = json.loads(content_raw)
+                        if isinstance(content_data, dict) and 'blocks' in content_data:
+                            translation.content = content_data
+                        elif isinstance(content_data, list):
+                            translation.content = {'blocks': content_data}
+                    except json.JSONDecodeError:
+                        pass
+                translation.status = 'draft'
+                translation.save()
+                messages.success(request, f'{get_language_label(language_code)} translation saved.')
+
+        elif action == 'approve_translation':
+            language_code = normalize_language_code(request.POST.get('translation_language'))
+            if not language_code:
+                messages.error(request, 'Missing translation language.')
+            else:
+                translation, _ = LessonTranslation.objects.get_or_create(
+                    lesson=lesson,
+                    language_code=language_code,
+                )
+                translation.title = request.POST.get('translation_title', translation.title or translation.ai_clean_title)
+                translation.ai_clean_title = request.POST.get('translation_clean_title', translation.ai_clean_title or translation.title)
+                translation.ai_short_summary = request.POST.get('translation_short_summary', translation.ai_short_summary)
+                translation.ai_full_description = request.POST.get('translation_full_description', translation.ai_full_description)
+                translation.description = translation.ai_full_description
+                outcomes_text = request.POST.get('translation_outcomes', '')
+                if outcomes_text:
+                    translation.ai_outcomes = [o.strip() for o in outcomes_text.split('\n') if o.strip()]
+                coach_text = request.POST.get('translation_coach_actions', '')
+                if coach_text:
+                    translation.ai_coach_actions = [a.strip() for a in coach_text.split('\n') if a.strip()]
+                content_raw = request.POST.get('translation_content_blocks', '')
+                if content_raw:
+                    try:
+                        content_data = json.loads(content_raw)
+                        if isinstance(content_data, dict) and 'blocks' in content_data:
+                            translation.content = content_data
+                        elif isinstance(content_data, list):
+                            translation.content = {'blocks': content_data}
+                    except json.JSONDecodeError:
+                        pass
+                translation.save()
+                from myApp.utils.translation import publish_lesson_translation
+                publish_lesson_translation(lesson, language_code)
+                messages.success(request, f'{get_language_label(language_code)} translation published.')
+
     # Content for JSON textarea (pass dict for json_script)
     content_data = lesson.content if (lesson.content and isinstance(lesson.content, dict)) else {'blocks': []}
     if 'blocks' not in content_data:
         content_data = {'blocks': []}
 
     panel_settings = _resolve_lesson_generation_settings(request, lesson, course)
+
+    tenant = course.tenant
+    translation_languages = get_translation_languages_for_tenant(tenant)
+    active_translation_lang = (request.GET.get('translation_lang') or '').strip().lower()
+    if active_translation_lang not in translation_languages:
+        active_translation_lang = translation_languages[0] if translation_languages else ''
+    lesson_translations = {
+        t.language_code: t for t in lesson.translations.all()
+    }
+    active_translation = lesson_translations.get(active_translation_lang)
+    translation_content_data = (
+        active_translation.content
+        if active_translation and isinstance(active_translation.content, dict)
+        else {'blocks': []}
+    )
+    if 'blocks' not in translation_content_data:
+        translation_content_data = {'blocks': []}
 
     return render(request, 'creator/generate_lesson_ai.html', {
         'course': course,
@@ -2778,6 +2943,12 @@ def generate_lesson_ai(request, course_slug, lesson_id):
         'reading_level_choices': READING_LEVEL_CHOICES,
         'length_choices': LENGTH_CHOICES,
         'depth_choices': DEPTH_CHOICES,
+        'translation_languages': translation_languages,
+        'active_translation_lang': active_translation_lang,
+        'active_translation': active_translation,
+        'translation_content_data': translation_content_data,
+        'lesson_translations': lesson_translations,
+        'language_labels': LANGUAGE_LABELS,
     })
 
 
@@ -2971,6 +3142,30 @@ def format_duration(seconds):
     minutes = seconds // 60
     secs = seconds % 60
     return f"{minutes}:{secs:02d}"
+
+
+# ========== LANGUAGE PREFERENCE ==========
+
+@require_http_methods(["POST"])
+@login_required
+def set_language_preference(request):
+    """Persist student UI language preference."""
+    tenant = getattr(request, 'tenant', None)
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+
+    language = normalize_language_code(data.get('language'))
+    config = get_tenant_language_config(tenant)
+    if language not in config['enabled']:
+        return JsonResponse({'success': False, 'error': 'Language not enabled.'}, status=400)
+
+    set_user_preferred_language(request.user, language)
+    request.session['preferred_language'] = language
+    response = JsonResponse({'success': True, 'language': language})
+    response.set_cookie('lang', language, max_age=60 * 60 * 24 * 365, samesite='Lax')
+    return response
 
 
 # ========== CHATBOT WEBHOOK ==========

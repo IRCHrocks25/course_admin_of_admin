@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{{ lesson.title }} - {{ course.name }}{% endblock %}
+{% block title %}{{ lesson_display.title }} - {{ course.name }}{% endblock %}
 {% block main_content_classes %}w-full max-w-none mx-0 px-0 py-0 lesson-main-shell{% endblock %}
 
 {% block content %}
@@ -28,8 +28,11 @@
         </figure>
         {% endif %}
 
+        <!-- Language Switcher -->
+        {% include '_language_switcher.html' %}
+
         <!-- Lesson Title -->
-        <h1 class="text-4xl lg:text-2xl font-semibold mb-6 lesson-page-title">{{ lesson.title }}</h1>
+        <h1 class="text-4xl lg:text-2xl font-semibold mb-6 lesson-page-title">{{ lesson_display.title }}</h1>
 
         <!-- AI Audio Narration (only show if audio exists) -->
         {% if lesson.audio_url %}
@@ -117,19 +120,19 @@
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-4">What You'll Learn Today</h3>
                     <p class="text-gray-300 leading-relaxed">
-                        {{ lesson.ai_full_description|default:lesson.description|default:"Learn the fundamentals of live streaming and how to engage your audience in real-time." }}
+                        {{ lesson_display.ai_full_description|default:lesson_display.description|default:"Learn the fundamentals of live streaming and how to engage your audience in real-time." }}
                     </p>
                 </section>
                 
                 <!-- Lesson Notes / Content Blocks -->
-                {% if lesson.content and lesson.content.blocks %}
+                {% if lesson_display.content and lesson_display.content.blocks %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
                         <i class="fas fa-sticky-note text-cyan-electric"></i>
                         Lesson Notes
                     </h2>
                     <div class="prose prose-invert max-w-none">
-                        {% for block in lesson.content.blocks %}
+                        {% for block in lesson_display.content.blocks %}
                             {% if block.type == 'paragraph' %}
                                 <p class="text-gray-300 leading-relaxed mb-4">{{ block.data.text|linebreaks }}</p>
                             {% elif block.type == 'header' %}
@@ -151,14 +154,14 @@
                         {% endfor %}
                     </div>
                 </section>
-                {% elif lesson.description %}
+                {% elif lesson_display.description %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
                         <i class="fas fa-sticky-note text-cyan-electric"></i>
                         Lesson Notes
                     </h2>
                     <div class="prose prose-invert max-w-none text-gray-300 leading-relaxed [&_a]:text-cyan-electric [&_a]:underline [&_a:hover]:opacity-80">
-                        {{ lesson.description|urlize|linebreaks }}
+                        {{ lesson_display.description|urlize|linebreaks }}
                     </div>
                 </section>
                 {% endif %}
@@ -187,11 +190,11 @@
                 {% endif %}
 
                 <!-- This Lesson Will Produce -->
-                {% if lesson.get_outcomes_list %}
+                {% if lesson_display.get_outcomes_list %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-6">This Lesson Will Produce</h3>
                     <ul class="space-y-4">
-                        {% for outcome in lesson.get_outcomes_list %}
+                        {% for outcome in lesson_display.get_outcomes_list %}
                         <li class="flex items-start gap-4">
                             <div class="flex-shrink-0 w-6 h-6 rounded-full bg-cyan-electric/20 border border-cyan-electric/40 flex items-center justify-center mt-0.5">
                                 <i class="fas fa-check text-cyan-electric text-xs"></i>
@@ -221,7 +224,9 @@
                                     {% endif %}
                                 </div>
                             </div>
-                            {% if lesson_quiz.description %}
+                            {% if quiz_display and quiz_display.description %}
+                            <p class="text-gray-300 text-sm mb-4">{{ quiz_display.description }}</p>
+                            {% elif lesson_quiz.description %}
                             <p class="text-gray-300 text-sm mb-4">{{ lesson_quiz.description }}</p>
                             {% endif %}
                             {% if lesson_quiz.is_required %}
@@ -267,7 +272,7 @@
                     
                     <!-- Quiz Action Button -->
                     <a 
-                        href="{% url 'lesson_quiz' course.slug lesson.slug %}"
+                        href="{% url 'lesson_quiz' course.slug lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}"
                         class="quiz-cta-btn inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-cyan-electric hover:bg-cyan-electric/90 text-white font-semibold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                     >
                         <i class="fas {% if latest_quiz_attempt and latest_quiz_attempt.passed %}fa-check{% elif latest_quiz_attempt %}fa-redo{% else %}fa-play{% endif %}"></i>
@@ -874,17 +879,6 @@
         if (videoProgressInterval) {
             clearInterval(videoProgressInterval);
         }
-    });
-    
-    // Module toggle
-    document.querySelectorAll('.module-toggle').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const moduleId = this.dataset.module;
-            const content = document.querySelector(`.module-content[data-module="${moduleId}"]`);
-            const icon = this.querySelector('i');
-            content.classList.toggle('hidden');
-            icon.classList.toggle('rotate-180');
-        });
     });
     
     // Modern Chatbot Interface Functions - Initialize when DOM is ready

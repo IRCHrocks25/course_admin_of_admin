@@ -1,4 +1,5 @@
 <!-- Left Column: Syllabus / Module Navigation - Stuck to Left Edge -->
+{% load dict_extras %}
 <!-- Mobile/Tablet: Normal flow -->
 <!-- Desktop: Fixed to left viewport edge -->
 <div class="w-full lg:fixed lg:left-0 lg:top-24 lg:w-[20%] lg:z-40 mb-6 lg:mb-0 sidebar-left-desktop">
@@ -39,14 +40,14 @@
                 <div class="module-content pl-4 space-y-2" data-module="{{ module.id }}">
                     {% for module_lesson in module.lessons.all %}
                     {% if module_lesson.id in accessible_lessons %}
-                    <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
+                    <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
                         {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
                         <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
                             {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                             {{ forloop.counter }}
                         </div>
                         <span class="flex-1 text-sm leading-snug sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
-                            {{ module_lesson.title }}
+                            {{ lesson_display_titles|dict_get:module_lesson.id|default:module_lesson.title }}
                         </span>
                         {% if module_lesson.id in completed_lessons %}
                         <i class="fas fa-check-circle text-green-400 flex-shrink-0 sidebar-check"></i>
@@ -78,14 +79,14 @@
                         {% for module_lesson in orphan_lessons %}
                             {% if not module_lesson.module_id %}
                                 {% if module_lesson.id in accessible_lessons %}
-                                <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
+                                <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
                                     {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
                                     <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
                                         {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                                         {{ forloop.counter }}
                                     </div>
                                     <span class="flex-1 text-sm leading-snug sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
-                                        {{ module_lesson.title }}
+                                        {{ lesson_display_titles|dict_get:module_lesson.id|default:module_lesson.title }}
                                     </span>
                                     {% if module_lesson.id in completed_lessons %}
                                     <i class="fas fa-check-circle text-green-400 flex-shrink-0 sidebar-check"></i>
@@ -342,25 +343,29 @@
 </style>
 
 <script>
-    document.querySelectorAll('.module-toggle').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const moduleId = this.dataset.module;
-            const content = document.querySelector(`.module-content[data-module="${moduleId}"]`);
-            const icon = this.querySelector('i');
-            if (!content) return;
-            content.classList.toggle('hidden');
-            if (icon) icon.classList.toggle('rotate-180');
-        });
-    });
+    if (!window.__sidebarModuleToggleBound) {
+        window.__sidebarModuleToggleBound = true;
 
-    document.querySelectorAll('.module-content').forEach(function(content) {
-        const hasActive = content.querySelector('.sidebar-lesson-active');
-        const moduleId = content.dataset.module;
-        const toggle = document.querySelector('.module-toggle[data-module="' + moduleId + '"]');
-        const icon = toggle ? toggle.querySelector('i') : null;
-        if (!hasActive) {
-            content.classList.add('hidden');
-            if (icon) icon.classList.add('rotate-180');
-        }
-    });
+        document.querySelectorAll('.module-toggle').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const moduleId = this.dataset.module;
+                const content = document.querySelector(`.module-content[data-module="${moduleId}"]`);
+                const icon = this.querySelector('i');
+                if (!content) return;
+                content.classList.toggle('hidden');
+                if (icon) icon.classList.toggle('rotate-180');
+            });
+        });
+
+        document.querySelectorAll('.module-content').forEach(function(content) {
+            const hasActive = content.querySelector('.sidebar-lesson-active');
+            const moduleId = content.dataset.module;
+            const toggle = document.querySelector('.module-toggle[data-module="' + moduleId + '"]');
+            const icon = toggle ? toggle.querySelector('i') : null;
+            if (!hasActive) {
+                content.classList.add('hidden');
+                if (icon) icon.classList.add('rotate-180');
+            }
+        });
+    }
 </script>

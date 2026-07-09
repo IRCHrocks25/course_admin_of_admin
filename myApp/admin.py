@@ -1,7 +1,10 @@
 from django.contrib import admin
 from .models import (
     Tenant, TenantConfig, TenantMembership, TenantDomain,
-    Course, CourseResource, Module, Lesson, UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
+    Course, CourseResource, Module, Lesson, LessonTranslation,
+    CourseTranslation, ModuleTranslation, UserProfile,
+    LessonQuizTranslation, LessonQuizQuestionTranslation,
+    UserProgress, CourseEnrollment, Exam, ExamAttempt, Certification,
     Cohort, CohortMember, Bundle, BundlePurchase, CourseAccess, LearningPath, LearningPathCourse,
     PricingTier, TenantNotification, TenantNotificationDelivery,
     ForumCategory, ForumPost, ForumComment, ForumReaction,
@@ -75,6 +78,50 @@ class LessonAdmin(admin.ModelAdmin):
             'fields': ('description', 'workbook_url', 'resources_url')
         }),
     )
+
+
+class LessonTranslationInline(admin.TabularInline):
+    model = LessonTranslation
+    extra = 0
+    fields = ['language_code', 'title', 'status', 'updated_at']
+    readonly_fields = ['updated_at']
+
+
+@admin.register(LessonTranslation)
+class LessonTranslationAdmin(admin.ModelAdmin):
+    list_display = ['lesson', 'language_code', 'status', 'updated_at']
+    list_filter = ['language_code', 'status']
+    search_fields = ['lesson__title', 'title', 'language_code']
+
+
+@admin.register(LessonQuizTranslation)
+class LessonQuizTranslationAdmin(admin.ModelAdmin):
+    list_display = ['quiz', 'language_code', 'status', 'updated_at']
+    list_filter = ['language_code', 'status']
+
+
+@admin.register(LessonQuizQuestionTranslation)
+class LessonQuizQuestionTranslationAdmin(admin.ModelAdmin):
+    list_display = ['question', 'language_code', 'status', 'updated_at']
+    list_filter = ['language_code', 'status']
+
+
+@admin.register(CourseTranslation)
+class CourseTranslationAdmin(admin.ModelAdmin):
+    list_display = ['course', 'language_code', 'status', 'updated_at']
+    list_filter = ['language_code', 'status']
+
+
+@admin.register(ModuleTranslation)
+class ModuleTranslationAdmin(admin.ModelAdmin):
+    list_display = ['module', 'language_code', 'status', 'updated_at']
+    list_filter = ['language_code', 'status']
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'preferred_language', 'updated_at']
+    search_fields = ['user__username', 'user__email']
 
 
 @admin.register(UserProgress)

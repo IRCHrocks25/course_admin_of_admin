@@ -83,6 +83,7 @@ from .utils.prompts import (
     LessonGenerationSettings,
     build_lesson_metadata_prompt,
     build_lesson_content_prompt,
+    build_lesson_translation_prompt,
 )
 
 # Tenant admins should use app login, not Django admin login.
@@ -2446,6 +2447,8 @@ def dashboard_course_lessons(request, course_slug):
         return redirect('dashboard_courses')
     lessons = course.lessons.all()
     modules = course.modules.all()
+    preview_lang = (request.GET.get('lang') or 'en').strip().lower()
+    from myApp.utils.localization import resolve_lesson
     lesson_preview_payloads = {}
     for lesson in lessons:
         embed_url = ''
@@ -2463,16 +2466,17 @@ def dashboard_course_lessons(request, course_slug):
                 embed_url = generic_embed
                 source = 'Video'
 
-        content = lesson.content if isinstance(lesson.content, dict) else {}
+        display = resolve_lesson(lesson, preview_lang, admin_preview=True)
+        content = display.content if isinstance(display.content, dict) else {}
         lesson_preview_payloads[str(lesson.id)] = {
             'course_name': course.name,
-            'lesson_title': lesson.title,
-            'summary': (lesson.ai_short_summary or '').strip(),
-            'full_description': (lesson.ai_full_description or lesson.description or '').strip(),
+            'lesson_title': display.title,
+            'summary': (display.ai_short_summary or '').strip(),
+            'full_description': (display.ai_full_description or display.description or '').strip(),
             'video_embed_url': embed_url,
             'video_source': source,
-            'outcomes': lesson.get_outcomes_list() or [],
-            'coach_actions': lesson.get_coach_actions_list() or [],
+            'outcomes': display.get_outcomes_list() or [],
+            'coach_actions': display.get_coach_actions_list() or [],
             'content_blocks': content.get('blocks', []) if isinstance(content.get('blocks', []), list) else [],
             'hero_image_url': (lesson.ai_hero_image_url or '').strip(),
         }
@@ -2666,6 +2670,64 @@ def generate_ai_lesson_content(client, lesson_title, lesson_description, course_
     except Exception as e:
         # Return empty content if generation fails
         return []
+
+
+def generate_ai_lesson_translation(client, lesson, language_code, tenant=None, course=None):
+    """Translate approved English lesson content into another language."""
+    content = lesson.content if isinstance(lesson.content, dict) else {}
+    blocks = content.get('blocks', []) if isinstance(content.get('blocks'), list) else []
+    payload = {
+        'title': lesson.ai_clean_title or lesson.title,
+        'short_summary': lesson.ai_short_summary or '',
+        'full_description': lesson.ai_full_description or lesson.description or '',
+        'outcomes': lesson.get_outcomes_list(),
+        'coach_actions': lesson.get_coach_actions_list(),
+        'content_blocks': blocks,
+    }
+    prompt = build_lesson_translation_prompt(payload, language_code)
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert translator. Always return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            max_tokens=4000,
+        )
+        _log_openai_usage(
+            feature='lesson_translation',
+            response=response,
+            tenant=tenant or lesson.tenant,
+            course=course or lesson.course,
+            lesson=lesson,
+            model_name='gpt-4o-mini',
+        )
+
+        response_text = response.choices[0].message.content.strip()
+        if response_text.startswith('```'):
+            response_text = response_text.split('```')[1]
+            if response_text.startswith('json'):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+        if response_text.endswith('```'):
+            response_text = response_text.rsplit('```', 1)[0].strip()
+
+        data = json.loads(response_text)
+        content_sections = data.get('content', [])
+        return {
+            'title': data.get('title', payload['title']),
+            'ai_clean_title': data.get('title', payload['title']),
+            'ai_short_summary': data.get('short_summary', ''),
+            'ai_full_description': data.get('full_description', ''),
+            'description': data.get('full_description', ''),
+            'ai_outcomes': data.get('outcomes', []),
+            'ai_coach_actions': data.get('coach_actions', []),
+            'content': create_editorjs_content(content_sections) if content_sections else {'blocks': []},
+        }
+    except Exception:
+        return None
 
 
 def generate_image_brief(client, lesson, settings_obj):
@@ -6080,6 +6142,27 @@ def dashboard_branding_settings(request):
 
         features['branding'] = updated
         features['custom_pages'] = custom_pages
+
+        enabled_langs = ['en']
+        if request.POST.get('lesson_lang_it') == '1':
+            enabled_langs.append('it')
+        if request.POST.get('lesson_lang_fil') == '1':
+            enabled_langs.append('fil')
+        allow_student_switch = request.POST.get('lesson_lang_allow_switch') == '1'
+        default_lang = (request.POST.get('lesson_lang_default') or 'en').strip().lower()
+        if default_lang not in enabled_langs:
+            default_lang = 'en'
+        features['languages'] = {
+            'enabled': enabled_langs,
+            'default': default_lang,
+            'show_language_switcher': allow_student_switch and len(enabled_langs) > 1,
+        }
+        features['lesson_languages'] = {
+            'enabled': enabled_langs,
+            'default': default_lang,
+            'allow_student_switch': allow_student_switch and len(enabled_langs) > 1,
+        }
+
         config.features = features
         config.save(update_fields=['features', 'updated_at'])
         if custom_pages.get('landing_mode') == 'cms':
@@ -6095,6 +6178,8 @@ def dashboard_branding_settings(request):
     cms_template_html = ''
     cms_schema = {'sections': [], 'defaults': {}, 'link_targets': []}
     cms_content = custom_pages.get('landing_cms_content') or {}
+    from myApp.utils.localization import get_tenant_language_config, SUPPORTED_LANGUAGES as LANGUAGE_LABELS
+    lesson_languages = get_tenant_language_config(tenant)
     if custom_pages.get('landing_mode') == 'cms':
         from myApp.cms.storage import get_landing_cms_template_html
         from myApp.cms.parser import build_schema
@@ -6119,6 +6204,8 @@ def dashboard_branding_settings(request):
         'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
         'cms_schema': cms_schema,
         'cms_content': cms_content,
+        'lesson_languages': lesson_languages,
+        'language_labels': LANGUAGE_LABELS,
     })
 
 
@@ -6658,3 +6745,120 @@ def dashboard_delete_event(request, event_slug):
     event.delete()
     messages.success(request, f'Event "{title}" deleted.')
     return redirect('dashboard_events')
+
+
+# ========== COURSE / LESSON TRANSLATIONS ==========
+
+@staff_member_required
+def dashboard_course_translations(request, course_slug):
+    tenant = _get_dashboard_tenant(request)
+    course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    from myApp.utils.localization import get_translation_languages_for_tenant, get_language_label
+    languages = get_translation_languages_for_tenant(tenant)
+    rows = []
+    for lang in languages:
+        lesson_count = course.lessons.count()
+        published_count = course.lessons.filter(translations__language_code=lang, translations__status='published').distinct().count()
+        rows.append({
+            'code': lang,
+            'label': get_language_label(lang),
+            'published_count': published_count,
+            'lesson_count': lesson_count,
+        })
+    return render(request, 'dashboard/course_translations.html', {
+        'course': course,
+        'rows': rows,
+    })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_course_translations_generate(request, course_slug):
+    tenant = _get_dashboard_tenant(request)
+    course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    language_code = (request.POST.get('language_code') or '').strip().lower()
+    try:
+        from myApp.utils.translation import (
+            generate_course_translation,
+            generate_module_translations_for_course,
+            generate_lesson_translation,
+            generate_quiz_question_translations,
+        )
+        generate_course_translation(course, language_code)
+        generate_module_translations_for_course(course, language_code)
+        for lesson in course.lessons.all():
+            generate_lesson_translation(lesson, language_code)
+            generate_quiz_question_translations(lesson, language_code)
+        messages.success(request, f'AI draft translations generated for {language_code.upper()}.')
+    except Exception as exc:
+        messages.error(request, f'Translation generation failed: {exc}')
+    return redirect('dashboard_course_translations', course_slug=course.slug)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_course_translations_publish(request, course_slug):
+    tenant = _get_dashboard_tenant(request)
+    course = get_object_or_404(Course, slug=course_slug, tenant=tenant)
+    language_code = (request.POST.get('language_code') or '').strip().lower()
+    try:
+        from myApp.utils.translation import publish_course_translations_for_language
+        publish_course_translations_for_language(course, language_code)
+        messages.success(request, f'Published all {language_code.upper()} translations for this course.')
+    except Exception as exc:
+        messages.error(request, f'Publish failed: {exc}')
+    return redirect('dashboard_course_translations', course_slug=course.slug)
+
+
+@staff_member_required
+def dashboard_lesson_translations(request, lesson_id):
+    tenant = _get_dashboard_tenant(request)
+    lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+    from myApp.utils.localization import get_translation_languages_for_tenant, get_language_label
+    languages = get_translation_languages_for_tenant(tenant)
+    translations = {t.language_code: t for t in lesson.translations.all()}
+    rows = []
+    for lang in languages:
+        tr = translations.get(lang)
+        rows.append({
+            'code': lang,
+            'label': get_language_label(lang),
+            'translation': tr,
+            'status': tr.status if tr else 'missing',
+        })
+    return render(request, 'dashboard/lesson_translations.html', {
+        'lesson': lesson,
+        'course': lesson.course,
+        'rows': rows,
+    })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_lesson_translations_generate(request, lesson_id):
+    tenant = _get_dashboard_tenant(request)
+    lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+    language_code = (request.POST.get('language_code') or '').strip().lower()
+    try:
+        from myApp.utils.translation import generate_lesson_translation, generate_quiz_question_translations
+        generate_lesson_translation(lesson, language_code)
+        generate_quiz_question_translations(lesson, language_code)
+        messages.success(request, f'AI draft generated for lesson ({language_code.upper()}).')
+    except Exception as exc:
+        messages.error(request, f'Translation generation failed: {exc}')
+    return redirect('dashboard_lesson_translations', lesson_id=lesson.id)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_lesson_translations_publish(request, lesson_id):
+    tenant = _get_dashboard_tenant(request)
+    lesson = get_object_or_404(Lesson, id=lesson_id, tenant=tenant)
+    language_code = (request.POST.get('language_code') or '').strip().lower()
+    try:
+        from myApp.utils.translation import publish_lesson_translation
+        publish_lesson_translation(lesson, language_code)
+        messages.success(request, f'Published {language_code.upper()} translation for this lesson.')
+    except Exception as exc:
+        messages.error(request, f'Publish failed: {exc}')
+    return redirect('dashboard_lesson_translations', lesson_id=lesson.id)

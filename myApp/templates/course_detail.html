@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static dict_extras %}
 
 {% block title %}{{ course.name }}{% endblock %}
 
@@ -213,6 +213,7 @@
       {% if syllabus %}
       <div class="cd-syllabus">
         <div class="cd-syllabus-label">Course syllabus</div>
+        {% include '_language_switcher.html' %}
 
         {% for section in syllabus %}
         <details class="cd-module" {% if forloop.first %}open{% endif %}>
@@ -231,12 +232,12 @@
               <span class="cd-lesson-icon unlocked">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="4,3 13,8 4,13" fill="currentColor" stroke="none"/></svg>
               </span>
-              <span class="cd-lesson-title unlocked">{{ lesson.title }}</span>
+              <span class="cd-lesson-title unlocked">{{ lesson_display_titles|dict_get:lesson.id|default:lesson.title }}</span>
               {% else %}
               <span class="cd-lesson-icon locked">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="7" width="8" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>
               </span>
-              <span class="cd-lesson-title locked">{{ lesson.title }}</span>
+              <span class="cd-lesson-title locked">{{ lesson_display_titles|dict_get:lesson.id|default:lesson.title }}</span>
               {% endif %}
             </li>
             {% endfor %}

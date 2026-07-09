@@ -25,6 +25,7 @@
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="landing">Landing Page</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="signup">Sign Up</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="login">Login</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="languages">Lesson Languages</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="certificate">Certificate</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="logo">Logo</button>
             </div>
@@ -228,6 +229,33 @@
                 <label class="inline-flex items-center gap-2 text-sm text-gray-300">
                     <input type="checkbox" name="clear_login_html" value="1" class="rounded">
                     Clear stored login custom HTML
+                </label>
+            </div>
+        </div>
+
+        <div id="tab-languages" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Lesson Languages</h2>
+            <p class="text-sm text-gray-400 mb-4">Enable additional languages for lesson content. English is always included. Students can switch languages when more than one is enabled.</p>
+            <div class="space-y-4">
+                <label class="flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="lesson_lang_it" value="1" {% if 'it' in lesson_languages.enabled %}checked{% endif %}>
+                    Italian
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="lesson_lang_fil" value="1" {% if 'fil' in lesson_languages.enabled %}checked{% endif %}>
+                    Filipino
+                </label>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Default language</label>
+                    <select name="lesson_lang_default" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="en" {% if lesson_languages.default == 'en' %}selected{% endif %}>English</option>
+                        <option value="it" {% if lesson_languages.default == 'it' %}selected{% endif %}>Italian</option>
+                        <option value="fil" {% if lesson_languages.default == 'fil' %}selected{% endif %}>Filipino</option>
+                    </select>
+                </div>
+                <label class="flex items-start gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="lesson_lang_allow_switch" value="1" {% if lesson_languages.show_language_switcher %}checked{% endif %} class="mt-0.5">
+                    <span>Allow students to switch language on lesson pages</span>
                 </label>
             </div>
         </div>

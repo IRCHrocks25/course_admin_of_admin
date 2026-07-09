@@ -350,3 +350,24 @@ class GhlEmbedFrameMiddleware:
         response.xframe_options_exempt = True
         return response
 
+
+class LanguageMiddleware:
+    """Activate Django locale per request based on student language preference."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.utils import translation
+        from myApp.utils.localization import get_request_language, django_code_for_language
+
+        tenant = getattr(request, 'tenant', None)
+        lang = get_request_language(request, tenant)
+        request.language_code = lang
+        translation.activate(django_code_for_language(lang))
+        try:
+            response = self.get_response(request)
+        finally:
+            translation.deactivate()
+        return response
+

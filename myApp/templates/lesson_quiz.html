@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static dict_extras %}
 
-{% block title %}{{ lesson.title }} - Quiz{% endblock %}
+{% block title %}{{ lesson_display.title|default:lesson.title }} - Quiz{% endblock %}
 
 {% block content %}
 <!-- Confetti Canvas -->
@@ -12,6 +12,7 @@
 
     <div class="w-full pt-6 center-content-rail">
         <div class="w-full center-content-inner max-w-4xl mx-auto quiz-page">
+            {% include '_language_switcher.html' %}
             <div class="mb-6">
                 <!-- Quiz Header -->
                 <div class="mb-8">
@@ -21,14 +22,18 @@
                         </div>
                         <div>
                             <h1 class="text-3xl lg:text-4xl font-bold quiz-page-title">
-                                {{ lesson.title }} Quiz
+                                {{ lesson_display.title|default:lesson.title }} Quiz
                             </h1>
                             <p class="text-gray-400 text-sm mt-1">
                                 {{ questions|length }} question{{ questions|length|pluralize }} &middot; Passing score: {{ quiz.passing_score }}% &middot; <span class="text-red-400 font-semibold quiz-required-badge">Required</span>
                             </p>
                         </div>
                     </div>
-                    {% if quiz.description %}
+                    {% if quiz_display.description %}
+                    <p class="text-gray-300 text-lg">
+                        {{ quiz_display.description }}
+                    </p>
+                    {% elif quiz.description %}
                     <p class="text-gray-300 text-lg">
                         {{ quiz.description }}
                     </p>
@@ -106,7 +111,7 @@
                 {% if not result or not result.passed %}
                 <form method="post" class="space-y-6" id="quiz-form">
                     {% csrf_token %}
-                    {% for question in questions %}
+                    {% for question in resolved_questions %}
                     <div class="bg-gradient-to-br from-[#0a0e27]/80 to-[#1a1f3a]/80 backdrop-blur-sm border border-cyan-electric/20 rounded-xl p-6 hover:border-cyan-electric/40 transition-all quiz-question-card">
                         <div class="flex items-start gap-4 mb-4">
                             <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-electric to-purple-accent flex items-center justify-center font-bold quiz-accent-on-text quiz-question-number">
@@ -156,7 +161,7 @@
                     {% endfor %}
 
                     <div class="flex items-center justify-between mt-8 pt-6 border-t border-cyan-electric/10">
-                        <a href="{% url 'lesson_detail' course.slug lesson.slug %}" class="quiz-back-btn px-5 py-3 rounded-xl border border-cyan-electric/30 text-cyan-electric font-semibold hover:bg-cyan-electric/10 transition-all flex items-center gap-2">
+                        <a href="{% url 'lesson_detail' course.slug lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}" class="quiz-back-btn px-5 py-3 rounded-xl border border-cyan-electric/30 text-cyan-electric font-semibold hover:bg-cyan-electric/10 transition-all flex items-center gap-2">
                             <i class="fas fa-arrow-left"></i>
                             <span>Back to Lesson</span>
                         </a>

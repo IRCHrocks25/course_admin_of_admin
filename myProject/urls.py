@@ -80,6 +80,12 @@ urlpatterns = [
     path('dashboard/courses/<slug:course_slug>/improve-description/', dashboard_views.dashboard_improve_course_description, name='dashboard_improve_course_description'),
     path('dashboard/courses/<slug:course_slug>/delete/', dashboard_views.dashboard_delete_course, name='dashboard_delete_course'),
     path('dashboard/courses/<slug:course_slug>/lessons/', dashboard_views.dashboard_course_lessons, name='dashboard_course_lessons'),
+    path('dashboard/courses/<slug:course_slug>/translations/', dashboard_views.dashboard_course_translations, name='dashboard_course_translations'),
+    path('dashboard/courses/<slug:course_slug>/translations/generate/', dashboard_views.dashboard_course_translations_generate, name='dashboard_course_translations_generate'),
+    path('dashboard/courses/<slug:course_slug>/translations/publish/', dashboard_views.dashboard_course_translations_publish, name='dashboard_course_translations_publish'),
+    path('dashboard/lessons/<int:lesson_id>/translations/', dashboard_views.dashboard_lesson_translations, name='dashboard_lesson_translations'),
+    path('dashboard/lessons/<int:lesson_id>/translations/generate/', dashboard_views.dashboard_lesson_translations_generate, name='dashboard_lesson_translations_generate'),
+    path('dashboard/lessons/<int:lesson_id>/translations/publish/', dashboard_views.dashboard_lesson_translations_publish, name='dashboard_lesson_translations_publish'),
     path('dashboard/courses/<slug:course_slug>/lessons/add-seed/', dashboard_views.dashboard_course_add_seed_lessons, name='dashboard_course_add_seed_lessons'),
     # Event Management (dashboard)
     path('dashboard/events/', dashboard_views.dashboard_events, name='dashboard_events'),
@@ -155,6 +161,8 @@ urlpatterns = [
     # AI Chatbot endpoints
     path('api/lessons/<int:lesson_id>/train-chatbot/', views.train_lesson_chatbot, name='train_lesson_chatbot'),
     path('api/lessons/<int:lesson_id>/chatbot/', views.lesson_chatbot, name='lesson_chatbot'),
+
+    path('api/preferences/language/', views.set_language_preference, name='set_language_preference'),
 
     # Lesson progress tracking endpoints
     path('api/lessons/<int:lesson_id>/progress/', views.update_video_progress, name='update_video_progress'),
