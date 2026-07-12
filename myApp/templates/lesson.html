@@ -18,8 +18,8 @@
     <!-- Mobile/Tablet: Full width -->
     <div class="w-full pt-6 center-content-rail">
         <div class="w-full center-content-inner lesson-page">
-        <!-- AI-Generated Hero Banner (only show if image exists) -->
-        {% if lesson.ai_hero_image_url %}
+        <!-- AI-Generated Hero Banner (only show if image exists AND there is no video — the video takes its place) -->
+        {% if lesson.ai_hero_image_url and not lesson.google_drive_url and not lesson.get_vimeo_embed_url and not lesson.video_url %}
         <figure class="mb-6 rounded-xl overflow-hidden border border-cyan-electric/10">
             <img src="{{ lesson.ai_hero_image_url }}"
                  alt="{{ lesson.ai_clean_title|default:lesson.title }}"
@@ -33,22 +33,6 @@
 
         <!-- Lesson Title -->
         <h1 class="text-4xl lg:text-2xl font-semibold mb-6 lesson-page-title">{{ lesson_display.title }}</h1>
-
-        <!-- AI Audio Narration (only show if audio exists) -->
-        {% if lesson.audio_url %}
-        <div class="mb-6 p-4 bg-cyan-electric/5 border border-cyan-electric/15 rounded-xl">
-            <div class="flex items-center gap-2 mb-2 text-xs uppercase tracking-wider text-cyan-electric font-bold">
-                <i class="fas fa-headphones"></i>
-                Listen to this lesson
-                {% if lesson.get_audio_duration_display %}
-                <span class="text-gray-400 normal-case font-normal tracking-normal">({{ lesson.get_audio_duration_display }})</span>
-                {% endif %}
-            </div>
-            <audio controls preload="metadata" src="{{ lesson.audio_url }}" class="w-full">
-                Your browser does not support the audio element.
-            </audio>
-        </div>
-        {% endif %}
 
         <!-- Video Container (only show if video exists) -->
         {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
@@ -88,10 +72,7 @@
             
             <!-- Video Info Chips -->
             <div class="flex flex-wrap gap-3 mb-6">
-                <span class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/20 rounded-full text-xs flex items-center gap-2">
-                    <i class="fas fa-clock text-cyan-electric"></i>
-                    {{ lesson.get_formatted_duration }}
-                </span>
+                
                 {% if current_lesson_progress and video_watch_percentage > 0 %}
                 <span class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/20 rounded-full text-xs flex items-center gap-2">
                     <i class="fas fa-eye text-cyan-electric"></i>
@@ -113,7 +94,23 @@
             </div>
         </div>
         {% endif %}
-            
+
+        <!-- AI Audio Narration (only show if audio exists) -->
+        {% if lesson.audio_url %}
+        <div class="mb-6 p-4 bg-cyan-electric/5 border border-cyan-electric/15 rounded-xl">
+            <div class="flex items-center gap-2 mb-2 text-xs uppercase tracking-wider text-cyan-electric font-bold">
+                <i class="fas fa-headphones"></i>
+                Listen to this lesson
+                {% if lesson.get_audio_duration_display %}
+                <span class="text-gray-400 normal-case font-normal tracking-normal">({{ lesson.get_audio_duration_display }})</span>
+                {% endif %}
+            </div>
+            <audio controls preload="metadata" src="{{ lesson.audio_url }}" class="w-full">
+                Your browser does not support the audio element.
+            </audio>
+        </div>
+        {% endif %}
+
             <!-- Lesson Content Sections -->
             <div class="space-y-6">
                 <!-- What You'll Learn Today -->
