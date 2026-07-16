@@ -335,7 +335,7 @@ def _normalize_tenant_custom_html_document(custom_html):
     )
 
 
-def _render_tenant_custom_html(request, tenant, custom_html):
+def _render_tenant_custom_html(request, tenant, custom_html, *, inject_fallbacks=True):
     custom_html = _normalize_tenant_custom_html_document(custom_html)
     if not custom_html:
         return None
@@ -466,19 +466,22 @@ def _render_tenant_custom_html(request, tenant, custom_html):
         '</script>'
     )
 
-    lower_html = custom_html.lower()
-    if '</head>' in lower_html:
-        idx = lower_html.rfind('</head>')
-        custom_html = custom_html[:idx] + fallback_style + custom_html[idx:]
-    else:
-        custom_html = fallback_style + custom_html
+    # CMS-rendered pages are served verbatim (matching the editor preview);
+    # the fallback style/script exists only for hand-pasted custom HTML.
+    if inject_fallbacks:
+        lower_html = custom_html.lower()
+        if '</head>' in lower_html:
+            idx = lower_html.rfind('</head>')
+            custom_html = custom_html[:idx] + fallback_style + custom_html[idx:]
+        else:
+            custom_html = fallback_style + custom_html
 
-    lower_html = custom_html.lower()
-    if '</body>' in lower_html:
-        idx = lower_html.rfind('</body>')
-        custom_html = custom_html[:idx] + fallback_script + custom_html[idx:]
-    else:
-        custom_html = custom_html + fallback_script
+        lower_html = custom_html.lower()
+        if '</body>' in lower_html:
+            idx = lower_html.rfind('</body>')
+            custom_html = custom_html[:idx] + fallback_script + custom_html[idx:]
+        else:
+            custom_html = custom_html + fallback_script
 
     if '<html' in custom_html.lower():
         return HttpResponse(custom_html)
@@ -516,7 +519,7 @@ def _render_tenant_cms_landing(request, tenant, custom_pages):
         preview=False,
         site_settings={'title': branding.get('brand_name', getattr(tenant, 'name', ''))},
     )
-    return _render_tenant_custom_html(request, tenant, html)
+    return _render_tenant_custom_html(request, tenant, html, inject_fallbacks=False)
 
 
 _CERTIFICATE_GENERATOR_FN = None

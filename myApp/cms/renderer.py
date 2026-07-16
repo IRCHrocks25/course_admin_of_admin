@@ -4,23 +4,32 @@ from __future__ import annotations
 import copy
 import re
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 from .html_utils import soup_to_html_document
+from .parser import _default_for_element
 
-try:
-    import bleach
-except ImportError:  # pragma: no cover
-    bleach = None
-
-ALLOWED_TAGS = ['p', 'strong', 'em', 'b', 'i', 'br', 'a', 'span']
-ALLOWED_ATTRS = {'a': ['href', 'title', 'target', 'rel']}
+# Keep in sync with sanitizeRteHtml() in cms_landing_editor.html: templates carry
+# arbitrary design markup (classes, inline styles, svg icons), so richtext values
+# must keep it too — strip only script-capable tags and attributes.
+_RICHTEXT_STRIP_TAGS = ('script', 'style', 'iframe', 'object', 'embed')
 
 
-def _sanitize_richtext(value: str) -> str:
-    if bleach is None:
-        return value
-    return bleach.clean(value or '', tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS, strip=True)
+def _sanitize_richtext_fragment(value: str) -> BeautifulSoup:
+    # html.parser keeps the value a bare fragment; lxml would wrap it in
+    # <html><body><p>…, injecting a block <p> into inline contexts.
+    fragment = BeautifulSoup(value or '', 'html.parser')
+    for tag in fragment.find_all(_RICHTEXT_STRIP_TAGS):
+        tag.decompose()
+    for tag in fragment.find_all(True):
+        for attr in list(tag.attrs):
+            if attr.lower().startswith('on'):
+                del tag[attr]
+            elif attr.lower() in ('href', 'src', 'xlink:href') and re.match(
+                r'\s*javascript:', str(tag[attr]), re.IGNORECASE
+            ):
+                del tag[attr]
+    return fragment
 
 
 def merge_with_defaults(content: dict | None, defaults: dict | None) -> dict:
@@ -59,19 +68,35 @@ def _apply_brand_tokens(soup, brand: dict):
     style_tag.string = css
 
 
+def _set_text_preserving_children(element, value: str):
+    """Replace an element's text while keeping child elements (e.g. icon <svg>s)."""
+    text_nodes = [child for child in element.children if isinstance(child, NavigableString)]
+    has_element_children = any(getattr(child, 'name', None) for child in element.children)
+    if not has_element_children:
+        element.clear()
+        element.append(value)
+        return
+    replaced = False
+    for node in text_nodes:
+        if not replaced and node.strip():
+            node.replace_with(value)
+            replaced = True
+        elif node.strip():
+            node.extract()
+    if not replaced:
+        element.insert(0, value)
+
+
 def _apply_field(element, field_type: str, value: str):
     if value is None:
         return
     if field_type == 'text':
-        element.clear()
-        element.append(value)
+        _set_text_preserving_children(element, value)
     elif field_type == 'richtext':
+        fragment = _sanitize_richtext_fragment(value)
         element.clear()
-        fragment = BeautifulSoup(_sanitize_richtext(value), 'lxml')
-        body = fragment.body
-        if body:
-            for child in list(body.children):
-                element.append(child.extract())
+        for child in list(fragment.children):
+            element.append(child.extract())
     elif field_type == 'image':
         element['src'] = value
         for attr in ('srcset', 'data-src', 'data-lazy-src'):
@@ -285,7 +310,23 @@ PREVIEW_BRIDGE_JS = r"""
       } else if (fieldType === 'richtext') {
         el.innerHTML = value;
       } else {
-        el.textContent = value;
+        // Preserve child elements (icon svgs etc.) — replace only text nodes.
+        if (el.children.length === 0) {
+          el.textContent = value;
+        } else {
+          var replaced = false;
+          var nodes = Array.prototype.slice.call(el.childNodes);
+          nodes.forEach(function (node) {
+            if (node.nodeType !== 3) return;
+            if (!replaced && node.nodeValue && node.nodeValue.trim()) {
+              node.nodeValue = value;
+              replaced = true;
+            } else if (node.nodeValue && node.nodeValue.trim()) {
+              node.nodeValue = '';
+            }
+          });
+          if (!replaced) el.insertBefore(document.createTextNode(value), el.firstChild);
+        }
       }
     });
   }
@@ -363,7 +404,17 @@ def render_site(html: str, content: dict | None, *, preview: bool = False, site_
         if field_key not in section_content:
             continue
         field_type = element.get('data-type') or 'text'
-        _apply_field(element, field_type, section_content[field_key])
+        value = section_content[field_key]
+        # The template markup already carries the default value. Re-applying an
+        # unchanged value is lossy (clears icon children, sanitizes rich text),
+        # so only rewrite the element when the value actually differs.
+        try:
+            current = _default_for_element(element, field_type)
+        except Exception:
+            current = None
+        if current is not None and str(value).strip() == str(current).strip():
+            continue
+        _apply_field(element, field_type, value)
 
     _apply_hidden_sections(soup, hidden_sections, preview=preview)
 

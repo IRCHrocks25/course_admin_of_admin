@@ -85,7 +85,12 @@
       "PowerShell(python manage.py makemigrations myApp)",
       "PowerShell(python manage.py generate_lesson_audio --lesson-id 19 --force)",
       "Bash(node --check _tmp_bridge.js)",
-      "Bash(rm _tmp_bridge.js)"
+      "Bash(rm _tmp_bridge.js)",
+      "Bash(/c/Users/ADMIN/.conda/envs/myenv/python \"C:\\\\Users\\\\ADMIN\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\E--New-Downloads-New-clone-projects-course-admin-of-admin\\\\094b3c7e-4109-4ec1-98bb-c79e0103d936\\\\scratchpad\\\\test_pipeline.py\")",
+      "Bash(grep -o '<h1[^>]*>.\\\\{0,200\\\\}' preview.html)",
+      "Bash(grep -o '<a class=\"btn btn-primary\"[^>]*>.\\\\{0,260\\\\}' preview.html)",
+      "Bash(/c/Users/ADMIN/.conda/envs/myenv/python -c \"import bleach; print\\(bleach.__version__\\)\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

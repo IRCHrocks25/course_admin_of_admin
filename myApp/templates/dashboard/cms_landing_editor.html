@@ -125,6 +125,24 @@
 .cmx-textarea{ resize:vertical; min-height:56px; font-family:inherit; line-height:1.45; }
 .cmx-hint{ font-size:10px; color:#5c6488; margin-top:3px; }
 
+/* Rich text (WYSIWYG) control */
+.cmx-rte-toolbar{ display:flex; gap:3px; margin-bottom:4px; }
+.cmx-rte-btn{
+    width:26px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center;
+    color:#8b93b5; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+    cursor:pointer; font-size:10.5px; transition:all .12s;
+}
+.cmx-rte-btn:hover{ background:rgba(59,130,246,.15); color:#60a5fa; border-color:rgba(59,130,246,.35); }
+.cmx-rte{
+    width:100%; min-height:56px; max-height:220px; overflow-y:auto; padding:7px 9px; border-radius:7px;
+    background:#070b22; border:1px solid rgba(255,255,255,.13); color:#fff; font-size:12px; outline:none;
+    line-height:1.5; transition:border-color .15s; cursor:text;
+}
+.cmx-rte:focus{ border-color:rgba(59,130,246,.6); box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+.cmx-rte:empty::before{ content:attr(data-placeholder); color:#5c6488; pointer-events:none; }
+.cmx-rte a{ color:#60a5fa; text-decoration:underline; }
+.cmx-rte b, .cmx-rte strong{ font-weight:700; }
+
 .cmx-color-row{ display:flex; gap:6px; align-items:center; }
 .cmx-color-row input[type=color]{
     width:34px; height:30px; padding:2px; border-radius:7px; background:#070b22;
@@ -282,6 +300,12 @@
 .brand-theme-light .cmx-input, .brand-theme-light .cmx-textarea, .brand-theme-light .cmx-search input{ background:#fff; border-color:#cbd5e6; color:#111827; }
 .brand-theme-light .cmx-input:focus, .brand-theme-light .cmx-textarea:focus, .brand-theme-light .cmx-search input:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
 .brand-theme-light .cmx-hint{ color:#8a94a6; }
+.brand-theme-light .cmx-rte{ background:#fff; border-color:#cbd5e6; color:#111827; }
+.brand-theme-light .cmx-rte:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.brand-theme-light .cmx-rte:empty::before{ color:#9ca3af; }
+.brand-theme-light .cmx-rte a{ color:#1d4ed8; }
+.brand-theme-light .cmx-rte-btn{ background:#fff; border-color:#cbd5e6; color:#6b7280; }
+.brand-theme-light .cmx-rte-btn:hover{ background:#f1f5fd; color:#1d4ed8; border-color:#93b4f5; }
 .brand-theme-light .cmx-color-row input[type=color]{ background:#fff; border-color:#cbd5e6; }
 .brand-theme-light .cmx-img-thumb{ background-color:#f4f6fb; border-color:#c6cfe2; color:#6b7280; }
 .brand-theme-light .cmx-img-thumb:hover{ border-color:#2563eb; color:#1d4ed8; }
@@ -505,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var ICONS = { menu:'fa-bars', layout:'fa-window-maximize', sparkles:'fa-star', grid:'fa-th-large',
         'credit-card':'fa-credit-card', message:'fa-comment-alt', megaphone:'fa-bullhorn', palette:'fa-palette' };
-    var TYPE_LABEL = { text:'text', richtext:'rich', image:'image', link:'link', color:'color', video:'video' };
+    var TYPE_LABEL = { text:'text', richtext:'styled', image:'image', link:'link', color:'color', video:'video' };
 
     /* ---------- Elements ---------- */
     var editor = document.getElementById('cmx-editor');
@@ -550,6 +574,18 @@ document.addEventListener('DOMContentLoaded', function () {
     function getValue(fieldId) {
         var parts = splitId(fieldId);
         return (state[parts[0]] && state[parts[0]][parts[1]] !== undefined) ? state[parts[0]][parts[1]] : '';
+    }
+    function sanitizeRteHtml(html) {
+        var tpl = document.createElement('template');
+        tpl.innerHTML = html || '';
+        tpl.content.querySelectorAll('script,style,iframe,object,embed').forEach(function (n) { n.remove(); });
+        tpl.content.querySelectorAll('*').forEach(function (n) {
+            Array.prototype.slice.call(n.attributes).forEach(function (attr) {
+                if (/^on/i.test(attr.name)) n.removeAttribute(attr.name);
+                else if (attr.name === 'href' && /^\s*javascript:/i.test(attr.value)) n.removeAttribute(attr.name);
+            });
+        });
+        return tpl.innerHTML;
     }
     function toast(message, kind) {
         kind = kind || 'info';
@@ -846,7 +882,10 @@ document.addEventListener('DOMContentLoaded', function () {
             var row = sectionsWrap.querySelector('[data-field-id="' + field.id + '"]');
             if (row) {
                 var input = row.querySelector('.cmx-main-input');
-                if (input) input.value = value;
+                if (input) {
+                    if (input.classList.contains('cmx-rte')) input.innerHTML = sanitizeRteHtml(value);
+                    else input.value = value;
+                }
                 var thumb = row.querySelector('.cmx-img-thumb');
                 if (thumb) updateThumb(thumb, value);
                 var swatch = row.querySelector('input[type=color]');
@@ -947,21 +986,58 @@ document.addEventListener('DOMContentLoaded', function () {
             wrap.appendChild(rowEl);
 
         } else if (field.type === 'richtext') {
-            var ta = document.createElement('textarea');
-            ta.className = 'cmx-textarea cmx-main-input';
-            ta.rows = 3;
-            ta.value = value;
-            ta.addEventListener('input', function () {
-                ta.style.height = 'auto';
-                ta.style.height = Math.min(220, ta.scrollHeight) + 'px';
-                setFieldValue(field, ta.value);
+            var toolbar = document.createElement('div');
+            toolbar.className = 'cmx-rte-toolbar';
+            var rte = document.createElement('div');
+            rte.className = 'cmx-rte cmx-main-input';
+            rte.contentEditable = 'true';
+            rte.spellcheck = false;
+            rte.setAttribute('data-placeholder', 'Type your text…');
+            rte.innerHTML = sanitizeRteHtml(value);
+
+            function syncRte() { setFieldValue(field, rte.innerHTML); }
+
+            [
+                { icon: 'fa-bold', title: 'Bold', run: function () { document.execCommand('bold'); } },
+                { icon: 'fa-italic', title: 'Italic', run: function () { document.execCommand('italic'); } },
+                { icon: 'fa-link', title: 'Add or edit link', run: function () {
+                    var sel = window.getSelection();
+                    var anchor = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+                    var existing = anchor ? anchor.closest('a') : null;
+                    var url = prompt('Link URL (e.g. https://… or #section)', existing ? existing.getAttribute('href') : 'https://');
+                    if (url === null) return;
+                    if (existing) {
+                        if (url.trim()) existing.setAttribute('href', url.trim());
+                        else { document.execCommand('unlink'); }
+                    } else if (url.trim() && sel && !sel.isCollapsed) {
+                        document.execCommand('createLink', false, url.trim());
+                    } else if (url.trim()) {
+                        toast('Select the text you want to turn into a link first.', 'info');
+                        return;
+                    }
+                } },
+                { icon: 'fa-eraser', title: 'Clear formatting', run: function () { document.execCommand('removeFormat'); document.execCommand('unlink'); } }
+            ].forEach(function (tool) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'cmx-rte-btn';
+                b.title = tool.title;
+                b.innerHTML = '<i class="fas ' + tool.icon + '"></i>';
+                // mousedown+preventDefault keeps the text selection inside the editor
+                b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+                b.addEventListener('click', function () { rte.focus(); tool.run(); syncRte(); });
+                toolbar.appendChild(b);
             });
-            attachFocusSync(ta, field);
-            wrap.appendChild(ta);
-            var hint = document.createElement('div');
-            hint.className = 'cmx-hint';
-            hint.textContent = 'Basic HTML allowed: <strong>, <em>, <a>, <br>';
-            wrap.appendChild(hint);
+
+            rte.addEventListener('input', syncRte);
+            rte.addEventListener('paste', function (ev) {
+                ev.preventDefault();
+                var text = (ev.clipboardData || window.clipboardData).getData('text/plain');
+                document.execCommand('insertText', false, text);
+            });
+            attachFocusSync(rte, field);
+            wrap.appendChild(toolbar);
+            wrap.appendChild(rte);
 
         } else {
             var input = document.createElement('input');
