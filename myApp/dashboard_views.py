@@ -10,6 +10,7 @@ from django.db.models import Count, Q
 from django.conf import settings
 from django.core.mail import send_mail
 import json
+import logging
 import re
 import requests
 import csv
@@ -17,6 +18,8 @@ import io
 import os
 import uuid
 import threading
+
+logger = logging.getLogger(__name__)
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from decimal import Decimal
 import stripe
@@ -1973,17 +1976,57 @@ def dashboard_course_detail(request, course_slug):
                 resource_type = request.POST.get('resource_type', 'other')
                 description = request.POST.get('resource_description', '').strip()
                 max_order = course.resources.aggregate(models.Max('order'))['order__max'] or 0
-                CourseResource.objects.create(
-                    tenant=course.tenant,
-                    course=course,
-                    title=title,
-                    description=description,
-                    resource_type=resource_type,
-                    file=uploaded_file if uploaded_file else None,
-                    file_url=file_url or '',
-                    order=max_order + 1,
-                )
-                messages.success(request, f'Resource "{title}" added successfully.')
+                resolved_url = file_url or ''
+                if uploaded_file:
+                    from myApp.utils import iceberg
+                    import mimetypes
+
+                    if not iceberg.is_configured():
+                        messages.error(
+                            request,
+                            'File storage (Iceberg) is not configured. Provide an external URL instead.',
+                        )
+                        return redirect('dashboard_course_detail', course_slug=course.slug)
+                    ext = (
+                        uploaded_file.name.rsplit('.', 1)[-1].lower()
+                        if '.' in uploaded_file.name
+                        else 'bin'
+                    )
+                    tenant_id = course.tenant_id or 'global'
+                    key = (
+                        f'course_resources/tenant_{tenant_id}/'
+                        f'course_{course.id}/{uuid.uuid4().hex}.{ext}'
+                    )
+                    content_type = (
+                        uploaded_file.content_type
+                        or mimetypes.guess_type(uploaded_file.name)[0]
+                        or 'application/octet-stream'
+                    )
+                    resolved_url = iceberg.upload_fileobj(uploaded_file, key, content_type)
+                    if not resolved_url:
+                        messages.error(
+                            request,
+                            f'Could not upload resource "{title}" to Iceberg. Try again or use an external URL.',
+                        )
+                        return redirect('dashboard_course_detail', course_slug=course.slug)
+                try:
+                    CourseResource.objects.create(
+                        tenant=course.tenant,
+                        course=course,
+                        title=title,
+                        description=description,
+                        resource_type=resource_type,
+                        file=None,
+                        file_url=resolved_url,
+                        order=max_order + 1,
+                    )
+                    messages.success(request, f'Resource "{title}" added successfully.')
+                except Exception as exc:
+                    logger.exception('Course resource create failed for course %s', course.slug)
+                    messages.error(
+                        request,
+                        f'Could not save resource "{title}". ({exc})',
+                    )
             elif title and not (uploaded_file or file_url):
                 messages.error(request, 'Please provide either an uploaded file or an external URL.')
             return redirect('dashboard_course_detail', course_slug=course.slug)
@@ -1992,6 +2035,13 @@ def dashboard_course_detail(request, course_slug):
             if rid:
                 try:
                     r = CourseResource.objects.get(id=rid, course=course)
+                    if r.file_url:
+                        from myApp.utils import iceberg
+                        key = iceberg.key_from_url(r.file_url)
+                        if key:
+                            iceberg.delete(key)
+                    if r.file:
+                        r.file.delete(save=False)
                     r.delete()
                     messages.success(request, 'Resource deleted.')
                 except CourseResource.DoesNotExist:

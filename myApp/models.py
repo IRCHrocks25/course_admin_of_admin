@@ -320,9 +320,14 @@ class CourseResource(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPES, default='other')
-    # Either upload a file OR provide a URL (e.g. Google Drive, Dropbox)
+    # Either upload a file OR provide a URL (e.g. Google Drive, Dropbox).
+    # New uploads go to Iceberg and are stored in file_url; file is legacy/local only.
     file = models.FileField(upload_to='course_resources/', blank=True, null=True)
-    file_url = models.URLField(blank=True, help_text="External link if file is hosted elsewhere (Google Drive, etc.)")
+    file_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text="Iceberg CDN URL or external link (Google Drive, etc.)",
+    )
     order = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
