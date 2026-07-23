@@ -265,11 +265,38 @@
 {# Added 2026-06-12 to replace the global flat Lessons/Quizzes pages.    #}
 {# Operators now edit a course's content in one scoped place.            #}
 {# --------------------------------------------------------------------- #}
+<style>
+  .lesson-drag-handle { cursor: grab; }
+  .lesson-drag-handle:active { cursor: grabbing; }
+  li.lesson-dragging { opacity: 0.45; }
+  .lesson-drop-list.lesson-drag-over {
+    outline: 2px dashed rgba(0,229,255,0.45);
+    outline-offset: -2px;
+    min-height: 48px;
+  }
+  .lesson-drop-list:empty::after {
+    content: 'Drop lessons here';
+    display: block;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-style: italic;
+  }
+  #lesson-reorder-toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #0a0e27; color: #e5e7eb; border: 1px solid rgba(0,229,255,0.3);
+    padding: 8px 16px; border-radius: 9px; font-size: 12px; z-index: 60;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  }
+  #lesson-reorder-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #lesson-reorder-toast.is-error { border-color: rgba(248,113,113,0.5); color: #fca5a5; }
+</style>
+
 <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mt-6">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <div>
             <h2 class="text-xl font-semibold text-cyan-electric">Course Structure</h2>
-            <p class="text-sm text-gray-400 mt-1">Modules, lessons, and the Confidence Checkpoint quiz for each module.</p>
+            <p class="text-sm text-gray-400 mt-1">Drag lessons by the handle to reorder them — including into a different module. Changes are saved automatically.</p>
         </div>
         <a href="{% url 'dashboard_add_lesson' %}?course={{ course.id }}"
            class="px-4 py-2 text-sm bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg hover:bg-cyan-electric/20 text-cyan-electric">
@@ -277,50 +304,51 @@
         </a>
     </div>
 
+    <div id="course-structure-dnd"
+         data-reorder-url="{% url 'dashboard_reorder_course_lessons' course.slug %}">
     {% if modules_tree %}
         <div class="space-y-4">
         {% for entry in modules_tree %}
-            <div class="border border-cyan-electric/20 rounded-lg overflow-hidden">
+            <div class="border border-cyan-electric/20 rounded-lg overflow-hidden" data-module-group data-module-id="{{ entry.module.id }}">
                 <div class="bg-[#0a0e27]/80 px-4 py-3 flex items-center justify-between">
                     <div class="flex items-center gap-3 min-w-0">
                         <span class="text-xs uppercase tracking-wider text-cyan-electric/70 shrink-0">Module {{ forloop.counter0 }}</span>
                         <h3 class="text-base font-semibold text-white truncate">{{ entry.module.name }}</h3>
                     </div>
-                    <span class="text-xs text-gray-400 shrink-0">{{ entry.lessons|length }} lesson{{ entry.lessons|length|pluralize }}</span>
+                    <span class="text-xs text-gray-400 shrink-0 lesson-count-label" data-lesson-count>{{ entry.lessons|length }} lesson{{ entry.lessons|length|pluralize }}</span>
                 </div>
 
-                {% if entry.lessons %}
-                    <ul class="divide-y divide-cyan-electric/10">
-                    {% for row in entry.lessons %}
-                        <li class="flex items-center justify-between px-4 py-3 hover:bg-[#0a0e27]/40">
-                            <div class="flex items-center gap-3 min-w-0">
-                                <i class="fas fa-video text-gray-500 shrink-0"></i>
-                                <div class="min-w-0">
-                                    <div class="text-sm text-white truncate">{{ row.lesson.title }}</div>
-                                    {% if row.quiz %}
-                                        <div class="text-xs text-emerald-300/80 mt-0.5">
-                                            <i class="fas fa-clipboard-check mr-1"></i>
-                                            Quiz: {{ row.quiz.title }} — {{ row.question_count }} question{{ row.question_count|pluralize }}
-                                        </div>
-                                    {% endif %}
-                                </div>
+                <ul class="lesson-drop-list divide-y divide-cyan-electric/10 min-h-[48px]">
+                {% for row in entry.lessons %}
+                    <li class="flex items-center justify-between px-4 py-3 hover:bg-[#0a0e27]/40" data-lesson-id="{{ row.lesson.id }}">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="lesson-drag-handle text-gray-500 hover:text-cyan-electric shrink-0" draggable="true" title="Drag to reorder">
+                                <i class="fas fa-grip-vertical"></i>
+                            </span>
+                            <i class="fas fa-video text-gray-500 shrink-0"></i>
+                            <div class="min-w-0">
+                                <div class="text-sm text-white truncate">{{ row.lesson.title }}</div>
+                                {% if row.quiz %}
+                                    <div class="text-xs text-emerald-300/80 mt-0.5">
+                                        <i class="fas fa-clipboard-check mr-1"></i>
+                                        Quiz: {{ row.quiz.title }} — {{ row.question_count }} question{{ row.question_count|pluralize }}
+                                    </div>
+                                {% endif %}
                             </div>
-                            <div class="flex items-center gap-2 shrink-0">
-                                <a href="{% url 'dashboard_edit_lesson' row.lesson.id %}"
-                                   class="px-3 py-1 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded hover:bg-cyan-electric/20 text-cyan-electric">
-                                    Edit Lesson
-                                </a>
-                                <a href="{% url 'dashboard_lesson_quiz' row.lesson.id %}"
-                                   class="px-3 py-1 text-xs {% if row.quiz %}bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300{% else %}bg-gray-500/10 border border-gray-500/30 hover:bg-gray-500/20 text-gray-300{% endif %} rounded">
-                                    {% if row.quiz %}Edit Quiz{% else %}Add Quiz{% endif %}
-                                </a>
-                            </div>
-                        </li>
-                    {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="px-4 py-3 text-sm text-gray-500 italic">No lessons in this module yet.</p>
-                {% endif %}
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <a href="{% url 'dashboard_edit_lesson' row.lesson.id %}"
+                               class="px-3 py-1 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded hover:bg-cyan-electric/20 text-cyan-electric">
+                                Edit Lesson
+                            </a>
+                            <a href="{% url 'dashboard_lesson_quiz' row.lesson.id %}"
+                               class="px-3 py-1 text-xs {% if row.quiz %}bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300{% else %}bg-gray-500/10 border border-gray-500/30 hover:bg-gray-500/20 text-gray-300{% endif %} rounded">
+                                {% if row.quiz %}Edit Quiz{% else %}Add Quiz{% endif %}
+                            </a>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
             </div>
         {% endfor %}
         </div>
@@ -328,16 +356,19 @@
         <p class="text-gray-500 text-sm italic">No modules yet. Add lessons and they will appear here grouped by module.</p>
     {% endif %}
 
-    {% if unsorted_lessons %}
-        <div class="mt-6 border border-yellow-500/20 rounded-lg overflow-hidden">
+    {% if modules_tree or unsorted_lessons %}
+        <div class="mt-6 border border-yellow-500/20 rounded-lg overflow-hidden" data-module-group data-module-id="">
             <div class="bg-yellow-500/5 px-4 py-3">
                 <h3 class="text-base font-semibold text-yellow-300">Unsorted lessons</h3>
-                <p class="text-xs text-gray-400 mt-1">Lessons not yet attached to a module. Assign one from the lesson editor.</p>
+                <p class="text-xs text-gray-400 mt-1">Lessons not attached to a module. Drag a lesson here to unassign it, or into a module above to assign it.</p>
             </div>
-            <ul class="divide-y divide-yellow-500/10">
+            <ul class="lesson-drop-list divide-y divide-yellow-500/10 min-h-[48px]">
             {% for row in unsorted_lessons %}
-                <li class="flex items-center justify-between px-4 py-3 hover:bg-[#0a0e27]/40">
+                <li class="flex items-center justify-between px-4 py-3 hover:bg-[#0a0e27]/40" data-lesson-id="{{ row.lesson.id }}">
                     <div class="flex items-center gap-3 min-w-0">
+                        <span class="lesson-drag-handle text-gray-500 hover:text-cyan-electric shrink-0" draggable="true" title="Drag to reorder">
+                            <i class="fas fa-grip-vertical"></i>
+                        </span>
                         <i class="fas fa-video text-gray-500 shrink-0"></i>
                         <div class="min-w-0">
                             <div class="text-sm text-white truncate">{{ row.lesson.title }}</div>
@@ -364,6 +395,7 @@
             </ul>
         </div>
     {% endif %}
+    </div>
 </div>
 
 <script>
@@ -432,6 +464,146 @@
                 improveBtn.disabled = false;
                 improveBtn.textContent = previousText;
             }
+        });
+    })();
+
+    // Drag-and-drop lesson reorder (within or across modules).
+    (function () {
+        const root = document.getElementById('course-structure-dnd');
+        if (!root) return;
+        const reorderUrl = root.dataset.reorderUrl;
+        if (!reorderUrl) return;
+
+        const csrfEl = document.querySelector('form [name=csrfmiddlewaretoken]')
+            || document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrftoken = csrfEl ? csrfEl.value : '';
+
+        let dragItem = null;
+        let orderAtDragStart = '';
+
+        function toast(message, isError) {
+            let el = document.getElementById('lesson-reorder-toast');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'lesson-reorder-toast';
+                document.body.appendChild(el);
+            }
+            el.textContent = message;
+            el.classList.toggle('is-error', !!isError);
+            el.classList.add('show');
+            clearTimeout(el._hideTimer);
+            el._hideTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+        }
+
+        function moduleGroups() {
+            return Array.from(root.querySelectorAll('[data-module-group]'));
+        }
+
+        function lessonLists() {
+            return Array.from(root.querySelectorAll('.lesson-drop-list'));
+        }
+
+        function currentOrderKey() {
+            return moduleGroups().map(function (group) {
+                const mid = group.dataset.moduleId || '';
+                const ids = Array.from(group.querySelectorAll('[data-lesson-id]'))
+                    .map(function (li) { return li.dataset.lessonId; });
+                return mid + ':' + ids.join(',');
+            }).join('|');
+        }
+
+        function updateCounts() {
+            moduleGroups().forEach(function (group) {
+                const label = group.querySelector('[data-lesson-count]');
+                if (!label) return;
+                const n = group.querySelectorAll('[data-lesson-id]').length;
+                label.textContent = n + ' lesson' + (n === 1 ? '' : 's');
+            });
+        }
+
+        function itemAfterPoint(list, y) {
+            const items = Array.from(list.querySelectorAll('[data-lesson-id]'))
+                .filter(function (li) { return li !== dragItem; });
+            let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+            items.forEach(function (li) {
+                const box = li.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    closest = { offset: offset, element: li };
+                }
+            });
+            return closest.element;
+        }
+
+        function persistOrder() {
+            const modules = moduleGroups().map(function (group) {
+                const rawId = group.dataset.moduleId;
+                const moduleId = rawId === '' || rawId == null ? null : Number(rawId);
+                const lessonIds = Array.from(group.querySelectorAll('[data-lesson-id]'))
+                    .map(function (li) { return Number(li.dataset.lessonId); });
+                return { module_id: moduleId, lesson_ids: lessonIds };
+            });
+
+            fetch(reorderUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ modules: modules }),
+                credentials: 'same-origin',
+            }).then(function (r) { return r.json().then(function (data) {
+                return { ok: r.ok, data: data };
+            }); }).then(function (result) {
+                if (result.ok && result.data && result.data.ok) {
+                    toast('Lesson order saved');
+                } else {
+                    toast((result.data && result.data.error) || 'Could not save order', true);
+                }
+            }).catch(function () {
+                toast('Could not save order', true);
+            });
+        }
+
+        root.addEventListener('dragstart', function (e) {
+            const handle = e.target.closest('.lesson-drag-handle');
+            if (!handle || !root.contains(handle)) return;
+            dragItem = handle.closest('[data-lesson-id]');
+            if (!dragItem) return;
+            orderAtDragStart = currentOrderKey();
+            dragItem.classList.add('lesson-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', dragItem.dataset.lessonId || ''); } catch (_) {}
+        });
+
+        root.addEventListener('dragover', function (e) {
+            if (!dragItem) return;
+            const list = e.target.closest('.lesson-drop-list');
+            if (!list || !root.contains(list)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            lessonLists().forEach(function (l) { l.classList.toggle('lesson-drag-over', l === list); });
+            const after = itemAfterPoint(list, e.clientY);
+            if (after == null) {
+                list.appendChild(dragItem);
+            } else {
+                list.insertBefore(dragItem, after);
+            }
+            updateCounts();
+        });
+
+        root.addEventListener('drop', function (e) {
+            if (!dragItem) return;
+            const list = e.target.closest('.lesson-drop-list');
+            if (!list || !root.contains(list)) return;
+            e.preventDefault();
+        });
+
+        root.addEventListener('dragend', function () {
+            if (!dragItem) return;
+            dragItem.classList.remove('lesson-dragging');
+            lessonLists().forEach(function (l) { l.classList.remove('lesson-drag-over'); });
+            const moved = currentOrderKey() !== orderAtDragStart;
+            dragItem = null;
+            updateCounts();
+            if (moved) { persistOrder(); }
         });
     })();
 </script>

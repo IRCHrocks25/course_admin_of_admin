@@ -111,38 +111,56 @@ def _extract_vimeo_id_from_url(url):
 
 def _derive_video_fields(video_link):
     """
-    Normalize video fields and fetch Vimeo duration when possible.
-    Returns kwargs safe to pass into Lesson.objects.create/update.
+    Normalize a pasted video link into Lesson field kwargs.
+    Supports Vimeo, YouTube, Google Drive, and generic embed URLs.
     """
     link = (video_link or '').strip()
     fields = {
-        'video_url': link,
+        'video_url': '',
         'vimeo_url': '',
         'vimeo_id': '',
+        'vimeo_thumbnail': '',
         'vimeo_duration_seconds': 0,
         'video_duration': 0,
+        'google_drive_url': '',
+        'google_drive_id': '',
     }
     if not link:
         return fields
 
-    vimeo_id = _extract_vimeo_id_from_url(link)
-    if not vimeo_id:
+    # Google Drive → store preview embed URL
+    drive_match = re.search(
+        r'(?:drive\.google\.com/(?:file/d/|open\?id=)|docs\.google\.com/file/d/)([a-zA-Z0-9_-]+)',
+        link,
+        flags=re.IGNORECASE,
+    )
+    if drive_match:
+        drive_id = drive_match.group(1)
+        fields['google_drive_id'] = drive_id
+        fields['google_drive_url'] = f'https://drive.google.com/file/d/{drive_id}/preview'
         return fields
 
-    fields['vimeo_url'] = link
-    fields['vimeo_id'] = vimeo_id
-    try:
-        oembed_url = f"https://vimeo.com/api/oembed.json?url=https://vimeo.com/{vimeo_id}"
-        response = requests.get(oembed_url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            duration_seconds = int(data.get('duration') or 0)
-            if duration_seconds > 0:
-                fields['vimeo_duration_seconds'] = duration_seconds
-                fields['video_duration'] = duration_seconds // 60
-    except Exception:
-        pass
+    # Vimeo → dedicated fields + optional oEmbed duration/thumbnail
+    vimeo_id = _extract_vimeo_id_from_url(link)
+    if vimeo_id:
+        fields['vimeo_url'] = link
+        fields['vimeo_id'] = vimeo_id
+        try:
+            oembed_url = f"https://vimeo.com/api/oembed.json?url=https://vimeo.com/{vimeo_id}"
+            response = requests.get(oembed_url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                duration_seconds = int(data.get('duration') or 0)
+                if duration_seconds > 0:
+                    fields['vimeo_duration_seconds'] = duration_seconds
+                    fields['video_duration'] = duration_seconds // 60
+                fields['vimeo_thumbnail'] = data.get('thumbnail_url') or ''
+        except Exception:
+            pass
+        return fields
 
+    # YouTube / generic embed → video_url (Lesson.get_video_embed_url normalizes YT)
+    fields['video_url'] = link
     return fields
 
 COURSEFORGE_FORMAT_CHOICES = (
@@ -1958,6 +1976,83 @@ def dashboard_reorder_categories(request):
 
 
 @staff_member_required
+@require_http_methods(["POST"])
+def dashboard_reorder_course_lessons(request, course_slug):
+    """Persist lesson order / module assignment (AJAX drag-and-drop on course detail)."""
+    tenant = _get_dashboard_tenant(request)
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
+        return JsonResponse({'ok': False, 'error': 'Tenant context is required.'}, status=400)
+
+    try:
+        payload = json.loads((request.body or b'').decode('utf-8') or '{}')
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid payload.'}, status=400)
+
+    modules_payload = payload.get('modules')
+    if not isinstance(modules_payload, list):
+        return JsonResponse({'ok': False, 'error': 'Expected a "modules" list.'}, status=400)
+
+    course_module_ids = set(course.modules.values_list('id', flat=True))
+    course_lesson_ids = set(course.lessons.values_list('id', flat=True))
+
+    updates = []  # (lesson_id, module_id|None, order)
+    seen_lessons = set()
+
+    for group in modules_payload:
+        if not isinstance(group, dict):
+            return JsonResponse({'ok': False, 'error': 'Invalid module group.'}, status=400)
+
+        raw_module_id = group.get('module_id', None)
+        lesson_ids = group.get('lesson_ids')
+        if not isinstance(lesson_ids, list):
+            return JsonResponse({'ok': False, 'error': 'Each group needs a "lesson_ids" list.'}, status=400)
+
+        module_id = None
+        if raw_module_id is not None and raw_module_id != '':
+            try:
+                module_id = int(raw_module_id)
+            except (TypeError, ValueError):
+                return JsonResponse({'ok': False, 'error': f'Invalid module_id: {raw_module_id!r}.'}, status=400)
+            if module_id not in course_module_ids:
+                return JsonResponse({'ok': False, 'error': f'Module {module_id} is not part of this course.'}, status=400)
+
+        for order, raw_lid in enumerate(lesson_ids):
+            try:
+                lesson_id = int(raw_lid)
+            except (TypeError, ValueError):
+                return JsonResponse({'ok': False, 'error': f'Invalid lesson_id: {raw_lid!r}.'}, status=400)
+            if lesson_id not in course_lesson_ids:
+                return JsonResponse({'ok': False, 'error': f'Lesson {lesson_id} is not part of this course.'}, status=400)
+            if lesson_id in seen_lessons:
+                continue
+            seen_lessons.add(lesson_id)
+            updates.append((lesson_id, module_id, order))
+
+    if not updates:
+        return JsonResponse({'ok': True, 'count': 0})
+
+    lessons_by_id = {
+        lesson.id: lesson
+        for lesson in course.lessons.filter(id__in=seen_lessons)
+    }
+    to_update = []
+    for lesson_id, module_id, order in updates:
+        lesson = lessons_by_id.get(lesson_id)
+        if lesson is None:
+            continue
+        if lesson.module_id != module_id or lesson.order != order:
+            lesson.module_id = module_id
+            lesson.order = order
+            to_update.append(lesson)
+
+    if to_update:
+        Lesson.objects.bulk_update(to_update, ['module', 'order'])
+
+    return JsonResponse({'ok': True, 'count': len(to_update)})
+
+
+@staff_member_required
 def dashboard_course_detail(request, course_slug):
     """Edit course details and manage resources"""
     tenant = _get_dashboard_tenant(request)
@@ -2035,13 +2130,27 @@ def dashboard_course_detail(request, course_slug):
             if rid:
                 try:
                     r = CourseResource.objects.get(id=rid, course=course)
+                    # Best-effort remote cleanup — never block deleting the DB row
+                    # when Iceberg/Cloudinary is missing or misconfigured.
                     if r.file_url:
-                        from myApp.utils import iceberg
-                        key = iceberg.key_from_url(r.file_url)
-                        if key:
-                            iceberg.delete(key)
+                        try:
+                            from myApp.utils import iceberg
+                            key = iceberg.key_from_url(r.file_url)
+                            if key:
+                                iceberg.delete(key)
+                        except Exception:
+                            logger.exception(
+                                'Could not remove remote file_url for resource %s', rid
+                            )
                     if r.file:
-                        r.file.delete(save=False)
+                        try:
+                            r.file.delete(save=False)
+                        except Exception:
+                            logger.exception(
+                                'Could not remove stored file for resource %s '
+                                '(Cloudinary/storage may be disabled)',
+                                rid,
+                            )
                     r.delete()
                     messages.success(request, 'Resource deleted.')
                 except CourseResource.DoesNotExist:

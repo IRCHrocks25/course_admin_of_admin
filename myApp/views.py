@@ -2527,33 +2527,86 @@ def add_lesson(request, course_slug):
 
     if request.method == 'POST':
         # Handle form submission
-        vimeo_url = request.POST.get('vimeo_url', '')
-        working_title = request.POST.get('working_title', '')
-        rough_notes = request.POST.get('rough_notes', '')
-        transcription = request.POST.get('transcription', '')
+        action = (request.POST.get('action') or 'generate').strip()
+        # Prefer the unified video_url field; keep vimeo_url for older form posts.
+        video_link = (
+            request.POST.get('video_url', '').strip()
+            or request.POST.get('vimeo_url', '').strip()
+        )
+        working_title = request.POST.get('working_title', '').strip()
+        rough_notes = request.POST.get('rough_notes', '').strip()
+        transcription = request.POST.get('transcription', '').strip()
 
-        # Extract Vimeo ID
-        vimeo_id = extract_vimeo_id(vimeo_url) if vimeo_url else None
+        if not working_title:
+            messages.error(request, 'Please enter a working lesson title.')
+            return render(request, 'creator/add_lesson.html', {'course': course})
 
-        # Create lesson draft
+        video_fields = derive_lesson_video_fields(video_link)
+
+        # Unique slug within this course
+        base_slug = generate_slug(working_title) or 'lesson'
+        lesson_slug = base_slug
+        counter = 1
+        while Lesson.objects.filter(course=course, slug=lesson_slug).exists():
+            lesson_slug = f'{base_slug}-{counter}'
+            counter += 1
+
+        max_order = course.lessons.aggregate(models.Max('order'))['order__max'] or 0
+
+        # Skip AI: save exactly what the user entered and go back to the lesson list.
+        if action == 'skip_ai':
+            description = rough_notes or working_title
+            summary = (rough_notes[:280] if rough_notes else working_title)
+            content = {}
+            if rough_notes:
+                content = {
+                    'time': 0,
+                    'blocks': [
+                        {'id': 'manual1', 'type': 'paragraph', 'data': {'text': rough_notes}},
+                    ],
+                    'version': '2.28.0',
+                }
+
+            lesson = Lesson.objects.create(
+                tenant=course.tenant,
+                course=course,
+                working_title=working_title,
+                rough_notes=rough_notes,
+                title=working_title,
+                slug=lesson_slug,
+                description=description,
+                order=max_order + 1,
+                ai_clean_title=working_title,
+                ai_short_summary=summary,
+                ai_full_description=description,
+                ai_generation_status='approved',
+                content=content,
+                **video_fields,
+            )
+
+            if transcription:
+                lesson.transcription = transcription
+                lesson.transcription_status = 'completed'
+                lesson.save(update_fields=['transcription', 'transcription_status'])
+
+            messages.success(
+                request,
+                f'Lesson "{working_title}" created without AI. You can edit or reorder it anytime.',
+            )
+            return redirect('course_lessons', course_slug=course_slug)
+
+        # Create lesson draft (AI generation path)
         lesson = Lesson.objects.create(
             tenant=course.tenant,
             course=course,
             working_title=working_title,
             rough_notes=rough_notes,
             title=working_title,  # Temporary
-            slug=generate_slug(working_title),
+            slug=lesson_slug,
             description='',  # Will be AI-generated
+            order=max_order + 1,
+            **video_fields,
         )
-
-        # Handle Vimeo URL if provided
-        if vimeo_id:
-            vimeo_data = fetch_vimeo_metadata(vimeo_id)
-            lesson.vimeo_url = vimeo_url
-            lesson.vimeo_id = vimeo_id
-            lesson.vimeo_thumbnail = vimeo_data.get('thumbnail', '')
-            lesson.vimeo_duration_seconds = vimeo_data.get('duration', 0)
-            lesson.video_duration = vimeo_data.get('duration', 0) // 60
 
         # Handle video file upload and transcription (temporary - not saved)
         if 'video_file' in request.FILES:
@@ -2958,31 +3011,70 @@ def generate_lesson_ai(request, course_slug, lesson_id):
 @require_http_methods(["POST"])
 @staff_member_required
 def verify_vimeo_url(request):
-    """AJAX endpoint to verify Vimeo URL and fetch metadata"""
-    vimeo_url = request.POST.get('vimeo_url', '')
-    vimeo_id = extract_vimeo_id(vimeo_url)
+    """AJAX endpoint to verify a pasted video link (Vimeo / YouTube / Drive / embed)."""
+    video_url = (
+        request.POST.get('video_url', '').strip()
+        or request.POST.get('vimeo_url', '').strip()
+    )
+    if not video_url:
+        return JsonResponse({'success': False, 'error': 'Paste a video link first.'})
 
-    if not vimeo_id:
+    source = detect_video_source(video_url)
+    if source == 'unknown':
         return JsonResponse({
             'success': False,
-            'error': 'Invalid Vimeo URL format'
+            'error': 'Could not recognize that link. Use Vimeo, YouTube, Google Drive, or an embed URL.',
         })
 
-    vimeo_data = fetch_vimeo_metadata(vimeo_id)
+    fields = derive_lesson_video_fields(video_url)
+    source_labels = {
+        'vimeo': 'Vimeo',
+        'youtube': 'YouTube',
+        'google_drive': 'Google Drive',
+        'embed': 'Embed URL',
+    }
 
-    if vimeo_data:
-        return JsonResponse({
-            'success': True,
-            'vimeo_id': vimeo_id,
-            'thumbnail': vimeo_data.get('thumbnail', ''),
-            'duration': vimeo_data.get('duration', 0),
-            'duration_formatted': format_duration(vimeo_data.get('duration', 0)),
-            'title': vimeo_data.get('title', ''),
-        })
+    title = 'Video recognized'
+    thumbnail = ''
+    duration = 0
+    duration_formatted = ''
+
+    if source == 'vimeo' and fields.get('vimeo_id'):
+        vimeo_data = fetch_vimeo_metadata(fields['vimeo_id']) or {}
+        title = vimeo_data.get('title') or 'Vimeo video'
+        thumbnail = vimeo_data.get('thumbnail') or fields.get('vimeo_thumbnail') or ''
+        duration = int(vimeo_data.get('duration') or fields.get('vimeo_duration_seconds') or 0)
+        duration_formatted = format_duration(duration)
+    elif source == 'youtube':
+        yt = re.search(
+            r'(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([a-zA-Z0-9_-]{11})',
+            video_url,
+        )
+        yt_id = yt.group(1) if yt else ''
+        title = 'YouTube video'
+        thumbnail = f'https://img.youtube.com/vi/{yt_id}/hqdefault.jpg' if yt_id else ''
+        duration_formatted = 'YouTube'
+    elif source == 'google_drive':
+        title = 'Google Drive video'
+        duration_formatted = 'Google Drive'
+    else:
+        title = 'Embed URL'
+        duration_formatted = 'Embed'
 
     return JsonResponse({
-        'success': False,
-        'error': 'Could not fetch video metadata'
+        'success': True,
+        'source': source,
+        'source_label': source_labels.get(source, source),
+        'vimeo_id': fields.get('vimeo_id', ''),
+        'thumbnail': thumbnail,
+        'duration': duration,
+        'duration_formatted': duration_formatted,
+        'title': title,
+        'normalized': {
+            'video_url': fields.get('video_url', ''),
+            'vimeo_url': fields.get('vimeo_url', ''),
+            'google_drive_url': fields.get('google_drive_url', ''),
+        },
     })
 
 
@@ -3071,6 +3163,77 @@ def check_transcription_status(request, lesson_id):
 
 
 # ========== HELPER FUNCTIONS ==========
+
+def detect_video_source(url):
+    """Classify a pasted video link: vimeo | youtube | google_drive | embed | unknown."""
+    raw = (url or '').strip()
+    if not raw:
+        return 'unknown'
+    lower = raw.lower()
+    if 'drive.google.com' in lower or 'docs.google.com/file' in lower:
+        return 'google_drive'
+    if extract_vimeo_id(raw):
+        return 'vimeo'
+    if re.search(r'(?:youtube\.com|youtu\.be)/', lower):
+        return 'youtube'
+    if lower.startswith('http://') or lower.startswith('https://'):
+        return 'embed'
+    return 'unknown'
+
+
+def derive_lesson_video_fields(video_link):
+    """
+    Normalize a pasted video link into Lesson field kwargs.
+    Supports Vimeo, YouTube, Google Drive, and generic embed URLs.
+    """
+    link = (video_link or '').strip()
+    fields = {
+        'video_url': '',
+        'vimeo_url': '',
+        'vimeo_id': '',
+        'vimeo_thumbnail': '',
+        'vimeo_duration_seconds': 0,
+        'video_duration': 0,
+        'google_drive_url': '',
+        'google_drive_id': '',
+    }
+    if not link:
+        return fields
+
+    source = detect_video_source(link)
+
+    if source == 'google_drive':
+        drive_match = re.search(
+            r'(?:drive\.google\.com/(?:file/d/|open\?id=)|docs\.google\.com/file/d/)([a-zA-Z0-9_-]+)',
+            link,
+            flags=re.IGNORECASE,
+        )
+        if drive_match:
+            drive_id = drive_match.group(1)
+            fields['google_drive_id'] = drive_id
+            fields['google_drive_url'] = f'https://drive.google.com/file/d/{drive_id}/preview'
+        else:
+            # Fallback: store as-is so the operator can still open it
+            fields['google_drive_url'] = link
+        return fields
+
+    if source == 'vimeo':
+        vimeo_id = extract_vimeo_id(link)
+        fields['vimeo_url'] = link
+        fields['vimeo_id'] = vimeo_id or ''
+        if vimeo_id:
+            vimeo_data = fetch_vimeo_metadata(vimeo_id) or {}
+            fields['vimeo_thumbnail'] = vimeo_data.get('thumbnail', '') or ''
+            duration = int(vimeo_data.get('duration') or 0)
+            if duration > 0:
+                fields['vimeo_duration_seconds'] = duration
+                fields['video_duration'] = duration // 60
+        return fields
+
+    # YouTube + generic embed URLs live on video_url
+    fields['video_url'] = link
+    return fields
+
 
 def extract_vimeo_id(url):
     """Extract Vimeo video ID from URL"""

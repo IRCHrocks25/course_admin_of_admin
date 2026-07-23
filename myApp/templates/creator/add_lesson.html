@@ -4,36 +4,219 @@
 {% block title %}Add Lesson - {{ course.name }}{% endblock %}
 
 {% block content %}
-<div class="w-full min-h-screen bg-[#0a0e27] py-8">
+<style>
+    .add-lesson-page .al-card {
+        background: rgba(15, 21, 41, 0.80);
+        border: 1px solid rgba(0, 229, 255, 0.10);
+        border-radius: 1rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+    }
+    .add-lesson-page .al-dropzone {
+        border: 2px dashed rgba(0, 229, 255, 0.30);
+        background: rgba(10, 14, 39, 0.40);
+        transition: border-color .2s, background .2s, box-shadow .2s;
+    }
+    .add-lesson-page .al-dropzone:hover {
+        border-color: rgba(0, 229, 255, 0.55);
+        background: rgba(10, 14, 39, 0.60);
+    }
+    .add-lesson-page .al-or-label {
+        background: #0f1529;
+    }
+    .add-lesson-page .al-field {
+        background: rgba(10, 14, 39, 0.60);
+        border: 1px solid rgba(0, 229, 255, 0.20);
+        color: inherit;
+    }
+    .add-lesson-page .al-field:focus {
+        outline: none;
+        border-color: rgba(0, 229, 255, 0.50);
+        background: rgba(10, 14, 39, 0.80);
+    }
+    .add-lesson-page .al-step-badge {
+        background: linear-gradient(135deg, var(--brand-accent-primary), var(--brand-accent-secondary));
+        color: var(--brand-accent-on-gradient);
+    }
+    .add-lesson-page .al-modal-panel {
+        background: #0a0e27;
+        border: 1px solid rgba(0, 229, 255, 0.30);
+    }
+
+    /* ── Light theme ───────────────────────────────────────────────────── */
+    .brand-theme-light .add-lesson-page {
+        background: transparent;
+    }
+    .brand-theme-light .add-lesson-page .al-title {
+        color: #0f172a;
+    }
+    .brand-theme-light .add-lesson-page .al-subtitle {
+        color: #64748b;
+    }
+    .brand-theme-light .add-lesson-page .al-card {
+        background: #ffffff;
+        border-color: rgba(15, 23, 42, 0.10);
+        box-shadow:
+            0 1px 2px rgba(15, 23, 42, 0.04),
+            0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+    .brand-theme-light .add-lesson-page .al-section-title {
+        color: #0f172a;
+    }
+    .brand-theme-light .add-lesson-page .al-label {
+        color: #1e3a8a !important;
+    }
+    .brand-theme-light .add-lesson-page .al-hint,
+    .brand-theme-light .add-lesson-page .al-muted {
+        color: #64748b !important;
+    }
+    .brand-theme-light .add-lesson-page .al-dropzone {
+        background: #f8fafc;
+        border-color: rgba(30, 58, 138, 0.28);
+    }
+    .brand-theme-light .add-lesson-page .al-dropzone:hover {
+        background: #f1f5f9;
+        border-color: rgba(30, 58, 138, 0.50);
+        box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.08);
+    }
+    .brand-theme-light .add-lesson-page .al-dropzone .al-drop-icon {
+        color: #1e3a8a !important;
+        opacity: 0.55;
+    }
+    .brand-theme-light .add-lesson-page .al-dropzone:hover .al-drop-icon {
+        opacity: 0.9;
+    }
+    .brand-theme-light .add-lesson-page .al-or-line {
+        border-color: rgba(15, 23, 42, 0.10) !important;
+    }
+    .brand-theme-light .add-lesson-page .al-or-label {
+        background: #ffffff;
+        color: #94a3b8 !important;
+    }
+    .brand-theme-light .add-lesson-page .al-field {
+        background: #f8fafc;
+        border-color: rgba(15, 23, 42, 0.12);
+        color: #0f172a;
+    }
+    .brand-theme-light .add-lesson-page .al-field::placeholder {
+        color: #94a3b8;
+    }
+    .brand-theme-light .add-lesson-page .al-field:focus {
+        background: #ffffff;
+        border-color: rgba(30, 58, 138, 0.45);
+        box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.10);
+    }
+    .brand-theme-light .add-lesson-page .al-preview {
+        background: rgba(30, 58, 138, 0.05) !important;
+        border-color: rgba(30, 58, 138, 0.18) !important;
+    }
+    .brand-theme-light .add-lesson-page .al-divider {
+        border-color: rgba(15, 23, 42, 0.08) !important;
+    }
+    .brand-theme-light .add-lesson-page .al-progress-track {
+        background: #e2e8f0 !important;
+    }
+    .brand-theme-light .add-lesson-page .al-secondary-btn {
+        background: rgba(30, 58, 138, 0.06) !important;
+        border-color: rgba(30, 58, 138, 0.22) !important;
+        color: #1e3a8a !important;
+    }
+    .brand-theme-light .add-lesson-page .al-secondary-btn:hover {
+        background: rgba(30, 58, 138, 0.12) !important;
+    }
+    .brand-theme-light .add-lesson-page .al-status-icon {
+        color: #94a3b8 !important;
+    }
+    .brand-theme-light .add-lesson-page .al-generate-btn {
+        box-shadow: 0 8px 20px rgba(30, 58, 138, 0.18);
+    }
+    .brand-theme-light .add-lesson-page .al-generate-btn:hover {
+        box-shadow: 0 12px 28px rgba(30, 58, 138, 0.24);
+    }
+    .brand-theme-light .al-modal-backdrop {
+        background: rgba(15, 23, 42, 0.40) !important;
+    }
+    .brand-theme-light .al-modal-panel {
+        background: #ffffff !important;
+        border-color: rgba(15, 23, 42, 0.12) !important;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+    }
+    .brand-theme-light .al-modal-panel .al-modal-title {
+        color: #0f172a !important;
+    }
+    .brand-theme-light .al-modal-panel .al-modal-message {
+        color: #475569 !important;
+    }
+    .add-lesson-page .al-skip-btn {
+        background: rgba(0, 229, 255, 0.08);
+        border: 1px solid rgba(0, 229, 255, 0.25);
+        color: #67e8f9;
+    }
+    .add-lesson-page .al-skip-btn:hover {
+        background: rgba(0, 229, 255, 0.14);
+        border-color: rgba(0, 229, 255, 0.40);
+    }
+    .brand-theme-light .add-lesson-page .al-skip-btn {
+        background: #eef2ff;
+        border-color: rgba(30, 58, 138, 0.18);
+        color: #1e3a8a;
+    }
+    .brand-theme-light .add-lesson-page .al-skip-btn:hover {
+        background: #e0e7ff;
+        border-color: rgba(30, 58, 138, 0.30);
+    }
+    .add-lesson-page .al-source-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        border: 1px solid rgba(0, 229, 255, 0.22);
+        background: rgba(0, 229, 255, 0.08);
+        color: #a5f3fc;
+    }
+    .brand-theme-light .add-lesson-page .al-source-badge {
+        background: #f1f5f9;
+        border-color: rgba(15, 23, 42, 0.12);
+        color: #334155;
+    }
+    .brand-theme-light .add-lesson-page .al-source-badge .fab.fa-vimeo-v { color: #1ab7ea !important; }
+    .brand-theme-light .add-lesson-page .al-source-badge .fab.fa-youtube { color: #dc2626 !important; }
+    .brand-theme-light .add-lesson-page .al-source-badge .fab.fa-google-drive { color: #16a34a !important; }
+    .brand-theme-light .add-lesson-page .al-source-badge .fas.fa-code { color: #7c3aed !important; }
+</style>
+
+<div class="add-lesson-page w-full min-h-screen py-8">
     <div class="max-w-[1600px] mx-auto px-6">
         <!-- Header -->
         <div class="mb-8">
             <a href="{% url 'course_lessons' course.slug %}" class="text-cyan-electric hover:text-cyan-electric/80 text-sm mb-4 inline-flex items-center gap-2">
                 <i class="fas fa-arrow-left"></i> Back to {{ course.name }}
             </a>
-            <h1 class="text-4xl font-bold mb-2">Add New Lesson</h1>
-            <p class="text-gray-400">Upload your video and let AI organize everything</p>
+            <h1 class="al-title text-4xl font-bold mb-2">Add New Lesson</h1>
+            <p class="al-subtitle text-gray-400">Upload your video and let AI organize everything</p>
         </div>
 
         <!-- Two-Column Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left Column: Main Form -->
             <div class="lg:col-span-2">
-                <div class="bg-[#0f1529]/80 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-8 shadow-2xl">
+                <div class="al-card p-8">
                     <form method="POST" id="lesson-form" enctype="multipart/form-data">
                         {% csrf_token %}
                         
                         <!-- STEP 1: Video Input -->
                         <div class="mb-8">
                             <div class="flex items-center gap-3 mb-6">
-                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent text-on-accent-gradient flex items-center justify-center font-bold text-lg">1</div>
-                                <h2 class="text-2xl font-bold">Video Input</h2>
+                                <div class="al-step-badge w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg">1</div>
+                                <h2 class="al-section-title text-2xl font-bold">Video Input</h2>
                             </div>
                             
                             <div class="space-y-6">
                                 <!-- Video File Upload -->
                                 <div>
-                                    <label class="block text-sm font-semibold mb-3 uppercase tracking-wider text-cyan-electric/70">
+                                    <label class="al-label block text-sm font-semibold mb-3 uppercase tracking-wider text-cyan-electric/70">
                                         <i class="fas fa-upload mr-2"></i>Upload MP4 Video File
                                     </label>
                                     <div class="relative">
@@ -44,26 +227,26 @@
                                             accept="video/mp4"
                                             class="hidden"
                                         >
-                                        <label for="video-file" class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-cyan-electric/30 rounded-xl bg-[#0a0e27]/40 cursor-pointer hover:border-cyan-electric/50 hover:bg-[#0a0e27]/60 transition-all group">
+                                        <label for="video-file" class="al-dropzone flex flex-col items-center justify-center w-full h-48 rounded-xl cursor-pointer group">
                                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                                                <i class="fas fa-cloud-upload-alt text-5xl text-cyan-electric/50 mb-4 group-hover:text-cyan-electric transition-colors"></i>
-                                                <p class="mb-2 text-sm text-gray-400">
+                                                <i class="al-drop-icon fas fa-cloud-upload-alt text-5xl text-cyan-electric/50 mb-4 group-hover:text-cyan-electric transition-colors"></i>
+                                                <p class="al-muted mb-2 text-sm text-gray-400">
                                                     <span class="font-semibold text-cyan-electric">Click to upload</span> or drag and drop
                                                 </p>
-                                                <p class="text-xs text-gray-500">MP4 video file (MAX. 500MB)</p>
+                                                <p class="al-hint text-xs text-gray-500">MP4 video file (MAX. 500MB)</p>
                                             </div>
                                         </label>
                                     </div>
-                                    <p class="text-xs text-gray-400 mt-2">
+                                    <p class="al-hint text-xs text-gray-400 mt-2">
                                         <i class="fas fa-info-circle mr-1"></i> Video will be automatically transcribed after upload.
                                     </p>
                                     <!-- Upload Progress -->
                                     <div id="upload-progress" class="hidden mt-4">
                                         <div class="flex items-center gap-3 mb-2">
-                                            <div class="flex-1 bg-gray-700/30 rounded-full h-2 overflow-hidden">
+                                            <div class="al-progress-track flex-1 bg-gray-700/30 rounded-full h-2 overflow-hidden">
                                                 <div id="progress-bar" class="bg-gradient-to-r from-cyan-electric to-purple-accent h-full rounded-full transition-all duration-300" style="width: 0%"></div>
                                             </div>
-                                            <span id="progress-text" class="text-xs text-gray-400">0%</span>
+                                            <span id="progress-text" class="al-muted text-xs text-gray-400">0%</span>
                                         </div>
                                     </div>
                                 </div>
@@ -71,37 +254,46 @@
                                 <!-- OR Divider -->
                                 <div class="relative my-6">
                                     <div class="absolute inset-0 flex items-center">
-                                        <div class="w-full border-t border-cyan-electric/10"></div>
+                                        <div class="al-or-line w-full border-t border-cyan-electric/10"></div>
                                     </div>
                                     <div class="relative flex justify-center text-sm">
-                                        <span class="px-4 bg-[#0f1529] text-gray-500 uppercase tracking-wider">OR</span>
+                                        <span class="al-or-label px-4 text-gray-500 uppercase tracking-wider">OR</span>
                                     </div>
                                 </div>
                                 
-                                <!-- Vimeo URL Input -->
+                                <!-- Video URL Input (any source) -->
                                 <div>
-                                    <label class="block text-sm font-semibold mb-3 uppercase tracking-wider text-cyan-electric/70">
-                                        <i class="fab fa-vimeo mr-2"></i>Paste Vimeo video link
+                                    <label class="al-label block text-sm font-semibold mb-2 uppercase tracking-wider text-cyan-electric/70">
+                                        <i class="fas fa-link mr-2"></i>Paste Video Link
                                     </label>
+                                    <div class="flex flex-wrap gap-2 mb-3">
+                                        <span class="al-source-badge"><i class="fab fa-vimeo-v"></i> Vimeo</span>
+                                        <span class="al-source-badge"><i class="fab fa-youtube"></i> YouTube</span>
+                                        <span class="al-source-badge"><i class="fab fa-google-drive"></i> Google Drive</span>
+                                        <span class="al-source-badge"><i class="fas fa-code"></i> Embed URL</span>
+                                    </div>
                                     <input 
                                         type="url" 
-                                        name="vimeo_url" 
-                                        id="vimeo-url"
-                                        placeholder="https://vimeo.com/xxxxxxxxx"
-                                        class="w-full bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-electric/50 focus:bg-[#0a0e27]/80 transition-all"
+                                        name="video_url" 
+                                        id="video-url"
+                                        placeholder="https://vimeo.com/... · https://youtube.com/watch?v=... · https://drive.google.com/file/d/..."
+                                        class="al-field w-full rounded-xl px-4 py-3 text-sm transition-all"
                                     >
-                                    <p class="text-xs text-gray-400 mt-2">
-                                        We'll automatically detect metadata, duration, and thumbnail.
+                                    <p class="al-hint text-xs text-gray-400 mt-2">
+                                        We detect the source automatically. For Google Drive, make sure the file is shared as “Anyone with the link can view”.
                                     </p>
                                 </div>
                                 
                                 <!-- Video Preview (hidden initially) -->
-                                <div id="video-preview" class="hidden mt-4 p-5 bg-cyan-electric/5 border border-cyan-electric/20 rounded-xl">
+                                <div id="video-preview" class="al-preview hidden mt-4 p-5 bg-cyan-electric/5 border border-cyan-electric/20 rounded-xl">
                                     <div class="flex gap-4">
-                                        <img id="preview-thumbnail" src="" alt="Video thumbnail" class="w-40 h-24 object-cover rounded-lg">
-                                        <div class="flex-1">
+                                        <img id="preview-thumbnail" src="" alt="Video thumbnail" class="w-40 h-24 object-cover rounded-lg hidden">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <span id="preview-source" class="al-source-badge"></span>
+                                            </div>
                                             <div id="preview-title" class="font-semibold mb-2 text-white"></div>
-                                            <div class="text-sm text-gray-400 mb-2">
+                                            <div id="preview-duration-wrap" class="al-muted text-sm text-gray-400 mb-2 hidden">
                                                 <i class="fas fa-clock mr-2"></i>
                                                 <span id="preview-duration"></span>
                                             </div>
@@ -116,10 +308,10 @@
                         </div>
 
                         <!-- STEP 2: Lesson Context -->
-                        <div class="mb-8 border-t border-cyan-electric/10 pt-8">
+                        <div class="mb-8 al-divider border-t border-cyan-electric/10 pt-8">
                             <div class="flex items-center gap-3 mb-6">
-                                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-electric to-purple-accent text-on-accent-gradient flex items-center justify-center font-bold text-lg">2</div>
-                                <h2 class="text-2xl font-bold">Lesson Context</h2>
+                                <div class="al-step-badge w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg">2</div>
+                                <h2 class="al-section-title text-2xl font-bold">Lesson Context</h2>
                             </div>
                             
                             <div class="space-y-6">
@@ -131,7 +323,7 @@
                                         type="text" 
                                         name="working_title" 
                                         placeholder="Sprint 8.0 – Session 1: Orientation"
-                                        class="w-full bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-electric/50 focus:bg-[#0a0e27]/80 transition-all"
+                                        class="al-field w-full rounded-xl px-4 py-3 text-sm transition-all"
                                         required
                                     >
                                 </div>
@@ -144,9 +336,9 @@
                                         name="rough_notes" 
                                         rows="6"
                                         placeholder="Drop session notes, bullets, workshop outline, or even messy copy here. The AI will use this to generate better descriptions and outcomes."
-                                        class="w-full bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-electric/50 focus:bg-[#0a0e27]/80 resize-none transition-all"
+                                        class="al-field w-full rounded-xl px-4 py-3 text-sm resize-none transition-all"
                                     ></textarea>
-                                    <p class="text-xs text-gray-400 mt-2">
+                                    <p class="al-hint text-xs text-gray-400 mt-2">
                                         If you don't add anything, the AI still handles the description based on the video title — but notes improve accuracy.
                                     </p>
                                 </div>
@@ -156,19 +348,38 @@
                         <!-- Hidden transcription field -->
                         <input type="hidden" name="transcription" id="transcription-input">
 
-                        <!-- STEP 3: AI Generation Button -->
-                        <div class="border-t border-cyan-electric/10 pt-8">
-                            <button 
-                                type="submit"
-                                id="generate-btn"
-                                class="w-full px-6 py-4 bg-gradient-to-r from-cyan-electric to-purple-accent text-on-accent-gradient rounded-xl font-bold text-lg hover:shadow-2xl hover:shadow-cyan-electric/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                            >
-                                <i class="fas fa-magic mr-2"></i>
-                                Generate Lesson Description & Outputs
-                            </button>
-                            <p class="text-xs text-gray-400 mt-3 text-center">
-                                The AI will generate: clean title, summary, full description, outcomes, and recommended coach actions.
-                            </p>
+                        <!-- STEP 3: Create / Generate -->
+                        <div class="al-divider border-t border-cyan-electric/10 pt-8 space-y-4">
+                            <div>
+                                <button 
+                                    type="submit"
+                                    name="action"
+                                    value="generate"
+                                    id="generate-btn"
+                                    class="al-generate-btn w-full px-6 py-4 bg-gradient-to-r from-cyan-electric to-purple-accent text-on-accent-gradient rounded-xl font-bold text-lg hover:shadow-2xl hover:shadow-cyan-electric/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                >
+                                    <i class="fas fa-magic mr-2"></i>
+                                    Generate Lesson Description & Outputs
+                                </button>
+                                <p class="al-hint text-xs text-gray-400 mt-3 text-center">
+                                    The AI will generate: clean title, summary, full description, outcomes, and recommended coach actions.
+                                </p>
+                            </div>
+                            <div>
+                                <button
+                                    type="submit"
+                                    name="action"
+                                    value="skip_ai"
+                                    id="skip-ai-btn"
+                                    class="al-skip-btn w-full px-6 py-3.5 rounded-xl font-semibold text-base transition-all"
+                                >
+                                    <i class="fas fa-plus mr-2"></i>
+                                    Just Create the Lesson (skip AI)
+                                </button>
+                                <p class="al-hint text-xs text-gray-400 mt-3 text-center">
+                                    Saves the lesson exactly as entered — title, notes, and video — with no AI generation. You can edit or reorder it afterwards.
+                                </p>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -176,9 +387,9 @@
             
             <!-- Right Column: Transcription Panel -->
             <div class="lg:col-span-1">
-                <div class="bg-[#0f1529]/80 backdrop-blur-sm border border-cyan-electric/10 rounded-2xl p-6 shadow-2xl sticky top-24">
+                <div class="al-card p-6 sticky top-24">
                     <div class="flex items-center justify-between mb-6">
-                        <h3 class="text-lg font-bold flex items-center gap-2">
+                        <h3 class="al-section-title text-lg font-bold flex items-center gap-2">
                             <i class="fas fa-file-alt text-cyan-electric"></i>
                             Transcription
                         </h3>
@@ -190,8 +401,8 @@
                     <!-- Transcription Status -->
                     <div id="transcription-status" class="mb-4">
                         <div id="status-pending" class="text-center py-8">
-                            <i class="fas fa-file-video text-4xl text-gray-600 mb-3"></i>
-                            <p class="text-sm text-gray-400">Upload a video to generate transcription</p>
+                            <i class="al-status-icon fas fa-file-video text-4xl text-gray-600 mb-3"></i>
+                            <p class="al-muted text-sm text-gray-400">Upload a video to generate transcription</p>
                         </div>
                         
                         <div id="status-processing" class="hidden text-center py-8">
@@ -199,7 +410,7 @@
                                 <i class="fas fa-spinner fa-spin text-2xl text-cyan-electric"></i>
                             </div>
                             <p class="text-sm font-semibold text-cyan-electric mb-1">Generating transcription...</p>
-                            <p class="text-xs text-gray-400">This may take a moment</p>
+                            <p class="al-muted text-xs text-gray-400">This may take a moment</p>
                         </div>
                         
                         <div id="status-error" class="hidden text-center py-6">
@@ -207,7 +418,7 @@
                                 <i class="fas fa-exclamation-triangle text-xl text-red-400"></i>
                             </div>
                             <p class="text-sm text-red-400 mb-2" id="error-message">Transcription failed</p>
-                            <button id="retry-transcription" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-xs text-cyan-electric hover:bg-cyan-electric/20 transition-colors">
+                            <button id="retry-transcription" class="al-secondary-btn px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-xs text-cyan-electric hover:bg-cyan-electric/20 transition-colors">
                                 <i class="fas fa-redo mr-1"></i> Retry Transcription
                             </button>
                         </div>
@@ -218,21 +429,21 @@
                         <textarea 
                             id="transcription-textarea"
                             rows="20"
-                            class="w-full bg-[#0a0e27]/60 border border-cyan-electric/20 rounded-xl px-4 py-3 text-sm text-gray-300 focus:outline-none focus:border-cyan-electric/50 focus:bg-[#0a0e27]/80 resize-none transition-all font-mono leading-relaxed"
+                            class="al-field w-full rounded-xl px-4 py-3 text-sm text-gray-300 resize-none transition-all font-mono leading-relaxed"
                             placeholder="Transcription will appear here..."
                         ></textarea>
                         
                         <!-- Action Buttons -->
                         <div class="flex gap-2 mt-4">
-                            <button id="use-for-description" class="flex-1 px-3 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-xs text-cyan-electric hover:bg-cyan-electric/20 transition-colors">
+                            <button id="use-for-description" class="al-secondary-btn flex-1 px-3 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-xs text-cyan-electric hover:bg-cyan-electric/20 transition-colors">
                                 <i class="fas fa-magic mr-1"></i> Use for Description
                             </button>
-                            <button id="copy-transcription-btn" class="px-3 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-xs text-cyan-electric hover:bg-cyan-electric/20 transition-colors">
+                            <button id="copy-transcription-btn" class="al-secondary-btn px-3 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-xs text-cyan-electric hover:bg-cyan-electric/20 transition-colors">
                                 <i class="fas fa-copy"></i>
                             </button>
                         </div>
                         
-                        <p class="text-xs text-gray-500 mt-3 text-center">
+                        <p class="al-hint text-xs text-gray-500 mt-3 text-center">
                             <i class="fas fa-edit mr-1"></i> You can edit the transcription directly
                         </p>
                     </div>
@@ -241,21 +452,20 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
 <!-- Global Lesson Modal (reusable) -->
 <div 
     id="global-lesson-modal" 
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm"
+    class="al-modal-backdrop fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm"
 >
-    <div class="bg-[#0a0e27] border border-cyan-electric/30 rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
+    <div class="al-modal-panel rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6">
         <div class="flex items-start gap-3 mb-4">
             <div class="w-9 h-9 rounded-full bg-red-500/10 border border-red-500/40 flex items-center justify-center flex-shrink-0">
                 <i class="fas fa-exclamation-triangle text-red-400"></i>
             </div>
             <div>
-                <h3 class="text-lg font-semibold text-white mb-1" id="global-lesson-modal-title">Heads up</h3>
-                <p id="global-lesson-modal-message" class="text-sm text-gray-300 leading-relaxed"></p>
+                <h3 class="al-modal-title text-lg font-semibold text-white mb-1" id="global-lesson-modal-title">Heads up</h3>
+                <p id="global-lesson-modal-message" class="al-modal-message text-sm text-gray-300 leading-relaxed"></p>
             </div>
         </div>
         <div class="flex justify-end">
@@ -269,6 +479,7 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
@@ -303,7 +514,7 @@
     }
 
     const videoFileInput = document.getElementById('video-file');
-    const vimeoUrlInput = document.getElementById('vimeo-url');
+    const videoUrlInput = document.getElementById('video-url');
     const videoPreview = document.getElementById('video-preview');
     const generateBtn = document.getElementById('generate-btn');
     const transcriptionInput = document.getElementById('transcription-input');
@@ -323,7 +534,7 @@
     const copyTranscriptionBtn2 = document.getElementById('copy-transcription-btn');
     const useForDescriptionBtn = document.getElementById('use-for-description');
     
-    let vimeoVerified = false;
+    let videoLinkVerified = false;
     let transcriptionData = '';
     let currentVideoFile = null;
     
@@ -447,58 +658,84 @@
         transcriptionInput.value = this.value;
     });
     
-    // Verify Vimeo URL on blur
-    vimeoUrlInput.addEventListener('blur', function() {
-        const url = this.value.trim();
-        if (!url) {
-            videoPreview.classList.add('hidden');
-            if (!transcriptionData) {
-                generateBtn.disabled = true;
-            }
-            vimeoVerified = false;
-            return;
-        }
-        
-        // Verify URL
-        fetch('{% url "verify_vimeo_url" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            },
-            body: `vimeo_url=${encodeURIComponent(url)}`
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('preview-thumbnail').src = data.thumbnail;
-                document.getElementById('preview-title').textContent = data.title || 'Video recognized';
-                document.getElementById('preview-duration').textContent = `Duration: ${data.duration_formatted}`;
-                videoPreview.classList.remove('hidden');
-                generateBtn.disabled = false;
-                vimeoVerified = true;
-            } else {
+    // Verify any video URL on blur
+    if (videoUrlInput) {
+        videoUrlInput.addEventListener('blur', function() {
+            const url = this.value.trim();
+            const previewThumb = document.getElementById('preview-thumbnail');
+            const previewTitle = document.getElementById('preview-title');
+            const previewDuration = document.getElementById('preview-duration');
+            const previewDurationWrap = document.getElementById('preview-duration-wrap');
+            const previewSource = document.getElementById('preview-source');
+
+            if (!url) {
                 videoPreview.classList.add('hidden');
                 if (!transcriptionData) {
                     generateBtn.disabled = true;
                 }
-                vimeoVerified = false;
-                showGlobalLessonModal('Could not verify Vimeo URL: ' + (data.error || 'Unknown error'), 'Vimeo error');
+                videoLinkVerified = false;
+                return;
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            videoPreview.classList.add('hidden');
-            if (!transcriptionData) {
-                generateBtn.disabled = true;
-            }
-            vimeoVerified = false;
+
+            fetch('{% url "verify_vimeo_url" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: `video_url=${encodeURIComponent(url)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.thumbnail) {
+                        previewThumb.src = data.thumbnail;
+                        previewThumb.classList.remove('hidden');
+                    } else {
+                        previewThumb.removeAttribute('src');
+                        previewThumb.classList.add('hidden');
+                    }
+                    previewTitle.textContent = data.title || 'Video recognized';
+                    if (previewSource) {
+                        previewSource.textContent = data.source_label || data.source || 'Video';
+                    }
+                    if (data.duration_formatted) {
+                        previewDuration.textContent = data.duration
+                            ? `Duration: ${data.duration_formatted}`
+                            : data.duration_formatted;
+                        previewDurationWrap.classList.remove('hidden');
+                    } else {
+                        previewDurationWrap.classList.add('hidden');
+                    }
+                    videoPreview.classList.remove('hidden');
+                    generateBtn.disabled = false;
+                    videoLinkVerified = true;
+                } else {
+                    videoPreview.classList.add('hidden');
+                    if (!transcriptionData) {
+                        generateBtn.disabled = true;
+                    }
+                    videoLinkVerified = false;
+                    showGlobalLessonModal(
+                        data.error || 'Could not recognize that video link.',
+                        'Video link'
+                    );
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                videoPreview.classList.add('hidden');
+                if (!transcriptionData) {
+                    generateBtn.disabled = true;
+                }
+                videoLinkVerified = false;
+            });
         });
-    });
+    }
     
-    // Enable generate button if either vimeo or transcription is available
+    // Enable generate button if either video link or transcription is available
     function checkFormReady() {
-        if (vimeoVerified || transcriptionData) {
+        if (videoLinkVerified || transcriptionData) {
             generateBtn.disabled = false;
         }
     }

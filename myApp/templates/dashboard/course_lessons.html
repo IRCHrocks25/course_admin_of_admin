@@ -9,6 +9,32 @@
         background: rgba(2, 6, 23, 0.74);
         backdrop-filter: blur(3px);
     }
+    .lesson-drag-handle { cursor: grab; }
+    .lesson-drag-handle:active { cursor: grabbing; }
+    .lesson-row.lesson-dragging { opacity: 0.45; }
+    .lesson-drop-list.lesson-drag-over {
+        outline: 2px dashed rgba(0,229,255,0.45);
+        outline-offset: 2px;
+        border-radius: 0.75rem;
+        min-height: 56px;
+    }
+    .lesson-drop-list:empty::after {
+        content: 'Drop lessons here';
+        display: block;
+        padding: 1rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+        font-style: italic;
+        text-align: center;
+    }
+    #lesson-reorder-toast {
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+        background: #0a0e27; color: #e5e7eb; border: 1px solid rgba(0,229,255,0.3);
+        padding: 8px 16px; border-radius: 9px; font-size: 12px; z-index: 60;
+        opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    }
+    #lesson-reorder-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #lesson-reorder-toast.is-error { border-color: rgba(248,113,113,0.5); color: #fca5a5; }
 </style>
 <div class="mb-6">
     <div class="flex items-center justify-between">
@@ -50,16 +76,22 @@
     <p id="ecl-status" class="text-sm text-gray-400"></p>
 </div>
 
-<div class="space-y-4">
+<p class="text-sm text-gray-400 mb-4">Drag lessons by the handle to reorder them — including into a different module. Changes are saved automatically.</p>
+
+<div id="course-structure-dnd" class="space-y-4" data-reorder-url="{% url 'dashboard_reorder_course_lessons' course.slug %}">
+    {% csrf_token %}
     {% for module in modules %}
-    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6" data-module-group data-module-id="{{ module.id }}">
         <h2 class="text-xl font-bold mb-4">{{ module.name }}</h2>
-        <div class="space-y-3">
+        <div class="lesson-drop-list space-y-3 min-h-[56px]">
             {% for lesson in module.lessons.all %}
-            <div class="flex items-center justify-between p-4 bg-[#0a0e27]/40 rounded-lg hover:bg-[#0a0e27]/60 transition-all">
+            <div class="lesson-row flex items-center justify-between p-4 bg-[#0a0e27]/40 rounded-lg hover:bg-[#0a0e27]/60 transition-all" data-lesson-id="{{ lesson.id }}">
                 <div class="flex items-center gap-4 flex-1 min-w-0">
-                    <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold flex-shrink-0">
-                        {{ lesson.order|default:forloop.counter }}
+                    <span class="lesson-drag-handle text-gray-500 hover:text-cyan-electric flex-shrink-0" draggable="true" title="Drag to reorder">
+                        <i class="fas fa-grip-vertical"></i>
+                    </span>
+                    <div class="lesson-order-badge w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold flex-shrink-0">
+                        {{ forloop.counter0 }}
                     </div>
                     {% if not lesson.google_drive_url and not lesson.get_vimeo_embed_url and not lesson.video_url and lesson.ai_hero_image_url %}
                     <img src="{{ lesson.ai_hero_image_url }}"
@@ -101,57 +133,65 @@
         </div>
     </div>
     {% endfor %}
-    
-    <!-- Lessons without module -->
-    {% for lesson in lessons %}
-        {% if not lesson.module %}
-        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6">
-            <div class="flex items-center justify-between p-4 bg-[#0a0e27]/40 rounded-lg">
-                <div class="flex items-center gap-4 flex-1 min-w-0">
-                    <div class="w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold flex-shrink-0">
-                        {{ lesson.order|default:forloop.counter }}
-                    </div>
-                    {% if not lesson.google_drive_url and not lesson.get_vimeo_embed_url and not lesson.video_url and lesson.ai_hero_image_url %}
-                    <img src="{{ lesson.ai_hero_image_url }}"
-                         alt=""
-                         class="w-24 h-14 object-cover rounded-md border border-cyan-electric/20 flex-shrink-0"
-                         loading="lazy" />
-                    {% endif %}
-                    <div class="flex-1 min-w-0">
-                        <div class="font-semibold">{{ lesson.title }}</div>
-                        <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
-                            {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
-                            <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i> Video Ready</span>
-                            {% endif %}
+
+    {% if modules or lessons %}
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-yellow-500/20 rounded-xl p-6" data-module-group data-module-id="">
+        <h2 class="text-xl font-bold mb-1 text-yellow-300">Unsorted lessons</h2>
+        <p class="text-xs text-gray-400 mb-4">Lessons not attached to a module. Drag here to unassign, or into a module above to assign.</p>
+        <div class="lesson-drop-list space-y-3 min-h-[56px]">
+            {% for lesson in lessons %}
+                {% if not lesson.module %}
+                <div class="lesson-row flex items-center justify-between p-4 bg-[#0a0e27]/40 rounded-lg hover:bg-[#0a0e27]/60 transition-all" data-lesson-id="{{ lesson.id }}">
+                    <div class="flex items-center gap-4 flex-1 min-w-0">
+                        <span class="lesson-drag-handle text-gray-500 hover:text-cyan-electric flex-shrink-0" draggable="true" title="Drag to reorder">
+                            <i class="fas fa-grip-vertical"></i>
+                        </span>
+                        <div class="lesson-order-badge w-10 h-10 rounded-lg bg-cyan-electric/20 text-cyan-electric flex items-center justify-center font-bold flex-shrink-0">
+                            {{ lesson.order|default:forloop.counter0 }}
                         </div>
+                        {% if not lesson.google_drive_url and not lesson.get_vimeo_embed_url and not lesson.video_url and lesson.ai_hero_image_url %}
+                        <img src="{{ lesson.ai_hero_image_url }}"
+                             alt=""
+                             class="w-24 h-14 object-cover rounded-md border border-cyan-electric/20 flex-shrink-0"
+                             loading="lazy" />
+                        {% endif %}
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold">{{ lesson.title }}</div>
+                            <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
+                                {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
+                                <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i> Video Ready</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold
+                            {% if lesson.ai_generation_status == 'approved' %}bg-green-500/20 text-green-400 border border-green-500/30
+                            {% elif lesson.ai_generation_status == 'generated' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
+                            {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
+                            {{ lesson.get_ai_generation_status_display }}
+                        </span>
                     </div>
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold
-                        {% if lesson.ai_generation_status == 'approved' %}bg-green-500/20 text-green-400 border border-green-500/30
-                        {% elif lesson.ai_generation_status == 'generated' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
-                        {% else %}bg-gray-500/20 text-gray-400 border border-gray-500/30{% endif %}">
-                        {{ lesson.get_ai_generation_status_display }}
-                    </span>
-                </div>
-                <div class="flex gap-2 ml-4">
-                    <button type="button" class="px-4 py-2 bg-emerald-500/10 border border-emerald-400/30 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-all text-emerald-300 preview-lesson-btn" data-lesson-id="{{ lesson.id }}">
-                        <i class="fas fa-eye mr-1"></i> Preview
-                    </button>
-                    <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-sm font-medium hover:bg-cyan-electric/20 transition-all">
-                        Edit
-                    </a>
-                    <form method="POST" action="{% url 'dashboard_delete_lesson' lesson.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete \"{{ lesson.title }}\"? This will also delete all related progress, quiz data, and other associated information. This action cannot be undone.');">
-                        {% csrf_token %}
-                        <button type="submit" class="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-all text-red-400">
-                            <i class="fas fa-trash"></i>
+                    <div class="flex gap-2 ml-4">
+                        <button type="button" class="px-4 py-2 bg-emerald-500/10 border border-emerald-400/30 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-all text-emerald-300 preview-lesson-btn" data-lesson-id="{{ lesson.id }}">
+                            <i class="fas fa-eye mr-1"></i> Preview
                         </button>
-                    </form>
+                        <a href="{% url 'dashboard_edit_lesson' lesson.id %}" class="px-4 py-2 bg-cyan-electric/10 border border-cyan-electric/30 rounded-lg text-sm font-medium hover:bg-cyan-electric/20 transition-all">
+                            Edit
+                        </a>
+                        <form method="POST" action="{% url 'dashboard_delete_lesson' lesson.id %}" class="inline" onsubmit="return confirm('Are you sure you want to delete \"{{ lesson.title }}\"? This will also delete all related progress, quiz data, and other associated information. This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-all text-red-400">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
                 </div>
-            </div>
+                {% endif %}
+            {% endfor %}
         </div>
-        {% endif %}
-    {% endfor %}
-    
-    {% if not lessons %}
+    </div>
+    {% endif %}
+
+    {% if not lessons and not modules %}
     <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-12 text-center">
         <i class="fas fa-video text-6xl text-gray-600 mb-4"></i>
         <p class="text-gray-400 text-lg mb-6">No lessons yet. Add your first lesson to get started!</p>
@@ -462,6 +502,149 @@ document.addEventListener('DOMContentLoaded', function() {
             closePreviewModal();
         }
     });
+
+    // Drag-and-drop lesson reorder (within or across modules).
+    (function () {
+        const root = document.getElementById('course-structure-dnd');
+        if (!root) return;
+        const reorderUrl = root.dataset.reorderUrl;
+        if (!reorderUrl) return;
+
+        const csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+        const csrftoken = csrfEl ? csrfEl.value : '';
+
+        let dragItem = null;
+        let orderAtDragStart = '';
+
+        function toast(message, isError) {
+            let el = document.getElementById('lesson-reorder-toast');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'lesson-reorder-toast';
+                document.body.appendChild(el);
+            }
+            el.textContent = message;
+            el.classList.toggle('is-error', !!isError);
+            el.classList.add('show');
+            clearTimeout(el._hideTimer);
+            el._hideTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+        }
+
+        function moduleGroups() {
+            return Array.from(root.querySelectorAll('[data-module-group]'));
+        }
+
+        function lessonLists() {
+            return Array.from(root.querySelectorAll('.lesson-drop-list'));
+        }
+
+        function currentOrderKey() {
+            return moduleGroups().map(function (group) {
+                const mid = group.dataset.moduleId || '';
+                const ids = Array.from(group.querySelectorAll('.lesson-row[data-lesson-id]'))
+                    .map(function (row) { return row.dataset.lessonId; });
+                return mid + ':' + ids.join(',');
+            }).join('|');
+        }
+
+        function updateOrderBadges() {
+            moduleGroups().forEach(function (group) {
+                Array.from(group.querySelectorAll('.lesson-row[data-lesson-id]')).forEach(function (row, index) {
+                    const badge = row.querySelector('.lesson-order-badge');
+                    if (badge) badge.textContent = String(index);
+                });
+            });
+        }
+
+        function itemAfterPoint(list, y) {
+            const items = Array.from(list.querySelectorAll('.lesson-row[data-lesson-id]'))
+                .filter(function (row) { return row !== dragItem; });
+            let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+            items.forEach(function (row) {
+                const box = row.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    closest = { offset: offset, element: row };
+                }
+            });
+            return closest.element;
+        }
+
+        function persistOrder() {
+            const modules = moduleGroups().map(function (group) {
+                const rawId = group.dataset.moduleId;
+                const moduleId = rawId === '' || rawId == null ? null : Number(rawId);
+                const lessonIds = Array.from(group.querySelectorAll('.lesson-row[data-lesson-id]'))
+                    .map(function (row) { return Number(row.dataset.lessonId); });
+                return { module_id: moduleId, lesson_ids: lessonIds };
+            });
+
+            fetch(reorderUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ modules: modules }),
+                credentials: 'same-origin',
+            }).then(function (r) {
+                return r.json().then(function (data) {
+                    return { ok: r.ok, data: data };
+                });
+            }).then(function (result) {
+                if (result.ok && result.data && result.data.ok) {
+                    toast('Lesson order saved');
+                } else {
+                    toast((result.data && result.data.error) || 'Could not save order', true);
+                }
+            }).catch(function () {
+                toast('Could not save order', true);
+            });
+        }
+
+        root.addEventListener('dragstart', function (e) {
+            const handle = e.target.closest('.lesson-drag-handle');
+            if (!handle || !root.contains(handle)) return;
+            dragItem = handle.closest('.lesson-row[data-lesson-id]');
+            if (!dragItem) return;
+            orderAtDragStart = currentOrderKey();
+            dragItem.classList.add('lesson-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', dragItem.dataset.lessonId || ''); } catch (_) {}
+        });
+
+        root.addEventListener('dragover', function (e) {
+            if (!dragItem) return;
+            const list = e.target.closest('.lesson-drop-list');
+            if (!list || !root.contains(list)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            lessonLists().forEach(function (l) { l.classList.toggle('lesson-drag-over', l === list); });
+            const after = itemAfterPoint(list, e.clientY);
+            if (after == null) {
+                list.appendChild(dragItem);
+            } else {
+                list.insertBefore(dragItem, after);
+            }
+            updateOrderBadges();
+        });
+
+        root.addEventListener('drop', function (e) {
+            if (!dragItem) return;
+            const list = e.target.closest('.lesson-drop-list');
+            if (!list || !root.contains(list)) return;
+            e.preventDefault();
+        });
+
+        root.addEventListener('dragend', function () {
+            if (!dragItem) return;
+            dragItem.classList.remove('lesson-dragging');
+            lessonLists().forEach(function (l) { l.classList.remove('lesson-drag-over'); });
+            const moved = currentOrderKey() !== orderAtDragStart;
+            dragItem = null;
+            updateOrderBadges();
+            if (moved) { persistOrder(); }
+        });
+
+        updateOrderBadges();
+    })();
 });
 </script>
 {% endblock %}

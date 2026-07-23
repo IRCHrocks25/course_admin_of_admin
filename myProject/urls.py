@@ -78,6 +78,7 @@ urlpatterns = [
     path('dashboard/api/ai-generation-status/<int:course_id>/', dashboard_views.api_ai_generation_status, name='api_ai_generation_status'),
     path('dashboard/courses/<slug:course_slug>/', dashboard_views.dashboard_course_detail, name='dashboard_course_detail'),
     path('dashboard/courses/<slug:course_slug>/improve-description/', dashboard_views.dashboard_improve_course_description, name='dashboard_improve_course_description'),
+    path('dashboard/courses/<slug:course_slug>/lessons/reorder/', dashboard_views.dashboard_reorder_course_lessons, name='dashboard_reorder_course_lessons'),
     path('dashboard/courses/<slug:course_slug>/delete/', dashboard_views.dashboard_delete_course, name='dashboard_delete_course'),
     path('dashboard/courses/<slug:course_slug>/lessons/', dashboard_views.dashboard_course_lessons, name='dashboard_course_lessons'),
     path('dashboard/courses/<slug:course_slug>/translations/', dashboard_views.dashboard_course_translations, name='dashboard_course_translations'),
