@@ -50,6 +50,29 @@ def _on_color_for_background(hex_color):
     return '#ffffff' if _relative_luminance(hex_color) < 0.45 else '#0a0e27'
 
 
+def _ink_color_for_light_bg(hex_color):
+    """Darken a brand accent until it stays readable as text on white.
+
+    Neon / pastel brand colors work on dark UIs but fail as text in light mode
+    (e.g. cyan or yellow price labels on white cards).
+    """
+    color = (hex_color or '').strip().lower()
+    if not HEX_COLOR_RE.match(color):
+        return '#1e3a8a'
+    if _relative_luminance(color) <= 0.25:
+        return color
+    r, g, b = _hex_to_rgb(color)
+    for amount in (0.35, 0.45, 0.55, 0.65, 0.75, 0.85):
+        candidate = '#{:02x}{:02x}{:02x}'.format(
+            int(r * (1 - amount)),
+            int(g * (1 - amount)),
+            int(b * (1 - amount)),
+        )
+        if _relative_luminance(candidate) <= 0.25:
+            return candidate
+    return '#0f172a'
+
+
 def _with_derived_accent_colors(branding):
     primary = branding.get('accent_primary', '#00f0ff')
     secondary = branding.get('accent_secondary', '#a855f7')
@@ -65,6 +88,9 @@ def _with_derived_accent_colors(branding):
         'accent_primary_on': primary_on,
         'accent_secondary_on': secondary_on,
         'accent_gradient_on': gradient_on,
+        # Readable text accents on light surfaces (cards, page bg).
+        'accent_primary_ink': _ink_color_for_light_bg(primary),
+        'accent_secondary_ink': _ink_color_for_light_bg(secondary),
     }
 
 

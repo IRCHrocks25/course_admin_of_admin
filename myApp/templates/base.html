@@ -37,6 +37,9 @@
             --brand-accent-on-primary: #0a0e27;
             --brand-accent-on-secondary: #ffffff;
             --brand-accent-on-gradient: #ffffff;
+            /* On dark UIs the fill accent is already readable as text. */
+            --brand-accent-primary-ink: var(--brand-accent-primary);
+            --brand-accent-secondary-ink: var(--brand-accent-secondary);
         }
         .brand-theme-light {
             --brand-bg-gradient: linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #ffffff 100%);
@@ -55,6 +58,9 @@
             --brand-accent-on-primary: #ffffff;
             --brand-accent-on-secondary: #ffffff;
             --brand-accent-on-gradient: #ffffff;
+            /* Darkened ink for text/icons on white cards (neon fills stay above). */
+            --brand-accent-primary-ink: #1e3a8a;
+            --brand-accent-secondary-ink: #6d28d9;
         }
         /* Page Preloader */
         #page-preloader {
@@ -469,11 +475,25 @@
         }
     </style>
 </head>
-<body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'light' }}"{% if tenant_branding.accent_is_custom %} style="--brand-accent-primary: {{ tenant_branding.accent_primary }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on }};"{% endif %}>
+<body class="min-h-screen {% if effective_theme_mode == 'light' %}brand-theme-light{% else %}brand-theme-dark{% endif %}" data-theme="{{ effective_theme_mode|default:'light' }}"{% if tenant_branding.accent_is_custom %} data-accent-primary-ink="{{ tenant_branding.accent_primary_ink }}" data-accent-secondary-ink="{{ tenant_branding.accent_secondary_ink }}" style="--brand-accent-primary: {{ tenant_branding.accent_primary }}; --brand-accent-secondary: {{ tenant_branding.accent_secondary }}; --brand-accent-on-primary: {{ tenant_branding.accent_primary_on }}; --brand-accent-on-secondary: {{ tenant_branding.accent_secondary_on }}; --brand-accent-on-gradient: {{ tenant_branding.accent_gradient_on }};{% if effective_theme_mode == 'light' %} --brand-accent-primary-ink: {{ tenant_branding.accent_primary_ink }}; --brand-accent-secondary-ink: {{ tenant_branding.accent_secondary_ink }};{% endif %}"{% endif %}>
     <!-- Apply persisted theme before paint so a toggled choice survives reloads
          without a flash, even if the server-side preference is unavailable. -->
     <script>
     (function () {
+        function applyAccentInk(theme) {
+            var b = document.body;
+            var pInk = b.getAttribute('data-accent-primary-ink');
+            var sInk = b.getAttribute('data-accent-secondary-ink');
+            if (!pInk && !sInk) return;
+            if (theme === 'light') {
+                if (pInk) b.style.setProperty('--brand-accent-primary-ink', pInk);
+                if (sInk) b.style.setProperty('--brand-accent-secondary-ink', sInk);
+            } else {
+                b.style.removeProperty('--brand-accent-primary-ink');
+                b.style.removeProperty('--brand-accent-secondary-ink');
+            }
+        }
+        window.__cfApplyAccentInk = applyAccentInk;
         try {
             var t = localStorage.getItem('cf_theme');
             if (t !== 'light' && t !== 'dark') return;
@@ -481,6 +501,7 @@
             b.classList.remove('brand-theme-light', 'brand-theme-dark');
             b.classList.add('brand-theme-' + t);
             b.dataset.theme = t;
+            applyAccentInk(t);
             document.addEventListener('DOMContentLoaded', function () {
                 var moon = document.getElementById('theme-icon-moon');
                 var sun = document.getElementById('theme-icon-sun');
@@ -633,6 +654,7 @@
             body.classList.remove('brand-theme-dark', 'brand-theme-light');
             body.classList.add('brand-theme-' + data.theme);
             body.dataset.theme = data.theme;
+            if (window.__cfApplyAccentInk) window.__cfApplyAccentInk(data.theme);
             var moon = document.getElementById('theme-icon-moon');
             var sun = document.getElementById('theme-icon-sun');
             if (moon) moon.style.display = data.theme === 'light' ? 'inline' : 'none';

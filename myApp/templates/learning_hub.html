@@ -23,6 +23,9 @@
         --border: rgba(15,23,42,0.12);
         --text: #0f172a;
         --muted: #64748b;
+        /* Darker blues so labels/pills stay readable on white cards */
+        --blue2: #1d4ed8;
+        --yellow: #b45309;
     }
 
     .hub-page { font-family: 'DM Sans', 'Barlow', sans-serif; }
@@ -62,9 +65,85 @@
     .brand-theme-light .empty-title { color: #0f172a; }
     .brand-theme-light .c-short,
     .brand-theme-light .card-desc,
-    .brand-theme-light .cat-count,
-    .brand-theme-light .thumb-meta-item,
-    .brand-theme-light .status-badge { color: #334155; }
+    .brand-theme-light .cat-count { color: #334155; }
+    /* Keep thumb meta light — it sits on a dark gradient overlay. */
+    .brand-theme-light .thumb-meta-item { color: rgba(255,255,255,0.85); }
+
+    /* Light-mode status: keep semantic color, just darken for contrast */
+    .brand-theme-light .sb-active { background: rgba(22,163,74,0.10); border-color: rgba(22,163,74,0.28); color: #15803d; }
+    .brand-theme-light .sb-locked { background: rgba(185,28,28,0.08); border-color: rgba(185,28,28,0.22); color: #b91c1c; }
+    .brand-theme-light .sb-other  { background: rgba(180,83,9,0.10);  border-color: rgba(180,83,9,0.28);  color: #92400e; }
+
+    /* Pale dark-theme yellows (#ffc94d) → readable amber on white */
+    .brand-theme-light .si-yellow { background: rgba(180,83,9,0.12); color: #b45309; }
+    .brand-theme-light .chip-active-yellow { background: rgba(180,83,9,0.10); border-color: rgba(180,83,9,0.35); color: #92400e; }
+    .brand-theme-light .badge-yellow { background: rgba(180,83,9,0.10); border-color: rgba(180,83,9,0.28); color: #92400e; }
+    .brand-theme-light .expiry-note,
+    .brand-theme-light .unlock-badge,
+    .brand-theme-light .prereq-title { color: #92400e; }
+    .brand-theme-light .unlock-badge { background: rgba(180,83,9,0.10); border-color: rgba(180,83,9,0.28); }
+    .brand-theme-light .prereq-box { background: rgba(180,83,9,0.06); border-color: rgba(180,83,9,0.22); }
+    .brand-theme-light .btn-unlock-ghost {
+        background: rgba(180,83,9,0.08);
+        border-color: rgba(180,83,9,0.28);
+        color: #92400e;
+    }
+    .brand-theme-light .btn-unlock-ghost:hover { background: rgba(180,83,9,0.14); }
+    .brand-theme-light .fav-btn { color: rgba(15,23,42,0.28); }
+    .brand-theme-light .fav-btn:hover,
+    .brand-theme-light .fav-btn.active { color: #b45309; background: rgba(180,83,9,0.10); }
+    .brand-theme-light .bundle-gift { color: #b45309; }
+    .brand-theme-light .prereq-item { color: #475569; }
+    .brand-theme-light .chip-idle { background: rgba(15,23,42,0.04); border-color: rgba(15,23,42,0.12); color: #64748b; }
+    .brand-theme-light .chip-idle:hover { border-color: rgba(30,58,138,0.35); color: #0f172a; }
+    .brand-theme-light .cat-menu a:hover { color: #0f172a; }
+    .brand-theme-light .btn-locked {
+        background: rgba(15,23,42,0.04);
+        border-color: rgba(15,23,42,0.12);
+        color: #94a3b8;
+    }
+    .brand-theme-light .sort-select,
+    .brand-theme-light .ctrl-input {
+        background: #ffffff;
+        border-color: rgba(15,23,42,0.14);
+        color: #334155;
+    }
+    .brand-theme-light .ctrl-input::placeholder { color: #94a3b8; }
+    .brand-theme-light .ctrl-input:focus,
+    .brand-theme-light .sort-select:focus { color: #0f172a; }
+    .brand-theme-light .sort-select option { background: #ffffff; color: #0f172a; }
+    .brand-theme-light .search-wrap i { color: #94a3b8; }
+
+    /* Price / Free labels — never light-on-light */
+    .c-price {
+        font-size: 13px; font-weight: 700;
+        color: var(--brand-accent-primary-ink, var(--brand-accent-primary));
+        margin-right: auto;
+    }
+    .c-price-lg {
+        font-size: 16px; font-weight: 700;
+        color: var(--text);
+        display: flex; align-items: center; gap: 4px;
+        margin-right: auto;
+    }
+    .c-price-lg .c-price-unit { font-size: 11px; font-weight: 400; color: var(--muted); }
+    .c-price-free {
+        font-size: 11px; font-weight: 700; letter-spacing: 0.2px;
+        color: #6ee7b7; padding: 3px 10px; border-radius: 999px;
+        border: 1px solid rgba(110,231,183,0.25);
+        background: rgba(110,231,183,0.07);
+        margin-right: auto;
+    }
+    .brand-theme-light .c-price-free {
+        color: #047857;
+        border-color: rgba(4,120,87,0.28);
+        background: rgba(4,120,87,0.08);
+    }
+    .brand-theme-light .c-price {
+        color: var(--brand-accent-primary-ink, #1e3a8a);
+    }
+    .brand-theme-light .c-price-lg { color: #0f172a; }
+    .brand-theme-light .c-price-lg .c-price-unit { color: #64748b; }
 
     .btn-certs {
         display: inline-flex; align-items: center; gap: 9px;
@@ -681,9 +760,9 @@
         </div>
         <div class="c-actions">
             {% if course.price %}
-            <span style="font-size:13px;font-weight:700;color:var(--brand-accent-primary);margin-right:auto;">${{ course.price }}</span>
+            <span class="c-price">${{ course.price }}</span>
             {% else %}
-            <span style="font-size:11px;color:#6ee7b7;padding:2px 8px;border-radius:999px;border:1px solid rgba(110,231,183,0.25);background:rgba(110,231,183,0.07);margin-right:auto;">Free</span>
+            <span class="c-price-free">Free</span>
             {% endif %}
             {% if course.status == 'active' %}
             <a href="{% url 'course_detail' course.slug %}" class="btn-primary-sm">
@@ -949,7 +1028,7 @@
                 <div class="bundle-list">
                     {% for bundle in data.bundles %}
                     <div class="bundle-item">
-                        <i class="fas fa-gift" style="color:#ffc94d;font-size:12px;"></i>
+                        <i class="fas fa-gift bundle-gift" style="font-size:12px;color:#ffc94d;"></i>
                         {{ bundle.name }}
                         {% if bundle.price %}<span class="bundle-price">· ${{ bundle.price }}</span>{% endif %}
                     </div>
@@ -959,8 +1038,8 @@
 
                 <div class="card-actions">
                     {% if data.course.price %}
-                    <div style="font-size:16px;font-weight:700;color:#fff;display:flex;align-items:center;gap:4px;margin-right:auto;">
-                        ${{ data.course.price }}<span style="font-size:11px;font-weight:400;color:#9ca3af;">USD</span>
+                    <div class="c-price-lg">
+                        ${{ data.course.price }}<span class="c-price-unit">USD</span>
                     </div>
                     {% endif %}
                     <a href="{% url 'course_detail' data.course.slug %}" class="btn-unlock-ghost" style="flex:{% if data.course.price %}0 0 auto{% else %}1{% endif %};">View Details</a>
