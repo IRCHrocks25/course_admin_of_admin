@@ -482,6 +482,16 @@ class Lesson(models.Model):
 
     # Editor.js Content
     content = models.JSONField(default=dict, blank=True, help_text="Editor.js content blocks for lesson content")
+
+    # Student page section visibility (video-only lessons can hide text containers)
+    show_what_youll_learn = models.BooleanField(
+        default=True,
+        help_text='Show the "What You\'ll Learn Today" section on the student lesson page',
+    )
+    show_lesson_notes = models.BooleanField(
+        default=True,
+        help_text='Show the "Lesson Notes" section on the student lesson page',
+    )
     
     # AI Chatbot Integration Fields
     ai_chatbot_enabled = models.BooleanField(default=False, help_text="Whether AI chatbot is enabled for this lesson")

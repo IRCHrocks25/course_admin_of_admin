@@ -2670,6 +2670,10 @@ def _save_lesson_media_and_content(lesson, request):
     lesson.video_url = request.POST.get('video_url', lesson.video_url) or ''
     lesson.workbook_url = request.POST.get('workbook_url', lesson.workbook_url) or ''
     lesson.resources_url = request.POST.get('resources_url', lesson.resources_url) or ''
+    # Student page section toggles (unchecked checkboxes are absent from POST)
+    if 'student_sections_form' in request.POST:
+        lesson.show_what_youll_learn = request.POST.get('show_what_youll_learn') == 'on'
+        lesson.show_lesson_notes = request.POST.get('show_lesson_notes') == 'on'
     # Vimeo: extract ID, use metadata from Verify button if provided
     if lesson.vimeo_url:
         vimeo_id = extract_vimeo_id(lesson.vimeo_url)

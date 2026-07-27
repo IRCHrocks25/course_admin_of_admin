@@ -399,6 +399,47 @@
             {% endif %}
         </div>
 
+        <!-- Student page section visibility -->
+        <input type="hidden" name="student_sections_form" value="1">
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 mb-6">
+            <div class="mb-4">
+                <h3 class="text-lg font-bold mb-1">Student Page Sections</h3>
+                <p class="text-sm text-gray-400">Turn off text containers when this lesson should only show the video and title.</p>
+            </div>
+            <div class="space-y-3">
+                <label class="flex items-start gap-3 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        name="show_what_youll_learn"
+                        id="show-what-youll-learn"
+                        class="mt-1 rounded border-cyan-electric/40 bg-[#0a0e27]/40 text-cyan-electric focus:ring-cyan-electric/40"
+                        {% if lesson.show_what_youll_learn %}checked{% endif %}
+                    >
+                    <span>
+                        <span class="block font-medium text-gray-200 group-hover:text-white transition-colors">Show “What You'll Learn Today”</span>
+                        <span class="block text-xs text-gray-500 mt-0.5">Uses the Full Lesson Description on the student page.</span>
+                    </span>
+                </label>
+                <label class="flex items-start gap-3 cursor-pointer group">
+                    <input
+                        type="checkbox"
+                        name="show_lesson_notes"
+                        id="show-lesson-notes"
+                        class="mt-1 rounded border-cyan-electric/40 bg-[#0a0e27]/40 text-cyan-electric focus:ring-cyan-electric/40"
+                        {% if lesson.show_lesson_notes %}checked{% endif %}
+                    >
+                    <span>
+                        <span class="block font-medium text-gray-200 group-hover:text-white transition-colors">Show “Lesson Notes”</span>
+                        <span class="block text-xs text-gray-500 mt-0.5">Uses the Lesson Notes / content blocks on the student page.</span>
+                    </span>
+                </label>
+            </div>
+            <p class="text-xs text-gray-500 mt-4">
+                <i class="fas fa-info-circle mr-1"></i>
+                Click <strong>Save Edits</strong> or <strong>Approve &amp; Save Lesson</strong> to apply these settings.
+            </p>
+        </div>
+
         <!-- AI Generated Content Sections -->
         <div class="space-y-6">
             <!-- 1. Clean Lesson Title -->
@@ -758,8 +799,8 @@
                     <p id="preview-summary" class="text-gray-200 leading-relaxed"></p>
                 </section>
 
-                <section>
-                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Full Description</p>
+                <section id="preview-what-youll-learn-section">
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">What You'll Learn Today</p>
                     <p id="preview-description" class="text-gray-300 leading-relaxed whitespace-pre-line"></p>
                 </section>
 
@@ -773,7 +814,7 @@
                     <div id="preview-coach-actions" class="space-y-2"></div>
                 </section>
 
-                <section>
+                <section id="preview-lesson-notes-section">
                     <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-2">Lesson Notes</p>
                     <div id="preview-notes" class="space-y-3 text-gray-300"></div>
                 </section>
@@ -1345,6 +1386,17 @@
                 : '<p class="text-gray-500 italic">No coach actions provided yet.</p>';
 
             previewNotes.innerHTML = buildContentBlocksPreview(contentBlocksValue);
+
+            const showWhatYoullLearn = document.getElementById('show-what-youll-learn');
+            const showLessonNotes = document.getElementById('show-lesson-notes');
+            const previewWhatSection = document.getElementById('preview-what-youll-learn-section');
+            const previewNotesSection = document.getElementById('preview-lesson-notes-section');
+            if (previewWhatSection) {
+                previewWhatSection.classList.toggle('hidden', !(showWhatYoullLearn && showWhatYoullLearn.checked));
+            }
+            if (previewNotesSection) {
+                previewNotesSection.classList.toggle('hidden', !(showLessonNotes && showLessonNotes.checked));
+            }
 
             lockBodyScroll();
             previewModal.classList.remove('hidden');
