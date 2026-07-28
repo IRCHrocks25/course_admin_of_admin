@@ -6307,6 +6307,8 @@ def dashboard_branding_settings(request):
             enabled_langs.append('it')
         if request.POST.get('lesson_lang_fil') == '1':
             enabled_langs.append('fil')
+        if request.POST.get('lesson_lang_es') == '1':
+            enabled_langs.append('es')
         allow_student_switch = request.POST.get('lesson_lang_allow_switch') == '1'
         default_lang = (request.POST.get('lesson_lang_default') or 'en').strip().lower()
         if default_lang not in enabled_langs:

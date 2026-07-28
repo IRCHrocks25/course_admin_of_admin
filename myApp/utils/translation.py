@@ -12,6 +12,7 @@ LANGUAGE_PROMPT_NAMES = {
     'it': 'Italian',
     'fil': 'Filipino (Tagalog)',
     'tl': 'Filipino (Tagalog)',
+    'es': 'Spanish',
 }
 
 

@@ -653,7 +653,7 @@
                 <a href="?translation_lang={{ lang }}"
                    class="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all
                    {% if lang == active_translation_lang %}bg-emerald-400/20 border-emerald-400/50 text-emerald-300{% else %}border-white/20 text-gray-300 hover:border-emerald-400/30{% endif %}">
-                    {% if lang == 'it' %}Italian{% elif lang == 'fil' %}Filipino{% else %}{{ lang|upper }}{% endif %}
+                    {% if lang == 'it' %}Italian{% elif lang == 'fil' %}Filipino{% elif lang == 'es' %}Spanish{% else %}{{ lang|upper }}{% endif %}
                     {% for code, tr in lesson_translations.items %}
                         {% if code == lang %}
                         <span class="ml-1 opacity-70">({{ tr.status }})</span>

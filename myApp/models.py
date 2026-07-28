@@ -617,7 +617,7 @@ class LessonTranslation(models.Model):
     ]
 
     lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='translations')
-    language_code = models.CharField(max_length=10, help_text="ISO 639-1/639-2 code, e.g. it, fil")
+    language_code = models.CharField(max_length=10, help_text="ISO 639-1/639-2 code, e.g. it, fil, es")
     title = models.CharField(max_length=200, blank=True, default='')
     description = models.TextField(blank=True, default='')
     ai_clean_title = models.CharField(max_length=200, blank=True, default='')

@@ -17,6 +17,7 @@ SUPPORTED_LANGUAGES = {
     'en': 'English',
     'it': 'Italiano',
     'fil': 'Filipino',
+    'es': 'Español',
 }
 
 DEFAULT_LANGUAGE_CONFIG = {
