@@ -525,7 +525,7 @@
             <div class="brand-nav-brand flex items-center min-w-0">
                 <a href="{% url 'home' %}" class="brand-nav-branding hover:opacity-85 transition-opacity">
                     <img
-                        src="{{ tenant_branding.platform_logo_url|default:'https://cdn.katalyst-crm.com/t1/SOP%20Master%20logo%20placeholder.png' }}"
+                        src="{{ tenant_branding.logo_url|default:tenant_branding.platform_logo_url }}"
                         alt="{{ tenant_branding.brand_name|default:'CourseForge' }}"
                         class="brand-logo-main"
                         loading="eager"
