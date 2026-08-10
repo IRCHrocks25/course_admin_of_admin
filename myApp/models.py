@@ -1098,6 +1098,96 @@ class BundlePurchase(models.Model):
         return f"{self.user.username} - {self.bundle.name}"
 
 
+class Coupon(models.Model):
+    """Promotional coupon with a shareable link and optional Iceberg-hosted QR code."""
+    DISCOUNT_NONE = 'none'
+    DISCOUNT_PERCENT = 'percent'
+    DISCOUNT_FIXED = 'fixed'
+    DISCOUNT_TYPES = [
+        (DISCOUNT_NONE, 'No discount (tracking only)'),
+        (DISCOUNT_PERCENT, 'Percent off'),
+        (DISCOUNT_FIXED, 'Fixed amount off'),
+    ]
+
+    TARGET_SIGNUP = 'signup'
+    TARGET_COURSE = 'course'
+    TARGET_BUNDLE = 'bundle'
+    TARGET_CUSTOM = 'custom'
+    TARGET_SITE = 'site'
+    TARGET_TYPES = [
+        (TARGET_SIGNUP, 'Tenant signup page'),
+        (TARGET_COURSE, 'Course'),
+        (TARGET_BUNDLE, 'Bundle'),
+        (TARGET_CUSTOM, 'Custom URL'),
+        (TARGET_SITE, 'Site home'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='coupons', null=True, blank=True)
+    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=50, help_text='Public coupon code used in the shareable link')
+    description = models.TextField(blank=True)
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPES, default=DISCOUNT_PERCENT)
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    target_type = models.CharField(max_length=20, choices=TARGET_TYPES, default=TARGET_SIGNUP)
+    course = models.ForeignKey(
+        Course, on_delete=models.SET_NULL, null=True, blank=True, related_name='coupons',
+    )
+    bundle = models.ForeignKey(
+        Bundle, on_delete=models.SET_NULL, null=True, blank=True, related_name='coupons',
+    )
+    custom_url = models.URLField(blank=True, max_length=500)
+    qr_code_url = models.URLField(
+        blank=True, max_length=500,
+        help_text='Iceberg CDN URL for the coupon QR image',
+    )
+    is_active = models.BooleanField(default=True)
+    max_uses = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Leave blank for unlimited uses',
+    )
+    uses_count = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], name='uniq_coupon_tenant_code'),
+        ]
+
+    def __str__(self):
+        return f'{self.code} ({self.name})'
+
+    def is_currently_valid(self):
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        if self.max_uses is not None and self.uses_count >= self.max_uses:
+            return False
+        return True
+
+    def is_tracking_only(self):
+        return self.discount_type == self.DISCOUNT_NONE
+
+    def apply_discount(self, amount):
+        """Return discounted Decimal amount (never below zero)."""
+        from decimal import Decimal
+        amount = Decimal(str(amount or 0))
+        if amount <= 0:
+            return Decimal('0.00')
+        if self.discount_type == self.DISCOUNT_NONE:
+            return amount.quantize(Decimal('0.01'))
+        if self.discount_type == self.DISCOUNT_PERCENT:
+            discounted = amount * (Decimal('1') - (Decimal(str(self.discount_value)) / Decimal('100')))
+        else:
+            discounted = amount - Decimal(str(self.discount_value))
+        if discounted < 0:
+            discounted = Decimal('0.00')
+        return discounted.quantize(Decimal('0.01'))
+
+
 class CourseAccess(models.Model):
     """Explicit access record - 'Access is a thing, not a side effect'"""
     ACCESS_TYPES = [
@@ -1263,6 +1353,14 @@ class TenantMembership(models.Model):
     is_active = models.BooleanField(default=True)
     must_change_password = models.BooleanField(default=False)
     theme_preference = models.CharField(max_length=10, choices=THEME_CHOICES, blank=True, default='')
+    signup_coupon = models.ForeignKey(
+        'Coupon',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='signup_memberships',
+        help_text='Coupon used when this student created their account',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -6,8 +6,9 @@ import cloudinary
 import cloudinary.api  # noqa: F401  (registers default API client used by lesson image generation)
 import cloudinary.uploader  # noqa: F401  (registers default uploader used by lesson image generation)
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file.
+# override=True so local .env wins over stale shell/conda ICEBERG_* values.
+load_dotenv(Path(__file__).resolve().parent.parent / '.env', override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

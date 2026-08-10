@@ -92,6 +92,14 @@
                                     </span>
                                 </div>
                                 <p class="text-sm text-gray-400 mb-2">{{ data.student.email }}</p>
+                                <div class="flex flex-wrap items-center gap-3 text-xs text-gray-400 mb-2">
+                                    <span><i class="fas fa-calendar-plus mr-1"></i>Joined {{ data.student.date_joined|date:"M d, Y" }}</span>
+                                    {% if data.signup_coupon %}
+                                    <span class="px-2 py-0.5 rounded bg-purple-accent/15 border border-purple-accent/30 text-purple-accent font-medium">
+                                        <i class="fas fa-ticket mr-1"></i>{{ data.signup_coupon.code }}
+                                    </span>
+                                    {% endif %}
+                                </div>
                                 
                                 <!-- Progress Bar -->
                                 <div class="mb-2">

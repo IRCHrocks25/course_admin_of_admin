@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Partner on a Deal — Bobby Davidowitz</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;0,900;1,400;1,700&family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --white:        #FFFFFF;
+  --paper:        #FAF9F6;
+  --paper2:       #F3F1EC;
+  --paper3:       #E8E5DF;
+  --ink:          #14140F;
+  --ink-soft:     #2E2E2C;
+  --ink-muted:    #6A6A64;
+  --ink-hint:     #BCBCB8;
+  --orange:       #EE5A1A;
+  --orange-dark:  #C94810;
+  --orange-light: #FF7640;
+  --orange-pale:  rgba(238,90,26,0.07);
+  --orange-border:rgba(238,90,26,0.18);
+  --gold:         #C9A84C;
+  --gold-light:   #E2C97A;
+  --dark:         #14140F;
+  --dark2:        #1A1A18;
+  --dark3:        #222220;
+  --border:       rgba(17,17,16,0.08);
+  --border-med:   rgba(17,17,16,0.13);
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans:  'Syne', system-ui, sans-serif;
+  --mono:  'DM Mono', monospace;
+
+  --content-max:   1140px;
+  --gutter:        clamp(20px, 5vw, 56px);
+  --radius:        6px;
+}
+
+html { scroll-behavior: smooth; font-size: 16px; -webkit-text-size-adjust: 100%; }
+body { font-family: var(--sans); background: var(--paper); color: var(--ink); line-height: 1.5; overflow-x: hidden; }
+
+img, svg, video { max-width: 100%; height: auto; display: block; }
+
+.wrap { width: 100%; max-width: var(--content-max); margin: 0 auto; padding-inline: var(--gutter); }
+
+/* ══════════ NAV ══════════ */
+nav {
+  position: absolute; inset: 0 0 auto 0; z-index: 500;
+  height: 96px;
+  display: flex; align-items: center;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+}
+.nav-inner {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-inline: var(--gutter);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.logo { display: inline-flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+.logo img { height: 76px; width: auto; opacity: 1; transition: opacity .2s; }
+.logo:hover img { opacity: 1; }
+.nav-cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--orange); color: var(--white);
+  font-family: var(--sans); font-size: 10.5px; font-weight: 800;
+  letter-spacing: 0.09em; text-transform: uppercase; text-decoration: none;
+  padding: 9px 18px; border-radius: 2px;
+  min-height: 36px;
+  transition: background .2s, transform .2s;
+  white-space: nowrap;
+}
+.nav-cta:hover { background: var(--orange-dark); transform: translateY(-1px); }
+
+/* ══════════ HERO ══════════ */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex; align-items: flex-end;
+  overflow: hidden;
+  background: var(--dark);
+}
+.hero-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: 55% center; }
+.hero-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(20,20,15,0.72) 0%, rgba(20,20,15,0.42) 28%, rgba(20,20,15,0.45) 58%, rgba(20,20,15,0.82) 100%),
+    radial-gradient(ellipse 92% 78% at 50% 55%, transparent 30%, rgba(20,20,15,0.62) 100%);
+}
+.hero-inner {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 1180px; margin: 0 auto;
+  padding: 120px var(--gutter) clamp(80px, 14vh, 180px);
+}
+.hero-content { max-width: 100%; margin: 0 auto; text-align: center; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: clamp(9.5px, 2.4vw, 12px);
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange-light);
+  margin-bottom: 22px;
+}
+.hero-eyebrow::before,
+.hero-eyebrow::after { content: ''; width: 32px; height: 1px; background: var(--orange); }
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(38px, 8vw, 84px);
+  font-weight: 900; line-height: 1.02; letter-spacing: -0.03em;
+  color: var(--white); margin-bottom: 22px; text-wrap: balance;
+}
+.hero h1 em { font-style: italic; font-weight: 400; color: var(--orange); }
+.hero-sub {
+  font-size: clamp(16px, 3vw, 21px); font-weight: 400;
+  color: rgba(255,255,255,0.85); line-height: 1.55;
+  max-width: 620px; margin: 0 auto 36px; text-wrap: balance;
+}
+.hero-actions { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.hero-textline {
+  font-family: var(--mono); font-size: 13px; color: rgba(255,255,255,0.6);
+  letter-spacing: 0.02em;
+}
+.hero-textline strong { color: var(--orange-light); font-weight: 400; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--sans); font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none;
+  border-radius: 2px; cursor: pointer; border: none;
+  white-space: normal; line-height: 1.3; text-align: center;
+  transition: background .2s, transform .25s, box-shadow .25s, border-color .2s, color .2s;
+  width: 100%;
+  min-height: 54px;
+  padding: 17px 34px;
+  font-size: 13px;
+}
+.btn-primary {
+  background: var(--orange); color: var(--white);
+  box-shadow: 0 10px 30px rgba(238,90,26,0.36);
+}
+.btn-primary:hover { background: var(--orange-dark); transform: translateY(-2px); box-shadow: 0 16px 40px rgba(238,90,26,0.46); }
+.btn-ghost {
+  background: transparent; color: var(--white);
+  border: 1px solid rgba(255,255,255,0.28);
+}
+.btn-ghost:hover { border-color: var(--orange); color: var(--orange-light); }
+@media (min-width: 600px) {
+  .btn { width: auto; }
+  .hero-actions { flex-direction: row; align-items: center; justify-content: center; flex-wrap: wrap; }
+}
+
+/* ══════════ SECTION SHELL ══════════ */
+.sec { padding-block: clamp(64px, 11vw, 118px); }
+.sec-tag {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--orange); margin-bottom: 20px;
+}
+.sec-tag::before { content: ''; width: 28px; height: 1px; background: var(--orange); }
+.sec-h {
+  font-family: var(--serif); font-size: clamp(30px, 7vw, 50px);
+  font-weight: 900; line-height: 1.06; letter-spacing: -0.025em;
+  color: var(--ink); text-wrap: balance;
+}
+.sec-h em { font-style: italic; font-weight: 400; color: var(--orange); }
+
+/* ══════════ NO ANSWER (light) ══════════ */
+.na {
+  background: var(--paper);
+  position: relative; overflow: hidden;
+}
+.na-inner {
+  position: relative; z-index: 1; max-width: var(--content-max); margin: 0 auto;
+  display: grid; grid-template-columns: 1fr; gap: clamp(36px, 6vw, 56px); align-items: center;
+  text-align: left;
+}
+.na .sec-tag { color: var(--orange); justify-content: flex-start; }
+.na .sec-tag::before { background: var(--orange); }
+.na-h {
+  font-family: var(--serif); font-size: clamp(28px, 5.5vw, 44px);
+  font-weight: 700; line-height: 1.12; letter-spacing: -0.02em;
+  color: var(--ink); margin-bottom: 26px; text-wrap: balance;
+}
+.na-body { display: flex; flex-direction: column; gap: 22px; max-width: 600px; }
+.na-body p { font-size: clamp(16px, 4vw, 19px); color: var(--ink-muted); line-height: 1.7; text-wrap: pretty; }
+.na-body p strong { color: var(--ink); font-weight: 700; }
+.na-body .na-kicker {
+  font-family: var(--serif); font-style: italic; font-size: clamp(18px, 4.4vw, 24px);
+  color: var(--orange); line-height: 1.5;
+}
+.na-img {
+  position: relative; border-radius: 10px; overflow: hidden;
+  min-height: 340px;
+  background: var(--dark2);
+  box-shadow: 0 24px 60px rgba(17,17,16,0.14), 0 4px 12px rgba(17,17,16,0.06);
+  border: 1px solid var(--border);
+}
+.na-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: contrast(1.03) saturate(1.04); }
+.na-img-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent 55%, rgba(20,20,15,0.5) 100%),
+    radial-gradient(ellipse 90% 70% at 50% 40%, transparent 55%, rgba(20,20,15,0.25) 100%);
+}
+.na-img-label {
+  position: absolute; bottom: 16px; left: 16px;
+  background: rgba(20,20,15,0.82); backdrop-filter: blur(6px);
+  border: 1px solid var(--orange-border); border-radius: 2px;
+  padding: 8px 13px; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--orange-light);
+}
+@media (min-width: 900px) {
+  .na-inner { grid-template-columns: 1.25fr 1fr; gap: 60px; }
+  .na-img { min-height: 460px; align-self: stretch; }
+}
+
+/* ══════════ TWO LISTS (bring / help) ══════════ */
+.lists { background: var(--white); }
+.lists-grid {
+  display: grid; grid-template-columns: 1fr; gap: clamp(24px, 4vw, 32px);
+  align-items: stretch;
+}
+.list-card {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: clamp(28px, 4.5vw, 44px);
+  position: relative; overflow: hidden;
+  text-align: left;
+  display: flex; flex-direction: column;
+  height: 100%;
+}
+.list-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--orange), transparent);
+}
+.list-card.dark {
+  background: var(--dark);
+  border-color: rgba(255,255,255,0.09);
+}
+.list-eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange); margin-bottom: 12px; }
+.list-h {
+  font-family: var(--serif); font-size: clamp(23px, 4.4vw, 32px);
+  font-weight: 900; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 8px;
+}
+.list-card.dark .list-h { color: var(--white); }
+.list-card .list-h { color: var(--ink); }
+.list-sub { font-size: 15px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 22px; }
+.list-card.dark .list-sub { color: rgba(255,255,255,0.5); }
+.list-items { display: flex; flex-direction: column; gap: 2px; }
+.list-item {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 13px 2px; border-bottom: 1px solid var(--border);
+}
+.list-item:first-child { border-top: 1px solid var(--border); }
+.list-card.dark .list-item { border-color: rgba(255,255,255,0.08); }
+.list-check {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--orange-pale); border: 1px solid var(--orange-border);
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.list-card.dark .list-check { background: rgba(238,90,26,0.13); }
+.list-check svg { width: 11px; height: 11px; stroke: var(--orange); }
+.list-txt { font-size: clamp(14.5px, 3.6vw, 16.5px); font-weight: 500; line-height: 1.5; color: var(--ink-soft); }
+.list-card.dark .list-txt { color: rgba(255,255,255,0.85); }
+.list-note {
+  font-family: var(--serif); font-style: italic; font-size: clamp(16px, 4vw, 20px);
+  color: var(--orange); line-height: 1.5; margin-top: auto; padding-top: 22px;
+}
+.list-card.dark .list-note { color: var(--orange-light); }
+@media (min-width: 840px) {
+  .lists-grid { grid-template-columns: 1fr 1fr; gap: 28px; align-items: stretch; }
+}
+
+/* ══════════ HOW IT WORKS ══════════ */
+.how { background: var(--paper2); }
+.how > .wrap { max-width: 1300px; }
+.how-head { text-align: center; max-width: 620px; margin: 0 auto clamp(44px, 7vw, 68px); }
+.how-head .sec-tag { justify-content: center; }
+.how-head .sec-h { margin-bottom: 16px; }
+.how-head p { font-size: clamp(16px, 4vw, 18px); color: var(--ink-muted); line-height: 1.6; }
+.how-steps { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 1280px; margin: 0 auto; }
+.how-step {
+  position: relative; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  padding: clamp(28px, 6vw, 40px) clamp(24px, 5vw, 34px) clamp(28px, 6vw, 36px);
+  background: var(--dark);
+  isolation: isolate;
+  transition: transform .4s cubic-bezier(.16,1,.3,1), box-shadow .4s, border-color .4s;
+}
+/* orange wash that sweeps in on hover */
+.how-step::after {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dark) 100%);
+  opacity: 0;
+  transition: opacity .45s cubic-bezier(.16,1,.3,1);
+}
+.how-step::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 1;
+  background: linear-gradient(90deg, var(--orange), transparent);
+  transition: background .4s;
+}
+.how-step:hover {
+  transform: translateY(-5px);
+  border-color: transparent;
+  box-shadow: 0 20px 46px rgba(238,90,26,0.4);
+}
+.how-step:hover::after { opacity: 1; }
+.how-step:hover::before { background: linear-gradient(90deg, rgba(255,255,255,0.7), transparent); }
+.how-num {
+  font-family: var(--serif); font-size: 64px; font-weight: 900;
+  color: transparent; -webkit-text-stroke: 1px rgba(238,90,26,0.55);
+  line-height: 0.8; letter-spacing: -0.04em; margin-bottom: 18px;
+  transition: -webkit-text-stroke .4s;
+}
+.how-step:hover .how-num { -webkit-text-stroke: 1px rgba(255,255,255,0.85); }
+.how-step h3 {
+  font-family: var(--serif); font-size: clamp(18px, 4.2vw, 21px);
+  font-weight: 700; color: var(--white); line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.015em;
+  transition: color .4s;
+}
+@media (min-width: 820px) {
+  .how-step h3 { white-space: nowrap; }
+}
+.how-step p { font-size: clamp(14.5px, 3.6vw, 16px); color: rgba(255,255,255,0.6); line-height: 1.65; text-wrap: pretty; transition: color .4s; }
+.how-step:hover p { color: rgba(255,255,255,0.92); }
+@media (min-width: 820px) {
+  .how-steps { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+}
+
+/* ══════════ FORM ══════════ */
+.form-sec {
+  background-color: var(--dark);
+  background-image: url('https://cdn.katalyst-crm.com/t1/e6b2be0d49ba6063bbae8cfc2a23c833%201.png');
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  position: relative;
+}
+.form-sec::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(20,20,15,0.86) 0%, rgba(20,20,15,0.78) 40%, rgba(20,20,15,0.9) 100%),
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(238,90,26,0.12) 0%, transparent 62%);
+  pointer-events: none;
+}
+.form-sec > .wrap { position: relative; z-index: 1; }
+.form-shell { max-width: 860px; margin: 0 auto; }
+.form-card { max-width: 720px; margin-left: auto; margin-right: auto; }
+.form-head { text-align: center; margin-bottom: clamp(36px, 6vw, 52px); max-width: 860px; margin-left: auto; margin-right: auto; }
+.form-head .sec-tag { justify-content: center; color: var(--orange-light); }
+.form-head .sec-tag::before { background: var(--orange); }
+.form-head h2 {
+  font-family: var(--serif); font-size: clamp(28px, 5.5vw, 52px);
+  font-weight: 900; color: var(--white); line-height: 1.06; letter-spacing: -0.03em;
+  margin-bottom: 16px; text-wrap: balance;
+}
+.form-head p { font-size: clamp(15.5px, 3.8vw, 18px); color: rgba(255,255,255,0.66); line-height: 1.6; max-width: 560px; margin: 0 auto; text-wrap: balance; }
+@media (min-width: 640px) {
+  .form-head h2 { white-space: nowrap; }
+}
+
+.form-card {
+  background: rgba(255,255,255,0.028);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: clamp(24px, 5vw, 44px);
+}
+.form-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
+.field { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.field label {
+  font-family: var(--mono); font-size: 11px; font-weight: 400;
+  letter-spacing: 0.06em; color: rgba(255,255,255,0.82); line-height: 1.4;
+}
+.field label .req { color: var(--orange); margin-left: 3px; }
+.field input,
+.field select,
+.field textarea {
+  width: 100%; font-family: var(--sans); font-size: 16px; color: var(--white);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 4px; padding: 14px 15px; min-height: 50px;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+  -webkit-appearance: none; appearance: none;
+}
+.field textarea { min-height: 116px; resize: vertical; line-height: 1.5; }
+.field input::placeholder, .field textarea::placeholder { color: rgba(255,255,255,0.32); }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--orange);
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 0 0 3px rgba(238,90,26,0.16);
+}
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23EE5A1A' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px;
+}
+.field select option { background: var(--dark2); color: var(--white); }
+/* File upload */
+.field-file {
+  position: relative; display: flex; align-items: center; gap: 14px;
+  background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.24);
+  border-radius: 4px; padding: 16px 15px; cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.field-file:hover { border-color: var(--orange); background: rgba(255,255,255,0.06); }
+.field-file input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.field-file .ff-icon { flex-shrink: 0; width: 34px; height: 34px; border-radius: 4px; background: rgba(238,90,26,0.14); display: flex; align-items: center; justify-content: center; }
+.field-file .ff-icon svg { width: 16px; height: 16px; stroke: var(--orange); }
+.field-file .ff-txt { font-size: 13.5px; color: rgba(255,255,255,0.6); line-height: 1.4; }
+.field-file .ff-txt strong { color: var(--white); font-weight: 600; display: block; font-size: 14px; }
+.form-submit { margin-top: 30px; text-align: center; }
+.form-submit .btn { box-shadow: 0 12px 34px rgba(238,90,26,0.4); }
+.form-reassure {
+  margin-top: 16px; font-family: var(--mono); font-size: 12.5px;
+  color: rgba(255,255,255,0.5); letter-spacing: 0.02em;
+}
+@media (min-width: 680px) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .field.full { grid-column: 1 / -1; }
+}
+
+/* ══════════ TEXT / QR OPTION ══════════ */
+.text-sec { background: var(--paper2); }
+.text-card {
+  max-width: 900px; margin: 0 auto;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  display: grid; grid-template-columns: 1fr; gap: 0;
+  box-shadow: 0 20px 50px rgba(17,17,16,0.06);
+}
+.text-copy { padding: clamp(32px, 6vw, 52px); display: flex; flex-direction: column; justify-content: center; }
+.text-copy .sec-tag { margin-bottom: 16px; }
+.text-copy h2 {
+  font-family: var(--serif); font-size: clamp(26px, 6vw, 38px);
+  font-weight: 900; color: var(--ink); line-height: 1.08; letter-spacing: -0.02em; margin-bottom: 16px; text-wrap: balance;
+}
+.text-copy p { font-size: clamp(15.5px, 3.8vw, 17px); color: var(--ink-muted); line-height: 1.6; margin-bottom: 24px; text-wrap: pretty; }
+.text-code {
+  display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 15px; color: var(--ink-soft);
+}
+.text-code b {
+  font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--orange); letter-spacing: 0.02em;
+}
+.text-qr {
+  background: var(--dark);
+  padding: clamp(32px, 6vw, 52px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  text-align: center;
+}
+.qr-box {
+  width: 168px; height: 168px; background: var(--white);
+  border-radius: 8px; padding: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.qr-box svg { width: 100%; height: 100%; }
+.qr-cap { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+@media (min-width: 760px) {
+  .text-card { grid-template-columns: 1.3fr 1fr; }
+}
+
+/* ══════════ FINAL CTA ══════════ */
+.final {
+  background-color: var(--dark);
+  background-image: url('https://d8j0ntlcm91z4.cloudfront.net/user_35NBuSfIPglHIOMZxxqoxDRFcyj/hf_20260806_121929_b99c9541-eb2e-4191-bcf5-bf5f6856f608.png');
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  position: relative; overflow: hidden; text-align: left;
+  min-height: 82vh;
+  display: flex; align-items: center; justify-content: flex-start;
+  padding-block: clamp(100px, 16vw, 200px) !important;
+}
+.final::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(20,20,15,0.88) 0%, rgba(20,20,15,0.7) 38%, rgba(20,20,15,0.35) 68%, rgba(20,20,15,0.2) 100%),
+    linear-gradient(180deg, rgba(20,20,15,0.4) 0%, transparent 30%, transparent 65%, rgba(20,20,15,0.55) 100%),
+    radial-gradient(ellipse 70% 80% at 20% 50%, rgba(238,90,26,0.2) 0%, transparent 55%);
+  pointer-events: none;
+}
+.final::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2;
+  background: linear-gradient(90deg, var(--orange) 0%, var(--gold) 40%, transparent 80%);
+}
+.final-inner { position: relative; z-index: 1; max-width: 680px; margin: 0; }
+.final h2 {
+  font-family: var(--serif); font-size: clamp(36px, 7vw, 72px);
+  font-weight: 900; color: var(--white); line-height: 1.0; letter-spacing: -0.03em; margin-bottom: 22px;
+  text-shadow: 0 4px 30px rgba(0,0,0,0.5);
+}
+.final h2 em { font-style: italic; font-weight: 400; color: var(--orange); }
+.final p { font-size: clamp(16px, 4.2vw, 20px); color: rgba(255,255,255,0.85); line-height: 1.6; max-width: 480px; margin: 0 0 36px; text-wrap: pretty; text-shadow: 0 2px 18px rgba(0,0,0,0.45); }
+.final .btn-primary { background: var(--orange); color: var(--white); box-shadow: 0 12px 34px rgba(238,90,26,0.42); }
+.final .btn-primary:hover { background: var(--orange-dark); }
+.final-textline { margin-top: 20px; font-family: var(--mono); font-size: 13px; color: rgba(255,255,255,0.7); }
+.final-textline strong { color: var(--orange-light); font-weight: 400; }
+.final-actions { display: flex; justify-content: flex-start; }
+
+/* ══════════ FOOTER ══════════ */
+footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
+.ft-inner { display: flex; flex-direction: column; gap: 24px; align-items: center; text-align: center; }
+.ft-logo img { height: 64px; width: auto; opacity: 1; }
+.ft-inner p { font-size: 14.5px; color: rgba(255,255,255,0.5); line-height: 1.7; max-width: 460px; text-wrap: pretty; }
+.ft-email { font-family: var(--mono); font-size: 13px; color: var(--orange-light); text-decoration: none; letter-spacing: 0.02em; }
+.ft-email:hover { color: var(--orange); }
+.ft-btm {
+  margin-top: 36px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+  width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+}
+.ft-btm p { font-size: 12px; color: rgba(255,255,255,0.3); }
+.ft-btm .acc { color: var(--orange-light); }
+.ft-credit { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; color: rgba(255,255,255,0.3); }
+.ft-credit a { color: var(--orange-light); text-decoration: none; font-weight: 500; }
+.ft-credit a:hover { color: var(--orange); }
+
+/* ══════════ CONFIRMATION ══════════ */
+.confirm-sec { display: none; }
+.confirm-sec.active { display: block; }
+.confirm-wrap {
+  min-height: 100svh; display: flex; align-items: center; justify-content: center;
+  background: var(--dark);
+  background-image: radial-gradient(ellipse 70% 60% at 50% 30%, rgba(238,90,26,0.12) 0%, transparent 62%);
+  padding: 100px var(--gutter) 80px; text-align: center;
+}
+.confirm-card { max-width: 620px; }
+.confirm-icon {
+  width: 76px; height: 76px; margin: 0 auto 30px;
+  border-radius: 50%; background: var(--orange);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 12px 40px rgba(238,90,26,0.4);
+}
+.confirm-icon svg { width: 34px; height: 34px; stroke: var(--white); }
+.confirm-card h1 {
+  font-family: var(--serif); font-size: clamp(30px, 8vw, 52px);
+  font-weight: 900; color: var(--white); line-height: 1.05; letter-spacing: -0.025em; margin-bottom: 24px; text-wrap: balance;
+}
+.confirm-card p { font-size: clamp(16px, 4vw, 19px); color: rgba(255,255,255,0.72); line-height: 1.7; margin-bottom: 18px; text-wrap: pretty; }
+.confirm-card p:last-of-type { margin-bottom: 0; }
+.confirm-card p em { color: var(--orange-light); font-style: italic; }
+
+/* reveal */
+.r { opacity: 0; transform: translateY(24px); transition: opacity .8s cubic-bezier(.16,1,.3,1), transform .8s cubic-bezier(.16,1,.3,1); }
+.r.in { opacity: 1; transform: none; }
+.rd1 { transition-delay: .08s; } .rd2 { transition-delay: .16s; } .rd3 { transition-delay: .24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .r { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-inner">
+    <a href="#top" class="logo" aria-label="Bobby Davidowitz home">
+      <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%2010%20Ag%CC%86u%202026%2020_02_24%201.png" alt="Bobby Davidowitz">
+    </a>
+    <a href="#form" class="nav-cta">Submit Your Opportunity</a>
+  </div>
+</nav>
+
+<div id="page">
+
+  <!-- HERO -->
+  <header class="hero" id="top">
+    <div class="hero-bg">
+      <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%206%20Ag%CC%86u%202026%2014_58_02.png" alt="Commercial real estate opportunity" loading="eager" fetchpriority="high">
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="hero-inner">
+      <div class="hero-content">
+        <div class="hero-eyebrow">For Agents With a Commercial&nbsp;Opportunity</div>
+        <h1>Found Something? Let's Look at It&nbsp;<em>Together.</em></h1>
+        <p class="hero-sub">You don't have to be an expert in every part of commercial real estate before you pursue an opportunity. Send me what you&nbsp;have.</p>
+        <div class="hero-actions">
+          <a href="#form" class="btn btn-primary">Submit Your Opportunity →</a>
+          <span class="hero-textline">Or text <strong>DEAL</strong> to [PHONE NUMBER]</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- YOU DON'T NEED EVERY ANSWER -->
+  <section class="sec na">
+    <div class="wrap na-inner">
+      <div class="na-text">
+        <div class="sec-tag r">You Don't Need Every Answer</div>
+        <h2 class="na-h r rd1">Most agents sit on a commercial opportunity because they're afraid of looking like they don't know what they're&nbsp;doing.</h2>
+        <div class="na-body">
+          <p class="r rd1">That hesitation is the <strong>only thing</strong> standing between them and a&nbsp;deal.</p>
+          <p class="na-kicker r rd2">If you've come across a commercial property owner, a buyer, an investor, a tenant, a borrower, or a possible deal — I'd like to explore partnering with you on&nbsp;it.</p>
+        </div>
+      </div>
+      <div class="na-img r rd1">
+        <img src="https://d8j0ntlcm91z4.cloudfront.net/user_35NBuSfIPglHIOMZxxqoxDRFcyj/hf_20260806_121921_e53edcc8-4188-4dfa-a60e-eda733492eb0.png" alt="Two modern real estate agents collaborating on a commercial deal" loading="lazy">
+        <div class="na-img-overlay"></div>
+        <div class="na-img-label">Partner On It Together</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BRING ME / WHERE I HELP -->
+  <section class="sec lists">
+    <div class="wrap lists-grid">
+      <!-- Bring me any of these -->
+      <div class="list-card r">
+        <div class="list-eyebrow">Bring Me Any of These</div>
+        <h3 class="list-h">You might already be sitting on&nbsp;one.</h3>
+        <p class="list-sub">Any of these is worth a conversation.</p>
+        <div class="list-items">
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">An owner who has mentioned selling a commercial&nbsp;property</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A buyer or investor looking for something you can't&nbsp;place</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A tenant who needs&nbsp;space</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A borrower who needs&nbsp;financing</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A property you've spotted but don't know how to&nbsp;evaluate</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A deal already in motion that has&nbsp;stalled</span></div>
+        </div>
+      </div>
+      <!-- Where I help -->
+      <div class="list-card dark r rd1">
+        <div class="list-eyebrow">Where My Team &amp; I Can Help</div>
+        <h3 class="list-h">You don't work it&nbsp;alone.</h3>
+        <p class="list-sub">Bring the lead — we bring the machinery.</p>
+        <div class="list-items">
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Analyzing the&nbsp;deal</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Positioning the&nbsp;opportunity</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Finding&nbsp;financing</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Locating a&nbsp;buyer</span></div>
+          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Navigating the&nbsp;transaction</span></div>
+        </div>
+        <p class="list-note">And you learn how it's done on a live deal — not in&nbsp;theory.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW THIS WORKS -->
+  <section class="sec how">
+    <div class="wrap">
+      <div class="how-head r">
+        <div class="sec-tag">How This Works</div>
+        <h2 class="sec-h">Three steps. <em>That's it.</em></h2>
+        <p>Send what you've got — we'll take it from there, together.</p>
+      </div>
+      <div class="how-steps">
+        <div class="how-step r">
+          <div class="how-num">01</div>
+          <h3>Send me the basics</h3>
+          <p>Who's involved, what it is, where it is, and what help you need. That's enough to start.</p>
+        </div>
+        <div class="how-step r rd1">
+          <div class="how-num">02</div>
+          <h3>We review it</h3>
+          <p>My team looks at what you've sent and gives it a real, honest read.</p>
+        </div>
+        <div class="how-step r rd2">
+          <div class="how-num">03</div>
+          <h3>We decide the next step together</h3>
+          <p>Whatever the deal actually calls for — we figure out the move as partners.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORM -->
+  <section class="sec form-sec" id="form">
+    <div class="wrap form-shell">
+      <div class="form-head r">
+        <div class="sec-tag">The Form</div>
+        <h2>Tell me about the&nbsp;opportunity</h2>
+        <p>You don't need every answer. Fill in what you know and leave the&nbsp;rest.</p>
+      </div>
+      <form class="form-card r rd1" id="deal-form" novalidate>
+        <div class="form-grid">
+          <div class="field">
+            <label for="f-name">Full name<span class="req">*</span></label>
+            <input type="text" id="f-name" name="name" placeholder="Your name" required autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="f-email">Email address<span class="req">*</span></label>
+            <input type="email" id="f-email" name="email" placeholder="you@email.com" required autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="f-phone">Phone number<span class="req">*</span></label>
+            <input type="tel" id="f-phone" name="phone" placeholder="(555) 000-0000" required autocomplete="tel">
+          </div>
+          <div class="field">
+            <label for="f-location">Where is the property? Address or market is fine<span class="req">*</span></label>
+            <input type="text" id="f-location" name="location" placeholder="City / market / address" required>
+          </div>
+          <div class="field">
+            <label for="f-type">What type of property is it?<span class="req">*</span></label>
+            <select id="f-type" name="type" required>
+              <option value="" disabled selected>Select one…</option>
+              <option>Office</option>
+              <option>Retail</option>
+              <option>Industrial</option>
+              <option>Multifamily</option>
+              <option>Land</option>
+              <option>Mixed use</option>
+              <option>Not sure</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-working">Who are you working with?<span class="req">*</span></label>
+            <select id="f-working" name="working" required>
+              <option value="" disabled selected>Select one…</option>
+              <option>Buyer</option>
+              <option>Seller</option>
+              <option>Borrower</option>
+              <option>Tenant</option>
+              <option>Investor</option>
+              <option>Not sure yet</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="f-size">Roughly what size is the deal?</label>
+            <select id="f-size" name="size">
+              <option value="" disabled selected>Select a range (optional)…</option>
+              <option>Under $500K</option>
+              <option>$500K – $1M</option>
+              <option>$1M – $5M</option>
+              <option>$5M – $10M</option>
+              <option>$10M – $25M</option>
+              <option>$25M+</option>
+              <option>Not sure</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="f-came">How did this come to you?<span class="req">*</span></label>
+            <textarea id="f-came" name="came" placeholder="How the opportunity landed in front of you…" required></textarea>
+          </div>
+          <div class="field full">
+            <label for="f-help">What help do you need from me?<span class="req">*</span></label>
+            <textarea id="f-help" name="help" placeholder="What would make this a win for you?" required></textarea>
+          </div>
+          <div class="field full">
+            <label for="f-notes">Anything else — documents, links, notes</label>
+            <label class="field-file" for="f-file">
+              <span class="ff-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="ff-txt"><strong>Upload a file</strong> or drop links &amp; notes below</span>
+              <input type="file" id="f-file" name="file" multiple>
+            </label>
+            <textarea id="f-notes" name="notes" placeholder="Paste links, or add any notes here…" style="margin-top:12px;"></textarea>
+          </div>
+        </div>
+        <div class="form-submit">
+          <button type="submit" class="btn btn-primary">Send It Over →</button>
+          <p class="form-reassure">My team and I review every submission personally.</p>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- TEXT / QR OPTION -->
+  <section class="sec text-sec">
+    <div class="wrap">
+      <div class="text-card r">
+        <div class="text-copy">
+          <div class="sec-tag">Easier to Text?</div>
+          <h2>Text it to me instead.</h2>
+          <p>Text <b>DEAL</b> to the number below and I'll send you the submission form right to your&nbsp;phone.</p>
+          <div class="text-code">Text <b>DEAL</b> to [PHONE&nbsp;NUMBER]</div>
+        </div>
+        <div class="text-qr">
+          <div class="qr-box" aria-hidden="true">
+            <!-- placeholder QR — unique to DEAL, replace with real code. Do NOT reuse the GAME code. -->
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+              <rect width="100" height="100" fill="#fff"/>
+              <g fill="#14140F">
+                <rect x="6" y="6" width="22" height="22"/><rect x="10" y="10" width="14" height="14" fill="#fff"/><rect x="13" y="13" width="8" height="8"/>
+                <rect x="72" y="6" width="22" height="22"/><rect x="76" y="10" width="14" height="14" fill="#fff"/><rect x="79" y="13" width="8" height="8"/>
+                <rect x="6" y="72" width="22" height="22"/><rect x="10" y="76" width="14" height="14" fill="#fff"/><rect x="13" y="79" width="8" height="8"/>
+                <rect x="38" y="6" width="4" height="4"/><rect x="46" y="6" width="4" height="4"/><rect x="54" y="6" width="4" height="4"/><rect x="62" y="10" width="4" height="4"/>
+                <rect x="34" y="14" width="4" height="4"/><rect x="42" y="14" width="4" height="4"/><rect x="50" y="18" width="4" height="4"/><rect x="58" y="22" width="4" height="4"/><rect x="38" y="22" width="4" height="4"/><rect x="46" y="22" width="4" height="4"/>
+                <rect x="6" y="34" width="4" height="4"/><rect x="14" y="38" width="4" height="4"/><rect x="22" y="34" width="4" height="4"/><rect x="34" y="38" width="4" height="4"/><rect x="46" y="34" width="4" height="4"/><rect x="58" y="34" width="4" height="4"/><rect x="66" y="38" width="4" height="4"/><rect x="78" y="34" width="4" height="4"/><rect x="90" y="38" width="4" height="4"/>
+                <rect x="10" y="46" width="4" height="4"/><rect x="22" y="50" width="4" height="4"/><rect x="34" y="46" width="4" height="4"/><rect x="42" y="50" width="4" height="4"/><rect x="54" y="46" width="4" height="4"/><rect x="66" y="50" width="4" height="4"/><rect x="74" y="46" width="4" height="4"/><rect x="86" y="46" width="4" height="4"/>
+                <rect x="38" y="58" width="4" height="4"/><rect x="50" y="54" width="4" height="4"/><rect x="62" y="58" width="4" height="4"/><rect x="70" y="54" width="4" height="4"/><rect x="82" y="58" width="4" height="4"/><rect x="90" y="54" width="4" height="4"/>
+                <rect x="34" y="66" width="4" height="4"/><rect x="46" y="70" width="4" height="4"/><rect x="58" y="66" width="4" height="4"/><rect x="70" y="70" width="4" height="4"/><rect x="82" y="66" width="4" height="4"/><rect x="90" y="70" width="4" height="4"/>
+                <rect x="38" y="78" width="4" height="4"/><rect x="50" y="82" width="4" height="4"/><rect x="58" y="78" width="4" height="4"/><rect x="70" y="82" width="4" height="4"/><rect x="82" y="78" width="4" height="4"/><rect x="90" y="82" width="4" height="4"/>
+                <rect x="34" y="86" width="4" height="4"/><rect x="46" y="90" width="4" height="4"/><rect x="62" y="86" width="4" height="4"/><rect x="74" y="90" width="4" height="4"/><rect x="86" y="86" width="4" height="4"/>
+              </g>
+            </svg>
+          </div>
+          <div class="qr-cap">Scan to submit an opportunity</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="sec final">
+    <div class="wrap final-inner">
+      <h2 class="r">Send it&nbsp;<em>over.</em></h2>
+      <p class="r rd1">You don't need every answer — you just need to hit send. Let's find out what this deal is really&nbsp;worth.</p>
+      <div class="final-actions r rd2">
+        <a href="#form" class="btn btn-primary">Submit Your Opportunity →</a>
+      </div>
+      <p class="final-textline r rd2">Or text <strong>DEAL</strong> to [PHONE&nbsp;NUMBER]</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="wrap ft-inner">
+      <a href="#top" class="logo ft-logo" aria-label="Bobby Davidowitz home">
+        <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%2010%20Ag%CC%86u%202026%2020_02_24%201.png" alt="Bobby Davidowitz">
+      </a>
+      <p>Bring me a commercial opportunity — an owner, a buyer, a tenant, a borrower, or a stalled deal — and let's work it&nbsp;together.</p>
+      <a href="mailto:contact@bobbydavidowitz.com" class="ft-email">contact@bobbydavidowitz.com</a>
+      <div class="ft-btm">
+        <p>© 2026 Bobby Davidowitz. All rights reserved.</p>
+        <p>Built for <span class="acc">agents who want more</span></p>
+        <p class="ft-credit">Built by <a href="#">KATEK</a></p>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /#page -->
+
+<!-- CONFIRMATION -->
+<section class="confirm-sec" id="confirm">
+  <div class="confirm-wrap">
+    <div class="confirm-card">
+      <div class="confirm-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1>Sent. We'll take a&nbsp;look.</h1>
+      <p>My team and I will review what you've sent and come back to you with an honest read on it — <em>including if the answer is that it isn't a fit.</em></p>
+      <p>Either way, you'll learn something about how these get&nbsp;evaluated.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+// Reveal on scroll
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.r').forEach(el => io.observe(el));
+
+// Smooth anchor scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    if (id.length < 2) return;
+    const t = document.querySelector(id);
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth' }); }
+  });
+});
+
+// File upload label feedback
+const fileInput = document.getElementById('f-file');
+if (fileInput) {
+  fileInput.addEventListener('change', () => {
+    const label = fileInput.closest('.field-file').querySelector('.ff-txt');
+    const n = fileInput.files.length;
+    if (n > 0) label.innerHTML = '<strong>' + n + ' file' + (n>1?'s':'') + ' selected</strong>Tap to change';
+  });
+}
+
+// Form submit → confirmation screen
+const form = document.getElementById('deal-form');
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  let ok = true;
+  form.querySelectorAll('[required]').forEach(el => {
+    if (!el.value.trim()) { ok = false; el.style.borderColor = '#EE5A1A'; }
+  });
+  if (!ok) {
+    form.querySelector('[required]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  // Here you'd POST the data to your backend / GHL. For now, show confirmation.
+  document.getElementById('page').style.display = 'none';
+  const confirm = document.getElementById('confirm');
+  confirm.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'auto' });
+});
+form.querySelectorAll('[required]').forEach(el => {
+  el.addEventListener('input', () => { el.style.borderColor = ''; });
+  el.addEventListener('change', () => { el.style.borderColor = ''; });
+});
+</script>
+</body>
+</html>

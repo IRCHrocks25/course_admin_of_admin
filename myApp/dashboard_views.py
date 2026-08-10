@@ -22,6 +22,7 @@ import threading
 logger = logging.getLogger(__name__)
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from decimal import Decimal
+from datetime import datetime
 import stripe
 from django.utils import timezone
 from PIL import Image
@@ -60,6 +61,7 @@ from .models import (
     LessonQuizQuestion,
     Bundle,
     BundlePurchase,
+    Coupon,
     Cohort,
     CohortMember,
     TenantConfig,
@@ -1282,6 +1284,19 @@ def dashboard_students(request):
             Q(last_name__icontains=search_query)
         )
 
+    # Prefetch signup coupons + membership ids for tenant students.
+    signup_coupon_by_user = {}
+    membership_user_ids = set()
+    if tenant is not None:
+        for membership in (
+            TenantMembership.objects
+            .filter(tenant=tenant, role='student', is_active=True)
+            .select_related('signup_coupon')
+        ):
+            membership_user_ids.add(membership.user_id)
+            if membership.signup_coupon_id:
+                signup_coupon_by_user[membership.user_id] = membership.signup_coupon
+
     # Get student data with activity
     students_data = []
     for student in students_query:
@@ -1303,12 +1318,13 @@ def dashboard_students(request):
         access_courses = set(course_accesses.values_list('course_id', flat=True))
         all_course_ids = enrollment_courses | access_courses
         if tenant is not None and not all_course_ids:
-            # In tenant mode we only display learners with tenant-linked course data.
-            continue
+            # Still show students who only have a membership (e.g. signed up via coupon).
+            if student.id not in membership_user_ids:
+                continue
 
         # Apply course filter
         if course_filter:
-            if int(course_filter) not in all_course_ids:
+            if not all_course_ids or int(course_filter) not in all_course_ids:
                 continue
             all_course_ids = {int(course_filter)}
 
@@ -1394,6 +1410,7 @@ def dashboard_students(request):
             'enrollments': enrollments,
             'course_accesses': course_accesses,
             'courses': student_courses,
+            'signup_coupon': signup_coupon_by_user.get(student.id),
         })
 
     # Sort students
@@ -4811,6 +4828,19 @@ def dashboard_student_detail(request, user_id, course_slug=None):
     cohorts = Cohort.objects.filter(is_active=True)
     all_courses = Course.objects.filter(status='active')
 
+    tenant = _get_dashboard_tenant(request)
+    signup_coupon = None
+    membership = None
+    if tenant is not None:
+        membership = (
+            TenantMembership.objects
+            .filter(tenant=tenant, user=user, role='student')
+            .select_related('signup_coupon')
+            .first()
+        )
+        if membership:
+            signup_coupon = membership.signup_coupon
+
     return render(request, 'dashboard/student_detail.html', {
         'student': user,
         'course_data': course_data,
@@ -4818,6 +4848,8 @@ def dashboard_student_detail(request, user_id, course_slug=None):
         'bundles': bundles,
         'cohorts': cohorts,
         'courses': all_courses,
+        'signup_coupon': signup_coupon,
+        'membership': membership,
     })
 
 
@@ -5622,6 +5654,326 @@ def dashboard_delete_bundle(request, bundle_id):
     bundle.delete()
     messages.success(request, f'Bundle "{bundle_name}" deleted successfully!')
     return redirect('dashboard_bundles')
+
+
+def _coupon_for_dashboard(request, coupon_id):
+    """Resolve a tenant-scoped coupon for dashboard CRUD, or None + redirect target."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is not None:
+        return get_object_or_404(Coupon, id=coupon_id, tenant=tenant), tenant
+    if is_superadmin:
+        return get_object_or_404(Coupon, id=coupon_id), tenant
+    return None, tenant
+
+
+@staff_member_required
+def dashboard_coupons(request):
+    """List promotional coupons."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_home')
+
+    coupons = Coupon.objects.select_related('course', 'bundle').order_by('-created_at')
+    if tenant is not None:
+        coupons = coupons.filter(tenant=tenant)
+
+    return render(request, 'dashboard/coupons.html', {
+        'coupons': coupons,
+    })
+
+
+@staff_member_required
+def dashboard_add_coupon(request):
+    """Create a new coupon and generate its shareable link."""
+    from .utils.coupons import normalize_coupon_code, build_coupon_public_url
+
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_coupons')
+
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        code = normalize_coupon_code(request.POST.get('code') or '')
+        description = (request.POST.get('description') or '').strip()
+        discount_type = request.POST.get('discount_type') or Coupon.DISCOUNT_PERCENT
+        discount_value = request.POST.get('discount_value') or '0'
+        target_type = request.POST.get('target_type') or Coupon.TARGET_SIGNUP
+        course_id = request.POST.get('course') or ''
+        bundle_id = request.POST.get('bundle') or ''
+        custom_url = (request.POST.get('custom_url') or '').strip()
+        is_active = request.POST.get('is_active') == 'on'
+        max_uses = request.POST.get('max_uses') or ''
+        expires_at_raw = (request.POST.get('expires_at') or '').strip()
+
+        if not name or not code:
+            messages.error(request, 'Name and coupon code are required.')
+            return redirect('dashboard_add_coupon')
+
+        if discount_type not in dict(Coupon.DISCOUNT_TYPES):
+            discount_type = Coupon.DISCOUNT_PERCENT
+        if target_type not in dict(Coupon.TARGET_TYPES):
+            target_type = Coupon.TARGET_SIGNUP
+
+        default_tenant = tenant or get_default_tenant()
+        if Coupon.objects.filter(tenant=default_tenant, code=code).exists():
+            messages.error(request, f'Coupon code "{code}" already exists.')
+            return redirect('dashboard_add_coupon')
+
+        try:
+            discount_value = Decimal(str(discount_value)) if discount_type != Coupon.DISCOUNT_NONE else Decimal('0')
+        except Exception:
+            messages.error(request, 'Invalid discount value.')
+            return redirect('dashboard_add_coupon')
+
+        if discount_type == Coupon.DISCOUNT_NONE:
+            discount_value = Decimal('0')
+        elif discount_type == Coupon.DISCOUNT_PERCENT and (discount_value < 0 or discount_value > 100):
+            messages.error(request, 'Percent discount must be between 0 and 100.')
+            return redirect('dashboard_add_coupon')
+
+        course = None
+        bundle = None
+        if target_type == Coupon.TARGET_COURSE and course_id:
+            course_qs = Course.objects.filter(id=course_id)
+            if tenant is not None:
+                course_qs = course_qs.filter(tenant=tenant)
+            course = course_qs.first()
+            if course is None:
+                messages.error(request, 'Selected course was not found.')
+                return redirect('dashboard_add_coupon')
+        elif target_type == Coupon.TARGET_BUNDLE and bundle_id:
+            bundle_qs = Bundle.objects.filter(id=bundle_id)
+            if tenant is not None:
+                bundle_qs = bundle_qs.filter(tenant=tenant)
+            bundle = bundle_qs.first()
+            if bundle is None:
+                messages.error(request, 'Selected bundle was not found.')
+                return redirect('dashboard_add_coupon')
+        elif target_type == Coupon.TARGET_CUSTOM and not custom_url:
+            messages.error(request, 'Custom URL is required for custom link coupons.')
+            return redirect('dashboard_add_coupon')
+
+        expires_at = None
+        if expires_at_raw:
+            try:
+                expires_at = datetime.fromisoformat(expires_at_raw)
+                if timezone.is_naive(expires_at):
+                    expires_at = timezone.make_aware(expires_at, timezone.get_current_timezone())
+            except ValueError:
+                messages.error(request, 'Invalid expiration date.')
+                return redirect('dashboard_add_coupon')
+
+        coupon = Coupon.objects.create(
+            tenant=default_tenant,
+            name=name,
+            code=code,
+            description=description,
+            discount_type=discount_type,
+            discount_value=discount_value,
+            target_type=target_type,
+            course=course,
+            bundle=bundle,
+            custom_url=custom_url if target_type == Coupon.TARGET_CUSTOM else '',
+            is_active=is_active,
+            max_uses=int(max_uses) if max_uses else None,
+            expires_at=expires_at,
+        )
+
+        link = build_coupon_public_url(request, coupon)
+        messages.success(request, f'Coupon "{coupon.code}" created. Shareable link: {link}')
+        return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+    courses = Course.objects.filter(status='active').order_by('name')
+    bundles = Bundle.objects.filter(is_active=True).order_by('name')
+    if tenant is not None:
+        courses = courses.filter(tenant=tenant)
+        bundles = bundles.filter(tenant=tenant)
+
+    return render(request, 'dashboard/add_coupon.html', {
+        'courses': courses,
+        'bundles': bundles,
+        'discount_types': Coupon.DISCOUNT_TYPES,
+        'target_types': Coupon.TARGET_TYPES,
+    })
+
+
+@staff_member_required
+def dashboard_edit_coupon(request, coupon_id):
+    """Edit a coupon; shows shareable link and QR controls."""
+    from .utils.coupons import normalize_coupon_code, build_coupon_public_url
+
+    coupon, tenant = _coupon_for_dashboard(request, coupon_id)
+    if coupon is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_coupons')
+
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        code = normalize_coupon_code(request.POST.get('code') or '')
+        description = (request.POST.get('description') or '').strip()
+        discount_type = request.POST.get('discount_type') or Coupon.DISCOUNT_PERCENT
+        discount_value = request.POST.get('discount_value') or '0'
+        target_type = request.POST.get('target_type') or Coupon.TARGET_SIGNUP
+        course_id = request.POST.get('course') or ''
+        bundle_id = request.POST.get('bundle') or ''
+        custom_url = (request.POST.get('custom_url') or '').strip()
+        is_active = request.POST.get('is_active') == 'on'
+        max_uses = request.POST.get('max_uses') or ''
+        expires_at_raw = (request.POST.get('expires_at') or '').strip()
+
+        if not name or not code:
+            messages.error(request, 'Name and coupon code are required.')
+            return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+        if discount_type not in dict(Coupon.DISCOUNT_TYPES):
+            discount_type = Coupon.DISCOUNT_PERCENT
+        if target_type not in dict(Coupon.TARGET_TYPES):
+            target_type = Coupon.TARGET_SIGNUP
+
+        code_conflict = Coupon.objects.filter(tenant=coupon.tenant, code=code).exclude(id=coupon.id).exists()
+        if code_conflict:
+            messages.error(request, f'Coupon code "{code}" already exists.')
+            return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+        try:
+            discount_value = Decimal(str(discount_value)) if discount_type != Coupon.DISCOUNT_NONE else Decimal('0')
+        except Exception:
+            messages.error(request, 'Invalid discount value.')
+            return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+        if discount_type == Coupon.DISCOUNT_NONE:
+            discount_value = Decimal('0')
+        elif discount_type == Coupon.DISCOUNT_PERCENT and (discount_value < 0 or discount_value > 100):
+            messages.error(request, 'Percent discount must be between 0 and 100.')
+            return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+        course = None
+        bundle = None
+        if target_type == Coupon.TARGET_COURSE and course_id:
+            course_qs = Course.objects.filter(id=course_id)
+            if tenant is not None:
+                course_qs = course_qs.filter(tenant=tenant)
+            course = course_qs.first()
+            if course is None:
+                messages.error(request, 'Selected course was not found.')
+                return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+        elif target_type == Coupon.TARGET_BUNDLE and bundle_id:
+            bundle_qs = Bundle.objects.filter(id=bundle_id)
+            if tenant is not None:
+                bundle_qs = bundle_qs.filter(tenant=tenant)
+            bundle = bundle_qs.first()
+            if bundle is None:
+                messages.error(request, 'Selected bundle was not found.')
+                return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+        elif target_type == Coupon.TARGET_CUSTOM and not custom_url:
+            messages.error(request, 'Custom URL is required for custom link coupons.')
+            return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+        expires_at = None
+        if expires_at_raw:
+            try:
+                expires_at = datetime.fromisoformat(expires_at_raw)
+                if timezone.is_naive(expires_at):
+                    expires_at = timezone.make_aware(expires_at, timezone.get_current_timezone())
+            except ValueError:
+                messages.error(request, 'Invalid expiration date.')
+                return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+        coupon.name = name
+        coupon.code = code
+        coupon.description = description
+        coupon.discount_type = discount_type
+        coupon.discount_value = discount_value
+        coupon.target_type = target_type
+        coupon.course = course
+        coupon.bundle = bundle
+        coupon.custom_url = custom_url if target_type == Coupon.TARGET_CUSTOM else ''
+        coupon.is_active = is_active
+        coupon.max_uses = int(max_uses) if max_uses else None
+        coupon.expires_at = expires_at
+        coupon.save()
+
+        messages.success(request, f'Coupon "{coupon.code}" updated successfully!')
+        return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+    courses = Course.objects.filter(status='active').order_by('name')
+    bundles = Bundle.objects.filter(is_active=True).order_by('name')
+    if tenant is not None:
+        courses = courses.filter(tenant=tenant)
+        bundles = bundles.filter(tenant=tenant)
+
+    coupon_link = build_coupon_public_url(request, coupon)
+    expires_at_value = ''
+    if coupon.expires_at:
+        expires_at_value = timezone.localtime(coupon.expires_at).strftime('%Y-%m-%dT%H:%M')
+
+    return render(request, 'dashboard/edit_coupon.html', {
+        'coupon': coupon,
+        'courses': courses,
+        'bundles': bundles,
+        'discount_types': Coupon.DISCOUNT_TYPES,
+        'target_types': Coupon.TARGET_TYPES,
+        'coupon_link': coupon_link,
+        'expires_at_value': expires_at_value,
+    })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_generate_coupon_qr(request, coupon_id):
+    """Generate a QR for the coupon link and store the PNG on Iceberg."""
+    from .utils.coupons import build_coupon_public_url, upload_coupon_qr_to_iceberg
+    from .utils import iceberg
+
+    coupon, _tenant = _coupon_for_dashboard(request, coupon_id)
+    if coupon is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_coupons')
+
+    if not iceberg.is_configured():
+        messages.error(request, 'File storage (Iceberg) is not configured. Cannot generate QR code.')
+        return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+    link = build_coupon_public_url(request, coupon)
+    url = upload_coupon_qr_to_iceberg(coupon, link)
+    if not url:
+        hint = iceberg.last_auth_error_hint()
+        messages.error(
+            request,
+            hint or 'Could not upload QR code to Iceberg. Check server logs and try again.',
+        )
+        return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+    coupon.qr_code_url = url
+    coupon.save(update_fields=['qr_code_url', 'updated_at'])
+    messages.success(request, 'QR code generated and stored on Iceberg.')
+    return redirect('dashboard_edit_coupon', coupon_id=coupon.id)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_delete_coupon(request, coupon_id):
+    """Delete a coupon and best-effort remove its Iceberg QR."""
+    from .utils import iceberg
+
+    coupon, _tenant = _coupon_for_dashboard(request, coupon_id)
+    if coupon is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_coupons')
+
+    code = coupon.code
+    if coupon.qr_code_url:
+        key = iceberg.key_from_url(coupon.qr_code_url)
+        if key:
+            iceberg.delete(key)
+    coupon.delete()
+    messages.success(request, f'Coupon "{code}" deleted successfully!')
+    return redirect('dashboard_coupons')
 
 
 def _get_dashboard_tenant(request):

@@ -459,6 +459,10 @@
                             <i class="fas fa-gift nav-icon"></i>
                             <span>Bundles</span>
                         </a>
+                        <a href="{% url 'dashboard_coupons' %}" class="nav-item {% if 'coupon' in cur %}is-active{% endif %}">
+                            <i class="fas fa-ticket nav-icon"></i>
+                            <span>Coupons</span>
+                        </a>
                         <a href="{% url 'dashboard_domain_settings' %}" class="nav-item {% if 'domain' in cur %}is-active{% endif %}">
                             <i class="fas fa-globe nav-icon"></i>
                             <span>Domains</span>

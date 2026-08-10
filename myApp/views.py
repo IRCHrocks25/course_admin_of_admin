@@ -51,6 +51,7 @@ from .models import (
     CourseAccess,
     Bundle,
     BundlePurchase,
+    Coupon,
     StripeEventLog,
     PricingTier,
     TenantNotificationDelivery,
@@ -1176,6 +1177,53 @@ def stripe_tenant_webhook(request, tenant_slug):
     return HttpResponse(status=200)
 
 
+def coupon_landing(request, code):
+    """
+    Public coupon link: validate code, stash it in session, redirect to destination.
+    QR codes and shareable links point here.
+    """
+    from .utils.coupons import normalize_coupon_code
+
+    tenant = getattr(request, 'tenant', None)
+    normalized = normalize_coupon_code(code)
+    if not normalized:
+        messages.error(request, 'Invalid coupon link.')
+        return redirect('home')
+
+    qs = Coupon.objects.filter(code__iexact=normalized)
+    if tenant is not None:
+        qs = qs.filter(tenant=tenant)
+    coupon = qs.first()
+
+    if coupon is None:
+        messages.error(request, 'This coupon was not found.')
+        return redirect('home')
+
+    if not coupon.is_currently_valid():
+        messages.error(request, 'This coupon is no longer valid.')
+        return redirect('home')
+
+    request.session['active_coupon_id'] = coupon.id
+    if coupon.is_tracking_only():
+        messages.success(
+            request,
+            f'Coupon {coupon.code} saved. Create an account to record this invite on your student profile.',
+        )
+    else:
+        messages.success(request, f'Coupon {coupon.code} applied!')
+
+    if coupon.target_type == Coupon.TARGET_SIGNUP:
+        return redirect('register')
+    if coupon.target_type == Coupon.TARGET_COURSE and coupon.course_id:
+        return redirect('course_detail', course_slug=coupon.course.slug)
+    if coupon.target_type == Coupon.TARGET_BUNDLE and coupon.bundle_id:
+        # Bundles don't have a public detail page; send users to courses catalog.
+        return redirect('courses')
+    if coupon.target_type == Coupon.TARGET_CUSTOM and coupon.custom_url:
+        return redirect(coupon.custom_url)
+    return redirect('register')
+
+
 @login_required
 @require_http_methods(["POST"])
 def create_bundle_checkout_session(request, bundle_id):
@@ -1201,19 +1249,34 @@ def create_bundle_checkout_session(request, bundle_id):
             return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
 
     try:
-        amount_cents = int(bundle.price * 100)
+        from .utils.coupons import (
+            get_session_coupon,
+            coupon_applies_to_bundle,
+            discounted_amount_cents,
+        )
+        coupon = get_session_coupon(request, tenant)
+        if coupon and not coupon_applies_to_bundle(coupon, bundle):
+            coupon = None
+        amount_cents = discounted_amount_cents(bundle.price, coupon)
+        if amount_cents <= 0:
+            return JsonResponse({'success': False, 'error': 'Discounted price must be greater than zero.'}, status=400)
+
         first_course = bundle.courses.first()
         base = f"{request.scheme}://{request.get_host()}"
         # Include session ID so the success handler can verify payment without relying solely on webhooks.
         success_url = f"{base}/bundles/{bundle.id}/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{base}/courses/"
 
+        product_description = bundle.description or 'Course bundle purchase'
+        if coupon:
+            product_description = f'{product_description} (coupon {coupon.code})'
+
         session_kwargs = dict(
             mode='payment',
             line_items=[{
                 'price_data': {
                     'currency': 'usd',
-                    'product_data': {'name': bundle.name, 'description': bundle.description or 'Course bundle purchase'},
+                    'product_data': {'name': bundle.name, 'description': product_description},
                     'unit_amount': amount_cents,
                 },
                 'quantity': 1,
@@ -1226,6 +1289,8 @@ def create_bundle_checkout_session(request, bundle_id):
                 'tenant_id': str(tenant.id),
                 'bundle_id': str(bundle.id),
                 'user_id': str(request.user.id),
+                'coupon_id': str(coupon.id) if coupon else '',
+                'coupon_code': coupon.code if coupon else '',
             },
         )
         if use_connect:
@@ -1285,6 +1350,11 @@ def bundle_checkout_success(request, bundle_id):
         for course in bundle.courses.all():
             CourseAccess.objects.get_or_create(user=request.user, course=course)
 
+        coupon_id = (session.get('metadata') or {}).get('coupon_id') or ''
+        if coupon_id and created:
+            Coupon.objects.filter(id=coupon_id, tenant=tenant).update(uses_count=models.F('uses_count') + 1)
+            request.session.pop('active_coupon_id', None)
+
         first_course = bundle.courses.first()
         if created:
             messages.success(request, f'Payment confirmed! You now have access to {bundle.name}.')
@@ -1326,10 +1396,25 @@ def create_course_checkout_session(request, course_slug):
             return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
 
     try:
-        amount_cents = int(course.price * 100)
+        from .utils.coupons import (
+            get_session_coupon,
+            coupon_applies_to_course,
+            discounted_amount_cents,
+        )
+        coupon = get_session_coupon(request, tenant)
+        if coupon and not coupon_applies_to_course(coupon, course):
+            coupon = None
+        amount_cents = discounted_amount_cents(course.price, coupon)
+        if amount_cents <= 0:
+            return JsonResponse({'success': False, 'error': 'Discounted price must be greater than zero.'}, status=400)
+
         base = f"{request.scheme}://{request.get_host()}"
         success_url = f"{base}/courses/{course.slug}/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{base}/courses/{course.slug}/"
+
+        product_description = course.short_description or 'Course access'
+        if coupon:
+            product_description = f'{product_description} (coupon {coupon.code})'
 
         session_kwargs = dict(
             mode='payment',
@@ -1338,7 +1423,7 @@ def create_course_checkout_session(request, course_slug):
                     'currency': 'usd',
                     'product_data': {
                         'name': course.name,
-                        'description': course.short_description or 'Course access',
+                        'description': product_description,
                     },
                     'unit_amount': amount_cents,
                 },
@@ -1352,6 +1437,8 @@ def create_course_checkout_session(request, course_slug):
                 'tenant_id': str(tenant.id),
                 'course_id': str(course.id),
                 'user_id': str(request.user.id),
+                'coupon_id': str(coupon.id) if coupon else '',
+                'coupon_code': coupon.code if coupon else '',
             },
         )
         if use_connect:
@@ -1405,11 +1492,15 @@ def course_checkout_success(request, course_slug):
             access_type='purchase',
             notes=f'Purchased via Stripe session {session_id}',
         )
-        CourseEnrollment.objects.get_or_create(
+        _enrollment, enrollment_created = CourseEnrollment.objects.get_or_create(
             user=request.user,
             course=course,
             defaults={'tenant': course.tenant}
         )
+        coupon_id = (session.get('metadata') or {}).get('coupon_id') or ''
+        if coupon_id and enrollment_created:
+            Coupon.objects.filter(id=coupon_id, tenant=tenant).update(uses_count=models.F('uses_count') + 1)
+            request.session.pop('active_coupon_id', None)
         messages.success(request, f'Payment confirmed! You now have access to {course.name}.')
         return redirect('course_detail', course_slug=course_slug)
 
@@ -1612,14 +1703,22 @@ def register_view(request):
             email=email,
             password=password,
         )
-        TenantMembership.objects.create(
+        membership = TenantMembership.objects.create(
             tenant=tenant,
             user=user,
             role='student',
             is_active=True
         )
+        from .utils.coupons import attach_signup_coupon
+        used_coupon = attach_signup_coupon(request, membership)
         login(request, user)
-        messages.success(request, f'Welcome to {tenant.name}. Your account has been created.')
+        if used_coupon:
+            messages.success(
+                request,
+                f'Welcome to {tenant.name}. Your account has been created with coupon {used_coupon.code}.',
+            )
+        else:
+            messages.success(request, f'Welcome to {tenant.name}. Your account has been created.')
         return redirect('courses')
 
     return _render_register_page()

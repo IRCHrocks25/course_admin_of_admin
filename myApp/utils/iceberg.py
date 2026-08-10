@@ -88,6 +88,13 @@ def upload_bytes(data, key, content_type):
         if resp.status_code == 409:
             delete(key)
             resp = _init_upload(key, content_type)
+        if resp.status_code in (401, 403):
+            logger.warning(
+                'Iceberg auth failed (%s) for %s — check ICEBERG_API_TOKEN and restart the server',
+                resp.status_code,
+                key,
+            )
+            return ''
         resp.raise_for_status()
         upload_url = (resp.json() or {}).get('upload_url')
         if not upload_url:
@@ -122,6 +129,29 @@ def upload_bytes(data, key, content_type):
     except Exception as e:
         logger.warning('Iceberg upload failed for %s: %s', key, e)
         return ''
+
+
+def last_auth_error_hint():
+    """Best-effort probe used by admin UI when uploads fail."""
+    if not is_configured():
+        return 'Iceberg is not configured (missing ICEBERG_API_BASE / ICEBERG_CDN_BASE / ICEBERG_API_TOKEN).'
+    try:
+        resp = requests.post(
+            f'{_api_base()}/assets/init-upload',
+            json={'key': '_auth_probe/ping.txt', 'content_type': 'text/plain'},
+            headers=_auth_headers(),
+            timeout=_TIMEOUT,
+        )
+        if resp.status_code in (401, 403):
+            return (
+                f'Iceberg rejected the API token (HTTP {resp.status_code}). '
+                'Check ICEBERG_API_TOKEN in .env and restart the Django server.'
+            )
+        if resp.status_code >= 400:
+            return f'Iceberg init-upload failed (HTTP {resp.status_code}): {(resp.text or "")[:180]}'
+    except Exception as e:
+        return f'Could not reach Iceberg API: {e}'
+    return ''
 
 
 def upload_fileobj(fileobj, key, content_type):

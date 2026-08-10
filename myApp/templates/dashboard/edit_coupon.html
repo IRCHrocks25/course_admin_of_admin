@@ -1,0 +1,196 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Edit Coupon{% endblock %}
+{% block page_title %}Edit Coupon{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <a href="{% url 'dashboard_coupons' %}" class="text-purple-accent hover:text-purple-accent/80 text-sm mb-4 inline-block">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Coupons
+        </a>
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/10 rounded-xl p-8 mb-6">
+        <h2 class="text-xl font-bold mb-4">Shareable Link</h2>
+        <div class="flex flex-col sm:flex-row gap-3">
+            <input id="coupon-link" type="text" readonly value="{{ coupon_link }}" class="flex-1 bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 font-mono text-sm focus:outline-none">
+            <button type="button" id="copy-link-btn" class="px-5 py-3 bg-purple-accent/10 border border-purple-accent/30 rounded-lg font-medium hover:bg-purple-accent/20 transition-all">
+                <i class="fas fa-copy mr-2"></i> Copy
+            </button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Anyone opening this link gets the coupon applied for checkout.</p>
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/10 rounded-xl p-8 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold">QR Code</h2>
+            <form method="POST" action="{% url 'dashboard_generate_coupon_qr' coupon.id %}">
+                {% csrf_token %}
+                <button type="submit" class="px-5 py-2 bg-gradient-to-r from-purple-accent to-cyan-electric text-on-accent-gradient rounded-full font-bold text-sm hover:from-purple-accent/90 hover:to-cyan-electric/90 transition-all">
+                    <i class="fas fa-qrcode mr-2"></i>
+                    {% if coupon.qr_code_url %}Regenerate QR{% else %}Generate QR{% endif %}
+                </button>
+            </form>
+        </div>
+        {% if coupon.qr_code_url %}
+        <div class="flex flex-col sm:flex-row items-start gap-6">
+            <img src="{{ coupon.qr_code_url }}" alt="Coupon QR code" class="w-48 h-48 bg-white rounded-lg p-2 object-contain">
+            <div class="text-sm text-gray-400 space-y-2">
+                <p>Stored on Iceberg CDN.</p>
+                <a href="{{ coupon.qr_code_url }}" target="_blank" rel="noopener" class="text-cyan-electric hover:underline break-all">{{ coupon.qr_code_url }}</a>
+                <p><a href="{{ coupon.qr_code_url }}" download class="inline-flex items-center gap-2 text-purple-accent hover:underline"><i class="fas fa-download"></i> Download PNG</a></p>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm">No QR yet. Generate one to create a PNG from the shareable link and upload it to Iceberg.</p>
+        {% endif %}
+    </div>
+
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/10 rounded-xl p-8">
+        <h2 class="text-2xl font-bold mb-6">Edit Coupon: {{ coupon.name }}</h2>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Name *</label>
+                        <input type="text" name="name" value="{{ coupon.name }}" required class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Code *</label>
+                        <input type="text" name="code" value="{{ coupon.code }}" required class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50 font-mono uppercase" maxlength="50">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Description</label>
+                    <textarea name="description" rows="3" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50 resize-none">{{ coupon.description }}</textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Discount Type *</label>
+                        <select name="discount_type" id="discount-type" required class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                            {% for value, label in discount_types %}
+                            <option value="{{ value }}" {% if coupon.discount_type == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Tracking only records the coupon on the student's profile at signup — no price off.</p>
+                    </div>
+                    <div id="discount-value-field">
+                        <label class="block text-sm font-semibold mb-2">Discount Value *</label>
+                        <input type="number" name="discount_value" id="discount-value" value="{{ coupon.discount_value }}" step="0.01" min="0" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Link Destination *</label>
+                    <select name="target_type" id="target-type" required class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                        {% for value, label in target_types %}
+                        <option value="{{ value }}" {% if coupon.target_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="course-field" style="display: none;">
+                    <label class="block text-sm font-semibold mb-2">Course</label>
+                    <select name="course" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                        <option value="">Select a course</option>
+                        {% for course in courses %}
+                        <option value="{{ course.id }}" {% if coupon.course_id == course.id %}selected{% endif %}>{{ course.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="bundle-field" style="display: none;">
+                    <label class="block text-sm font-semibold mb-2">Bundle</label>
+                    <select name="bundle" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                        <option value="">Select a bundle</option>
+                        {% for bundle in bundles %}
+                        <option value="{{ bundle.id }}" {% if coupon.bundle_id == bundle.id %}selected{% endif %}>{{ bundle.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="custom-url-field" style="display: none;">
+                    <label class="block text-sm font-semibold mb-2">Custom URL</label>
+                    <input type="url" name="custom_url" value="{{ coupon.custom_url }}" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50" placeholder="https://...">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Max Uses (optional)</label>
+                        <input type="number" name="max_uses" min="1" value="{{ coupon.max_uses|default:'' }}" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50" placeholder="Unlimited">
+                        <p class="text-xs text-gray-400 mt-1">Used {{ coupon.uses_count }} time{{ coupon.uses_count|pluralize }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Expires At (optional)</label>
+                        <input type="datetime-local" name="expires_at" value="{{ expires_at_value }}" class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_active" {% if coupon.is_active %}checked{% endif %} class="rounded border-purple-accent/30 text-purple-accent focus:ring-purple-accent">
+                        <span class="text-sm font-semibold">Active</span>
+                    </label>
+                </div>
+
+                <div class="flex gap-4 pt-4">
+                    <button type="submit" class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-accent to-cyan-electric text-on-accent-gradient rounded-full font-bold hover:from-purple-accent/90 hover:to-cyan-electric/90 transition-all">
+                        Save Changes
+                    </button>
+                    <a href="{% url 'dashboard_coupons' %}" class="px-6 py-3 border border-purple-accent/30 rounded-full font-medium hover:bg-purple-accent/10 transition-all text-center">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const select = document.getElementById('target-type');
+    const courseField = document.getElementById('course-field');
+    const bundleField = document.getElementById('bundle-field');
+    const customField = document.getElementById('custom-url-field');
+    const discountType = document.getElementById('discount-type');
+    const discountValueField = document.getElementById('discount-value-field');
+    const discountValue = document.getElementById('discount-value');
+
+    function syncTarget() {
+        const value = select.value;
+        courseField.style.display = value === 'course' ? 'block' : 'none';
+        bundleField.style.display = value === 'bundle' ? 'block' : 'none';
+        customField.style.display = value === 'custom' ? 'block' : 'none';
+    }
+    function syncDiscount() {
+        const isNone = discountType.value === 'none';
+        discountValueField.style.display = isNone ? 'none' : 'block';
+        discountValue.required = !isNone;
+        if (isNone) discountValue.value = '0';
+    }
+    select.addEventListener('change', syncTarget);
+    discountType.addEventListener('change', syncDiscount);
+    syncTarget();
+    syncDiscount();
+
+    const copyBtn = document.getElementById('copy-link-btn');
+    const linkInput = document.getElementById('coupon-link');
+    copyBtn.addEventListener('click', async function () {
+        try {
+            await navigator.clipboard.writeText(linkInput.value);
+            copyBtn.innerHTML = '<i class="fas fa-check mr-2"></i> Copied';
+            setTimeout(function () {
+                copyBtn.innerHTML = '<i class="fas fa-copy mr-2"></i> Copy';
+            }, 1500);
+        } catch (e) {
+            linkInput.select();
+            document.execCommand('copy');
+        }
+    });
+})();
+</script>
+{% endblock %}

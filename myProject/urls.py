@@ -119,6 +119,14 @@ urlpatterns = [
     path('dashboard/bundles/<int:bundle_id>/edit/', dashboard_views.dashboard_edit_bundle, name='dashboard_edit_bundle'),
     path('dashboard/bundles/<int:bundle_id>/delete/', dashboard_views.dashboard_delete_bundle, name='dashboard_delete_bundle'),
 
+    # Coupon Management
+    path('dashboard/coupons/', dashboard_views.dashboard_coupons, name='dashboard_coupons'),
+    path('dashboard/coupons/add/', dashboard_views.dashboard_add_coupon, name='dashboard_add_coupon'),
+    path('dashboard/coupons/<int:coupon_id>/edit/', dashboard_views.dashboard_edit_coupon, name='dashboard_edit_coupon'),
+    path('dashboard/coupons/<int:coupon_id>/qr/', dashboard_views.dashboard_generate_coupon_qr, name='dashboard_generate_coupon_qr'),
+    path('dashboard/coupons/<int:coupon_id>/delete/', dashboard_views.dashboard_delete_coupon, name='dashboard_delete_coupon'),
+    path('c/<str:code>/', views.coupon_landing, name='coupon_landing'),
+
     # Access Management
     path('dashboard/access/bulk/', dashboard_views.bulk_access_management, name='dashboard_bulk_access'),
     path('dashboard/access/bulk/grant/', dashboard_views.bulk_grant_access_view, name='dashboard_bulk_grant_access'),

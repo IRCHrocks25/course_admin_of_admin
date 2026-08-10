@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get in the Game — Bobby Davidowitz</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;0,900;1,400;1,700&family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --white:        #FFFFFF;
+  --paper:        #FAF9F6;
+  --paper2:       #F3F1EC;
+  --paper3:       #E8E5DF;
+  --ink:          #14140F;
+  --ink-soft:     #2E2E2C;
+  --ink-muted:    #6A6A64;
+  --ink-hint:     #BCBCB8;
+  --orange:       #EE5A1A;
+  --orange-dark:  #C94810;
+  --orange-light: #FF7640;
+  --orange-pale:  rgba(238,90,26,0.07);
+  --orange-border:rgba(238,90,26,0.18);
+  --gold:         #C9A84C;
+  --gold-light:   #E2C97A;
+  --dark:         #14140F;
+  --dark2:        #1A1A18;
+  --dark3:        #222220;
+  --border:       rgba(17,17,16,0.08);
+  --border-med:   rgba(17,17,16,0.13);
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans:  'Syne', system-ui, sans-serif;
+  --mono:  'DM Mono', monospace;
+
+  --content-max:   1140px;
+  --gutter:        clamp(20px, 5vw, 56px);
+  --radius:        6px;
+}
+
+html { scroll-behavior: smooth; font-size: 16px; -webkit-text-size-adjust: 100%; }
+body { font-family: var(--sans); background: var(--paper); color: var(--ink); line-height: 1.5; overflow-x: hidden; }
+
+img, svg, video { max-width: 100%; height: auto; display: block; }
+
+.wrap { width: 100%; max-width: var(--content-max); margin: 0 auto; padding-inline: var(--gutter); }
+
+/* ══════════ NAV ══════════ */
+nav {
+  position: absolute; inset: 0 0 auto 0; z-index: 500;
+  height: 96px;
+  display: flex; align-items: center;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+}
+.nav-inner {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding-inline: var(--gutter);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.logo { display: inline-flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+.logo img { height: 76px; width: auto; opacity: 1; transition: opacity .2s; }
+.logo:hover img { opacity: 1; }
+.nav-cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--orange); color: var(--white);
+  font-family: var(--sans); font-size: 10.5px; font-weight: 800;
+  letter-spacing: 0.09em; text-transform: uppercase; text-decoration: none;
+  padding: 9px 18px; border-radius: 2px;
+  min-height: 36px;
+  transition: background .2s, transform .2s;
+  white-space: nowrap;
+}
+.nav-cta:hover { background: var(--orange-dark); transform: translateY(-1px); }
+
+/* ══════════ HERO ══════════ */
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex; align-items: flex-end;
+  overflow: hidden;
+  background: var(--dark);
+}
+.hero-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.hero-slide {
+  position: absolute; inset: 0;
+  opacity: 0;
+  transition: opacity 1.4s ease-in-out;
+  will-change: opacity;
+}
+.hero-slide.active { opacity: 1; }
+.hero-slide img {
+  width: 100%; height: 100%; object-fit: cover; object-position: 60% center;
+}
+.hero-bg img { width: 100%; height: 100%; object-fit: cover; }
+.hero-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(20,20,15,0.72) 0%, rgba(20,20,15,0.42) 30%, rgba(20,20,15,0.42) 60%, rgba(20,20,15,0.78) 100%),
+    radial-gradient(ellipse 92% 78% at 50% 50%, transparent 32%, rgba(20,20,15,0.6) 100%);
+}
+.hero-inner {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 1180px; margin: 0 auto;
+  padding: 120px var(--gutter) clamp(80px, 14vh, 180px);
+}
+.hero-content { max-width: 100%; margin: 0 auto; text-align: center; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: clamp(9.5px, 2.4vw, 12px);
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange-light);
+  margin-bottom: 22px;
+}
+.hero-eyebrow::before,
+.hero-eyebrow::after { content: ''; width: 32px; height: 1px; background: var(--orange); }
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(38px, 8vw, 90px);
+  font-weight: 900; line-height: 1.0; letter-spacing: -0.03em;
+  color: var(--white); margin-bottom: 22px; text-wrap: balance;
+}
+.hero h1 em { font-style: italic; font-weight: 400; color: var(--orange); }
+.hero-sub {
+  font-size: clamp(16px, 3vw, 22px); font-weight: 400;
+  color: rgba(255,255,255,0.85); line-height: 1.5;
+  max-width: 900px; margin: 0 auto 36px; text-wrap: balance;
+}
+.hero-actions { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+.hero-textline {
+  font-family: var(--mono); font-size: 13px; color: rgba(255,255,255,0.6);
+  letter-spacing: 0.02em;
+}
+.hero-textline strong { color: var(--orange-light); font-weight: 400; }
+
+/* Hero: force single-line headline & subline on wide screens */
+@media (min-width: 700px) {
+  .hero h1 { white-space: nowrap; }
+  .hero-sub { max-width: none; white-space: nowrap; }
+  .btn-primary.hero-btn { white-space: nowrap; }
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--sans); font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none;
+  border-radius: 2px; cursor: pointer; border: none;
+  white-space: normal; line-height: 1.3; text-align: center;
+  transition: background .2s, transform .25s, box-shadow .25s, border-color .2s, color .2s;
+  width: 100%;
+  min-height: 54px;
+  padding: 17px 34px;
+  font-size: 13px;
+}
+.btn-primary {
+  background: var(--orange); color: var(--white);
+  box-shadow: 0 10px 30px rgba(238,90,26,0.36);
+}
+.btn-primary:hover { background: var(--orange-dark); transform: translateY(-2px); box-shadow: 0 16px 40px rgba(238,90,26,0.46); }
+.btn-ghost {
+  background: transparent; color: var(--white);
+  border: 1px solid rgba(255,255,255,0.28);
+}
+.btn-ghost:hover { border-color: var(--orange); color: var(--orange-light); }
+@media (min-width: 600px) {
+  .btn { width: auto; }
+  .hero-actions { flex-direction: row; align-items: center; justify-content: center; flex-wrap: wrap; }
+}
+
+/* ══════════ SECTION SHELL ══════════ */
+.sec { padding-block: clamp(64px, 11vw, 118px); }
+.sec-tag {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--orange); margin-bottom: 20px;
+}
+.sec-tag::before { content: ''; width: 28px; height: 1px; background: var(--orange); }
+.sec-h {
+  font-family: var(--serif); font-size: clamp(30px, 7vw, 50px);
+  font-weight: 900; line-height: 1.06; letter-spacing: -0.025em;
+  color: var(--ink); text-wrap: balance;
+}
+.sec-h em { font-style: italic; font-weight: 400; color: var(--orange); }
+
+/* ══════════ WHO THIS IS FOR ══════════ */
+.who { background: var(--white); }
+.who-grid { display: grid; grid-template-columns: 1fr; gap: clamp(36px, 6vw, 64px); align-items: start; }
+.who-head .sec-h { margin-bottom: 18px; }
+.who-lead { font-size: clamp(16px, 4vw, 18px); color: var(--ink-muted); line-height: 1.65; max-width: 440px; text-wrap: pretty; }
+.who-list { display: flex; flex-direction: column; gap: 4px; }
+.who-item {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 20px 4px; border-bottom: 1px solid var(--border);
+}
+.who-item:first-child { border-top: 1px solid var(--border); }
+.who-check {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--orange-pale); border: 1px solid var(--orange-border);
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.who-check svg { width: 12px; height: 12px; stroke: var(--orange); }
+.who-txt { font-size: clamp(15.5px, 3.8vw, 18px); font-weight: 500; color: var(--ink-soft); line-height: 1.45; }
+@media (min-width: 860px) {
+  .who-grid { grid-template-columns: 0.85fr 1.15fr; gap: 72px; }
+  .who-head { position: sticky; top: 96px; }
+}
+
+/* ══════════ WHY (dark) ══════════ */
+.why {
+  background: var(--dark);
+  background-image:
+    linear-gradient(180deg, rgba(20,20,15,0.9) 0%, rgba(20,20,15,0.8) 45%, rgba(20,20,15,0.92) 100%),
+    radial-gradient(ellipse 70% 50% at 20% 0%, rgba(238,90,26,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(201,168,76,0.06) 0%, transparent 60%),
+    url('https://cdn.katalyst-crm.com/t1/515207076_10162692557823685_7999332519639435382_n%20(1).jpg');
+  background-size: cover, cover, cover, cover;
+  background-position: center, center, center, center;
+  background-repeat: no-repeat;
+  background-attachment: scroll, scroll, scroll, fixed;
+  position: relative; overflow: hidden;
+}
+.why::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 150px; opacity: 0.04; pointer-events: none;
+}
+.why-inner { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; text-align: center; }
+.why .sec-tag { color: var(--orange-light); justify-content: center; }
+.why .sec-tag::before { background: var(--orange); }
+.why-mark {
+  font-family: var(--serif); font-size: clamp(80px, 20vw, 150px);
+  font-style: italic; font-weight: 300; color: rgba(238,90,26,0.5);
+  line-height: 0.6; margin-bottom: 6px;
+}
+.why-h {
+  font-family: var(--serif); font-size: clamp(26px, 6vw, 42px);
+  font-weight: 700; line-height: 1.14; letter-spacing: -0.02em;
+  color: var(--white); margin-bottom: 30px; text-wrap: balance;
+}
+.why-body { display: flex; flex-direction: column; gap: 22px; max-width: 720px; margin: 0 auto; align-items: center; }
+.why-body p { font-size: clamp(16px, 4vw, 19px); color: rgba(255,255,255,0.72); line-height: 1.7; text-wrap: pretty; }
+.why-body p strong { color: var(--white); font-weight: 600; }
+.why-body .why-kicker {
+  font-family: var(--serif); font-style: italic; font-size: clamp(18px, 4.4vw, 24px);
+  color: var(--orange-light); line-height: 1.5;
+}
+
+/* ══════════ HOW IT WORKS ══════════ */
+.how { background: var(--paper); }
+.how-head { text-align: center; max-width: 620px; margin: 0 auto clamp(44px, 7vw, 68px); }
+.how-head .sec-tag { justify-content: center; }
+.how-head .sec-h { margin-bottom: 16px; }
+.how-head p { font-size: clamp(16px, 4vw, 18px); color: var(--ink-muted); line-height: 1.6; }
+.how-steps { display: grid; grid-template-columns: 1fr; gap: 20px; counter-reset: step; }
+.how-step {
+  position: relative; background: var(--white);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: clamp(28px, 6vw, 40px) clamp(24px, 5vw, 34px) clamp(28px, 6vw, 36px);
+  overflow: hidden;
+}
+.how-step::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--orange), transparent);
+}
+.how-num {
+  font-family: var(--serif); font-size: 60px; font-weight: 900;
+  color: transparent; -webkit-text-stroke: 1px rgba(238,90,26,0.4);
+  line-height: 0.8; letter-spacing: -0.04em; margin-bottom: 18px;
+}
+.how-step h3 {
+  font-family: var(--serif); font-size: clamp(19px, 4.6vw, 23px);
+  font-weight: 700; color: var(--ink); line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.01em;
+}
+.how-step p { font-size: clamp(14.5px, 3.6vw, 16px); color: var(--ink-muted); line-height: 1.65; text-wrap: pretty; }
+@media (min-width: 820px) {
+  .how-steps { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+}
+
+/* ══════════ FORM ══════════ */
+.form-sec {
+  background-color: var(--dark);
+  background-image: url('https://cdn.katalyst-crm.com/t1/e6b2be0d49ba6063bbae8cfc2a23c833%201.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+.form-sec::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(20,20,15,0.86) 0%, rgba(20,20,15,0.78) 40%, rgba(20,20,15,0.9) 100%),
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(238,90,26,0.12) 0%, transparent 62%);
+  pointer-events: none;
+}
+.form-sec > .wrap { position: relative; z-index: 1; }
+.form-shell { max-width: 720px; margin: 0 auto; }
+.form-head { text-align: center; margin-bottom: clamp(36px, 6vw, 52px); }
+.form-head .sec-tag { justify-content: center; color: var(--orange-light); }
+.form-head .sec-tag::before { background: var(--orange); }
+.form-head h2 {
+  font-family: var(--serif); font-size: clamp(28px, 6.5vw, 46px);
+  font-weight: 900; color: var(--white); line-height: 1.06; letter-spacing: -0.025em;
+  margin-bottom: 16px; text-wrap: balance;
+}
+.form-head p { font-size: clamp(15.5px, 3.8vw, 18px); color: rgba(255,255,255,0.66); line-height: 1.6; max-width: 500px; margin: 0 auto; text-wrap: pretty; }
+
+.form-card {
+  background: rgba(255,255,255,0.028);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: clamp(24px, 5vw, 44px);
+}
+.form-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
+.field { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.field.col-2 { grid-column: 1 / -1; }
+.field label {
+  font-family: var(--mono); font-size: 11px; font-weight: 400;
+  letter-spacing: 0.06em; color: rgba(255,255,255,0.82); line-height: 1.4;
+}
+.field label .req { color: var(--orange); margin-left: 3px; }
+.field input,
+.field select,
+.field textarea {
+  width: 100%; font-family: var(--sans); font-size: 16px; color: var(--white);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 4px; padding: 14px 15px; min-height: 50px;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+  -webkit-appearance: none; appearance: none;
+}
+.field textarea { min-height: 116px; resize: vertical; line-height: 1.5; }
+.field input::placeholder, .field textarea::placeholder { color: rgba(255,255,255,0.32); }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--orange);
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 0 0 3px rgba(238,90,26,0.16);
+}
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23EE5A1A' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px;
+}
+.field select option { background: var(--dark2); color: var(--white); }
+.form-submit { margin-top: 30px; text-align: center; }
+.form-submit .btn { box-shadow: 0 12px 34px rgba(238,90,26,0.4); }
+.form-reassure {
+  margin-top: 16px; font-family: var(--mono); font-size: 12.5px;
+  color: rgba(255,255,255,0.5); letter-spacing: 0.02em;
+}
+@media (min-width: 680px) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .field.full { grid-column: 1 / -1; }
+}
+
+/* ══════════ TEXT / QR OPTION ══════════ */
+.text-sec { background: var(--paper2); }
+.text-card {
+  max-width: 900px; margin: 0 auto;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  display: grid; grid-template-columns: 1fr; gap: 0;
+  box-shadow: 0 20px 50px rgba(17,17,16,0.06);
+}
+.text-copy { padding: clamp(32px, 6vw, 52px); display: flex; flex-direction: column; justify-content: center; }
+.text-copy .sec-tag { margin-bottom: 16px; }
+.text-copy h2 {
+  font-family: var(--serif); font-size: clamp(26px, 6vw, 38px);
+  font-weight: 900; color: var(--ink); line-height: 1.08; letter-spacing: -0.02em; margin-bottom: 16px; text-wrap: balance;
+}
+.text-copy p { font-size: clamp(15.5px, 3.8vw, 17px); color: var(--ink-muted); line-height: 1.6; margin-bottom: 24px; text-wrap: pretty; }
+.text-code {
+  display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 15px; color: var(--ink-soft);
+}
+.text-code b {
+  font-family: var(--serif); font-size: 26px; font-weight: 900; color: var(--orange); letter-spacing: 0.02em;
+}
+.text-qr {
+  background: var(--dark);
+  padding: clamp(32px, 6vw, 52px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  text-align: center;
+}
+.qr-box {
+  width: 168px; height: 168px; background: var(--white);
+  border-radius: 8px; padding: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.qr-box svg { width: 100%; height: 100%; }
+.qr-cap { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.6); }
+@media (min-width: 760px) {
+  .text-card { grid-template-columns: 1.3fr 1fr; }
+}
+
+/* ══════════ FINAL CTA ══════════ */
+.final {
+  background-color: var(--dark);
+  background-image: url('https://cdn.katalyst-crm.com/t1/284aa71d8026c04a1a90d5e6f1864044%20(1).jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative; overflow: hidden; text-align: left;
+  min-height: 88vh;
+  display: flex; align-items: center; justify-content: flex-start;
+  padding-block: clamp(100px, 16vw, 200px) !important;
+}
+.final::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(20,20,15,0.88) 0%, rgba(20,20,15,0.7) 38%, rgba(20,20,15,0.35) 68%, rgba(20,20,15,0.2) 100%),
+    linear-gradient(180deg, rgba(20,20,15,0.4) 0%, transparent 30%, transparent 65%, rgba(20,20,15,0.55) 100%),
+    radial-gradient(ellipse 70% 80% at 20% 50%, rgba(238,90,26,0.2) 0%, transparent 55%);
+  pointer-events: none;
+}
+.final::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2;
+  background: linear-gradient(90deg, var(--orange) 0%, var(--gold) 40%, transparent 80%);
+}
+.final-inner { position: relative; z-index: 1; max-width: 680px; margin: 0; }
+.final h2 {
+  font-family: var(--serif); font-size: clamp(38px, 7vw, 76px);
+  font-weight: 900; color: var(--white); line-height: 1.0; letter-spacing: -0.03em; margin-bottom: 22px;
+  text-shadow: 0 4px 30px rgba(0,0,0,0.5);
+}
+.final h2 em { font-style: italic; font-weight: 400; color: var(--orange); }
+.final p { font-size: clamp(16px, 4.2vw, 20px); color: rgba(255,255,255,0.85); line-height: 1.6; max-width: 460px; margin: 0 0 36px; text-wrap: pretty; text-shadow: 0 2px 18px rgba(0,0,0,0.45); }
+.final .btn-primary { background: var(--orange); color: var(--white); box-shadow: 0 12px 34px rgba(238,90,26,0.42); }
+.final .btn-primary:hover { background: var(--orange-dark); }
+.final-textline { margin-top: 20px; font-family: var(--mono); font-size: 13px; color: rgba(255,255,255,0.7); }
+.final-textline strong { color: var(--orange-light); font-weight: 400; }
+.final-actions { display: flex; justify-content: flex-start; }
+
+/* Final: keep the headline on one line on wider screens */
+@media (min-width: 560px) {
+  .final h2 { white-space: nowrap; }
+}
+
+/* ══════════ FOOTER ══════════ */
+footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
+.ft-inner { display: flex; flex-direction: column; gap: 24px; align-items: center; text-align: center; }
+.ft-logo img { height: 64px; width: auto; opacity: 1; }
+.ft-inner p { font-size: 14.5px; color: rgba(255,255,255,0.5); line-height: 1.7; max-width: 460px; text-wrap: pretty; }
+.ft-email { font-family: var(--mono); font-size: 13px; color: var(--orange-light); text-decoration: none; letter-spacing: 0.02em; }
+.ft-email:hover { color: var(--orange); }
+.ft-btm {
+  margin-top: 36px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+  width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+}
+.ft-btm p { font-size: 12px; color: rgba(255,255,255,0.3); }
+.ft-btm .acc { color: var(--orange-light); }
+.ft-credit { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; color: rgba(255,255,255,0.3); }
+.ft-credit a { color: var(--orange-light); text-decoration: none; font-weight: 500; }
+.ft-credit a:hover { color: var(--orange); }
+
+/* ══════════ CONFIRMATION ══════════ */
+.confirm-sec { display: none; }
+.confirm-sec.active { display: block; }
+.confirm-wrap {
+  min-height: 100svh; display: flex; align-items: center; justify-content: center;
+  background: var(--dark);
+  background-image: radial-gradient(ellipse 70% 60% at 50% 30%, rgba(238,90,26,0.12) 0%, transparent 62%);
+  padding: 100px var(--gutter) 80px; text-align: center;
+}
+.confirm-card { max-width: 620px; }
+.confirm-icon {
+  width: 76px; height: 76px; margin: 0 auto 30px;
+  border-radius: 50%; background: var(--orange);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 12px 40px rgba(238,90,26,0.4);
+}
+.confirm-icon svg { width: 34px; height: 34px; stroke: var(--white); }
+.confirm-card h1 {
+  font-family: var(--serif); font-size: clamp(30px, 8vw, 52px);
+  font-weight: 900; color: var(--white); line-height: 1.05; letter-spacing: -0.025em; margin-bottom: 24px; text-wrap: balance;
+}
+.confirm-card p { font-size: clamp(16px, 4vw, 19px); color: rgba(255,255,255,0.72); line-height: 1.7; margin-bottom: 18px; text-wrap: pretty; }
+.confirm-card p:last-of-type { margin-bottom: 0; }
+.confirm-card p em { color: var(--orange-light); font-style: italic; }
+
+/* reveal */
+.r { opacity: 0; transform: translateY(24px); transition: opacity .8s cubic-bezier(.16,1,.3,1), transform .8s cubic-bezier(.16,1,.3,1); }
+.r.in { opacity: 1; transform: none; }
+.rd1 { transition-delay: .08s; } .rd2 { transition-delay: .16s; } .rd3 { transition-delay: .24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .r { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* iOS Safari mishandles background-attachment: fixed — use scroll on touch/narrow screens */
+@media (max-width: 900px) {
+  .why { background-attachment: scroll, scroll, scroll, scroll; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-inner">
+    <a href="#top" class="logo" aria-label="Bobby Davidowitz home">
+      <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%2010%20Ag%CC%86u%202026%2020_02_24%201.png" alt="Bobby Davidowitz">
+    </a>
+    <a href="#form" class="nav-cta">Start the Conversation</a>
+  </div>
+</nav>
+
+<!-- MAIN PAGE -->
+<div id="page">
+
+  <!-- HERO -->
+  <header class="hero" id="top">
+    <div class="hero-bg" id="hero-bg">
+      <div class="hero-slide active"><img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%206%20Ag%CC%86u%202026%2012_27_37.png" alt="Commercial real estate opportunity" loading="eager" fetchpriority="high"></div>
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="hero-inner">
+      <div class="hero-content">
+        <div class="hero-eyebrow">For Licensed &amp; Soon-to-be-Licensed&nbsp;Agents</div>
+        <h1>Ready to Get in the <em>Game?</em></h1>
+        <p class="hero-sub">If you know you're ready for something bigger than residential, I want to meet you.</p>
+        <div class="hero-actions">
+          <a href="#form" class="btn btn-primary hero-btn">Start the Conversation →</a>
+          <span class="hero-textline">Or text <strong>GAME</strong> to [PHONE NUMBER]</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- WHO THIS IS FOR -->
+  <section class="sec who">
+    <div class="wrap who-grid">
+      <div class="who-head r">
+        <div class="sec-tag">Who This Is For</div>
+        <h2 class="sec-h">This is for you <em>if…</em></h2>
+        <p class="who-lead">Read these in three seconds. If you're nodding, you're in the right place.</p>
+      </div>
+      <div class="who-list">
+        <div class="who-item r">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You're a licensed real estate agent — or you're working toward your&nbsp;license.</span>
+        </div>
+        <div class="who-item r rd1">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You're interested in financial freedom and building real passive&nbsp;income.</span>
+        </div>
+        <div class="who-item r rd2">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You want to stop thinking like an agent and start thinking like an&nbsp;investor.</span>
+        </div>
+        <div class="who-item r rd2">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You're curious about building a business in commercial real estate — not just closing one&nbsp;deal.</span>
+        </div>
+        <div class="who-item r rd3">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">Residential alone was never the whole&nbsp;plan.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY I WANT TO HEAR FROM YOU -->
+  <section class="sec why">
+    <div class="wrap why-inner">
+      <div class="sec-tag r">Why I Want to Hear From You</div>
+      <div class="why-mark r" aria-hidden="true">"</div>
+      <h2 class="why-h r rd1">I'm always looking to build relationships with ambitious agents who want to expand beyond traditional&nbsp;residential.</h2>
+      <div class="why-body">
+        <p class="r rd1">Not because I need more contacts. Because the agents who make this shift tend to make it <strong>faster</strong> when someone who has already done it is in their corner — and because the best opportunities I come across need people I <strong>trust</strong> to work&nbsp;them.</p>
+        <p class="why-kicker r rd2">If that's you, tell me about yourself — and let's find out whether there's something here for both of&nbsp;us.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW THIS WORKS -->
+  <section class="sec how">
+    <div class="wrap">
+      <div class="how-head r">
+        <div class="sec-tag">How This Works</div>
+        <h2 class="sec-h">Three steps. <em>No games.</em></h2>
+        <p>Not everyone gets the calendar — and that's the point. Here's exactly what happens next.</p>
+      </div>
+      <div class="how-steps">
+        <div class="how-step r">
+          <div class="how-num">01</div>
+          <h3>Tell me about yourself</h3>
+          <p>The form below takes about two minutes. Answer honestly — it's how I get to know you before we talk.</p>
+        </div>
+        <div class="how-step r rd1">
+          <div class="how-num">02</div>
+          <h3>I review it</h3>
+          <p>Every submission comes straight to me. No team, no filter — I read them personally.</p>
+        </div>
+        <div class="how-step r rd2">
+          <div class="how-num">03</div>
+          <h3>We talk</h3>
+          <p>If there's an opportunity to work together, you'll get access to my calendar so we can talk properly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORM -->
+  <section class="sec form-sec" id="form">
+    <div class="wrap form-shell">
+      <div class="form-head r">
+        <div class="sec-tag">The Form</div>
+        <h2>Tell me a little about&nbsp;yourself</h2>
+        <p>The more I know before we speak, the more useful that first conversation will&nbsp;be.</p>
+      </div>
+      <form class="form-card r rd1" id="game-form" novalidate>
+        <div class="form-grid">
+          <div class="field">
+            <label for="f-name">Full name<span class="req">*</span></label>
+            <input type="text" id="f-name" name="name" placeholder="Your name" required autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="f-email">Email address<span class="req">*</span></label>
+            <input type="email" id="f-email" name="email" placeholder="you@email.com" required autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="f-phone">Phone number<span class="req">*</span></label>
+            <input type="tel" id="f-phone" name="phone" placeholder="(555) 000-0000" required autocomplete="tel">
+          </div>
+          <div class="field">
+            <label for="f-market">What market or area do you work in?<span class="req">*</span></label>
+            <input type="text" id="f-market" name="market" placeholder="City / region" required>
+          </div>
+          <div class="field">
+            <label for="f-licensed">Are you currently licensed?<span class="req">*</span></label>
+            <select id="f-licensed" name="licensed" required>
+              <option value="" disabled selected>Select one…</option>
+              <option>Yes</option>
+              <option>In progress</option>
+              <option>Not yet</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-brokerage">Which brokerage are you with?</label>
+            <input type="text" id="f-brokerage" name="brokerage" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="f-experience">Tell me about your experience<span class="req">*</span></label>
+            <select id="f-experience" name="experience" required>
+              <option value="" disabled selected>Select one…</option>
+              <option>Residential only</option>
+              <option>Some commercial</option>
+              <option>Both</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-invested">Have you invested in real estate yourself?<span class="req">*</span></label>
+            <select id="f-invested" name="invested" required>
+              <option value="" disabled selected>Select one…</option>
+              <option>Yes</option>
+              <option>Not yet</option>
+              <option>Currently exploring</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="f-build">What are you trying to build?<span class="req">*</span></label>
+            <textarea id="f-build" name="build" placeholder="Tell me what you're working toward…" required></textarea>
+          </div>
+          <div class="field full">
+            <label for="f-why">Why do you want to connect with me?<span class="req">*</span></label>
+            <textarea id="f-why" name="why" placeholder="What are you hoping comes out of this?" required></textarea>
+          </div>
+        </div>
+        <div class="form-submit">
+          <button type="submit" class="btn btn-primary">Send It to Bobby →</button>
+          <p class="form-reassure">I read every submission personally.</p>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- TEXT / QR OPTION -->
+  <section class="sec text-sec">
+    <div class="wrap">
+      <div class="text-card r">
+        <div class="text-copy">
+          <div class="sec-tag">Prefer to Text?</div>
+          <h2>Text me instead.</h2>
+          <p>Text <b>GAME</b> to the number below and I'll send you the same form right to your&nbsp;phone.</p>
+          <div class="text-code">Text <b>GAME</b> to [PHONE&nbsp;NUMBER]</div>
+        </div>
+        <div class="text-qr">
+          <div class="qr-box" aria-hidden="true">
+            <!-- placeholder QR — unique to GAME, replace with real code -->
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+              <rect width="100" height="100" fill="#fff"/>
+              <g fill="#14140F">
+                <rect x="6" y="6" width="22" height="22"/><rect x="10" y="10" width="14" height="14" fill="#fff"/><rect x="13" y="13" width="8" height="8"/>
+                <rect x="72" y="6" width="22" height="22"/><rect x="76" y="10" width="14" height="14" fill="#fff"/><rect x="79" y="13" width="8" height="8"/>
+                <rect x="6" y="72" width="22" height="22"/><rect x="10" y="76" width="14" height="14" fill="#fff"/><rect x="13" y="79" width="8" height="8"/>
+                <rect x="34" y="6" width="4" height="4"/><rect x="42" y="6" width="4" height="4"/><rect x="50" y="6" width="4" height="4"/><rect x="58" y="10" width="4" height="4"/>
+                <rect x="34" y="14" width="4" height="4"/><rect x="46" y="14" width="4" height="4"/><rect x="54" y="18" width="4" height="4"/><rect x="38" y="22" width="4" height="4"/><rect x="50" y="22" width="4" height="4"/><rect x="62" y="22" width="4" height="4"/>
+                <rect x="6" y="34" width="4" height="4"/><rect x="14" y="34" width="4" height="4"/><rect x="22" y="38" width="4" height="4"/><rect x="34" y="34" width="4" height="4"/><rect x="42" y="38" width="4" height="4"/><rect x="54" y="34" width="4" height="4"/><rect x="66" y="34" width="4" height="4"/><rect x="78" y="38" width="4" height="4"/><rect x="90" y="34" width="4" height="4"/>
+                <rect x="10" y="46" width="4" height="4"/><rect x="22" y="46" width="4" height="4"/><rect x="38" y="46" width="4" height="4"/><rect x="50" y="50" width="4" height="4"/><rect x="62" y="46" width="4" height="4"/><rect x="74" y="46" width="4" height="4"/><rect x="86" y="50" width="4" height="4"/>
+                <rect x="34" y="54" width="4" height="4"/><rect x="46" y="58" width="4" height="4"/><rect x="58" y="54" width="4" height="4"/><rect x="70" y="58" width="4" height="4"/><rect x="82" y="54" width="4" height="4"/><rect x="90" y="58" width="4" height="4"/>
+                <rect x="34" y="66" width="4" height="4"/><rect x="42" y="70" width="4" height="4"/><rect x="54" y="66" width="4" height="4"/><rect x="66" y="70" width="4" height="4"/><rect x="78" y="66" width="4" height="4"/><rect x="90" y="70" width="4" height="4"/>
+                <rect x="38" y="78" width="4" height="4"/><rect x="50" y="82" width="4" height="4"/><rect x="62" y="78" width="4" height="4"/><rect x="70" y="82" width="4" height="4"/><rect x="82" y="78" width="4" height="4"/><rect x="90" y="82" width="4" height="4"/>
+                <rect x="34" y="86" width="4" height="4"/><rect x="46" y="90" width="4" height="4"/><rect x="58" y="86" width="4" height="4"/><rect x="74" y="90" width="4" height="4"/><rect x="86" y="86" width="4" height="4"/>
+              </g>
+            </svg>
+          </div>
+          <div class="qr-cap">Scan to open the GAME form</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="sec final">
+    <div class="wrap final-inner">
+      <h2 class="r">The next move is <em>yours.</em></h2>
+      <p class="r rd1">You've read this far because residential alone was never the whole plan. Let's find out what's&nbsp;possible.</p>
+      <div class="final-actions r rd2">
+        <a href="#form" class="btn btn-primary">Start the Conversation →</a>
+      </div>
+      <p class="final-textline r rd2">Or text <strong>GAME</strong> to [PHONE&nbsp;NUMBER]</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="wrap ft-inner">
+      <a href="#top" class="logo ft-logo" aria-label="Bobby Davidowitz home">
+        <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%2010%20Ag%CC%86u%202026%2020_02_24%201.png" alt="Bobby Davidowitz">
+      </a>
+      <p>For ambitious agents ready to build a business in commercial real estate — not just close one&nbsp;deal.</p>
+      <a href="mailto:contact@bobbydavidowitz.com" class="ft-email">contact@bobbydavidowitz.com</a>
+      <div class="ft-btm">
+        <p>© 2026 Bobby Davidowitz. All rights reserved.</p>
+        <p>Built for <span class="acc">agents who want more</span></p>
+        <p class="ft-credit">Built by <a href="#">KATEK</a></p>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /#page -->
+
+<!-- CONFIRMATION -->
+<section class="confirm-sec" id="confirm">
+  <div class="confirm-wrap">
+    <div class="confirm-card">
+      <div class="confirm-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1>Got it — thanks for reaching&nbsp;out.</h1>
+      <p>I read these personally, so give me a little time. If it looks like there's a fit, you'll get an email with a link to my calendar and we'll talk&nbsp;properly.</p>
+      <p>In the meantime, <em>keep working through the course.</em> The agents who get the most out of a conversation with me are the ones who've already done the&nbsp;work.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+// Reveal on scroll
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.r').forEach(el => io.observe(el));
+
+// Hero slideshow — crossfade auto-advance
+(function(){
+  const slides = Array.from(document.querySelectorAll('#hero-bg .hero-slide'));
+  if (slides.length < 2) return;
+  let idx = 0;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const INTERVAL = 5000;
+  setInterval(() => {
+    slides[idx].classList.remove('active');
+    idx = (idx + 1) % slides.length;
+    const next = slides[idx];
+    // restart the ken-burns zoom on the newly active slide
+    if (!reduce) {
+      const im = next.querySelector('img');
+      if (im) { im.style.animation = 'none'; void im.offsetWidth; im.style.animation = ''; }
+    }
+    next.classList.add('active');
+  }, INTERVAL);
+})();
+
+// Smooth anchor scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    if (id.length < 2) return;
+    const t = document.querySelector(id);
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth' }); }
+  });
+});
+
+// Form submit → confirmation screen
+const form = document.getElementById('game-form');
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  // basic required-field check
+  let ok = true;
+  form.querySelectorAll('[required]').forEach(el => {
+    if (!el.value.trim()) { ok = false; el.style.borderColor = '#EE5A1A'; }
+  });
+  if (!ok) {
+    form.querySelector('[required]:invalid, [required]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  // Here you'd POST the data to your backend / GHL. For now, show confirmation.
+  document.getElementById('page').style.display = 'none';
+  const confirm = document.getElementById('confirm');
+  confirm.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+});
+// clear the error tint once a field is filled
+form.querySelectorAll('[required]').forEach(el => {
+  el.addEventListener('input', () => { el.style.borderColor = ''; });
+  el.addEventListener('change', () => { el.style.borderColor = ''; });
+});
+</script>
+</body>
+</html>
