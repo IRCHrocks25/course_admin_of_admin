@@ -6324,6 +6324,24 @@ def dashboard_branding_settings(request):
             'allow_student_switch': allow_student_switch and len(enabled_langs) > 1,
         }
 
+        cta_enabled = request.POST.get('lesson_cta_enabled') == '1'
+        cta_url = (request.POST.get('lesson_cta_url') or '').strip()
+        cta_label = (request.POST.get('lesson_cta_label') or '').strip() or 'Get help'
+        cta_style = (request.POST.get('lesson_cta_style') or 'icon').strip().lower()
+        if cta_style not in ('icon', 'word', 'sentence'):
+            cta_style = 'icon'
+        cta_new_tab = request.POST.get('lesson_cta_new_tab') == '1'
+        if cta_enabled and not re.match(r'^https?://', cta_url, re.IGNORECASE):
+            messages.error(request, 'Lesson CTA requires a valid URL starting with http:// or https:// when enabled.')
+            return redirect('dashboard_branding_settings')
+        features['lesson_cta'] = {
+            'enabled': cta_enabled,
+            'url': cta_url,
+            'label': cta_label,
+            'style': cta_style,
+            'open_in_new_tab': cta_new_tab,
+        }
+
         config.features = features
         config.save(update_fields=['features', 'updated_at'])
         if custom_pages.get('landing_mode') == 'cms':
@@ -6367,6 +6385,13 @@ def dashboard_branding_settings(request):
         'cms_content': cms_content,
         'lesson_languages': lesson_languages,
         'language_labels': LANGUAGE_LABELS,
+        'lesson_cta': {
+            'enabled': bool((features.get('lesson_cta') or {}).get('enabled')),
+            'url': (features.get('lesson_cta') or {}).get('url', ''),
+            'label': (features.get('lesson_cta') or {}).get('label', ''),
+            'style': (features.get('lesson_cta') or {}).get('style', 'icon'),
+            'open_in_new_tab': bool((features.get('lesson_cta') or {}).get('open_in_new_tab', True)),
+        },
     })
 
 

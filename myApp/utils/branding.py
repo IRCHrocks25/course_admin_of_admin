@@ -203,6 +203,36 @@ def get_tenant_branding(tenant):
     return _with_derived_accent_colors(merged)
 
 
+def get_lesson_cta(tenant):
+    """Return the lesson floating CTA config for a tenant, or None.
+
+    Config lives in ``TenantConfig.features['lesson_cta']``. Returns a
+    normalized dict only when the CTA is enabled and points at an absolute
+    http(s) URL; otherwise ``None`` so templates can simply skip rendering.
+    """
+    if tenant is None:
+        return None
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+    features = config.features or {}
+    cta = features.get('lesson_cta') or {}
+    if not cta.get('enabled'):
+        return None
+    url = (cta.get('url') or '').strip()
+    if not re.match(r'^https?://', url, re.IGNORECASE):
+        return None
+    label = (cta.get('label') or '').strip() or 'Get help'
+    style = (cta.get('style') or 'icon').strip().lower()
+    if style not in ('icon', 'word', 'sentence'):
+        style = 'icon'
+    return {
+        'enabled': True,
+        'url': url,
+        'label': label,
+        'style': style,
+        'open_in_new_tab': bool(cta.get('open_in_new_tab', True)),
+    }
+
+
 def ensure_tenant_branding(tenant):
     """Ensure tenant has editable branding defaults in TenantConfig.features."""
     if tenant is None:

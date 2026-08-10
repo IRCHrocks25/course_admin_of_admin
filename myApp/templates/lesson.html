@@ -374,6 +374,43 @@
     <!-- Right Sidebar -->
     {% include '_right_sidebar.html' %}
 </div>
+
+{% if lesson_cta %}
+<!-- Tenant-configurable floating CTA bubble (student lesson flow). -->
+<a
+    id="lesson-cta-bubble"
+    href="{{ lesson_cta.url }}"
+    {% if lesson_cta.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}
+    class="group fixed z-40 flex items-center gap-3"
+    style="bottom: 2rem; right: 24%;"
+    aria-label="{{ lesson_cta.label }}"
+    title="{{ lesson_cta.label }}"
+>
+    {% if lesson_cta.style == 'word' %}
+    <span class="inline-flex items-center gap-2 rounded-full font-semibold text-sm px-5 py-3 shadow-2xl shadow-cyan-electric/50 transition-all hover:scale-105 active:scale-95 ring-2 ring-cyan-electric/30 whitespace-nowrap"
+          style="background-image: linear-gradient(135deg, var(--brand-accent-primary, #00f0ff), var(--brand-accent-secondary, #a855f7)); color: var(--brand-accent-on-gradient, #ffffff);">
+        <i class="fas fa-comment-dots text-lg"></i>
+        {{ lesson_cta.label }}
+    </span>
+    {% elif lesson_cta.style == 'sentence' %}
+    <span class="inline-flex items-center gap-3 rounded-2xl font-semibold text-sm md:text-base px-6 py-4 shadow-2xl shadow-cyan-electric/50 transition-all hover:scale-105 active:scale-95 ring-2 ring-cyan-electric/30 max-w-xs md:max-w-sm"
+          style="background-image: linear-gradient(135deg, var(--brand-accent-primary, #00f0ff), var(--brand-accent-secondary, #a855f7)); color: var(--brand-accent-on-gradient, #ffffff);">
+        <i class="fas fa-comment-dots text-xl flex-shrink-0"></i>
+        <span>{{ lesson_cta.label }}</span>
+    </span>
+    {% else %}
+    <span class="hidden md:inline-block max-w-0 overflow-hidden whitespace-nowrap rounded-full bg-[#0a0e27] text-white text-sm font-semibold shadow-xl border border-cyan-electric/30 px-0 py-2 opacity-0 transition-all duration-300 group-hover:max-w-xs group-hover:px-4 group-hover:opacity-100">
+        {{ lesson_cta.label }}
+    </span>
+    <span
+        class="w-16 h-16 rounded-full shadow-2xl shadow-cyan-electric/50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ring-2 ring-cyan-electric/30"
+        style="background-image: linear-gradient(135deg, var(--brand-accent-primary, #00f0ff), var(--brand-accent-secondary, #a855f7)); color: var(--brand-accent-on-gradient, #ffffff);"
+    >
+        <i class="fas fa-comment-dots text-2xl"></i>
+    </span>
+    {% endif %}
+</a>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}

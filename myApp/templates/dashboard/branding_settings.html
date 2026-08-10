@@ -28,6 +28,7 @@
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="languages">Lesson Languages</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="certificate">Certificate</button>
                 <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="logo">Logo</button>
+                <button type="button" class="tab-btn px-3 py-2 rounded-lg border border-white/20 text-gray-300" data-tab="lessoncta">Lesson CTA</button>
             </div>
         </div>
 
@@ -320,6 +321,48 @@
             </div>
         </div>
 
+        <div id="tab-lessoncta" class="tab-pane hidden rounded-xl border border-white/10 bg-white/5 p-5">
+            <h2 class="font-semibold text-lg mb-4">Lesson CTA Bubble</h2>
+            <p class="text-sm text-gray-400 mb-4">Show a floating chat-style bubble on every lesson page for your students. When clicked, it opens the link you set below.</p>
+            <div class="space-y-4">
+                <label class="flex items-start gap-2 text-sm text-gray-300 cursor-pointer">
+                    <input type="checkbox" name="lesson_cta_enabled" value="1" {% if lesson_cta.enabled %}checked{% endif %} class="mt-0.5">
+                    <span>Enable lesson CTA bubble</span>
+                </label>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Redirect URL</label>
+                    <input type="url" name="lesson_cta_url" value="{{ lesson_cta.url|default:'' }}" placeholder="https://example.com/book-a-call" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="text-xs text-gray-400 mt-1">Must be a full URL starting with <span class="text-cyan-300">https://</span>. Required when the bubble is enabled.</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Button Style</label>
+                    <select name="lesson_cta_style" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                        <option value="icon" {% if lesson_cta.style == 'icon' or not lesson_cta.style %}selected{% endif %}>Chat icon (bubble only, label on hover)</option>
+                        <option value="word" {% if lesson_cta.style == 'word' %}selected{% endif %}>Word / short label (pill with icon)</option>
+                        <option value="sentence" {% if lesson_cta.style == 'sentence' %}selected{% endif %}>Sentence (full text bar with icon)</option>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Choose how the floating button appears on lesson pages.</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Button Label</label>
+                    <input name="lesson_cta_label" value="{{ lesson_cta.label|default:'' }}" placeholder="Get help" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                    <p class="text-xs text-gray-400 mt-1">Used as the text for the Word/Sentence styles, and as the tooltip/accessibility label for the Chat icon style.</p>
+                </div>
+                <label class="flex items-start gap-2 text-sm text-gray-300 cursor-pointer">
+                    <input type="checkbox" name="lesson_cta_new_tab" value="1" {% if lesson_cta.open_in_new_tab %}checked{% endif %} class="mt-0.5">
+                    <span>Open link in a new tab</span>
+                </label>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-2">Live Preview</label>
+                    <div class="relative rounded-lg border border-white/10 bg-[#0a0e27] p-6 min-h-[120px] flex items-center justify-center overflow-hidden">
+                        <span class="absolute top-2 left-3 text-[10px] uppercase tracking-wide text-gray-500">Lesson page</span>
+                        <div id="lesson-cta-preview" class="flex items-center gap-3"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Matches how the button appears on lesson pages. For the Chat icon style, hover the icon to reveal the label.</p>
+                </div>
+            </div>
+        </div>
+
         <div class="rounded-xl border border-white/10 bg-white/5 p-5">
             <h2 class="font-semibold text-lg mb-4">Hero Headlines</h2>
             <div class="space-y-3">
@@ -453,6 +496,41 @@ document.addEventListener('DOMContentLoaded', function () {
     const htmlPreviewClose = document.getElementById('html-preview-close');
     const htmlPreviewFrame = document.getElementById('html-preview-frame');
     const htmlPreviewTitle = document.getElementById('html-preview-title');
+    const ctaStyleSelect = document.querySelector('select[name="lesson_cta_style"]');
+    const ctaLabelInput = document.querySelector('input[name="lesson_cta_label"]');
+    const ctaPreview = document.getElementById('lesson-cta-preview');
+    const ctaAccentPrimaryInput = document.getElementById('accent-primary-hex');
+    const ctaAccentSecondaryInput = document.getElementById('accent-secondary-hex');
+    const CTA_ACCENT_ON = "{{ branding.accent_gradient_on|default:'#ffffff' }}";
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    function ctaGradientStyle() {
+        const primary = (ctaAccentPrimaryInput && ctaAccentPrimaryInput.value.trim()) || "{{ branding.accent_primary|default:'#00f0ff' }}";
+        const secondary = (ctaAccentSecondaryInput && ctaAccentSecondaryInput.value.trim()) || "{{ branding.accent_secondary|default:'#a855f7' }}";
+        return `background-image: linear-gradient(135deg, ${primary}, ${secondary}); color: ${CTA_ACCENT_ON};`;
+    }
+    function renderCtaPreview() {
+        if (!ctaPreview) return;
+        const style = ctaStyleSelect ? ctaStyleSelect.value : 'icon';
+        const label = escapeHtml((ctaLabelInput && ctaLabelInput.value.trim()) || 'Get help');
+        const grad = ctaGradientStyle();
+        let html = '';
+        if (style === 'word') {
+            html = `<span class="inline-flex items-center gap-2 rounded-full font-semibold text-sm px-5 py-3 shadow-2xl shadow-cyan-electric/50 ring-2 ring-cyan-electric/30 whitespace-nowrap" style="${grad}"><i class="fas fa-comment-dots text-lg"></i>${label}</span>`;
+        } else if (style === 'sentence') {
+            html = `<span class="inline-flex items-center gap-3 rounded-2xl font-semibold text-sm md:text-base px-6 py-4 shadow-2xl shadow-cyan-electric/50 ring-2 ring-cyan-electric/30 max-w-xs md:max-w-sm" style="${grad}"><i class="fas fa-comment-dots text-xl flex-shrink-0"></i><span>${label}</span></span>`;
+        } else {
+            html = `<span class="group flex items-center gap-3"><span class="max-w-0 overflow-hidden whitespace-nowrap rounded-full bg-[#0a0e27] text-white text-sm font-semibold shadow-xl border border-cyan-electric/30 px-0 py-2 opacity-0 transition-all duration-300 group-hover:max-w-xs group-hover:px-4 group-hover:opacity-100">${label}</span><span class="w-16 h-16 rounded-full shadow-2xl shadow-cyan-electric/50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 ring-2 ring-cyan-electric/30" style="${grad}"><i class="fas fa-comment-dots text-2xl"></i></span></span>`;
+        }
+        ctaPreview.innerHTML = html;
+    }
+    if (ctaStyleSelect) ctaStyleSelect.addEventListener('change', renderCtaPreview);
+    if (ctaLabelInput) ctaLabelInput.addEventListener('input', renderCtaPreview);
+    renderCtaPreview();
+
     buttons.forEach((btn) => {
         btn.addEventListener('click', () => {
             const target = btn.getAttribute('data-tab');
@@ -546,23 +624,27 @@ document.addEventListener('DOMContentLoaded', function () {
     if (accentPrimaryPicker && accentPrimaryHex) {
         accentPrimaryPicker.addEventListener('input', function () {
             accentPrimaryHex.value = this.value;
+            renderCtaPreview();
         });
         accentPrimaryHex.addEventListener('input', function () {
             const value = this.value.trim();
             if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
                 accentPrimaryPicker.value = value;
             }
+            renderCtaPreview();
         });
     }
     if (accentSecondaryPicker && accentSecondaryHex) {
         accentSecondaryPicker.addEventListener('input', function () {
             accentSecondaryHex.value = this.value;
+            renderCtaPreview();
         });
         accentSecondaryHex.addEventListener('input', function () {
             const value = this.value.trim();
             if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
                 accentSecondaryPicker.value = value;
             }
+            renderCtaPreview();
         });
     }
 

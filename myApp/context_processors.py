@@ -1,4 +1,4 @@
-from .utils.branding import get_tenant_branding
+from .utils.branding import get_tenant_branding, get_lesson_cta
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import get_default_tenant, is_clear_tenant_requested
 from .utils.localization import attach_localization_context
@@ -118,6 +118,7 @@ def tenant_context(request):
         # the context and would otherwise override it.
         'dashboard_impersonated_tenant': tenant,
         'tenant_branding': tenant_branding,
+        'lesson_cta': get_lesson_cta(tenant),
         'effective_theme_mode': effective_theme_mode,
         'tenant_site_url': get_tenant_public_home_url(request, tenant),
         'dashboard_available_tenants': dashboard_available_tenants,
