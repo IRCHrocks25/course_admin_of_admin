@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Partner on a Deal — Bobby Davidowitz</title>
+<title>Get in the Game — Bobby Davidowitz</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;0,900;1,400;1,700&family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
@@ -84,12 +84,22 @@ nav {
   background: var(--dark);
 }
 .hero-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
-.hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: 55% center; }
+.hero-slide {
+  position: absolute; inset: 0;
+  opacity: 0;
+  transition: opacity 1.4s ease-in-out;
+  will-change: opacity;
+}
+.hero-slide.active { opacity: 1; }
+.hero-slide img {
+  width: 100%; height: 100%; object-fit: cover; object-position: 60% center;
+}
+.hero-bg img { width: 100%; height: 100%; object-fit: cover; }
 .hero-overlay {
   position: absolute; inset: 0; z-index: 1;
   background:
-    linear-gradient(180deg, rgba(20,20,15,0.72) 0%, rgba(20,20,15,0.42) 28%, rgba(20,20,15,0.45) 58%, rgba(20,20,15,0.82) 100%),
-    radial-gradient(ellipse 92% 78% at 50% 55%, transparent 30%, rgba(20,20,15,0.62) 100%);
+    linear-gradient(180deg, rgba(20,20,15,0.72) 0%, rgba(20,20,15,0.42) 30%, rgba(20,20,15,0.42) 60%, rgba(20,20,15,0.78) 100%),
+    radial-gradient(ellipse 92% 78% at 50% 50%, transparent 32%, rgba(20,20,15,0.6) 100%);
 }
 .hero-inner {
   position: relative; z-index: 2;
@@ -107,15 +117,15 @@ nav {
 .hero-eyebrow::after { content: ''; width: 32px; height: 1px; background: var(--orange); }
 .hero h1 {
   font-family: var(--serif);
-  font-size: clamp(38px, 8vw, 84px);
-  font-weight: 900; line-height: 1.02; letter-spacing: -0.03em;
+  font-size: clamp(38px, 8vw, 90px);
+  font-weight: 900; line-height: 1.0; letter-spacing: -0.03em;
   color: var(--white); margin-bottom: 22px; text-wrap: balance;
 }
 .hero h1 em { font-style: italic; font-weight: 400; color: var(--orange); }
 .hero-sub {
-  font-size: clamp(16px, 3vw, 21px); font-weight: 400;
-  color: rgba(255,255,255,0.85); line-height: 1.55;
-  max-width: 620px; margin: 0 auto 36px; text-wrap: balance;
+  font-size: clamp(16px, 3vw, 22px); font-weight: 400;
+  color: rgba(255,255,255,0.85); line-height: 1.5;
+  max-width: 900px; margin: 0 auto 36px; text-wrap: balance;
 }
 .hero-actions { display: flex; flex-direction: column; gap: 14px; align-items: center; }
 .hero-textline {
@@ -123,6 +133,13 @@ nav {
   letter-spacing: 0.02em;
 }
 .hero-textline strong { color: var(--orange-light); font-weight: 400; }
+
+/* Hero: force single-line headline & subline on wide screens */
+@media (min-width: 700px) {
+  .hero h1 { white-space: nowrap; }
+  .hero-sub { max-width: none; white-space: nowrap; }
+  .btn-primary.hero-btn { white-space: nowrap; }
+}
 
 /* Buttons */
 .btn {
@@ -167,167 +184,96 @@ nav {
 }
 .sec-h em { font-style: italic; font-weight: 400; color: var(--orange); }
 
-/* ══════════ NO ANSWER (light) ══════════ */
-.na {
-  background: var(--paper);
-  position: relative; overflow: hidden;
+/* ══════════ WHO THIS IS FOR ══════════ */
+.who { background: var(--white); }
+.who-grid { display: grid; grid-template-columns: 1fr; gap: clamp(36px, 6vw, 64px); align-items: start; }
+.who-head .sec-h { margin-bottom: 18px; }
+.who-lead { font-size: clamp(16px, 4vw, 18px); color: var(--ink-muted); line-height: 1.65; max-width: 440px; text-wrap: pretty; }
+.who-list { display: flex; flex-direction: column; gap: 4px; }
+.who-item {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 20px 4px; border-bottom: 1px solid var(--border);
 }
-.na-inner {
-  position: relative; z-index: 1; max-width: var(--content-max); margin: 0 auto;
-  display: grid; grid-template-columns: 1fr; gap: clamp(36px, 6vw, 56px); align-items: center;
-  text-align: left;
-}
-.na .sec-tag { color: var(--orange); justify-content: flex-start; }
-.na .sec-tag::before { background: var(--orange); }
-.na-h {
-  font-family: var(--serif); font-size: clamp(28px, 5.5vw, 44px);
-  font-weight: 700; line-height: 1.12; letter-spacing: -0.02em;
-  color: var(--ink); margin-bottom: 26px; text-wrap: balance;
-}
-.na-body { display: flex; flex-direction: column; gap: 22px; max-width: 600px; }
-.na-body p { font-size: clamp(16px, 4vw, 19px); color: var(--ink-muted); line-height: 1.7; text-wrap: pretty; }
-.na-body p strong { color: var(--ink); font-weight: 700; }
-.na-body .na-kicker {
-  font-family: var(--serif); font-style: italic; font-size: clamp(18px, 4.4vw, 24px);
-  color: var(--orange); line-height: 1.5;
-}
-.na-img {
-  position: relative; border-radius: 10px; overflow: hidden;
-  min-height: 340px;
-  background: var(--dark2);
-  box-shadow: 0 24px 60px rgba(17,17,16,0.14), 0 4px 12px rgba(17,17,16,0.06);
-  border: 1px solid var(--border);
-}
-.na-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: contrast(1.03) saturate(1.04); }
-.na-img-overlay {
-  position: absolute; inset: 0; pointer-events: none;
-  background:
-    linear-gradient(180deg, transparent 55%, rgba(20,20,15,0.5) 100%),
-    radial-gradient(ellipse 90% 70% at 50% 40%, transparent 55%, rgba(20,20,15,0.25) 100%);
-}
-.na-img-label {
-  position: absolute; bottom: 16px; left: 16px;
-  background: rgba(20,20,15,0.82); backdrop-filter: blur(6px);
-  border: 1px solid var(--orange-border); border-radius: 2px;
-  padding: 8px 13px; font-family: var(--mono); font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase; color: var(--orange-light);
-}
-@media (min-width: 900px) {
-  .na-inner { grid-template-columns: 1.25fr 1fr; gap: 60px; }
-  .na-img { min-height: 460px; align-self: stretch; }
-}
-
-/* ══════════ TWO LISTS (bring / help) ══════════ */
-.lists { background: var(--white); }
-.lists-grid {
-  display: grid; grid-template-columns: 1fr; gap: clamp(24px, 4vw, 32px);
-  align-items: stretch;
-}
-.list-card {
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: clamp(28px, 4.5vw, 44px);
-  position: relative; overflow: hidden;
-  text-align: left;
-  display: flex; flex-direction: column;
-  height: 100%;
-}
-.list-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: linear-gradient(90deg, var(--orange), transparent);
-}
-.list-card.dark {
-  background: var(--dark);
-  border-color: rgba(255,255,255,0.09);
-}
-.list-eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange); margin-bottom: 12px; }
-.list-h {
-  font-family: var(--serif); font-size: clamp(23px, 4.4vw, 32px);
-  font-weight: 900; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 8px;
-}
-.list-card.dark .list-h { color: var(--white); }
-.list-card .list-h { color: var(--ink); }
-.list-sub { font-size: 15px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 22px; }
-.list-card.dark .list-sub { color: rgba(255,255,255,0.5); }
-.list-items { display: flex; flex-direction: column; gap: 2px; }
-.list-item {
-  display: flex; align-items: flex-start; gap: 14px;
-  padding: 13px 2px; border-bottom: 1px solid var(--border);
-}
-.list-item:first-child { border-top: 1px solid var(--border); }
-.list-card.dark .list-item { border-color: rgba(255,255,255,0.08); }
-.list-check {
-  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+.who-item:first-child { border-top: 1px solid var(--border); }
+.who-check {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
   background: var(--orange-pale); border: 1px solid var(--orange-border);
   display: flex; align-items: center; justify-content: center; margin-top: 1px;
 }
-.list-card.dark .list-check { background: rgba(238,90,26,0.13); }
-.list-check svg { width: 11px; height: 11px; stroke: var(--orange); }
-.list-txt { font-size: clamp(14.5px, 3.6vw, 16.5px); font-weight: 500; line-height: 1.5; color: var(--ink-soft); }
-.list-card.dark .list-txt { color: rgba(255,255,255,0.85); }
-.list-note {
-  font-family: var(--serif); font-style: italic; font-size: clamp(16px, 4vw, 20px);
-  color: var(--orange); line-height: 1.5; margin-top: auto; padding-top: 22px;
+.who-check svg { width: 12px; height: 12px; stroke: var(--orange); }
+.who-txt { font-size: clamp(15.5px, 3.8vw, 18px); font-weight: 500; color: var(--ink-soft); line-height: 1.45; }
+@media (min-width: 860px) {
+  .who-grid { grid-template-columns: 0.85fr 1.15fr; gap: 72px; }
+  .who-head { position: sticky; top: 96px; }
 }
-.list-card.dark .list-note { color: var(--orange-light); }
-@media (min-width: 840px) {
-  .lists-grid { grid-template-columns: 1fr 1fr; gap: 28px; align-items: stretch; }
+
+/* ══════════ WHY (dark) ══════════ */
+.why {
+  background: var(--dark);
+  background-image:
+    linear-gradient(180deg, rgba(20,20,15,0.9) 0%, rgba(20,20,15,0.8) 45%, rgba(20,20,15,0.92) 100%),
+    radial-gradient(ellipse 70% 50% at 20% 0%, rgba(238,90,26,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 100%, rgba(201,168,76,0.06) 0%, transparent 60%),
+    url('https://cdn.katalyst-crm.com/t1/515207076_10162692557823685_7999332519639435382_n%20(1).jpg');
+  background-size: cover, cover, cover, cover;
+  background-position: center, center, center, center;
+  background-repeat: no-repeat;
+  background-attachment: scroll, scroll, scroll, fixed;
+  position: relative; overflow: hidden;
+}
+.why::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 150px; opacity: 0.04; pointer-events: none;
+}
+.why-inner { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; text-align: center; }
+.why .sec-tag { color: var(--orange-light); justify-content: center; }
+.why .sec-tag::before { background: var(--orange); }
+.why-mark {
+  font-family: var(--serif); font-size: clamp(80px, 20vw, 150px);
+  font-style: italic; font-weight: 300; color: rgba(238,90,26,0.5);
+  line-height: 0.6; margin-bottom: 6px;
+}
+.why-h {
+  font-family: var(--serif); font-size: clamp(26px, 6vw, 42px);
+  font-weight: 700; line-height: 1.14; letter-spacing: -0.02em;
+  color: var(--white); margin-bottom: 30px; text-wrap: balance;
+}
+.why-body { display: flex; flex-direction: column; gap: 22px; max-width: 720px; margin: 0 auto; align-items: center; }
+.why-body p { font-size: clamp(16px, 4vw, 19px); color: rgba(255,255,255,0.72); line-height: 1.7; text-wrap: pretty; }
+.why-body p strong { color: var(--white); font-weight: 600; }
+.why-body .why-kicker {
+  font-family: var(--serif); font-style: italic; font-size: clamp(18px, 4.4vw, 24px);
+  color: var(--orange-light); line-height: 1.5;
 }
 
 /* ══════════ HOW IT WORKS ══════════ */
-.how { background: var(--paper2); }
-.how > .wrap { max-width: 1300px; }
+.how { background: var(--paper); }
 .how-head { text-align: center; max-width: 620px; margin: 0 auto clamp(44px, 7vw, 68px); }
 .how-head .sec-tag { justify-content: center; }
 .how-head .sec-h { margin-bottom: 16px; }
 .how-head p { font-size: clamp(16px, 4vw, 18px); color: var(--ink-muted); line-height: 1.6; }
-.how-steps { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 1280px; margin: 0 auto; }
+.how-steps { display: grid; grid-template-columns: 1fr; gap: 20px; counter-reset: step; }
 .how-step {
-  position: relative; overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: var(--radius);
+  position: relative; background: var(--white);
+  border: 1px solid var(--border); border-radius: var(--radius);
   padding: clamp(28px, 6vw, 40px) clamp(24px, 5vw, 34px) clamp(28px, 6vw, 36px);
-  background: var(--dark);
-  isolation: isolate;
-  transition: transform .4s cubic-bezier(.16,1,.3,1), box-shadow .4s, border-color .4s;
-}
-/* orange wash that sweeps in on hover */
-.how-step::after {
-  content: ''; position: absolute; inset: 0; z-index: -1;
-  background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dark) 100%);
-  opacity: 0;
-  transition: opacity .45s cubic-bezier(.16,1,.3,1);
+  overflow: hidden;
 }
 .how-step::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 1;
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
   background: linear-gradient(90deg, var(--orange), transparent);
-  transition: background .4s;
 }
-.how-step:hover {
-  transform: translateY(-5px);
-  border-color: transparent;
-  box-shadow: 0 20px 46px rgba(238,90,26,0.4);
-}
-.how-step:hover::after { opacity: 1; }
-.how-step:hover::before { background: linear-gradient(90deg, rgba(255,255,255,0.7), transparent); }
 .how-num {
-  font-family: var(--serif); font-size: 64px; font-weight: 900;
-  color: transparent; -webkit-text-stroke: 1px rgba(238,90,26,0.55);
+  font-family: var(--serif); font-size: 60px; font-weight: 900;
+  color: transparent; -webkit-text-stroke: 1px rgba(238,90,26,0.4);
   line-height: 0.8; letter-spacing: -0.04em; margin-bottom: 18px;
-  transition: -webkit-text-stroke .4s;
 }
-.how-step:hover .how-num { -webkit-text-stroke: 1px rgba(255,255,255,0.85); }
 .how-step h3 {
-  font-family: var(--serif); font-size: clamp(18px, 4.2vw, 21px);
-  font-weight: 700; color: var(--white); line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.015em;
-  transition: color .4s;
+  font-family: var(--serif); font-size: clamp(19px, 4.6vw, 23px);
+  font-weight: 700; color: var(--ink); line-height: 1.2; margin-bottom: 12px; letter-spacing: -0.01em;
 }
-@media (min-width: 820px) {
-  .how-step h3 { white-space: nowrap; }
-}
-.how-step p { font-size: clamp(14.5px, 3.6vw, 16px); color: rgba(255,255,255,0.6); line-height: 1.65; text-wrap: pretty; transition: color .4s; }
-.how-step:hover p { color: rgba(255,255,255,0.92); }
+.how-step p { font-size: clamp(14.5px, 3.6vw, 16px); color: var(--ink-muted); line-height: 1.65; text-wrap: pretty; }
 @media (min-width: 820px) {
   .how-steps { grid-template-columns: repeat(3, 1fr); gap: 24px; }
 }
@@ -336,7 +282,9 @@ nav {
 .form-sec {
   background-color: var(--dark);
   background-image: url('https://cdn.katalyst-crm.com/t1/e6b2be0d49ba6063bbae8cfc2a23c833%201.png');
-  background-size: cover; background-position: center; background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   position: relative;
 }
 .form-sec::before {
@@ -347,20 +295,16 @@ nav {
   pointer-events: none;
 }
 .form-sec > .wrap { position: relative; z-index: 1; }
-.form-shell { max-width: 860px; margin: 0 auto; }
-.form-card { max-width: 720px; margin-left: auto; margin-right: auto; }
-.form-head { text-align: center; margin-bottom: clamp(36px, 6vw, 52px); max-width: 860px; margin-left: auto; margin-right: auto; }
+.form-shell { max-width: 720px; margin: 0 auto; }
+.form-head { text-align: center; margin-bottom: clamp(36px, 6vw, 52px); }
 .form-head .sec-tag { justify-content: center; color: var(--orange-light); }
 .form-head .sec-tag::before { background: var(--orange); }
 .form-head h2 {
-  font-family: var(--serif); font-size: clamp(28px, 5.5vw, 52px);
-  font-weight: 900; color: var(--white); line-height: 1.06; letter-spacing: -0.03em;
+  font-family: var(--serif); font-size: clamp(28px, 6.5vw, 46px);
+  font-weight: 900; color: var(--white); line-height: 1.06; letter-spacing: -0.025em;
   margin-bottom: 16px; text-wrap: balance;
 }
-.form-head p { font-size: clamp(15.5px, 3.8vw, 18px); color: rgba(255,255,255,0.66); line-height: 1.6; max-width: 560px; margin: 0 auto; text-wrap: balance; }
-@media (min-width: 640px) {
-  .form-head h2 { white-space: nowrap; }
-}
+.form-head p { font-size: clamp(15.5px, 3.8vw, 18px); color: rgba(255,255,255,0.66); line-height: 1.6; max-width: 500px; margin: 0 auto; text-wrap: pretty; }
 
 .form-card {
   background: rgba(255,255,255,0.028);
@@ -370,6 +314,7 @@ nav {
 }
 .form-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
 .field { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.field.col-2 { grid-column: 1 / -1; }
 .field label {
   font-family: var(--mono); font-size: 11px; font-weight: 400;
   letter-spacing: 0.06em; color: rgba(255,255,255,0.82); line-height: 1.4;
@@ -397,19 +342,6 @@ nav {
   background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px;
 }
 .field select option { background: var(--dark2); color: var(--white); }
-/* File upload */
-.field-file {
-  position: relative; display: flex; align-items: center; gap: 14px;
-  background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.24);
-  border-radius: 4px; padding: 16px 15px; cursor: pointer;
-  transition: border-color .2s, background .2s;
-}
-.field-file:hover { border-color: var(--orange); background: rgba(255,255,255,0.06); }
-.field-file input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.field-file .ff-icon { flex-shrink: 0; width: 34px; height: 34px; border-radius: 4px; background: rgba(238,90,26,0.14); display: flex; align-items: center; justify-content: center; }
-.field-file .ff-icon svg { width: 16px; height: 16px; stroke: var(--orange); }
-.field-file .ff-txt { font-size: 13.5px; color: rgba(255,255,255,0.6); line-height: 1.4; }
-.field-file .ff-txt strong { color: var(--white); font-weight: 600; display: block; font-size: 14px; }
 .form-submit { margin-top: 30px; text-align: center; }
 .form-submit .btn { box-shadow: 0 12px 34px rgba(238,90,26,0.4); }
 .form-reassure {
@@ -464,10 +396,12 @@ nav {
 /* ══════════ FINAL CTA ══════════ */
 .final {
   background-color: var(--dark);
-  background-image: url('https://d8j0ntlcm91z4.cloudfront.net/user_35NBuSfIPglHIOMZxxqoxDRFcyj/hf_20260806_121929_b99c9541-eb2e-4191-bcf5-bf5f6856f608.png');
-  background-size: cover; background-position: center; background-repeat: no-repeat;
+  background-image: url('https://cdn.katalyst-crm.com/t1/284aa71d8026c04a1a90d5e6f1864044%20(1).jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   position: relative; overflow: hidden; text-align: left;
-  min-height: 82vh;
+  min-height: 88vh;
   display: flex; align-items: center; justify-content: flex-start;
   padding-block: clamp(100px, 16vw, 200px) !important;
 }
@@ -485,17 +419,22 @@ nav {
 }
 .final-inner { position: relative; z-index: 1; max-width: 680px; margin: 0; }
 .final h2 {
-  font-family: var(--serif); font-size: clamp(36px, 7vw, 72px);
+  font-family: var(--serif); font-size: clamp(38px, 7vw, 76px);
   font-weight: 900; color: var(--white); line-height: 1.0; letter-spacing: -0.03em; margin-bottom: 22px;
   text-shadow: 0 4px 30px rgba(0,0,0,0.5);
 }
 .final h2 em { font-style: italic; font-weight: 400; color: var(--orange); }
-.final p { font-size: clamp(16px, 4.2vw, 20px); color: rgba(255,255,255,0.85); line-height: 1.6; max-width: 480px; margin: 0 0 36px; text-wrap: pretty; text-shadow: 0 2px 18px rgba(0,0,0,0.45); }
+.final p { font-size: clamp(16px, 4.2vw, 20px); color: rgba(255,255,255,0.85); line-height: 1.6; max-width: 460px; margin: 0 0 36px; text-wrap: pretty; text-shadow: 0 2px 18px rgba(0,0,0,0.45); }
 .final .btn-primary { background: var(--orange); color: var(--white); box-shadow: 0 12px 34px rgba(238,90,26,0.42); }
 .final .btn-primary:hover { background: var(--orange-dark); }
 .final-textline { margin-top: 20px; font-family: var(--mono); font-size: 13px; color: rgba(255,255,255,0.7); }
 .final-textline strong { color: var(--orange-light); font-weight: 400; }
 .final-actions { display: flex; justify-content: flex-start; }
+
+/* Final: keep the headline on one line on wider screens */
+@media (min-width: 560px) {
+  .final h2 { white-space: nowrap; }
+}
 
 /* ══════════ FOOTER ══════════ */
 footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
@@ -549,6 +488,11 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
   .r { opacity: 1; transform: none; transition: none; }
   html { scroll-behavior: auto; }
 }
+
+/* iOS Safari mishandles background-attachment: fixed — use scroll on touch/narrow screens */
+@media (max-width: 900px) {
+  .why { background-attachment: scroll, scroll, scroll, scroll; }
+}
 </style>
 </head>
 <body>
@@ -559,80 +503,74 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
     <a href="#top" class="logo" aria-label="Bobby Davidowitz home">
       <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%2010%20Ag%CC%86u%202026%2020_02_24%201.png" alt="Bobby Davidowitz">
     </a>
-    <a href="#form" class="nav-cta">Submit Your Opportunity</a>
+    <a href="#form" class="nav-cta">Start the Conversation</a>
   </div>
 </nav>
 
+<!-- MAIN PAGE -->
 <div id="page">
 
   <!-- HERO -->
   <header class="hero" id="top">
-    <div class="hero-bg">
-      <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%206%20Ag%CC%86u%202026%2014_58_02.png" alt="Commercial real estate opportunity" loading="eager" fetchpriority="high">
+    <div class="hero-bg" id="hero-bg">
+      <div class="hero-slide active"><img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%206%20Ag%CC%86u%202026%2012_27_37.png" alt="Commercial real estate opportunity" loading="eager" fetchpriority="high"></div>
     </div>
     <div class="hero-overlay"></div>
     <div class="hero-inner">
       <div class="hero-content">
-        <div class="hero-eyebrow">For Agents With a Commercial&nbsp;Opportunity</div>
-        <h1>Found Something? Let's Look at It&nbsp;<em>Together.</em></h1>
-        <p class="hero-sub">You don't have to be an expert in every part of commercial real estate before you pursue an opportunity. Send me what you&nbsp;have.</p>
+        <div class="hero-eyebrow">For Licensed &amp; Soon-to-be-Licensed&nbsp;Agents</div>
+        <h1>Ready to Get in the <em>Game?</em></h1>
+        <p class="hero-sub">If you know you're ready for something bigger than residential, I want to meet you.</p>
         <div class="hero-actions">
-          <a href="#form" class="btn btn-primary">Submit Your Opportunity →</a>
-          <span class="hero-textline">Or text <strong>DEAL</strong> to [PHONE NUMBER]</span>
+          <a href="#form" class="btn btn-primary hero-btn">Start the Conversation →</a>
+          <span class="hero-textline">Or text <strong>GAME</strong> to 321-316-6543</span>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- YOU DON'T NEED EVERY ANSWER -->
-  <section class="sec na">
-    <div class="wrap na-inner">
-      <div class="na-text">
-        <div class="sec-tag r">You Don't Need Every Answer</div>
-        <h2 class="na-h r rd1">Most agents sit on a commercial opportunity because they're afraid of looking like they don't know what they're&nbsp;doing.</h2>
-        <div class="na-body">
-          <p class="r rd1">That hesitation is the <strong>only thing</strong> standing between them and a&nbsp;deal.</p>
-          <p class="na-kicker r rd2">If you've come across a commercial property owner, a buyer, an investor, a tenant, a borrower, or a possible deal — I'd like to explore partnering with you on&nbsp;it.</p>
-        </div>
+  <!-- WHO THIS IS FOR -->
+  <section class="sec who">
+    <div class="wrap who-grid">
+      <div class="who-head r">
+        <div class="sec-tag">Who This Is For</div>
+        <h2 class="sec-h">This is for you <em>if…</em></h2>
+        <p class="who-lead">Read these in three seconds. If you're nodding, you're in the right place.</p>
       </div>
-      <div class="na-img r rd1">
-        <img src="https://d8j0ntlcm91z4.cloudfront.net/user_35NBuSfIPglHIOMZxxqoxDRFcyj/hf_20260806_121921_e53edcc8-4188-4dfa-a60e-eda733492eb0.png" alt="Two modern real estate agents collaborating on a commercial deal" loading="lazy">
-        <div class="na-img-overlay"></div>
-        <div class="na-img-label">Partner On It Together</div>
+      <div class="who-list">
+        <div class="who-item r">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You're a licensed real estate agent — or you're working toward your&nbsp;license.</span>
+        </div>
+        <div class="who-item r rd1">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You're interested in financial freedom and building real passive&nbsp;income.</span>
+        </div>
+        <div class="who-item r rd2">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You want to stop thinking like an agent and start thinking like an&nbsp;investor.</span>
+        </div>
+        <div class="who-item r rd2">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">You're curious about building a business in commercial real estate — not just closing one&nbsp;deal.</span>
+        </div>
+        <div class="who-item r rd3">
+          <span class="who-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="who-txt">Residential alone was never the whole&nbsp;plan.</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- BRING ME / WHERE I HELP -->
-  <section class="sec lists">
-    <div class="wrap lists-grid">
-      <!-- Bring me any of these -->
-      <div class="list-card r">
-        <div class="list-eyebrow">Bring Me Any of These</div>
-        <h3 class="list-h">You might already be sitting on&nbsp;one.</h3>
-        <p class="list-sub">Any of these is worth a conversation.</p>
-        <div class="list-items">
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">An owner who has mentioned selling a commercial&nbsp;property</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A buyer or investor looking for something you can't&nbsp;place</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A tenant who needs&nbsp;space</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A borrower who needs&nbsp;financing</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A property you've spotted but don't know how to&nbsp;evaluate</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">A deal already in motion that has&nbsp;stalled</span></div>
-        </div>
-      </div>
-      <!-- Where I help -->
-      <div class="list-card dark r rd1">
-        <div class="list-eyebrow">Where My Team &amp; I Can Help</div>
-        <h3 class="list-h">You don't work it&nbsp;alone.</h3>
-        <p class="list-sub">Bring the lead — we bring the machinery.</p>
-        <div class="list-items">
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Analyzing the&nbsp;deal</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Positioning the&nbsp;opportunity</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Finding&nbsp;financing</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Locating a&nbsp;buyer</span></div>
-          <div class="list-item"><span class="list-check"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="list-txt">Navigating the&nbsp;transaction</span></div>
-        </div>
-        <p class="list-note">And you learn how it's done on a live deal — not in&nbsp;theory.</p>
+  <!-- WHY I WANT TO HEAR FROM YOU -->
+  <section class="sec why">
+    <div class="wrap why-inner">
+      <div class="sec-tag r">Why I Want to Hear From You</div>
+      <div class="why-mark r" aria-hidden="true">"</div>
+      <h2 class="why-h r rd1">I'm always looking to build relationships with ambitious agents who want to expand beyond traditional&nbsp;residential.</h2>
+      <div class="why-body">
+        <p class="r rd1">Not because I need more contacts. Because the agents who make this shift tend to make it <strong>faster</strong> when someone who has already done it is in their corner — and because the best opportunities I come across need people I <strong>trust</strong> to work&nbsp;them.</p>
+        <p class="why-kicker r rd2">If that's you, tell me about yourself — and let's find out whether there's something here for both of&nbsp;us.</p>
       </div>
     </div>
   </section>
@@ -642,24 +580,24 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
     <div class="wrap">
       <div class="how-head r">
         <div class="sec-tag">How This Works</div>
-        <h2 class="sec-h">Three steps. <em>That's it.</em></h2>
-        <p>Send what you've got — we'll take it from there, together.</p>
+        <h2 class="sec-h">Three steps. <em>No games.</em></h2>
+        <p>Not everyone gets the calendar — and that's the point. Here's exactly what happens next.</p>
       </div>
       <div class="how-steps">
         <div class="how-step r">
           <div class="how-num">01</div>
-          <h3>Send me the basics</h3>
-          <p>Who's involved, what it is, where it is, and what help you need. That's enough to start.</p>
+          <h3>Tell me about yourself</h3>
+          <p>The form below takes about two minutes. Answer honestly — it's how I get to know you before we talk.</p>
         </div>
         <div class="how-step r rd1">
           <div class="how-num">02</div>
-          <h3>We review it</h3>
-          <p>My team looks at what you've sent and gives it a real, honest read.</p>
+          <h3>I review it</h3>
+          <p>Every submission comes straight to me. No team, no filter — I read them personally.</p>
         </div>
         <div class="how-step r rd2">
           <div class="how-num">03</div>
-          <h3>We decide the next step together</h3>
-          <p>Whatever the deal actually calls for — we figure out the move as partners.</p>
+          <h3>We talk</h3>
+          <p>If there's an opportunity to work together, you'll get access to my calendar so we can talk properly.</p>
         </div>
       </div>
     </div>
@@ -670,10 +608,10 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
     <div class="wrap form-shell">
       <div class="form-head r">
         <div class="sec-tag">The Form</div>
-        <h2>Tell me about the&nbsp;opportunity</h2>
-        <p>You don't need every answer. Fill in what you know and leave the&nbsp;rest.</p>
+        <h2>Tell me a little about&nbsp;yourself</h2>
+        <p>The more I know before we speak, the more useful that first conversation will&nbsp;be.</p>
       </div>
-      <form class="form-card r rd1" id="deal-form" novalidate>
+      <form class="form-card r rd1" id="game-form" novalidate>
         <div class="form-grid">
           <div class="field">
             <label for="f-name">Full name<span class="req">*</span></label>
@@ -688,68 +626,52 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
             <input type="tel" id="f-phone" name="phone" placeholder="(555) 000-0000" required autocomplete="tel">
           </div>
           <div class="field">
-            <label for="f-location">Where is the property? Address or market is fine<span class="req">*</span></label>
-            <input type="text" id="f-location" name="location" placeholder="City / market / address" required>
+            <label for="f-market">What market or area do you work in?<span class="req">*</span></label>
+            <input type="text" id="f-market" name="market" placeholder="City / region" required>
           </div>
           <div class="field">
-            <label for="f-type">What type of property is it?<span class="req">*</span></label>
-            <select id="f-type" name="type" required>
+            <label for="f-licensed">Are you currently licensed?<span class="req">*</span></label>
+            <select id="f-licensed" name="licensed" required>
               <option value="" disabled selected>Select one…</option>
-              <option>Office</option>
-              <option>Retail</option>
-              <option>Industrial</option>
-              <option>Multifamily</option>
-              <option>Land</option>
-              <option>Mixed use</option>
-              <option>Not sure</option>
+              <option>Yes</option>
+              <option>In progress</option>
+              <option>Not yet</option>
             </select>
           </div>
           <div class="field">
-            <label for="f-working">Who are you working with?<span class="req">*</span></label>
-            <select id="f-working" name="working" required>
+            <label for="f-brokerage">Which brokerage are you with?</label>
+            <input type="text" id="f-brokerage" name="brokerage" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="f-experience">Tell me about your experience<span class="req">*</span></label>
+            <select id="f-experience" name="experience" required>
               <option value="" disabled selected>Select one…</option>
-              <option>Buyer</option>
-              <option>Seller</option>
-              <option>Borrower</option>
-              <option>Tenant</option>
-              <option>Investor</option>
-              <option>Not sure yet</option>
+              <option>Residential only</option>
+              <option>Some commercial</option>
+              <option>Both</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-invested">Have you invested in real estate yourself?<span class="req">*</span></label>
+            <select id="f-invested" name="invested" required>
+              <option value="" disabled selected>Select one…</option>
+              <option>Yes</option>
+              <option>Not yet</option>
+              <option>Currently exploring</option>
             </select>
           </div>
           <div class="field full">
-            <label for="f-size">Roughly what size is the deal?</label>
-            <select id="f-size" name="size">
-              <option value="" disabled selected>Select a range (optional)…</option>
-              <option>Under $500K</option>
-              <option>$500K – $1M</option>
-              <option>$1M – $5M</option>
-              <option>$5M – $10M</option>
-              <option>$10M – $25M</option>
-              <option>$25M+</option>
-              <option>Not sure</option>
-            </select>
+            <label for="f-build">What are you trying to build?<span class="req">*</span></label>
+            <textarea id="f-build" name="build" placeholder="Tell me what you're working toward…" required></textarea>
           </div>
           <div class="field full">
-            <label for="f-came">How did this come to you?<span class="req">*</span></label>
-            <textarea id="f-came" name="came" placeholder="How the opportunity landed in front of you…" required></textarea>
-          </div>
-          <div class="field full">
-            <label for="f-help">What help do you need from me?<span class="req">*</span></label>
-            <textarea id="f-help" name="help" placeholder="What would make this a win for you?" required></textarea>
-          </div>
-          <div class="field full">
-            <label for="f-notes">Anything else — documents, links, notes</label>
-            <label class="field-file" for="f-file">
-              <span class="ff-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <span class="ff-txt"><strong>Upload a file</strong> or drop links &amp; notes below</span>
-              <input type="file" id="f-file" name="file" multiple>
-            </label>
-            <textarea id="f-notes" name="notes" placeholder="Paste links, or add any notes here…" style="margin-top:12px;"></textarea>
+            <label for="f-why">Why do you want to connect with me?<span class="req">*</span></label>
+            <textarea id="f-why" name="why" placeholder="What are you hoping comes out of this?" required></textarea>
           </div>
         </div>
         <div class="form-submit">
-          <button type="submit" class="btn btn-primary">Send It Over →</button>
-          <p class="form-reassure">My team and I review every submission personally.</p>
+          <button type="submit" class="btn btn-primary">Send It to Bobby →</button>
+          <p class="form-reassure">I read every submission personally.</p>
         </div>
       </form>
     </div>
@@ -760,32 +682,32 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
     <div class="wrap">
       <div class="text-card r">
         <div class="text-copy">
-          <div class="sec-tag">Easier to Text?</div>
-          <h2>Text it to me instead.</h2>
-          <p>Text <b>DEAL</b> to the number below and I'll send you the submission form right to your&nbsp;phone.</p>
-          <div class="text-code">Text <b>DEAL</b> to [PHONE&nbsp;NUMBER]</div>
+          <div class="sec-tag">Prefer to Text?</div>
+          <h2>Text me instead.</h2>
+          <p>Text <b>GAME</b> to the number below and I'll send you the same form right to your&nbsp;phone.</p>
+          <div class="text-code">Text <b>GAME</b> to 321-316-6543</div>
         </div>
         <div class="text-qr">
           <div class="qr-box" aria-hidden="true">
-            <!-- placeholder QR — unique to DEAL, replace with real code. Do NOT reuse the GAME code. -->
+            <!-- placeholder QR — unique to GAME, replace with real code -->
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
               <rect width="100" height="100" fill="#fff"/>
               <g fill="#14140F">
                 <rect x="6" y="6" width="22" height="22"/><rect x="10" y="10" width="14" height="14" fill="#fff"/><rect x="13" y="13" width="8" height="8"/>
                 <rect x="72" y="6" width="22" height="22"/><rect x="76" y="10" width="14" height="14" fill="#fff"/><rect x="79" y="13" width="8" height="8"/>
                 <rect x="6" y="72" width="22" height="22"/><rect x="10" y="76" width="14" height="14" fill="#fff"/><rect x="13" y="79" width="8" height="8"/>
-                <rect x="38" y="6" width="4" height="4"/><rect x="46" y="6" width="4" height="4"/><rect x="54" y="6" width="4" height="4"/><rect x="62" y="10" width="4" height="4"/>
-                <rect x="34" y="14" width="4" height="4"/><rect x="42" y="14" width="4" height="4"/><rect x="50" y="18" width="4" height="4"/><rect x="58" y="22" width="4" height="4"/><rect x="38" y="22" width="4" height="4"/><rect x="46" y="22" width="4" height="4"/>
-                <rect x="6" y="34" width="4" height="4"/><rect x="14" y="38" width="4" height="4"/><rect x="22" y="34" width="4" height="4"/><rect x="34" y="38" width="4" height="4"/><rect x="46" y="34" width="4" height="4"/><rect x="58" y="34" width="4" height="4"/><rect x="66" y="38" width="4" height="4"/><rect x="78" y="34" width="4" height="4"/><rect x="90" y="38" width="4" height="4"/>
-                <rect x="10" y="46" width="4" height="4"/><rect x="22" y="50" width="4" height="4"/><rect x="34" y="46" width="4" height="4"/><rect x="42" y="50" width="4" height="4"/><rect x="54" y="46" width="4" height="4"/><rect x="66" y="50" width="4" height="4"/><rect x="74" y="46" width="4" height="4"/><rect x="86" y="46" width="4" height="4"/>
-                <rect x="38" y="58" width="4" height="4"/><rect x="50" y="54" width="4" height="4"/><rect x="62" y="58" width="4" height="4"/><rect x="70" y="54" width="4" height="4"/><rect x="82" y="58" width="4" height="4"/><rect x="90" y="54" width="4" height="4"/>
-                <rect x="34" y="66" width="4" height="4"/><rect x="46" y="70" width="4" height="4"/><rect x="58" y="66" width="4" height="4"/><rect x="70" y="70" width="4" height="4"/><rect x="82" y="66" width="4" height="4"/><rect x="90" y="70" width="4" height="4"/>
-                <rect x="38" y="78" width="4" height="4"/><rect x="50" y="82" width="4" height="4"/><rect x="58" y="78" width="4" height="4"/><rect x="70" y="82" width="4" height="4"/><rect x="82" y="78" width="4" height="4"/><rect x="90" y="82" width="4" height="4"/>
-                <rect x="34" y="86" width="4" height="4"/><rect x="46" y="90" width="4" height="4"/><rect x="62" y="86" width="4" height="4"/><rect x="74" y="90" width="4" height="4"/><rect x="86" y="86" width="4" height="4"/>
+                <rect x="34" y="6" width="4" height="4"/><rect x="42" y="6" width="4" height="4"/><rect x="50" y="6" width="4" height="4"/><rect x="58" y="10" width="4" height="4"/>
+                <rect x="34" y="14" width="4" height="4"/><rect x="46" y="14" width="4" height="4"/><rect x="54" y="18" width="4" height="4"/><rect x="38" y="22" width="4" height="4"/><rect x="50" y="22" width="4" height="4"/><rect x="62" y="22" width="4" height="4"/>
+                <rect x="6" y="34" width="4" height="4"/><rect x="14" y="34" width="4" height="4"/><rect x="22" y="38" width="4" height="4"/><rect x="34" y="34" width="4" height="4"/><rect x="42" y="38" width="4" height="4"/><rect x="54" y="34" width="4" height="4"/><rect x="66" y="34" width="4" height="4"/><rect x="78" y="38" width="4" height="4"/><rect x="90" y="34" width="4" height="4"/>
+                <rect x="10" y="46" width="4" height="4"/><rect x="22" y="46" width="4" height="4"/><rect x="38" y="46" width="4" height="4"/><rect x="50" y="50" width="4" height="4"/><rect x="62" y="46" width="4" height="4"/><rect x="74" y="46" width="4" height="4"/><rect x="86" y="50" width="4" height="4"/>
+                <rect x="34" y="54" width="4" height="4"/><rect x="46" y="58" width="4" height="4"/><rect x="58" y="54" width="4" height="4"/><rect x="70" y="58" width="4" height="4"/><rect x="82" y="54" width="4" height="4"/><rect x="90" y="58" width="4" height="4"/>
+                <rect x="34" y="66" width="4" height="4"/><rect x="42" y="70" width="4" height="4"/><rect x="54" y="66" width="4" height="4"/><rect x="66" y="70" width="4" height="4"/><rect x="78" y="66" width="4" height="4"/><rect x="90" y="70" width="4" height="4"/>
+                <rect x="38" y="78" width="4" height="4"/><rect x="50" y="82" width="4" height="4"/><rect x="62" y="78" width="4" height="4"/><rect x="70" y="82" width="4" height="4"/><rect x="82" y="78" width="4" height="4"/><rect x="90" y="82" width="4" height="4"/>
+                <rect x="34" y="86" width="4" height="4"/><rect x="46" y="90" width="4" height="4"/><rect x="58" y="86" width="4" height="4"/><rect x="74" y="90" width="4" height="4"/><rect x="86" y="86" width="4" height="4"/>
               </g>
             </svg>
           </div>
-          <div class="qr-cap">Scan to submit an opportunity</div>
+          <div class="qr-cap">Scan to open the GAME form</div>
         </div>
       </div>
     </div>
@@ -794,12 +716,12 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
   <!-- FINAL CTA -->
   <section class="sec final">
     <div class="wrap final-inner">
-      <h2 class="r">Send it&nbsp;<em>over.</em></h2>
-      <p class="r rd1">You don't need every answer — you just need to hit send. Let's find out what this deal is really&nbsp;worth.</p>
+      <h2 class="r">The next move is <em>yours.</em></h2>
+      <p class="r rd1">You've read this far because residential alone was never the whole plan. Let's find out what's&nbsp;possible.</p>
       <div class="final-actions r rd2">
-        <a href="#form" class="btn btn-primary">Submit Your Opportunity →</a>
+        <a href="#form" class="btn btn-primary">Start the Conversation →</a>
       </div>
-      <p class="final-textline r rd2">Or text <strong>DEAL</strong> to [PHONE&nbsp;NUMBER]</p>
+      <p class="final-textline r rd2">Or text <strong>GAME</strong> to 321-316-6543</p>
     </div>
   </section>
 
@@ -809,7 +731,7 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
       <a href="#top" class="logo ft-logo" aria-label="Bobby Davidowitz home">
         <img src="https://cdn.katalyst-crm.com/t1/ChatGPT%20Image%2010%20Ag%CC%86u%202026%2020_02_24%201.png" alt="Bobby Davidowitz">
       </a>
-      <p>Bring me a commercial opportunity — an owner, a buyer, a tenant, a borrower, or a stalled deal — and let's work it&nbsp;together.</p>
+      <p>For ambitious agents ready to build a business in commercial real estate — not just close one&nbsp;deal.</p>
       <a href="mailto:contact@bobbydavidowitz.com" class="ft-email">contact@bobbydavidowitz.com</a>
       <div class="ft-btm">
         <p>© 2026 Bobby Davidowitz. All rights reserved.</p>
@@ -826,9 +748,9 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
   <div class="confirm-wrap">
     <div class="confirm-card">
       <div class="confirm-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      <h1>Sent. We'll take a&nbsp;look.</h1>
-      <p>My team and I will review what you've sent and come back to you with an honest read on it — <em>including if the answer is that it isn't a fit.</em></p>
-      <p>Either way, you'll learn something about how these get&nbsp;evaluated.</p>
+      <h1>Got it — thanks for reaching&nbsp;out.</h1>
+      <p>I read these personally, so give me a little time. If it looks like there's a fit, you'll get an email with a link to my calendar and we'll talk&nbsp;properly.</p>
+      <p>In the meantime, <em>keep working through the course.</em> The agents who get the most out of a conversation with me are the ones who've already done the&nbsp;work.</p>
     </div>
   </div>
 </section>
@@ -840,6 +762,26 @@ const io = new IntersectionObserver((entries) => {
 }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
 document.querySelectorAll('.r').forEach(el => io.observe(el));
 
+// Hero slideshow — crossfade auto-advance
+(function(){
+  const slides = Array.from(document.querySelectorAll('#hero-bg .hero-slide'));
+  if (slides.length < 2) return;
+  let idx = 0;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const INTERVAL = 5000;
+  setInterval(() => {
+    slides[idx].classList.remove('active');
+    idx = (idx + 1) % slides.length;
+    const next = slides[idx];
+    // restart the ken-burns zoom on the newly active slide
+    if (!reduce) {
+      const im = next.querySelector('img');
+      if (im) { im.style.animation = 'none'; void im.offsetWidth; im.style.animation = ''; }
+    }
+    next.classList.add('active');
+  }, INTERVAL);
+})();
+
 // Smooth anchor scroll
 document.querySelectorAll('a[href^="#"]').forEach(a => {
   a.addEventListener('click', e => {
@@ -850,34 +792,26 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
   });
 });
 
-// File upload label feedback
-const fileInput = document.getElementById('f-file');
-if (fileInput) {
-  fileInput.addEventListener('change', () => {
-    const label = fileInput.closest('.field-file').querySelector('.ff-txt');
-    const n = fileInput.files.length;
-    if (n > 0) label.innerHTML = '<strong>' + n + ' file' + (n>1?'s':'') + ' selected</strong>Tap to change';
-  });
-}
-
 // Form submit → confirmation screen
-const form = document.getElementById('deal-form');
+const form = document.getElementById('game-form');
 form.addEventListener('submit', e => {
   e.preventDefault();
+  // basic required-field check
   let ok = true;
   form.querySelectorAll('[required]').forEach(el => {
     if (!el.value.trim()) { ok = false; el.style.borderColor = '#EE5A1A'; }
   });
   if (!ok) {
-    form.querySelector('[required]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    form.querySelector('[required]:invalid, [required]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
   // Here you'd POST the data to your backend / GHL. For now, show confirmation.
   document.getElementById('page').style.display = 'none';
   const confirm = document.getElementById('confirm');
   confirm.classList.add('active');
-  window.scrollTo({ top: 0, behavior: 'auto' });
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
 });
+// clear the error tint once a field is filled
 form.querySelectorAll('[required]').forEach(el => {
   el.addEventListener('input', () => { el.style.borderColor = ''; });
   el.addEventListener('change', () => { el.style.borderColor = ''; });

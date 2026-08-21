@@ -295,7 +295,7 @@ nav {
   pointer-events: none;
 }
 .form-sec > .wrap { position: relative; z-index: 1; }
-.form-shell { max-width: 720px; margin: 0 auto; }
+.form-shell { max-width: 900px; margin: 0 auto; }
 .form-head { text-align: center; margin-bottom: clamp(36px, 6vw, 52px); }
 .form-head .sec-tag { justify-content: center; color: var(--orange-light); }
 .form-head .sec-tag::before { background: var(--orange); }
@@ -352,6 +352,80 @@ nav {
   .form-grid { grid-template-columns: 1fr 1fr; }
   .field.full { grid-column: 1 / -1; }
 }
+
+/* ══════════ CHOICE BUTTONS ══════════ */
+.choice-grid {
+  display: grid; grid-template-columns: 1fr; gap: 18px;
+  max-width: 860px; margin: 0 auto;
+}
+@media (min-width: 720px) { .choice-grid { grid-template-columns: 1fr 1fr; gap: 22px; } }
+.choice-btn {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+  min-height: 220px; padding: 32px 28px 28px;
+  border-radius: 8px; text-decoration: none; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease, background .25s ease, color .25s ease;
+}
+.choice-btn:focus-visible {
+  outline: 2px solid var(--orange-light);
+  outline-offset: 3px;
+}
+.choice-kicker {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; opacity: 0.85;
+}
+.choice-title {
+  font-family: var(--serif); font-size: clamp(24px, 4.8vw, 34px);
+  font-weight: 700; line-height: 1.12; letter-spacing: -0.01em;
+}
+.choice-sub {
+  font-size: clamp(14.5px, 3.4vw, 16px); line-height: 1.55;
+  flex: 1;
+}
+.choice-cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 8px; padding: 12px 16px;
+  font-family: var(--sans); font-size: 12px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  border-radius: 2px;
+  transition: transform .25s ease, background .25s ease, color .25s ease;
+}
+.choice-arrow { font-size: 16px; line-height: 1; transition: transform .25s ease; }
+.choice-btn:hover { transform: translateY(-4px); }
+.choice-btn:hover .choice-arrow { transform: translateX(5px); }
+
+.choice-primary {
+  background: var(--orange); color: var(--white);
+  border-color: var(--orange);
+}
+.choice-primary .choice-kicker { color: rgba(255,255,255,0.85); }
+.choice-primary .choice-sub { color: rgba(255,255,255,0.92); }
+.choice-primary .choice-cta {
+  background: rgba(20,20,15,0.22); color: var(--white);
+}
+.choice-primary:hover {
+  background: var(--orange-dark); border-color: var(--orange-dark);
+  box-shadow: 0 22px 50px rgba(238,90,26,0.5);
+}
+.choice-primary:hover .choice-cta { background: rgba(20,20,15,0.34); }
+
+.choice-secondary {
+  background: rgba(255,255,255,0.06); color: var(--white);
+  border-color: rgba(255,255,255,0.18);
+  backdrop-filter: blur(8px);
+}
+.choice-secondary .choice-kicker { color: var(--orange-light); }
+.choice-secondary .choice-sub { color: rgba(255,255,255,0.7); }
+.choice-secondary .choice-cta {
+  background: var(--orange); color: var(--white);
+}
+.choice-secondary:hover {
+  border-color: var(--orange);
+  background: rgba(255,255,255,0.09);
+  box-shadow: 0 22px 50px rgba(0,0,0,0.38);
+}
+.choice-secondary:hover .choice-cta { background: var(--orange-dark); }
 
 /* ══════════ TEXT / QR OPTION ══════════ */
 .text-sec { background: var(--paper2); }
@@ -523,7 +597,7 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
         <p class="hero-sub">If you know you're ready for something bigger than residential, I want to meet you.</p>
         <div class="hero-actions">
           <a href="#form" class="btn btn-primary hero-btn">Start the Conversation →</a>
-          <span class="hero-textline">Or text <strong>GAME</strong> to [PHONE NUMBER]</span>
+          <span class="hero-textline">Or text <strong>GAME</strong> to 321-316-6543</span>
         </div>
       </div>
     </div>
@@ -603,77 +677,28 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
     </div>
   </section>
 
-  <!-- FORM -->
+  <!-- GET STARTED / CHOICE -->
   <section class="sec form-sec" id="form">
     <div class="wrap form-shell">
       <div class="form-head r">
-        <div class="sec-tag">The Form</div>
-        <h2>Tell me a little about&nbsp;yourself</h2>
-        <p>The more I know before we speak, the more useful that first conversation will&nbsp;be.</p>
+        <div class="sec-tag">Get Started</div>
+        <h2>Two ways to work with&nbsp;Bobby</h2>
+        <p>Pick the path that fits you and let's start the&nbsp;conversation.</p>
       </div>
-      <form class="form-card r rd1" id="game-form" novalidate>
-        <div class="form-grid">
-          <div class="field">
-            <label for="f-name">Full name<span class="req">*</span></label>
-            <input type="text" id="f-name" name="name" placeholder="Your name" required autocomplete="name">
-          </div>
-          <div class="field">
-            <label for="f-email">Email address<span class="req">*</span></label>
-            <input type="email" id="f-email" name="email" placeholder="you@email.com" required autocomplete="email">
-          </div>
-          <div class="field">
-            <label for="f-phone">Phone number<span class="req">*</span></label>
-            <input type="tel" id="f-phone" name="phone" placeholder="(555) 000-0000" required autocomplete="tel">
-          </div>
-          <div class="field">
-            <label for="f-market">What market or area do you work in?<span class="req">*</span></label>
-            <input type="text" id="f-market" name="market" placeholder="City / region" required>
-          </div>
-          <div class="field">
-            <label for="f-licensed">Are you currently licensed?<span class="req">*</span></label>
-            <select id="f-licensed" name="licensed" required>
-              <option value="" disabled selected>Select one…</option>
-              <option>Yes</option>
-              <option>In progress</option>
-              <option>Not yet</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="f-brokerage">Which brokerage are you with?</label>
-            <input type="text" id="f-brokerage" name="brokerage" placeholder="Optional">
-          </div>
-          <div class="field">
-            <label for="f-experience">Tell me about your experience<span class="req">*</span></label>
-            <select id="f-experience" name="experience" required>
-              <option value="" disabled selected>Select one…</option>
-              <option>Residential only</option>
-              <option>Some commercial</option>
-              <option>Both</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="f-invested">Have you invested in real estate yourself?<span class="req">*</span></label>
-            <select id="f-invested" name="invested" required>
-              <option value="" disabled selected>Select one…</option>
-              <option>Yes</option>
-              <option>Not yet</option>
-              <option>Currently exploring</option>
-            </select>
-          </div>
-          <div class="field full">
-            <label for="f-build">What are you trying to build?<span class="req">*</span></label>
-            <textarea id="f-build" name="build" placeholder="Tell me what you're working toward…" required></textarea>
-          </div>
-          <div class="field full">
-            <label for="f-why">Why do you want to connect with me?<span class="req">*</span></label>
-            <textarea id="f-why" name="why" placeholder="What are you hoping comes out of this?" required></textarea>
-          </div>
-        </div>
-        <div class="form-submit">
-          <button type="submit" class="btn btn-primary">Send It to Bobby →</button>
-          <p class="form-reassure">I read every submission personally.</p>
-        </div>
-      </form>
+      <div class="choice-grid r rd1">
+        <a class="choice-btn choice-primary" href="https://bobby-davidowitz-get-in-the-game.sites.katek.app/" target="_blank" rel="noopener noreferrer">
+          <span class="choice-kicker">Path 01</span>
+          <span class="choice-title">Partner with Bobby</span>
+          <span class="choice-sub">Work with Bobby on a Commercial Real Estate Deal</span>
+          <span class="choice-cta">Get started <span class="choice-arrow" aria-hidden="true">→</span></span>
+        </a>
+        <a class="choice-btn choice-secondary" href="https://bobby-davidowitz-partner-on-a-deal.sites.katek.app/" target="_blank" rel="noopener noreferrer">
+          <span class="choice-kicker">Path 02</span>
+          <span class="choice-title">Become an Agent</span>
+          <span class="choice-sub">Join Bobby's Nationwide Community of Agents</span>
+          <span class="choice-cta">Get started <span class="choice-arrow" aria-hidden="true">→</span></span>
+        </a>
+      </div>
     </div>
   </section>
 
@@ -685,7 +710,7 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
           <div class="sec-tag">Prefer to Text?</div>
           <h2>Text me instead.</h2>
           <p>Text <b>GAME</b> to the number below and I'll send you the same form right to your&nbsp;phone.</p>
-          <div class="text-code">Text <b>GAME</b> to [PHONE&nbsp;NUMBER]</div>
+          <div class="text-code">Text <b>GAME</b> to 321-316-6543</div>
         </div>
         <div class="text-qr">
           <div class="qr-box" aria-hidden="true">
@@ -721,7 +746,7 @@ footer { background: var(--dark); padding: clamp(48px, 8vw, 72px) 0 32px; }
       <div class="final-actions r rd2">
         <a href="#form" class="btn btn-primary">Start the Conversation →</a>
       </div>
-      <p class="final-textline r rd2">Or text <strong>GAME</strong> to [PHONE&nbsp;NUMBER]</p>
+      <p class="final-textline r rd2">Or text <strong>GAME</strong> to 321-316-6543</p>
     </div>
   </section>
 

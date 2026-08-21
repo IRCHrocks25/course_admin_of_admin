@@ -3,6 +3,9 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -6191,7 +6194,7 @@ def _send_tenant_admin_welcome_email(user, password, tenant, request):
 @staff_member_required
 @require_http_methods(["GET", "POST"])
 def dashboard_tenant_admins(request):
-    """Let tenant admins add or remove other admins on their account."""
+    """Let tenant admins add, update credentials for, or remove other admins on their account."""
     tenant = _get_dashboard_tenant(request)
     if tenant is None:
         messages.error(request, 'Tenant context is required to manage admins.')
@@ -6242,6 +6245,79 @@ def dashboard_tenant_admins(request):
                 membership.user.save(update_fields=['is_staff', 'is_active'])
                 messages.success(request, f'Restored admin access for {membership.user.username}.')
 
+            return redirect('dashboard_tenant_admins')
+
+        if action == 'update':
+            try:
+                target_user_id = int(request.POST.get('user_id'))
+            except (TypeError, ValueError):
+                messages.error(request, 'Invalid user.')
+                return redirect('dashboard_tenant_admins')
+
+            membership = TenantMembership.objects.filter(
+                tenant=tenant,
+                user_id=target_user_id,
+                role='tenant_admin',
+            ).select_related('user').first()
+            if not membership:
+                messages.error(request, 'Admin account not found for this tenant.')
+                return redirect('dashboard_tenant_admins')
+
+            user = membership.user
+            if user.is_superuser and not request.user.is_superuser:
+                messages.error(request, 'You cannot edit a superadmin account.')
+                return redirect('dashboard_tenant_admins')
+
+            username = (request.POST.get('username') or '').strip()
+            email = (request.POST.get('email') or '').strip().lower()
+            first_name = (request.POST.get('first_name') or '').strip()
+            last_name = (request.POST.get('last_name') or '').strip()
+            password = request.POST.get('password') or ''
+
+            if not username:
+                messages.error(request, 'Username is required.')
+                return redirect('dashboard_tenant_admins')
+
+            if User.objects.filter(username__iexact=username).exclude(pk=user.pk).exists():
+                messages.error(request, f'Username "{username}" is already taken.')
+                return redirect('dashboard_tenant_admins')
+
+            if email and User.objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
+                messages.error(request, f'Email "{email}" is already used by another account.')
+                return redirect('dashboard_tenant_admins')
+
+            user.username = username
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+
+            password_changed = False
+            if password:
+                try:
+                    validate_password(password, user=user)
+                except ValidationError as exc:
+                    messages.error(request, ' '.join(exc.messages))
+                    return redirect('dashboard_tenant_admins')
+                user.set_password(password)
+                password_changed = True
+
+            user.save()
+
+            if password_changed:
+                if user.pk == request.user.pk:
+                    update_session_auth_hash(request, user)
+                    membership.must_change_password = False
+                else:
+                    membership.must_change_password = True
+                membership.save(update_fields=['must_change_password', 'updated_at'])
+
+            if password_changed and user.pk != request.user.pk:
+                messages.success(
+                    request,
+                    f'Updated credentials for {user.username}. They will be asked to change the password on next login.',
+                )
+            else:
+                messages.success(request, f'Updated credentials for {user.username}.')
             return redirect('dashboard_tenant_admins')
 
         username = (request.POST.get('username') or '').strip()
