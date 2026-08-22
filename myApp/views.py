@@ -54,6 +54,9 @@ from .models import (
     Coupon,
     StripeEventLog,
     PricingTier,
+    MembershipPlan,
+    MembershipTier,
+    StudentSubscription,
     TenantNotificationDelivery,
     category_accent_color,
     category_initial,
@@ -1019,6 +1022,121 @@ def start_academy_checkout_success(request):
     return redirect('start_academy')
 
 
+def _membership_activate_from_checkout(session):
+    """
+    Upsert a StudentSubscription from a completed membership checkout session.
+    Idempotent: safe to call from both the success redirect and the webhook.
+    Returns True when a membership was processed.
+    """
+    metadata = session.get('metadata') or {}
+    if metadata.get('flow') != 'membership_checkout':
+        return False
+
+    tenant = Tenant.objects.filter(id=metadata.get('tenant_id')).first()
+    user = User.objects.filter(id=metadata.get('user_id')).first()
+    if not tenant or not user:
+        return True  # our flow, but nothing to attach to
+
+    interval = metadata.get('interval') or 'month'
+    if interval not in ('month', 'year'):
+        interval = 'month'
+
+    subscription, _ = StudentSubscription.objects.get_or_create(
+        tenant=tenant, user=user, defaults={'interval': interval},
+    )
+    subscription.interval = interval
+    subscription.status = 'active'
+    subscription.is_complimentary = False
+    subscription.canceled_at = None
+
+    # Tiered vs all-access, from the checkout metadata.
+    tier_id = metadata.get('membership_tier_id')
+    tier = MembershipTier.objects.filter(id=tier_id, tenant=tenant).first() if tier_id else None
+    if tier is not None:
+        subscription.access_mode = 'tiered'
+        subscription.tier = tier
+    else:
+        subscription.access_mode = 'all_access'
+        subscription.tier = None
+
+    sub_id = session.get('subscription')
+    if isinstance(sub_id, dict):
+        sub_id = sub_id.get('id', '')
+    if sub_id:
+        subscription.stripe_subscription_id = str(sub_id)
+    if session.get('customer'):
+        subscription.stripe_customer_id = str(session.get('customer'))
+    subscription.last_synced_at = timezone.now()
+    subscription.save()
+    return True
+
+
+def _membership_handle_subscription_event(event_type, obj):
+    """
+    Handle student-membership lifecycle events (subscription + invoice).
+    Returns True when the event matched a StudentSubscription and was handled,
+    so the caller can skip platform-billing fallback logic.
+    """
+    from .utils.membership import sync_subscription_from_stripe
+
+    subscription = None
+    stripe_sub = None
+
+    if event_type in ('customer.subscription.updated', 'customer.subscription.deleted'):
+        stripe_sub = obj
+        sub_id = obj.get('id')
+        if sub_id:
+            subscription = StudentSubscription.objects.filter(stripe_subscription_id=sub_id).first()
+    elif event_type in ('invoice.paid', 'invoice.payment_failed'):
+        sub_id = obj.get('subscription')
+        customer_id = obj.get('customer')
+        if sub_id:
+            subscription = StudentSubscription.objects.filter(stripe_subscription_id=sub_id).first()
+        if subscription is None and customer_id:
+            subscription = StudentSubscription.objects.filter(stripe_customer_id=customer_id).first()
+
+    if subscription is None:
+        return False
+
+    if event_type == 'customer.subscription.deleted':
+        subscription.status = 'canceled'
+        subscription.canceled_at = timezone.now()
+        subscription.last_synced_at = timezone.now()
+        subscription.save()
+        return True
+
+    if event_type == 'invoice.payment_failed':
+        subscription.status = 'past_due'
+        subscription.last_synced_at = timezone.now()
+        subscription.save()
+        return True
+
+    if event_type == 'invoice.paid':
+        subscription.status = 'active'
+        # Extend period end from the invoice line period, if present.
+        try:
+            line = (obj.get('lines') or {}).get('data') or []
+            period_end = line[0]['period']['end'] if line else None
+        except (KeyError, IndexError, TypeError):
+            period_end = None
+        if period_end:
+            import datetime
+            subscription.current_period_end = datetime.datetime.fromtimestamp(
+                period_end, tz=datetime.timezone.utc,
+            )
+        subscription.last_synced_at = timezone.now()
+        subscription.save()
+        return True
+
+    # customer.subscription.updated
+    sync_subscription_from_stripe(subscription, stripe_sub)
+    # Repair tier if the customer switched price (e.g. via the billing portal).
+    from .utils.membership_sync import reconcile_subscription_tier
+    reconcile_subscription_tier(subscription, stripe_sub)
+    subscription.save()
+    return True
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def stripe_webhook(request):
@@ -1056,6 +1174,9 @@ def stripe_webhook(request):
 
             elif payment_flow == 'setup_fee' and tenant:
                 _activate_setup_fee_payment(session)
+
+            elif payment_flow == 'membership_checkout':
+                _membership_activate_from_checkout(session)
 
             elif mode in ('subscription', 'payment') and tenant and payment_flow != 'bundle_checkout':
                 _activate_signup_from_checkout_session(session)
@@ -1100,18 +1221,25 @@ def stripe_webhook(request):
                 if admin_user and not TenantMembership.objects.filter(user=admin_user).exists():
                     admin_user.delete()
 
-        elif event_type in ('customer.subscription.deleted', 'invoice.payment_failed'):
+        elif event_type in (
+            'customer.subscription.updated', 'customer.subscription.deleted',
+            'invoice.paid', 'invoice.payment_failed',
+        ):
             obj = event['data']['object']
-            customer_id = obj.get('customer')
-            if customer_id:
-                tenant = Tenant.objects.filter(stripe_customer_id=customer_id).first()
-                if tenant:
-                    tenant.billing_status = 'canceled' if event_type == 'customer.subscription.deleted' else 'past_due'
-                    if event_type == 'customer.subscription.deleted':
-                        tenant.is_active = False
-                        tenant.save(update_fields=['billing_status', 'is_active', 'updated_at'])
-                    else:
-                        tenant.save(update_fields=['billing_status', 'updated_at'])
+            # Student memberships take precedence; only fall through to platform
+            # (academy-owner) billing when no StudentSubscription matches.
+            handled = _membership_handle_subscription_event(event_type, obj)
+            if not handled and event_type in ('customer.subscription.deleted', 'invoice.payment_failed'):
+                customer_id = obj.get('customer')
+                if customer_id:
+                    tenant = Tenant.objects.filter(stripe_customer_id=customer_id).first()
+                    if tenant:
+                        tenant.billing_status = 'canceled' if event_type == 'customer.subscription.deleted' else 'past_due'
+                        if event_type == 'customer.subscription.deleted':
+                            tenant.is_active = False
+                            tenant.save(update_fields=['billing_status', 'is_active', 'updated_at'])
+                        else:
+                            tenant.save(update_fields=['billing_status', 'updated_at'])
 
     return HttpResponse(status=200)
 
@@ -1157,7 +1285,9 @@ def stripe_tenant_webhook(request, tenant_slug):
         if event_type == 'checkout.session.completed':
             session = event['data']['object']
             metadata = session.get('metadata') or {}
-            if metadata.get('flow') == 'bundle_checkout':
+            if metadata.get('flow') == 'membership_checkout':
+                _membership_activate_from_checkout(session)
+            elif metadata.get('flow') == 'bundle_checkout':
                 bundle_id = metadata.get('bundle_id')
                 user_id = metadata.get('user_id')
                 if bundle_id and user_id:
@@ -1173,6 +1303,12 @@ def stripe_tenant_webhook(request, tenant_slug):
                             CourseAccess.objects.get_or_create(user=user, course=course)
                     except Exception:
                         pass
+
+        elif event_type in (
+            'customer.subscription.updated', 'customer.subscription.deleted',
+            'invoice.paid', 'invoice.payment_failed',
+        ):
+            _membership_handle_subscription_event(event_type, event['data']['object'])
 
     return HttpResponse(status=200)
 
@@ -1404,7 +1540,11 @@ def create_course_checkout_session(request, course_slug):
         coupon = get_session_coupon(request, tenant)
         if coupon and not coupon_applies_to_course(coupon, course):
             coupon = None
-        amount_cents = discounted_amount_cents(course.price, coupon)
+        # Active members pay the member price when one is set; coupons stack on top.
+        from .utils.membership import effective_course_price
+        base_price = effective_course_price(request.user, course)
+        is_member_price = base_price != course.price
+        amount_cents = discounted_amount_cents(base_price, coupon)
         if amount_cents <= 0:
             return JsonResponse({'success': False, 'error': 'Discounted price must be greater than zero.'}, status=400)
 
@@ -1413,6 +1553,8 @@ def create_course_checkout_session(request, course_slug):
         cancel_url = f"{base}/courses/{course.slug}/"
 
         product_description = course.short_description or 'Course access'
+        if is_member_price:
+            product_description = f'{product_description} (member price)'
         if coupon:
             product_description = f'{product_description} (coupon {coupon.code})'
 
@@ -1501,12 +1643,390 @@ def course_checkout_success(request, course_slug):
         if coupon_id and enrollment_created:
             Coupon.objects.filter(id=coupon_id, tenant=tenant).update(uses_count=models.F('uses_count') + 1)
             request.session.pop('active_coupon_id', None)
-        messages.success(request, f'Payment confirmed! You now have access to {course.name}.')
+
+        # Programme purchases can include complimentary membership.
+        membership_note = ''
+        if course.grants_membership_months:
+            from .utils.membership import grant_complimentary_membership
+            granted = grant_complimentary_membership(
+                request.user, course.tenant, course.grants_membership_months,
+            )
+            if granted:
+                membership_note = f' Includes {course.grants_membership_months} months of complimentary membership.'
+        messages.success(request, f'Payment confirmed! You now have access to {course.name}.{membership_note}')
         return redirect('course_detail', course_slug=course_slug)
 
     except Exception as exc:
         messages.error(request, f'Could not verify payment: {exc}')
         return redirect('course_detail', course_slug=course_slug)
+
+
+def _resolve_tenant_stripe_mode(tenant):
+    """
+    Return (config, use_own_keys, use_connect, error_message).
+    Mirrors the own-keys > Connect precedence used by course/bundle checkout.
+    """
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(
+        config and config.stripe_connect_account_id and config.stripe_connect_charges_enabled
+    )
+    if not use_own_keys and not use_connect:
+        return config, False, False, 'Payments are not configured for this academy.'
+    return config, use_own_keys, use_connect, ''
+
+
+@login_required
+@require_http_methods(["POST"])
+def create_membership_checkout_session(request, interval, tier_code=None):
+    """
+    Stripe subscription checkout for a tenant membership.
+
+    ``tier_code`` set  → tiered checkout for that MembershipTier (uses the tier's
+                          stored Stripe price when available).
+    ``tier_code`` None → legacy all-access checkout via MembershipPlan.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        return JsonResponse({'success': False, 'error': 'Tenant context missing.'}, status=400)
+
+    if interval not in ('month', 'year'):
+        return JsonResponse({'success': False, 'error': 'Invalid billing interval.'}, status=400)
+
+    # Resolve the offer: a specific tier, or the legacy all-access plan.
+    tier = None
+    if tier_code:
+        tier = MembershipTier.objects.filter(tenant=tenant, code=tier_code).first()
+        if not tier or not tier.is_available():
+            return JsonResponse({'success': False, 'error': 'That membership tier is not available.'}, status=400)
+        price = tier.price_for(interval)
+        offer_name = tier.name
+        offer_desc = tier.description or f'{tier.name} membership'
+    else:
+        plan = MembershipPlan.objects.filter(tenant=tenant).first()
+        if not plan or not plan.is_purchasable():
+            return JsonResponse({'success': False, 'error': 'Membership is not available for this academy.'}, status=400)
+        price = plan.monthly_price if interval == 'month' else plan.yearly_price
+        offer_name = plan.name
+        offer_desc = plan.description or 'All-access membership'
+
+    if not price:
+        return JsonResponse({'success': False, 'error': f'No {interval}ly price is configured.'}, status=400)
+
+    # Block duplicate active memberships.
+    from .utils.membership import get_active_subscription
+    if get_active_subscription(request.user, tenant) is not None:
+        return JsonResponse({'success': False, 'error': 'You already have an active membership.'}, status=400)
+
+    config, use_own_keys, use_connect, err = _resolve_tenant_stripe_mode(tenant)
+    if err:
+        return JsonResponse({'success': False, 'error': err}, status=400)
+
+    if use_own_keys:
+        stripe.api_key = config.stripe_own_secret_key.strip()
+    else:
+        if not _stripe_client_configured():
+            return JsonResponse({'success': False, 'error': 'Stripe is not configured.'}, status=500)
+
+    try:
+        from decimal import Decimal
+
+        # Prefer the tier's persistent Stripe Price; sync on demand, else fall
+        # back to inline price_data so checkout still works pre-sync.
+        stripe_price_id = ''
+        if tier is not None:
+            stripe_price_id = tier.stripe_price_id_for(interval)
+            if not stripe_price_id:
+                from .utils.membership_sync import sync_tier_prices
+                ok, _price_err = sync_tier_prices(tier)
+                if ok:
+                    tier.refresh_from_db()
+                    stripe_price_id = tier.stripe_price_id_for(interval)
+
+        if stripe_price_id:
+            line_item = {'price': stripe_price_id, 'quantity': 1}
+        else:
+            amount_cents = int((Decimal(str(price)) * 100).quantize(Decimal('1')))
+            if amount_cents <= 0:
+                return JsonResponse({'success': False, 'error': 'Membership price must be greater than zero.'}, status=400)
+            line_item = {
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {'name': offer_name, 'description': offer_desc},
+                    'unit_amount': amount_cents,
+                    'recurring': {'interval': interval},
+                },
+                'quantity': 1,
+            }
+
+        base = f"{request.scheme}://{request.get_host()}"
+        success_url = f"{base}/membership/checkout-success/?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{base}/courses/"
+
+        metadata = {
+            'flow': 'membership_checkout',
+            'tenant_id': str(tenant.id),
+            'user_id': str(request.user.id),
+            'interval': interval,
+        }
+        if tier is not None:
+            metadata['membership_tier_id'] = str(tier.id)
+            metadata['membership_tier_code'] = tier.code
+
+        session_kwargs = dict(
+            mode='subscription',
+            line_items=[line_item],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            client_reference_id=f"tenant:{tenant.id}:membership:user:{request.user.id}",
+            metadata=metadata,
+            # Stamp the subscription itself so it's self-describing for repair.
+            subscription_data={'metadata': dict(metadata)},
+        )
+        if request.user.email:
+            session_kwargs['customer_email'] = request.user.email
+        if use_connect:
+            session_kwargs['stripe_account'] = config.stripe_connect_account_id
+
+        session = stripe.checkout.Session.create(**session_kwargs)
+        return JsonResponse({'success': True, 'checkout_url': session.url})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+
+
+@login_required
+def membership_checkout_success(request):
+    """Verify a completed membership subscription on redirect and activate it."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.error(request, 'Unable to verify payment — no tenant context.')
+        return redirect('courses')
+
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing payment session — contact support if you were charged.')
+        return redirect('courses')
+
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(config and config.stripe_connect_account_id)
+
+    try:
+        retrieve_kwargs = {'expand': ['subscription']}
+        if use_own_keys:
+            stripe.api_key = config.stripe_own_secret_key.strip()
+        elif use_connect:
+            _stripe_client_configured()
+            retrieve_kwargs['stripe_account'] = config.stripe_connect_account_id
+        else:
+            _stripe_client_configured()
+
+        session = stripe.checkout.Session.retrieve(session_id, **retrieve_kwargs)
+
+        metadata = session.get('metadata') or {}
+        if metadata.get('flow') != 'membership_checkout' or metadata.get('tenant_id') != str(tenant.id):
+            messages.error(request, 'This payment session does not match this academy.')
+            return redirect('courses')
+
+        # Subscription may be an expanded object or an id.
+        stripe_sub = session.get('subscription')
+        sub_id, stripe_sub_obj = '', None
+        if isinstance(stripe_sub, dict):
+            stripe_sub_obj = stripe_sub
+            sub_id = stripe_sub.get('id', '')
+        elif stripe_sub:
+            sub_id = str(stripe_sub)
+
+        paid = session.get('payment_status') == 'paid' or (
+            stripe_sub_obj and stripe_sub_obj.get('status') in ('active', 'trialing')
+        )
+        if not paid:
+            messages.warning(request, 'Payment is not confirmed yet. Your membership will activate once payment clears.')
+            return redirect('courses')
+
+        interval = metadata.get('interval') or 'month'
+        subscription, _ = StudentSubscription.objects.get_or_create(
+            tenant=tenant, user=request.user,
+            defaults={'interval': interval},
+        )
+        subscription.interval = interval if interval in ('month', 'year') else subscription.interval
+        subscription.status = 'active'
+        subscription.stripe_subscription_id = sub_id or subscription.stripe_subscription_id
+        subscription.stripe_customer_id = session.get('customer') or subscription.stripe_customer_id
+        subscription.is_complimentary = False
+        subscription.canceled_at = None
+
+        tier_id = metadata.get('membership_tier_id')
+        tier = MembershipTier.objects.filter(id=tier_id, tenant=tenant).first() if tier_id else None
+        if tier is not None:
+            subscription.access_mode = 'tiered'
+            subscription.tier = tier
+        else:
+            subscription.access_mode = 'all_access'
+            subscription.tier = None
+
+        if stripe_sub_obj:
+            from .utils.membership import sync_subscription_from_stripe
+            sync_subscription_from_stripe(subscription, stripe_sub_obj)
+            subscription.status = 'active'
+        subscription.save()
+
+        messages.success(request, f'Welcome aboard! Your {tenant.name} membership is now active.')
+        return redirect('courses')
+
+    except Exception as exc:
+        messages.error(request, f'Could not verify payment: {exc}')
+        return redirect('courses')
+
+
+@login_required
+def membership_billing_portal(request):
+    """Open a Stripe Customer Portal so a member can manage/cancel their membership."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.error(request, 'No tenant context.')
+        return redirect('courses')
+
+    subscription = StudentSubscription.objects.filter(tenant=tenant, user=request.user).first()
+    if not subscription or not subscription.stripe_customer_id:
+        messages.info(request, 'No billing account found for your membership.')
+        return redirect('courses')
+
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(config and config.stripe_connect_account_id)
+
+    try:
+        base = f"{request.scheme}://{request.get_host()}"
+        portal_kwargs = dict(
+            customer=subscription.stripe_customer_id,
+            return_url=f"{base}/membership/billing-return/",
+        )
+        if use_own_keys:
+            stripe.api_key = config.stripe_own_secret_key.strip()
+        elif use_connect:
+            _stripe_client_configured()
+            portal_kwargs['stripe_account'] = config.stripe_connect_account_id
+        else:
+            _stripe_client_configured()
+
+        portal = stripe.billing_portal.Session.create(**portal_kwargs)
+        return redirect(portal.url)
+    except Exception as exc:
+        messages.error(request, f'Could not open billing portal: {exc}')
+        return redirect('courses')
+
+
+@login_required
+def membership_billing_return(request):
+    """
+    Landing point after a member returns from the Stripe billing portal.
+
+    Pulls the subscription fresh from Stripe so any change made in the portal
+    (cancel, payment method fix, plan switch) is reflected immediately instead
+    of waiting for a webhook that might lag or be missed for Connect tenants.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        return redirect('courses')
+
+    subscription = StudentSubscription.objects.filter(tenant=tenant, user=request.user).first()
+    if subscription:
+        from .utils.membership_sync import pull_subscription_from_stripe
+        changed, err = pull_subscription_from_stripe(subscription)
+        if not err and subscription.status == 'canceled':
+            messages.info(request, 'Your membership has been canceled.')
+
+    return redirect('courses')
+
+
+def _membership_cta_context(request, tenant, user):
+    """
+    Shared context for student-facing membership CTAs.
+
+    Returns:
+      membership_offer   dict|None  — the legacy all-access plan (if purchasable)
+      membership_active  bool       — user has an access-granting subscription
+      membership_tiers   list       — available tier cards (empty if none)
+      current_tier_name  str|None   — the member's current tier
+      membership_upgrade_available  bool — a higher-rank tier exists to upsell
+    """
+    empty = {
+        'membership_offer': None, 'membership_active': False,
+        'membership_tiers': [], 'current_tier_name': None,
+        'membership_upgrade_available': False,
+    }
+    if tenant is None:
+        return empty
+
+    plan = getattr(tenant, 'membership_plan', None)
+    if plan is None:
+        plan = MembershipPlan.objects.filter(tenant=tenant).first()
+
+    config = getattr(tenant, 'config', None)
+    stripe_ready = bool(
+        config and (
+            config.stripe_own_secret_key
+            or (config.stripe_connect_account_id and config.stripe_connect_charges_enabled)
+        )
+    )
+    if not stripe_ready:
+        return empty
+
+    from .utils.membership import get_active_subscription, tier_course_ids
+
+    sub = get_active_subscription(user, tenant) if user.is_authenticated else None
+    membership_active = sub is not None
+
+    available_tiers = [
+        t for t in MembershipTier.objects.filter(
+            tenant=tenant, is_archived=False, is_purchasable=True,
+        ).order_by('rank', 'id')
+        if (t.monthly_price or t.yearly_price)
+    ]
+
+    tier_cards = []
+    for t in available_tiers:
+        try:
+            course_count = None if t.includes_all else len(tier_course_ids(t))
+        except Exception:
+            course_count = None
+        tier_cards.append({
+            'code': t.code,
+            'name': t.name,
+            'description': t.description,
+            'monthly_price': t.monthly_price,
+            'yearly_price': t.yearly_price,
+            'includes_all': t.includes_all,
+            'course_count': course_count,
+            'rank': t.rank,
+        })
+
+    plan_offer = None
+    if plan is not None and plan.is_purchasable():
+        plan_offer = {
+            'name': plan.name,
+            'description': plan.description,
+            'monthly_price': plan.monthly_price,
+            'yearly_price': plan.yearly_price,
+        }
+
+    if plan_offer is None and not tier_cards:
+        return empty
+
+    current_tier_name = sub.tier.name if (sub and sub.tier_id) else None
+    current_rank = sub.tier.rank if (sub and sub.tier_id) else None
+    upgrade_available = bool(
+        current_rank is not None and any(t.rank > current_rank for t in available_tiers)
+    )
+
+    return {
+        'membership_offer': plan_offer,
+        'membership_active': membership_active,
+        'membership_tiers': tier_cards,
+        'current_tier_name': current_tier_name,
+        'membership_upgrade_available': upgrade_available,
+    }
 
 
 @ensure_csrf_cookie
@@ -1653,16 +2173,82 @@ def force_password_change(request):
     return render(request, 'force_password_change.html')
 
 
+def _registration_intent(request):
+    """Read a purchase intent (membership plan / programme / next URL) that a
+    landing page may pass into registration, from either GET or the carried
+    POST hidden fields."""
+    return {
+        'plan': (request.POST.get('plan') or request.GET.get('plan') or '').strip(),
+        'course': (request.POST.get('course') or request.GET.get('course') or '').strip(),
+        'next': (request.POST.get('next') or request.GET.get('next') or '').strip(),
+    }
+
+
+def _register_offerings(tenant):
+    """Membership + paid programmes to surface on the registration page so a new
+    student can see (and pre-select) what they can join. Returns (offer, programs)
+    where either may be empty when the tenant sells nothing."""
+    if tenant is None:
+        return None, []
+
+    plan = MembershipPlan.objects.filter(tenant=tenant).first()
+    membership_offer = None
+    if plan and plan.is_purchasable():
+        membership_offer = {
+            'name': plan.name,
+            'monthly_price': plan.monthly_price,
+            'yearly_price': plan.yearly_price,
+        }
+
+    programs = list(
+        Course.objects.filter(tenant=tenant, price__isnull=False, price__gt=0)
+        .exclude(visibility='hidden')
+        .order_by('display_order', 'name')
+        .values('name', 'slug', 'price', 'member_price', 'status')
+    )
+    return membership_offer, programs
+
+
+def _post_auth_redirect(request, tenant):
+    """Where to send a user after they authenticate, honoring any registration
+    intent so the journey started on the landing page continues (e.g. straight
+    into membership checkout, or back to the programme they wanted to buy)."""
+    from django.urls import reverse
+    from django.utils.http import url_has_allowed_host_or_scheme
+
+    intent = _registration_intent(request)
+
+    interval = {
+        'month': 'month', 'monthly': 'month',
+        'year': 'year', 'yearly': 'year', 'annual': 'year', 'annually': 'year',
+    }.get(intent['plan'].lower())
+    if interval:
+        return f"{reverse('courses')}?start_membership={interval}"
+
+    if intent['course'] and tenant is not None:
+        if Course.objects.filter(tenant=tenant, slug=intent['course']).exists():
+            return reverse('course_detail', args=[intent['course']])
+
+    next_url = intent['next']
+    if next_url and url_has_allowed_host_or_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+    ):
+        return next_url
+
+    return reverse('courses')
+
+
 @ensure_csrf_cookie
 def register_view(request):
     """
     Tenant-aware self-registration.
     New users are attached to the tenant resolved from the request domain.
     """
-    if request.user.is_authenticated:
-        return redirect('courses')
-
     tenant = getattr(request, 'tenant', None)
+
+    if request.user.is_authenticated:
+        return redirect(_post_auth_redirect(request, tenant))
+
     if tenant is None:
         messages.info(request, 'Create your academy first, then students can register on that tenant domain.')
         return redirect('start_academy')
@@ -1677,7 +2263,12 @@ def register_view(request):
             rendered = _render_tenant_custom_html(request, tenant, custom_pages.get('signup_html'))
             if rendered is not None:
                 return rendered
-        return render(request, 'register.html')
+        membership_offer, programs = _register_offerings(tenant)
+        return render(request, 'register.html', {
+            'intent': _registration_intent(request),
+            'membership_offer': membership_offer,
+            'programs': programs,
+        })
 
     if request.method == 'POST':
         username = (request.POST.get('username') or '').strip()
@@ -1719,7 +2310,7 @@ def register_view(request):
             )
         else:
             messages.success(request, f'Welcome to {tenant.name}. Your account has been created.')
-        return redirect('courses')
+        return redirect(_post_auth_redirect(request, tenant))
 
     return _render_register_page()
 
@@ -1770,7 +2361,7 @@ def _courses_guest(request):
         courses_qs = courses_qs.order_by('display_order', 'name', '-created_at')
     courses_list = list(courses_qs)
     courses_data = [{'course': c, 'has_any_progress': False, 'progress_percentage': 0, 'is_favorited': False} for c in courses_list]
-    return render(request, 'learning_hub.html', {
+    context = {
         'my_courses': [],
         'available_to_unlock': [],
         'courses_data': courses_data,
@@ -1786,7 +2377,9 @@ def _courses_guest(request):
         'search_query': search_query,
         'guest_catalog': courses_data,
         'is_guest_view': True,
-    })
+    }
+    context.update(_membership_cta_context(request, tenant, request.user))
+    return render(request, 'learning_hub.html', context)
 
 
 def _courses_authenticated(request):
@@ -2008,7 +2601,7 @@ def _courses_authenticated(request):
     in_progress = [c for c in my_courses_data if c['has_any_progress']]
     not_started = [c for c in my_courses_data if not c['has_any_progress']]
 
-    return render(request, 'learning_hub.html', {
+    context = {
         'my_courses': my_courses_data,
         'in_progress_courses': in_progress,
         'not_started_courses': not_started,
@@ -2029,7 +2622,9 @@ def _courses_authenticated(request):
         'search_query': search_query,
         'guest_catalog': None,
         'is_guest_view': False,
-    })
+    }
+    context.update(_membership_cta_context(request, tenant, user))
+    return render(request, 'learning_hub.html', context)
 
 
 @login_required
@@ -2207,12 +2802,16 @@ def course_detail(request, course_slug):
     )
     can_purchase = bool(course.price and stripe_ready and prereqs_met)
 
+    from .utils.membership import effective_course_price
+    display_price = effective_course_price(user, course)
+    member_price_applies = bool(course.member_price is not None and display_price != course.price)
+
     tenant = getattr(course, 'tenant', None) or getattr(request, 'tenant', None)
     language_config = get_tenant_language_config(tenant)
     active_language = get_request_language(request, tenant)
     lesson_display_titles = build_lesson_title_map(ordered_lessons, active_language)
 
-    return render(request, 'course_detail.html', {
+    context = {
         'course': course,
         'has_access': has_access,
         'can_self_enroll': can_self_enroll,
@@ -2221,6 +2820,8 @@ def course_detail(request, course_slug):
         'bundles': bundles,
         'can_purchase': can_purchase,
         'stripe_ready': stripe_ready,
+        'display_price': display_price,
+        'member_price_applies': member_price_applies,
         'syllabus': syllabus,
         'first_lesson': first_lesson,
         'continue_lesson': continue_lesson,
@@ -2231,7 +2832,9 @@ def course_detail(request, course_slug):
         'show_language_switcher': show_language_switcher(tenant, language_config),
         'language_labels': LANGUAGE_LABELS,
         'lesson_display_titles': lesson_display_titles,
-    })
+    }
+    context.update(_membership_cta_context(request, tenant, user))
+    return render(request, 'course_detail.html', context)
 
 
 @login_required

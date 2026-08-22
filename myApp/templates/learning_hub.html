@@ -689,6 +689,110 @@
 
 <div class="hub-page">
 
+{% if membership_offer or membership_active or membership_tiers %}
+<style>
+    .membership-banner {
+        display: flex; align-items: center; justify-content: space-between; gap: 24px;
+        flex-wrap: wrap; margin-bottom: 32px; padding: 22px 26px; border-radius: 16px;
+        background: linear-gradient(120deg, rgba(123,63,228,.18), rgba(26,107,255,.14));
+        border: 1px solid rgba(123,63,228,.35);
+    }
+    .mb-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #a855f7; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .mb-title { font-family: 'Barlow','DM Sans',sans-serif; font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 4px; }
+    .brand-theme-light .mb-title { color: #0f172a; }
+    .mb-desc { font-size: 13px; color: var(--muted); max-width: 520px; line-height: 1.5; }
+    .mb-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .mb-btn { border: none; cursor: pointer; font-size: 14px; font-weight: 700; padding: 11px 20px; border-radius: 99px; background: #7B3FE4; color: #fff; transition: transform .12s, filter .12s; text-decoration: none; display: inline-flex; align-items: center; }
+    .mb-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .mb-btn-alt { background: transparent; border: 1px solid rgba(123,63,228,.5); color: #a855f7; }
+    .brand-theme-light .mb-btn-alt { color: #7B3FE4; }
+    .mb-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .mb-tier { padding: 20px; border-radius: 16px; background: rgba(10,14,39,.5); border: 1px solid rgba(123,63,228,.28); display: flex; flex-direction: column; }
+    .mb-tier h3 { font-family: 'Barlow','DM Sans',sans-serif; font-size: 18px; font-weight: 800; color: #fff; margin: 0 0 4px; }
+    .brand-theme-light .mb-tier h3 { color: #0f172a; }
+    .mb-tier .mb-tier-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; min-height: 34px; }
+    .mb-tier .mb-tier-price { font-size: 13px; color: #a855f7; font-weight: 700; margin-bottom: 12px; }
+    .mb-tier .mb-actions { margin-top: auto; }
+    .mb-current { font-size: 12px; font-weight: 700; color: #22c55e; }
+</style>
+{% endif %}
+
+{% if membership_active %}
+<div class="membership-banner reveal">
+    <div class="mb-copy">
+        <div class="mb-eyebrow"><i class="fas fa-id-card" style="font-size:10px;"></i> Membership</div>
+        <div class="mb-title">{% if current_tier_name %}You're on {{ current_tier_name }}{% else %}You're a member{% endif %}</div>
+        <p class="mb-desc">{% if current_tier_name %}Your {{ current_tier_name }} membership is active.{% else %}Your subscription unlocks the full catalog.{% endif %}{% if membership_upgrade_available %} Upgrade below for more courses.{% endif %}</p>
+    </div>
+    <div class="mb-actions">
+        <a href="{% url 'membership_billing_portal' %}" class="mb-btn mb-btn-alt">Manage membership</a>
+    </div>
+</div>
+{% if membership_upgrade_available and membership_tiers %}
+<div class="mb-tiers reveal">
+    {% for tier in membership_tiers %}
+    <div class="mb-tier">
+        <h3>{{ tier.name }} {% if tier.name == current_tier_name %}<span class="mb-current">· current</span>{% endif %}</h3>
+        <div class="mb-tier-meta">{{ tier.description|default:'' }}{% if tier.includes_all %} Full catalog access.{% elif tier.course_count %} {{ tier.course_count }} course{{ tier.course_count|pluralize }}.{% endif %}</div>
+        <div class="mb-tier-price">
+            {% if tier.monthly_price %}${{ tier.monthly_price }}/mo{% endif %}{% if tier.monthly_price and tier.yearly_price %} · {% endif %}{% if tier.yearly_price %}${{ tier.yearly_price }}/yr{% endif %}
+        </div>
+        <div class="mb-actions">
+            {% if tier.name == current_tier_name %}
+                <span class="mb-btn mb-btn-alt" style="cursor:default;opacity:.6;">Current plan</span>
+            {% else %}
+                {% if tier.monthly_price %}<button type="button" class="mb-btn" onclick="startMembershipCheckout('month', this, '{{ tier.code }}')">Switch · ${{ tier.monthly_price }}/mo</button>{% endif %}
+                {% if tier.yearly_price %}<button type="button" class="mb-btn mb-btn-alt" onclick="startMembershipCheckout('year', this, '{{ tier.code }}')">${{ tier.yearly_price }}/yr</button>{% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% elif membership_tiers %}
+<div class="mb-tiers reveal">
+    {% for tier in membership_tiers %}
+    <div class="mb-tier">
+        <h3>{{ tier.name }}</h3>
+        <div class="mb-tier-meta">{{ tier.description|default:'' }}{% if tier.includes_all %} Full catalog access.{% elif tier.course_count %} {{ tier.course_count }} course{{ tier.course_count|pluralize }}.{% endif %}</div>
+        <div class="mb-tier-price">
+            {% if tier.monthly_price %}${{ tier.monthly_price }}/mo{% endif %}{% if tier.monthly_price and tier.yearly_price %} · {% endif %}{% if tier.yearly_price %}${{ tier.yearly_price }}/yr{% endif %}
+        </div>
+        <div class="mb-actions">
+            {% if request.user.is_authenticated %}
+                {% if tier.monthly_price %}<button type="button" class="mb-btn" onclick="startMembershipCheckout('month', this, '{{ tier.code }}')">${{ tier.monthly_price }}/mo</button>{% endif %}
+                {% if tier.yearly_price %}<button type="button" class="mb-btn mb-btn-alt" onclick="startMembershipCheckout('year', this, '{{ tier.code }}')">${{ tier.yearly_price }}/yr</button>{% endif %}
+            {% else %}
+                <a href="{% url 'login' %}?next={{ request.path }}" class="mb-btn">Log in to subscribe</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% elif membership_offer %}
+<div class="membership-banner reveal">
+    <div class="mb-copy">
+        <div class="mb-eyebrow"><i class="fas fa-id-card" style="font-size:10px;"></i> All-Access Membership</div>
+        <div class="mb-title">{{ membership_offer.name }}</div>
+        <p class="mb-desc">{{ membership_offer.description|default:"Unlock every course with a single subscription." }}</p>
+    </div>
+    <div class="mb-actions">
+        {% if request.user.is_authenticated %}
+            {% if membership_offer.monthly_price %}
+            <button type="button" class="mb-btn" onclick="startMembershipCheckout('month', this)">${{ membership_offer.monthly_price }}/mo</button>
+            {% endif %}
+            {% if membership_offer.yearly_price %}
+            <button type="button" class="mb-btn mb-btn-alt" onclick="startMembershipCheckout('year', this)">${{ membership_offer.yearly_price }}/yr</button>
+            {% endif %}
+        {% else %}
+            <a href="{% url 'login' %}?next={{ request.path }}" class="mb-btn">Log in to subscribe</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 {% if is_guest_view %}
     <!-- ═══════════════════════════════════════
          GUEST: COURSE CATALOG
@@ -1143,6 +1247,43 @@ async function startCourseCheckout(slug) {
         window.location.href = data.checkout_url;
     } catch(e) { alert('Unable to start checkout. Please try again.'); }
 }
+
+async function startMembershipCheckout(interval, btn, tierCode) {
+    const original = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting…'; }
+    try {
+        const url = tierCode
+            ? `/membership/checkout/${tierCode}/${interval}/`
+            : `/membership/checkout/${interval}/`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert(data.error || 'Unable to start checkout.');
+            if (btn) { btn.disabled = false; btn.innerHTML = original; }
+            return;
+        }
+        window.location.href = data.checkout_url;
+    } catch(e) {
+        alert('Unable to start checkout. Please try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    }
+}
+
+{% if request.user.is_authenticated %}
+// Continue a membership journey started on the landing/registration page:
+// /courses/?start_membership=month|year auto-opens Stripe checkout once.
+document.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    const sm = params.get('start_membership');
+    if (sm === 'month' || sm === 'year') {
+        history.replaceState({}, document.title, window.location.pathname);
+        startMembershipCheckout(sm, null);
+    }
+});
+{% endif %}
 </script>
 
 {% endblock %}

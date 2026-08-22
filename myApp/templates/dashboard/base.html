@@ -459,6 +459,14 @@
                             <i class="fas fa-gift nav-icon"></i>
                             <span>Bundles</span>
                         </a>
+                        <a href="{% url 'dashboard_membership' %}" class="nav-item {% if 'membership' in cur %}is-active{% endif %}">
+                            <i class="fas fa-id-card nav-icon"></i>
+                            <span>Membership</span>
+                        </a>
+                        <a href="{% url 'dashboard_programs' %}" class="nav-item {% if cur == 'dashboard_programs' %}is-active{% endif %}">
+                            <i class="fas fa-graduation-cap nav-icon"></i>
+                            <span>Programs</span>
+                        </a>
                         <a href="{% url 'dashboard_coupons' %}" class="nav-item {% if 'coupon' in cur %}is-active{% endif %}">
                             <i class="fas fa-ticket nav-icon"></i>
                             <span>Coupons</span>

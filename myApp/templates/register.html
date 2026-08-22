@@ -512,6 +512,60 @@
 
         .signin-link:hover { gap: 6px; }
 
+        /* Offerings (membership + programmes) */
+        .offerings { margin: 22px 0 4px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 18px; }
+        .offerings-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+        .offerings-title { font-size: 0.9rem; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; }
+        .offerings-hint { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+
+        /* Membership block */
+        .offer-membership { border: 1px solid rgba(15,23,42,0.10); border-radius: 14px; padding: 14px; margin-bottom: 12px;
+            background: linear-gradient(180deg, rgba(37,99,235,0.035), rgba(37,99,235,0) 70%); }
+        .offer-membership-top { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+        .offer-badge { align-self: flex-start; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+            color: #1d4ed8; background: rgba(37,99,235,0.10); padding: 3px 8px; border-radius: 999px; margin-bottom: 4px; }
+        .offer-membership-name { font-size: 0.95rem; color: #0f172a; font-weight: 700; }
+        .offer-membership-sub { font-size: 0.74rem; color: #64748b; }
+        .plan-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .plan-opt { position: relative; text-align: left; display: flex; flex-direction: column; gap: 2px;
+            border: 1.5px solid rgba(15,23,42,0.12); background: #fff; border-radius: 11px; padding: 11px 12px;
+            cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease; }
+        .plan-opt:hover { border-color: rgba(37,99,235,0.45); }
+        .plan-opt.is-selected { border-color: #2563eb; background: rgba(37,99,235,0.06); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+        .plan-opt-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+        .plan-opt-price { font-size: 1.15rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+        .plan-opt-price em { font-size: 0.72rem; font-weight: 600; color: #94a3b8; font-style: normal; }
+        .plan-opt-flag { position: absolute; top: -9px; right: 10px; font-size: 0.58rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.05em; color: #fff; background: #16a34a; padding: 2px 7px; border-radius: 999px; }
+
+        /* Programmes */
+        .offer-programs-head { margin-bottom: 8px; }
+        .offer-programs-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+        .program-scroll { display: flex; flex-direction: column; gap: 6px; max-height: 216px; overflow-y: auto;
+            padding-right: 4px; margin-right: -4px; }
+        .program-scroll::-webkit-scrollbar { width: 6px; }
+        .program-scroll::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.15); border-radius: 3px; }
+        .program-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+            border: 1.5px solid rgba(15,23,42,0.08); background: #fff; border-radius: 10px; padding: 9px 11px;
+            cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+        .program-row:hover { border-color: rgba(37,99,235,0.35); background: rgba(37,99,235,0.02); }
+        .program-row.is-selected { border-color: #2563eb; background: rgba(37,99,235,0.06); }
+        .program-check { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(15,23,42,0.2);
+            transition: all 0.15s ease; position: relative; }
+        .program-row.is-selected .program-check { border-color: #2563eb; background: #2563eb; }
+        .program-row.is-selected .program-check::after { content: ''; position: absolute; left: 4px; top: 1px;
+            width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .program-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; }
+        .program-name { font-size: 0.8rem; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .program-tag { flex: 0 0 auto; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+            color: #b45309; background: rgba(245,158,11,0.14); padding: 2px 6px; border-radius: 5px; }
+        .program-price { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end;
+            font-size: 0.82rem; font-weight: 700; color: #0f172a; white-space: nowrap; }
+        .program-member { font-size: 0.62rem; font-weight: 600; color: #2563eb; }
+        .offer-selected { margin: 12px 0 0; font-size: 0.76rem; font-weight: 500; color: #1d4ed8;
+            background: rgba(37,99,235,0.07); border-radius: 9px; padding: 9px 12px; display: flex; align-items: center; gap: 7px; }
+        .offer-selected::before { content: '✓'; font-weight: 800; }
+
         @media (max-width: 1024px) {
             .page { grid-template-columns: 1fr; }
             .brand-panel { padding: 40px 36px 32px; }
@@ -617,6 +671,9 @@
 
                 <form method="post" novalidate>
                     {% csrf_token %}
+                    <input type="hidden" name="plan" id="intent_plan" value="{{ intent.plan }}">
+                    <input type="hidden" name="course" id="intent_course" value="{{ intent.course }}">
+                    {% if intent.next %}<input type="hidden" name="next" value="{{ intent.next }}">{% endif %}
 
                     <div class="field-row">
                         <div class="field">
@@ -681,8 +738,65 @@
                         </div>
                     </div>
 
+                    {% if membership_offer or programs %}
+                    <div class="offerings">
+                        <div class="offerings-head">
+                            <span class="offerings-title">Choose what to start with</span>
+                            <span class="offerings-hint">Optional</span>
+                        </div>
+
+                        {% if membership_offer %}
+                        <div class="offer-membership">
+                            <div class="offer-membership-top">
+                                <span class="offer-badge">Membership</span>
+                                <strong class="offer-membership-name">{{ membership_offer.name|default:"Academy Membership" }}</strong>
+                                <span class="offer-membership-sub">Ongoing access &amp; member benefits</span>
+                            </div>
+                            <div class="plan-toggle">
+                                {% if membership_offer.monthly_price %}
+                                <button type="button" class="plan-opt" data-plan="monthly" onclick="selectPlan('monthly', this)">
+                                    <span class="plan-opt-label">Monthly</span>
+                                    <span class="plan-opt-price">${{ membership_offer.monthly_price }}<em>/mo</em></span>
+                                </button>
+                                {% endif %}
+                                {% if membership_offer.yearly_price %}
+                                <button type="button" class="plan-opt" data-plan="annual" onclick="selectPlan('annual', this)">
+                                    <span class="plan-opt-flag">Best value</span>
+                                    <span class="plan-opt-label">Annual</span>
+                                    <span class="plan-opt-price">${{ membership_offer.yearly_price }}<em>/yr</em></span>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if programs %}
+                        <div class="offer-programs">
+                            <div class="offer-programs-head">
+                                <span class="offer-programs-label">Or a single programme</span>
+                            </div>
+                            <div class="program-scroll">
+                                {% for p in programs %}
+                                <button type="button" class="program-row" data-course="{{ p.slug }}"
+                                    onclick="selectCourse('{{ p.slug }}', this)">
+                                    <span class="program-check" aria-hidden="true"></span>
+                                    <span class="program-main">
+                                        <span class="program-name">{{ p.name }}</span>
+                                        {% if p.status == 'coming_soon' %}<span class="program-tag">Coming soon</span>{% endif %}
+                                    </span>
+                                    <span class="program-price">${{ p.price }}{% if p.member_price %}<span class="program-member">member ${{ p.member_price }}</span>{% endif %}</span>
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <p class="offer-selected" id="offer-selected" style="display:none;"></p>
+                    </div>
+                    {% endif %}
+
                     <button type="submit" class="btn-submit">
-                        Create account
+                        <span id="submit-label">Create account</span>
                         <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M3 8h10M9 4l4 4-4 4"/>
                         </svg>
@@ -708,6 +822,65 @@
     </main>
 
     <script>
+        function _clearSelected(selector) {
+            document.querySelectorAll(selector).forEach(function(el){ el.classList.remove('is-selected'); });
+        }
+        function _announce(text) {
+            var el = document.getElementById('offer-selected');
+            if (!el) return;
+            if (text) { el.textContent = text; el.style.display = ''; }
+            else { el.textContent = ''; el.style.display = 'none'; }
+        }
+        function _setSubmitLabel(text) {
+            var el = document.getElementById('submit-label');
+            if (el) el.textContent = text || 'Create account';
+        }
+        function selectPlan(plan, btn) {
+            var planInput = document.getElementById('intent_plan');
+            var courseInput = document.getElementById('intent_course');
+            var already = planInput.value === plan;
+            _clearSelected('.plan-opt'); _clearSelected('.program-row');
+            if (courseInput) courseInput.value = '';
+            if (already) { planInput.value = ''; _announce(''); _setSubmitLabel(''); return; }
+            planInput.value = plan;
+            if (btn) btn.classList.add('is-selected');
+            var word = plan === 'annual' ? 'annual' : 'monthly';
+            _announce('After signup we\u2019ll open ' + word + ' membership checkout.');
+            _setSubmitLabel('Create account & join ' + word);
+        }
+        function selectCourse(slug, btn) {
+            var planInput = document.getElementById('intent_plan');
+            var courseInput = document.getElementById('intent_course');
+            var already = courseInput.value === slug;
+            _clearSelected('.plan-opt'); _clearSelected('.program-row');
+            if (planInput) planInput.value = '';
+            if (already) { courseInput.value = ''; _announce(''); _setSubmitLabel(''); return; }
+            courseInput.value = slug;
+            if (btn) btn.classList.add('is-selected');
+            var name = btn ? btn.querySelector('.program-name').textContent.trim() : 'the programme';
+            _announce('After signup we\u2019ll take you to ' + name + '.');
+            _setSubmitLabel('Create account & continue');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var plan = (document.getElementById('intent_plan') || {}).value;
+            var course = (document.getElementById('intent_course') || {}).value;
+            if (plan) {
+                var pb = document.querySelector('.plan-opt[data-plan="' + plan + '"]');
+                if (pb) pb.classList.add('is-selected');
+                var word = plan === 'annual' ? 'annual' : 'monthly';
+                _announce('After signup we\u2019ll open ' + word + ' membership checkout.');
+                _setSubmitLabel('Create account & join ' + word);
+            } else if (course) {
+                var cb = document.querySelector('.program-row[data-course="' + course + '"]');
+                if (cb) {
+                    cb.classList.add('is-selected');
+                    _announce('After signup we\u2019ll take you to ' + cb.querySelector('.program-name').textContent.trim() + '.');
+                    _setSubmitLabel('Create account & continue');
+                }
+            }
+        });
+
         function togglePw(id, btn) {
             const input = document.getElementById(id);
             const hide = input.type === 'password';

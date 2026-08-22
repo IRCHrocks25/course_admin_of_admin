@@ -106,6 +106,15 @@
   .cd-empty { text-align: center; }
   .cd-empty p { font-size: 13px; color: #64748b; margin-bottom: 1rem; }
 
+  .cd-price-was { text-decoration: line-through; opacity: .6; }
+  .cd-price-perk { display: inline-flex; align-items: center; gap: 5px; margin-top: .5rem; font-size: 11px; font-weight: 600; color: #a855f7; }
+
+  /* Membership CTA */
+  .cd-membership { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.08); }
+  .cd-membership-title { font-size: 12px; font-weight: 700; letter-spacing: .02em; color: #a855f7; text-transform: uppercase; margin-bottom: .25rem; }
+  .cd-membership-desc { font-size: 12px; color: #64748b; margin-bottom: .75rem; }
+  .cd-membership-btn { margin-bottom: 6px; }
+
   /* Syllabus */
   .cd-syllabus { margin-top: 2rem; }
   .cd-syllabus-label { font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: #38bdf8; margin-bottom: .9rem; }
@@ -290,11 +299,22 @@
           <!-- Price -->
           <div class="cd-price-block">
             {% if course.price %}
-              <div class="cd-price-amount">${{ course.price }}<span class="cd-price-currency"> USD</span></div>
-              <div class="cd-price-note">One-time payment &middot; Lifetime access</div>
+              {% if member_price_applies %}
+                <div class="cd-price-amount">${{ display_price }}<span class="cd-price-currency"> USD</span></div>
+                <div class="cd-price-note"><span class="cd-price-was">${{ course.price }}</span> &middot; Member price</div>
+              {% else %}
+                <div class="cd-price-amount">${{ course.price }}<span class="cd-price-currency"> USD</span></div>
+                <div class="cd-price-note">One-time payment &middot; Lifetime access</div>
+                {% if course.member_price and membership_offer %}
+                <div class="cd-price-note">Members pay ${{ course.member_price }}</div>
+                {% endif %}
+              {% endif %}
             {% else %}
               <div class="cd-free">Free</div>
               <div class="cd-price-note">No payment required</div>
+            {% endif %}
+            {% if course.grants_membership_months %}
+            <div class="cd-price-perk"><i class="fas fa-id-card" style="font-size:10px;"></i> Includes {{ course.grants_membership_months }} months membership</div>
             {% endif %}
           </div>
 
@@ -322,12 +342,12 @@
             {% if user.is_authenticated %}
               <button id="btn-buy-course" onclick="startCourseCheckout('{{ course.slug }}')" class="cd-btn-primary">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg>
-                Buy now — ${{ course.price }}
+                Buy now — ${{ display_price }}
               </button>
             {% else %}
               <a href="{% url 'login' %}?next={{ request.path }}" class="cd-btn-primary">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 8H3m5-3l3 3-3 3"/><rect x="2" y="2" width="8" height="12" rx="1.5"/></svg>
-                Log in to buy — ${{ course.price }}
+                Log in to buy — ${{ display_price }}
               </a>
             {% endif %}
 
@@ -369,6 +389,29 @@
             </div>
           {% endif %}
 
+          {% if membership_offer and not membership_active and course.included_in_membership %}
+          <div class="cd-membership">
+            <div class="cd-membership-title">Or get all-access</div>
+            <p class="cd-membership-desc">Unlock this and every included course with a membership.</p>
+            {% if user.is_authenticated %}
+              {% if membership_offer.monthly_price %}
+              <button type="button" onclick="startMembershipCheckout('month', this)" class="cd-btn-outline cd-membership-btn">
+                Subscribe monthly — ${{ membership_offer.monthly_price }}/mo
+              </button>
+              {% endif %}
+              {% if membership_offer.yearly_price %}
+              <button type="button" onclick="startMembershipCheckout('year', this)" class="cd-btn-outline cd-membership-btn">
+                Subscribe yearly — ${{ membership_offer.yearly_price }}/yr
+              </button>
+              {% endif %}
+            {% else %}
+              <a href="{% url 'login' %}?next={{ request.path }}" class="cd-btn-outline cd-membership-btn">
+                Log in to subscribe
+              </a>
+            {% endif %}
+          </div>
+          {% endif %}
+
         {% endif %}
 
       </div>
@@ -395,7 +438,7 @@ async function startCourseCheckout(slug) {
       alert(data.error || 'Unable to start checkout. Please try again.');
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg> Buy now — ${{ course.price }}';
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg> Buy now — ${{ display_price }}';
       }
       return;
     }
@@ -404,7 +447,7 @@ async function startCourseCheckout(slug) {
     alert('Unable to start checkout. Please try again.');
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg> Buy now — ${{ course.price }}';
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="12" height="9" rx="1.5"/><path d="M5 5V4a3 3 0 016 0v1"/></svg> Buy now — ${{ display_price }}';
     }
   }
 }
@@ -420,6 +463,27 @@ async function startBundleCheckout(bundleId) {
     window.location.href = data.checkout_url;
   } catch (e) {
     alert('Unable to start checkout.');
+  }
+}
+
+async function startMembershipCheckout(interval, btn) {
+  const original = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting…'; }
+  try {
+    const res = await fetch(`/membership/checkout/${interval}/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alert(data.error || 'Unable to start checkout.');
+      if (btn) { btn.disabled = false; btn.innerHTML = original; }
+      return;
+    }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    alert('Unable to start checkout.');
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
   }
 }
 </script>

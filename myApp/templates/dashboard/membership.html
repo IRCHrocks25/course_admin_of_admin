@@ -1,0 +1,393 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Membership{% endblock %}
+{% block page_title %}All-Access Membership{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-8">
+
+    <p class="text-sm text-gray-400">
+        Offer students a recurring subscription that unlocks your catalog. The base
+        plan below is your simple all-access membership. Add <strong>tiers</strong>
+        further down to sell different course sets at different prices (e.g. Starter,
+        Pro, All-Access). Individual course and bundle sales stay available alongside.
+    </p>
+
+    {% if not stripe_ready %}
+    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-200">
+        <i class="fas fa-triangle-exclamation mr-2"></i>
+        Connect Stripe or add your own Stripe keys on the
+        <a href="{% url 'dashboard_domain_settings' %}" class="underline font-semibold">Domains</a>
+        page before enabling membership.
+    </div>
+    {% endif %}
+
+    <!-- Plan settings -->
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/10 rounded-xl p-8">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold">Membership Plan</h2>
+            <span class="text-xs px-3 py-1 rounded-full {% if plan.is_enabled %}bg-green-500/15 text-green-300{% else %}bg-gray-500/15 text-gray-300{% endif %}">
+                {% if plan.is_enabled %}Enabled{% else %}Disabled{% endif %}
+            </span>
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_plan">
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Plan Name *</label>
+                    <input type="text" name="name" required value="{{ plan.name }}"
+                        class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50"
+                        placeholder="e.g., All-Access Membership">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-2">Description</label>
+                    <textarea name="description" rows="3"
+                        class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50 resize-none"
+                        placeholder="Pitch the membership to your students...">{{ plan.description }}</textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Monthly Price (USD)</label>
+                        <input type="number" name="monthly_price" step="0.01" min="0"
+                            value="{{ plan.monthly_price|default_if_none:'' }}"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50"
+                            placeholder="Leave blank to disable monthly">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-2">Yearly Price (USD)</label>
+                        <input type="number" name="yearly_price" step="0.01" min="0"
+                            value="{{ plan.yearly_price|default_if_none:'' }}"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50"
+                            placeholder="Leave blank to disable yearly">
+                    </div>
+                </div>
+
+                <div class="mt-4 max-w-xs">
+                    <label class="block text-sm font-semibold mb-2">Past-due grace (days)</label>
+                    <input type="number" name="past_due_grace_days" step="1" min="0"
+                        value="{{ plan.past_due_grace_days|default_if_none:0 }}"
+                        class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-accent/50">
+                    <p class="text-xs text-gray-500 mt-1">Keep access this many days after a failed renewal while Stripe retries payment. 0 = cut off immediately.</p>
+                </div>
+                <p class="text-xs text-gray-400 -mt-2">Set at least one price. Students choose monthly or yearly at checkout.</p>
+
+                <div class="space-y-3 border-t border-purple-accent/10 pt-4">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" name="member_pricing_requires_annual" {% if plan.member_pricing_requires_annual %}checked{% endif %}
+                            class="mt-0.5 w-4 h-4 rounded border-purple-accent/30 bg-[#0a0e27]/40">
+                        <span>
+                            <span class="text-sm font-medium">Member pricing for annual & complimentary only</span>
+                            <span class="block text-xs text-gray-500">Monthly members get ecosystem benefits but pay standard course prices. Stops "pay one month, grab the discount, cancel."</span>
+                        </span>
+                    </label>
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" name="comp_grant_reset" {% if plan.comp_grant_reset %}checked{% endif %}
+                            class="mt-0.5 w-4 h-4 rounded border-purple-accent/30 bg-[#0a0e27]/40">
+                        <span>
+                            <span class="text-sm font-medium">Reset complimentary membership on each qualifying purchase</span>
+                            <span class="block text-xs text-gray-500">A new programme purchase resets the free membership to a full term from that date (instead of stacking onto remaining time).</span>
+                        </span>
+                    </label>
+                </div>
+
+                <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" name="is_enabled" {% if plan.is_enabled %}checked{% endif %}
+                        class="w-5 h-5 rounded border-purple-accent/30 bg-[#0a0e27]/40">
+                    <span class="text-sm font-semibold">Enable membership (show Subscribe buttons to students)</span>
+                </label>
+
+                <div class="pt-2">
+                    <button type="submit"
+                        class="bg-purple-accent hover:bg-purple-accent/80 text-white font-semibold px-6 py-3 rounded-lg transition">
+                        Save Membership Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Membership tiers -->
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/10 rounded-xl p-8">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-2xl font-bold">Membership Tiers</h2>
+            <span class="text-xs text-gray-400">{{ active_tiers|length }} active</span>
+        </div>
+        <p class="text-sm text-gray-400 mb-4">
+            Optional. Each tier sells its own course set at its own price.
+            {% if plan.tiers_cumulative %}Higher-rank tiers also include every lower tier's courses (cumulative).{% else %}Each tier is an independent, standalone set.{% endif %}
+        </p>
+
+        {% if tiers %}
+        <div class="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-200/90 mb-5">
+            <i class="fas fa-circle-info mr-1"></i>
+            Heads up: any course set to grant complimentary membership still grants
+            <strong>all-access</strong> unless you point it at a tier (Course settings → Membership).
+        </div>
+        {% endif %}
+
+        <div class="space-y-3">
+            {% for tier in tiers %}
+            <details class="rounded-lg border {% if tier.is_archived %}border-gray-600/30 opacity-70{% else %}border-purple-accent/15{% endif %} bg-[#0a0e27]/40">
+                <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
+                    <span class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold">{{ tier.name }}</span>
+                        <span class="text-xs text-gray-500">#{{ tier.rank }} · {{ tier.code }}</span>
+                        {% if tier.includes_all %}<span class="text-xs px-2 py-0.5 rounded-full bg-cyan-electric/15 text-cyan-electric">All-access</span>{% endif %}
+                        {% if tier.is_archived %}<span class="text-xs px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-300">Archived</span>
+                        {% elif not tier.is_purchasable %}<span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Off-market</span>{% endif %}
+                        {% if not tier.stripe_monthly_price_id and not tier.stripe_yearly_price_id %}<span class="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-300" title="No Stripe price synced yet">No Stripe price</span>{% endif %}
+                    </span>
+                    <span class="text-sm text-gray-400 whitespace-nowrap">
+                        {% if tier.monthly_price %}${{ tier.monthly_price }}/mo{% endif %}
+                        {% if tier.monthly_price and tier.yearly_price %} · {% endif %}
+                        {% if tier.yearly_price %}${{ tier.yearly_price }}/yr{% endif %}
+                    </span>
+                </summary>
+
+                <form method="POST" class="px-4 pb-4 pt-1 space-y-4 border-t border-purple-accent/10">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="save_tier">
+                    <input type="hidden" name="tier_id" value="{{ tier.id }}">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1 text-gray-400">Name</label>
+                            <input type="text" name="name" value="{{ tier.name }}" required
+                                class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1 text-gray-400">Code (unique)</label>
+                            <input type="text" name="code" value="{{ tier.code }}"
+                                class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Description</label>
+                        <textarea name="description" rows="2"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm resize-none">{{ tier.description }}</textarea>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold mb-1 text-gray-400">Monthly $</label>
+                            <input type="number" step="0.01" min="0" name="monthly_price" value="{{ tier.monthly_price|default_if_none:'' }}"
+                                class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1 text-gray-400">Yearly $</label>
+                            <input type="number" step="0.01" min="0" name="yearly_price" value="{{ tier.yearly_price|default_if_none:'' }}"
+                                class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold mb-1 text-gray-400">Rank</label>
+                            <input type="number" step="1" min="0" name="rank" value="{{ tier.rank }}"
+                                class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                        </div>
+                        <div class="flex flex-col justify-end gap-1 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="is_purchasable" {% if tier.is_purchasable %}checked{% endif %} class="w-4 h-4 rounded">
+                                Purchasable
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="includes_all" {% if tier.includes_all %}checked{% endif %} class="w-4 h-4 rounded">
+                                All-access
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Courses in this tier <span class="text-gray-600">(ignored when All-access is on)</span></label>
+                        <div class="max-h-44 overflow-y-auto rounded-lg border border-purple-accent/10 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                            {% for course in assignable_courses %}
+                            <label class="flex items-center gap-2 text-sm px-1 py-0.5 cursor-pointer">
+                                <input type="checkbox" name="course_ids" value="{{ course.id }}" {% if course.id in tier.assigned_ids %}checked{% endif %} class="w-3.5 h-3.5 rounded">
+                                <span class="truncate">{{ course.name }}</span>
+                            </label>
+                            {% empty %}
+                            <span class="text-xs text-gray-500">No courses yet.</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button type="submit" class="bg-purple-accent hover:bg-purple-accent/80 text-white font-semibold px-4 py-2 rounded-lg text-sm">Save tier</button>
+                    </div>
+                </form>
+
+                <form method="POST" class="px-4 pb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="{% if tier.is_archived %}restore_tier{% else %}archive_tier{% endif %}">
+                    <input type="hidden" name="tier_id" value="{{ tier.id }}">
+                    <button type="submit" class="text-xs {% if tier.is_archived %}text-cyan-electric hover:text-cyan-electric/80{% else %}text-red-300 hover:text-red-200{% endif %} font-semibold"
+                        {% if not tier.is_archived %}onclick="return confirm('Archive this tier? New signups stop; current subscribers keep access.');"{% endif %}>
+                        {% if tier.is_archived %}Restore tier{% else %}Archive tier{% endif %}
+                    </button>
+                </form>
+            </details>
+            {% endfor %}
+        </div>
+
+        <!-- New tier -->
+        <details class="mt-4 rounded-lg border border-dashed border-purple-accent/25 bg-[#0a0e27]/30">
+            <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-cyan-electric">
+                <i class="fas fa-plus mr-1"></i>Add a tier
+            </summary>
+            <form method="POST" class="px-4 pb-4 pt-1 space-y-4 border-t border-purple-accent/10">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="save_tier">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Name</label>
+                        <input type="text" name="name" required placeholder="e.g. Pro"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Code (optional — derived from name)</label>
+                        <input type="text" name="code" placeholder="pro"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Monthly $</label>
+                        <input type="number" step="0.01" min="0" name="monthly_price"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Yearly $</label>
+                        <input type="number" step="0.01" min="0" name="yearly_price"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold mb-1 text-gray-400">Rank</label>
+                        <input type="number" step="1" min="0" name="rank" value="{{ next_rank }}"
+                            class="w-full bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2 text-sm">
+                    </div>
+                    <div class="flex flex-col justify-end gap-1 text-xs">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="is_purchasable" checked class="w-4 h-4 rounded"> Purchasable
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="includes_all" class="w-4 h-4 rounded"> All-access
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1 text-gray-400">Courses in this tier</label>
+                    <div class="max-h-44 overflow-y-auto rounded-lg border border-purple-accent/10 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                        {% for course in assignable_courses %}
+                        <label class="flex items-center gap-2 text-sm px-1 py-0.5 cursor-pointer">
+                            <input type="checkbox" name="course_ids" value="{{ course.id }}" class="w-3.5 h-3.5 rounded">
+                            <span class="truncate">{{ course.name }}</span>
+                        </label>
+                        {% empty %}
+                        <span class="text-xs text-gray-500">No courses yet.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <button type="submit" class="bg-cyan-electric/90 hover:bg-cyan-electric text-[#0a0e27] font-semibold px-4 py-2 rounded-lg text-sm">Create tier</button>
+            </form>
+        </details>
+    </div>
+
+    <!-- Subscribers -->
+    <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-purple-accent/10 rounded-xl p-8">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold">Subscribers</h2>
+            <span class="text-sm text-gray-400">{{ active_count }} active</span>
+        </div>
+
+        <!-- Complimentary grant -->
+        <form method="POST" class="flex flex-col sm:flex-row gap-3 mb-6">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="grant_comp">
+            <input type="text" name="student" required
+                class="flex-1 bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-accent/50"
+                placeholder="Student username or email">
+            {% if active_tiers %}
+            <select name="comp_tier_id"
+                class="bg-[#0a0e27]/40 border border-purple-accent/20 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-accent/50">
+                <option value="">All-access</option>
+                {% for tier in active_tiers %}
+                <option value="{{ tier.id }}">{{ tier.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <button type="submit"
+                class="bg-cyan-electric/90 hover:bg-cyan-electric text-[#0a0e27] font-semibold px-5 py-2.5 rounded-lg transition whitespace-nowrap">
+                <i class="fas fa-gift mr-2"></i>Grant Free Membership
+            </button>
+        </form>
+
+        {% if subscriptions %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-purple-accent/10">
+                        <th class="py-3 pr-4">Student</th>
+                        <th class="py-3 pr-4">Plan</th>
+                        <th class="py-3 pr-4">Status</th>
+                        <th class="py-3 pr-4">Renews / Ends</th>
+                        <th class="py-3 pr-4"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in subscriptions %}
+                    <tr class="border-b border-purple-accent/5">
+                        <td class="py-3 pr-4">
+                            <div class="font-medium">{{ sub.user.username }}</div>
+                            <div class="text-xs text-gray-500">{{ sub.user.email|default:'' }}</div>
+                        </td>
+                        <td class="py-3 pr-4">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                {% if sub.tier %}
+                                    <span class="text-xs px-2 py-0.5 rounded-full bg-purple-accent/20 text-purple-200">{{ sub.tier.name }}</span>
+                                {% else %}
+                                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-300">All-access</span>
+                                {% endif %}
+                                {% if sub.is_complimentary %}
+                                    <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-electric/15 text-cyan-electric">Comp</span>
+                                {% else %}
+                                    <span class="text-xs text-gray-500">{{ sub.get_interval_display }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="py-3 pr-4">
+                            {% if sub.status == 'active' %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-300">Active</span>
+                            {% elif sub.status == 'past_due' %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Past Due</span>
+                            {% elif sub.status == 'canceled' %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-300">Canceled</span>
+                            {% else %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-gray-500/15 text-gray-300">{{ sub.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 pr-4 text-gray-400">
+                            {{ sub.current_period_end|date:'M j, Y'|default:'—' }}
+                        </td>
+                        <td class="py-3 pr-4 text-right">
+                            {% if sub.status != 'canceled' %}
+                            <form method="POST" onsubmit="return confirm('Revoke this membership?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="revoke">
+                                <input type="hidden" name="subscription_id" value="{{ sub.id }}">
+                                <button type="submit" class="text-red-300 hover:text-red-200 text-xs font-semibold">
+                                    Revoke
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No subscribers yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

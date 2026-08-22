@@ -171,6 +171,23 @@ class Course(models.Model):
     ]
     
     price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text="Leave blank or 0 for free. Set a price to require purchase.")
+    member_price = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text="Discounted price for active members. Blank means members pay the regular price.",
+    )
+    included_in_membership = models.BooleanField(
+        default=True,
+        help_text="If off, an active membership does NOT unlock this course; it must be purchased separately.",
+    )
+    grants_membership_months = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="If set, purchasing this course grants this many months of complimentary membership.",
+    )
+    grants_membership_tier = models.ForeignKey(
+        'MembershipTier', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='comp_granting_courses',
+        help_text="Tier the complimentary grant targets. Blank grants all-access (whole catalog).",
+    )
     visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public', help_text="Who can see this course exists")
     enrollment_method = models.CharField(max_length=20, choices=ENROLLMENT_METHOD_CHOICES, default='open', help_text="How students get access")
     access_duration_type = models.CharField(max_length=20, choices=ACCESS_DURATION_CHOICES, default='lifetime', help_text="Access duration rule")
@@ -1796,6 +1813,236 @@ class EventRegistration(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.event.title}"
+
+
+class MembershipPlan(models.Model):
+    """
+    Optional per-tenant recurring student membership. When enabled, an active
+    StudentSubscription unlocks the whole catalog (all active, non-private
+    courses) alongside existing per-course and bundle purchases.
+    """
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='membership_plan')
+    is_enabled = models.BooleanField(default=False)
+    name = models.CharField(max_length=200, default='All-Access Membership')
+    description = models.TextField(blank=True, help_text='Student-facing pitch for the membership')
+    monthly_price = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Monthly price in USD. Leave blank to disable monthly billing.',
+    )
+    yearly_price = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Yearly price in USD. Leave blank to disable yearly billing.',
+    )
+    past_due_grace_days = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            'Days a member keeps access after a failed renewal (status past_due) '
+            'while Stripe retries payment. 0 = revoke access immediately. A few '
+            'days avoids locking out members over a transient card decline.'
+        ),
+    )
+    tiers_cumulative = models.BooleanField(
+        default=True,
+        help_text=(
+            'When multiple membership tiers exist, a higher tier also unlocks '
+            'every lower tier\u2019s courses (Pro \u2287 Starter). Turn off to make '
+            'each tier an independent, standalone course set.'
+        ),
+    )
+    member_pricing_requires_annual = models.BooleanField(
+        default=False,
+        help_text=(
+            'If on, only annual and complimentary members get member pricing on '
+            'courses; monthly members pay the standard price. Prevents "pay one '
+            'month, grab the discount, cancel." Off = any active member gets it.'
+        ),
+    )
+    comp_grant_reset = models.BooleanField(
+        default=False,
+        help_text=(
+            'How a new complimentary grant combines with remaining time. On = '
+            'reset to N months from the latest purchase. Off = extend/stack N '
+            'months onto whatever time is left.'
+        ),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Membership plan for {self.tenant.slug}"
+
+    def is_purchasable(self):
+        """Enabled and has at least one price configured."""
+        return bool(self.is_enabled and (self.monthly_price or self.yearly_price))
+
+
+class MembershipTier(models.Model):
+    """
+    One purchasable membership level for a tenant (e.g. Starter / Pro / All-Access).
+
+    A tenant may define several. Each unlocks a set of courses (its own ``courses``
+    plus, when ``MembershipPlan.tiers_cumulative`` is on, every lower-rank tier's
+    courses), or the whole catalog when ``includes_all`` is set. A student's
+    ``StudentSubscription`` points at exactly one tier when ``access_mode='tiered'``.
+
+    Distinct from ``PricingTier`` (the platform's SaaS pricing for tenants).
+    """
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='membership_tiers')
+    code = models.SlugField(max_length=60, help_text='Short identifier, unique per tenant (e.g. "starter").')
+    name = models.CharField(max_length=200, default='Membership')
+    description = models.TextField(blank=True, help_text='Student-facing pitch for this tier')
+    rank = models.PositiveIntegerField(
+        default=0, help_text='Ordering weight; higher = more inclusive (Pro > Starter).',
+    )
+    monthly_price = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Monthly price in USD. Blank disables monthly billing for this tier.',
+    )
+    yearly_price = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Yearly price in USD. Blank disables yearly billing for this tier.',
+    )
+    includes_all = models.BooleanField(
+        default=False, help_text='All-access tier: unlocks the entire catalog.',
+    )
+    is_purchasable = models.BooleanField(
+        default=True,
+        help_text=(
+            'Whether NEW checkouts can select this tier. Turning it off stops new '
+            'signups but never revokes access for current subscribers.'
+        ),
+    )
+    is_archived = models.BooleanField(
+        default=False,
+        help_text='Soft-deleted: hidden from admin/checkout but retained for reporting and existing subscribers.',
+    )
+    # Persistent Stripe objects so checkout references a stored price, upgrades
+    # are possible, and price_id -> tier repair works if state drifts.
+    stripe_product_id = models.CharField(max_length=120, blank=True, default='')
+    stripe_monthly_price_id = models.CharField(max_length=120, blank=True, default='')
+    stripe_yearly_price_id = models.CharField(max_length=120, blank=True, default='')
+    courses = models.ManyToManyField(
+        Course, blank=True, related_name='membership_tiers',
+        help_text='Courses this tier unlocks (before cumulative lower-tier inclusion).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('tenant', 'code'), ('tenant', 'rank')]
+        ordering = ['rank', 'id']
+        indexes = [
+            models.Index(fields=['tenant', 'is_archived', 'is_purchasable']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.tenant.slug})"
+
+    def clean(self):
+        # Guard against cross-tenant course links accumulating invisibly.
+        if self.pk:
+            bad = self.courses.exclude(tenant=self.tenant).exists()
+            if bad:
+                from django.core.exceptions import ValidationError
+                raise ValidationError('All courses in a tier must belong to the same tenant.')
+
+    def price_for(self, interval):
+        return self.monthly_price if interval == 'month' else self.yearly_price
+
+    def stripe_price_id_for(self, interval):
+        return self.stripe_monthly_price_id if interval == 'month' else self.stripe_yearly_price_id
+
+    def is_available(self):
+        """Selectable for a new checkout: purchasable, not archived, has a price."""
+        return bool(
+            self.is_purchasable and not self.is_archived
+            and (self.monthly_price or self.yearly_price)
+        )
+
+
+class StudentSubscription(models.Model):
+    """A student's recurring membership to a tenant's whole catalog."""
+    INTERVAL_CHOICES = [
+        ('month', 'Monthly'),
+        ('year', 'Yearly'),
+    ]
+    STATUS_CHOICES = [
+        ('incomplete', 'Incomplete'),
+        ('active', 'Active'),
+        ('past_due', 'Past Due'),
+        ('canceled', 'Canceled'),
+        ('expired', 'Expired'),
+    ]
+    ACCESS_MODE_CHOICES = [
+        ('all_access', 'All-access (whole catalog)'),
+        ('tiered', 'Tiered (specific membership tier)'),
+    ]
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='student_subscriptions')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='student_subscriptions')
+    stripe_subscription_id = models.CharField(max_length=120, blank=True, default='')
+    stripe_customer_id = models.CharField(max_length=120, blank=True, default='')
+    interval = models.CharField(max_length=10, choices=INTERVAL_CHOICES, default='month')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='incomplete')
+    access_mode = models.CharField(
+        max_length=20, choices=ACCESS_MODE_CHOICES, default='all_access',
+        help_text='all_access = whole catalog (legacy/comp); tiered = a specific MembershipTier.',
+    )
+    tier = models.ForeignKey(
+        'MembershipTier', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='subscriptions',
+        help_text='The membership tier held (only when access_mode=tiered).',
+    )
+    is_complimentary = models.BooleanField(
+        default=False, help_text='Admin-granted free membership (no Stripe subscription).',
+    )
+    current_period_end = models.DateTimeField(null=True, blank=True)
+    canceled_at = models.DateTimeField(null=True, blank=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['tenant', 'user']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'user', 'status']),
+            models.Index(fields=['stripe_subscription_id']),
+            models.Index(fields=['stripe_customer_id']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                name='studentsub_tier_matches_access_mode',
+                check=(
+                    models.Q(access_mode='tiered', tier__isnull=False)
+                    | models.Q(access_mode='all_access', tier__isnull=True)
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.tenant.slug} membership ({self.status})"
+
+    def is_active(self, past_due_grace_days=0):
+        """
+        Whether this membership currently grants access.
+
+        Active: not past its period end. Past-due (Stripe dunning): still grants
+        access for `past_due_grace_days` after the period end, so a transient
+        card decline doesn't lock the member out mid-retry. Any other status
+        (incomplete/canceled/expired) never grants access.
+        """
+        now = timezone.now()
+        if self.status == 'active':
+            if self.current_period_end and now > self.current_period_end:
+                return False
+            return True
+        if self.status == 'past_due' and past_due_grace_days > 0:
+            if self.current_period_end is None:
+                return True
+            import datetime
+            return now <= self.current_period_end + datetime.timedelta(days=past_due_grace_days)
+        return False
 
 
 # ─── GHL (GoHighLevel) integration models ───

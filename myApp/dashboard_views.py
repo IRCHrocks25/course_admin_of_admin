@@ -28,6 +28,7 @@ from decimal import Decimal
 from datetime import datetime
 import stripe
 from django.utils import timezone
+from django.utils.text import slugify
 from PIL import Image
 try:
     import cloudinary.uploader as cloudinary_uploader
@@ -71,6 +72,9 @@ from .models import (
     Tenant,
     TenantMembership,
     TenantDomain,
+    MembershipPlan,
+    MembershipTier,
+    StudentSubscription,
     AIUsageLog,
     StudentIPLog,
     category_accent_color,
@@ -2198,6 +2202,27 @@ def dashboard_course_detail(request, course_slug):
                 price = None
             course.price = price
             course.enrollment_method = 'purchase' if price else 'open'
+
+            course.included_in_membership = request.POST.get('included_in_membership') == 'on'
+
+            raw_member_price = (request.POST.get('member_price') or '').strip()
+            try:
+                member_price = round(float(raw_member_price), 2) if raw_member_price else None
+                if member_price is not None and member_price <= 0:
+                    member_price = None
+            except (ValueError, TypeError):
+                member_price = None
+            course.member_price = member_price
+
+            raw_grant_months = (request.POST.get('grants_membership_months') or '').strip()
+            try:
+                grant_months = int(raw_grant_months) if raw_grant_months else None
+                if grant_months is not None and grant_months <= 0:
+                    grant_months = None
+            except (ValueError, TypeError):
+                grant_months = None
+            course.grants_membership_months = grant_months
+
             course.save()
             messages.success(request, 'Course updated.')
             return redirect('dashboard_course_detail', course_slug=course.slug)
@@ -5657,6 +5682,250 @@ def dashboard_delete_bundle(request, bundle_id):
     bundle.delete()
     messages.success(request, f'Bundle "{bundle_name}" deleted successfully!')
     return redirect('dashboard_bundles')
+
+
+# ========== MEMBERSHIP (all-access subscription) ==========
+
+@staff_member_required
+def dashboard_programs(request):
+    """
+    Commerce view of the tenant's paid **programmes** — standalone, one-time
+    paid courses (as opposed to recurring membership tiers). Shows price, member
+    price, and the complimentary-membership benefit each grants. Editing happens
+    on the course detail page; this is the commerce-centric roll-up.
+    """
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Select a tenant context to manage programmes.')
+        return redirect('dashboard_home')
+
+    programmes = (
+        Course.objects.filter(tenant=tenant, price__isnull=False, price__gt=0)
+        .select_related('grants_membership_tier')
+        .order_by('display_order', 'name')
+    )
+    tiers = MembershipTier.objects.filter(
+        tenant=tenant, is_archived=False,
+    ).order_by('rank', 'id')
+
+    total = programmes.count()
+    live = programmes.filter(
+        status='active', visibility__in=['public', 'members_only'],
+    ).count()
+    grants_comp = programmes.filter(grants_membership_months__gt=0).count()
+
+    context = {
+        'tenant': tenant,
+        'programmes': programmes,
+        'tiers': tiers,
+        'stats': {'total': total, 'live': live, 'grants_comp': grants_comp},
+    }
+    return render(request, 'dashboard/programs.html', context)
+
+
+def dashboard_membership(request):
+    """Configure the tenant's optional all-access recurring membership."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None:
+        messages.error(request, 'Select a tenant context to manage membership.')
+        return redirect('dashboard_home')
+
+    plan, _ = MembershipPlan.objects.get_or_create(tenant=tenant)
+    config = getattr(tenant, 'config', None)
+    stripe_ready = bool(
+        config and (
+            config.stripe_own_secret_key
+            or (config.stripe_connect_account_id and config.stripe_connect_charges_enabled)
+        )
+    )
+
+    def _parse_price(raw):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            value = Decimal(raw)
+            return value if value > 0 else None
+        except Exception:
+            return None
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'save_plan')
+
+        if action == 'grant_comp':
+            username = (request.POST.get('student') or '').strip()
+            student = User.objects.filter(
+                username__iexact=username, tenant_memberships__tenant=tenant,
+            ).first() or User.objects.filter(
+                email__iexact=username, tenant_memberships__tenant=tenant,
+            ).first()
+            if not student:
+                messages.error(request, f'No student "{username}" found in this academy.')
+                return redirect('dashboard_membership')
+            sub, _ = StudentSubscription.objects.get_or_create(
+                tenant=tenant, user=student,
+                defaults={'interval': 'year'},
+            )
+            sub.status = 'active'
+            sub.is_complimentary = True
+            sub.canceled_at = None
+            sub.current_period_end = None
+            # Optional: target a specific tier; blank = all-access.
+            comp_tier_id = (request.POST.get('comp_tier_id') or '').strip()
+            comp_tier = MembershipTier.objects.filter(id=comp_tier_id, tenant=tenant).first() if comp_tier_id else None
+            if comp_tier is not None:
+                sub.access_mode = 'tiered'
+                sub.tier = comp_tier
+            else:
+                sub.access_mode = 'all_access'
+                sub.tier = None
+            sub.save()
+            messages.success(request, f'Complimentary membership granted to {student.username}.')
+            return redirect('dashboard_membership')
+
+        if action == 'save_tier':
+            tier_id = (request.POST.get('tier_id') or '').strip()
+            tier = MembershipTier.objects.filter(id=tier_id, tenant=tenant).first() if tier_id else None
+            if tier is None:
+                tier = MembershipTier(tenant=tenant)
+
+            code = slugify(request.POST.get('code') or request.POST.get('name') or 'tier')[:60]
+            if not code:
+                messages.error(request, 'Tier needs a code or name.')
+                return redirect('dashboard_membership')
+            # Enforce per-tenant unique code/rank gracefully.
+            try:
+                rank = max(0, int((request.POST.get('rank') or '0').strip()))
+            except (TypeError, ValueError):
+                rank = 0
+            clash = MembershipTier.objects.filter(tenant=tenant, code=code).exclude(pk=tier.pk or 0).exists()
+            if clash:
+                messages.error(request, f'A tier with code "{code}" already exists.')
+                return redirect('dashboard_membership')
+            rank_clash = MembershipTier.objects.filter(tenant=tenant, rank=rank).exclude(pk=tier.pk or 0).exists()
+            if rank_clash:
+                messages.error(request, f'Another tier already uses rank {rank}. Ranks must be unique.')
+                return redirect('dashboard_membership')
+
+            tier.code = code
+            tier.name = (request.POST.get('name') or 'Membership').strip()
+            tier.description = (request.POST.get('description') or '').strip()
+            tier.rank = rank
+            tier.monthly_price = _parse_price(request.POST.get('monthly_price'))
+            tier.yearly_price = _parse_price(request.POST.get('yearly_price'))
+            tier.includes_all = request.POST.get('includes_all') == 'on'
+            tier.is_purchasable = request.POST.get('is_purchasable') == 'on'
+            tier.save()
+
+            # Course assignment (tenant-scoped ids only).
+            if not tier.includes_all:
+                posted_ids = request.POST.getlist('course_ids')
+                valid_ids = list(
+                    Course.objects.filter(tenant=tenant, id__in=posted_ids).values_list('id', flat=True)
+                )
+                tier.courses.set(valid_ids)
+            else:
+                tier.courses.clear()
+
+            # Keep Stripe Prices in sync so checkout can reference them.
+            if stripe_ready and (tier.monthly_price or tier.yearly_price):
+                from .utils.membership_sync import sync_tier_prices
+                ok, price_err = sync_tier_prices(tier)
+                if not ok:
+                    messages.warning(request, f'Tier saved, but Stripe price sync failed: {price_err}')
+            messages.success(request, f'Tier "{tier.name}" saved.')
+            return redirect('dashboard_membership')
+
+        if action in ('archive_tier', 'restore_tier'):
+            tier = MembershipTier.objects.filter(id=request.POST.get('tier_id'), tenant=tenant).first()
+            if tier:
+                tier.is_archived = (action == 'archive_tier')
+                if tier.is_archived:
+                    tier.is_purchasable = False
+                tier.save(update_fields=['is_archived', 'is_purchasable', 'updated_at'])
+                verb = 'archived' if tier.is_archived else 'restored'
+                messages.success(request, f'Tier "{tier.name}" {verb}.')
+            return redirect('dashboard_membership')
+
+        if action == 'revoke':
+            sub_id = request.POST.get('subscription_id')
+            sub = StudentSubscription.objects.filter(id=sub_id, tenant=tenant).first()
+            if sub:
+                sub.status = 'canceled'
+                sub.canceled_at = timezone.now()
+                sub.save()
+                messages.success(request, f'Membership for {sub.user.username} revoked.')
+            return redirect('dashboard_membership')
+
+        # Default: save plan settings.
+        plan.name = (request.POST.get('name') or 'All-Access Membership').strip()
+        plan.description = request.POST.get('description', '').strip()
+        plan.monthly_price = _parse_price(request.POST.get('monthly_price'))
+        plan.yearly_price = _parse_price(request.POST.get('yearly_price'))
+        try:
+            grace_raw = (request.POST.get('past_due_grace_days') or '').strip()
+            plan.past_due_grace_days = max(0, int(grace_raw)) if grace_raw else 0
+        except (TypeError, ValueError):
+            plan.past_due_grace_days = 0
+        plan.member_pricing_requires_annual = request.POST.get('member_pricing_requires_annual') == 'on'
+        plan.comp_grant_reset = request.POST.get('comp_grant_reset') == 'on'
+        want_enabled = request.POST.get('is_enabled') == 'on'
+
+        if want_enabled and not (plan.monthly_price or plan.yearly_price):
+            messages.error(request, 'Set at least a monthly or yearly price before enabling membership.')
+            plan.is_enabled = False
+            plan.save()
+            return redirect('dashboard_membership')
+        if want_enabled and not stripe_ready:
+            messages.error(request, 'Connect Stripe (or add your own keys) before enabling membership.')
+            plan.is_enabled = False
+            plan.save()
+            return redirect('dashboard_membership')
+
+        plan.is_enabled = want_enabled
+        plan.save()
+        messages.success(request, 'Membership settings saved.')
+        return redirect('dashboard_membership')
+
+    # Keep the table honest: expire lapsed comp/paid memberships on load so the
+    # dashboard reflects reality even if the scheduled job hasn't run yet.
+    from .utils.membership import expire_lapsed_subscriptions
+    expire_lapsed_subscriptions(tenant=tenant)
+
+    subscriptions = (
+        StudentSubscription.objects.filter(tenant=tenant)
+        .select_related('user', 'tier')
+        .order_by('-created_at')
+    )
+    grace_days = plan.past_due_grace_days or 0
+    active_count = sum(1 for s in subscriptions if s.is_active(past_due_grace_days=grace_days))
+
+    tiers = list(
+        MembershipTier.objects.filter(tenant=tenant)
+        .prefetch_related('courses')
+        .order_by('is_archived', 'rank', 'id')
+    )
+    for t in tiers:
+        t.assigned_ids = set(t.courses.values_list('id', flat=True))
+    assignable_courses = list(
+        Course.objects.filter(tenant=tenant).order_by('name').values('id', 'name')
+    )
+    active_tiers = [t for t in tiers if not t.is_archived]
+    next_rank = (max([t.rank for t in tiers], default=-1) + 1) if tiers else 0
+
+    return render(request, 'dashboard/membership.html', {
+        'tenant': tenant,
+        'is_superadmin': is_superadmin,
+        'plan': plan,
+        'stripe_ready': stripe_ready,
+        'subscriptions': subscriptions,
+        'active_count': active_count,
+        'tiers': tiers,
+        'active_tiers': active_tiers,
+        'assignable_courses': assignable_courses,
+        'next_rank': next_rank,
+    })
 
 
 def _coupon_for_dashboard(request, coupon_id):

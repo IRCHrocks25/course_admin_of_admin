@@ -49,6 +49,11 @@ urlpatterns = [
     path('bundles/<int:bundle_id>/checkout-success/', views.bundle_checkout_success, name='bundle_checkout_success'),
     path('courses/<slug:course_slug>/checkout/', views.create_course_checkout_session, name='course_checkout_session'),
     path('courses/<slug:course_slug>/checkout-success/', views.course_checkout_success, name='course_checkout_success'),
+    path('membership/checkout/<str:interval>/', views.create_membership_checkout_session, name='membership_checkout_session'),
+    path('membership/checkout/<slug:tier_code>/<str:interval>/', views.create_membership_checkout_session, name='membership_tier_checkout_session'),
+    path('membership/checkout-success/', views.membership_checkout_success, name='membership_checkout_success'),
+    path('membership/billing-portal/', views.membership_billing_portal, name='membership_billing_portal'),
+    path('membership/billing-return/', views.membership_billing_return, name='membership_billing_return'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/', views.lesson_detail, name='lesson_detail'),
     path('courses/<slug:course_slug>/<slug:lesson_slug>/quiz/', views.lesson_quiz_view, name='lesson_quiz'),
 
@@ -118,6 +123,12 @@ urlpatterns = [
     path('dashboard/bundles/add/', dashboard_views.dashboard_add_bundle, name='dashboard_add_bundle'),
     path('dashboard/bundles/<int:bundle_id>/edit/', dashboard_views.dashboard_edit_bundle, name='dashboard_edit_bundle'),
     path('dashboard/bundles/<int:bundle_id>/delete/', dashboard_views.dashboard_delete_bundle, name='dashboard_delete_bundle'),
+
+    # Programmes (paid, standalone courses) commerce roll-up
+    path('dashboard/programs/', dashboard_views.dashboard_programs, name='dashboard_programs'),
+
+    # Membership (all-access subscription)
+    path('dashboard/membership/', dashboard_views.dashboard_membership, name='dashboard_membership'),
 
     # Coupon Management
     path('dashboard/coupons/', dashboard_views.dashboard_coupons, name='dashboard_coupons'),

@@ -105,6 +105,45 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Membership settings -->
+                <div class="border-t border-cyan-electric/10 pt-5">
+                    <label class="block text-sm font-semibold mb-3">Membership</label>
+
+                    <label class="flex items-start gap-3 mb-4 cursor-pointer">
+                        <input type="checkbox" name="included_in_membership" {% if course.included_in_membership %}checked{% endif %}
+                            class="mt-0.5 w-4 h-4 rounded border-cyan-electric/30 bg-[#0a0e27]/40 text-cyan-electric">
+                        <span>
+                            <span class="text-sm font-medium">Include in all-access membership</span>
+                            <span class="block text-xs text-gray-500">If off, members must buy this course separately (e.g. paid flagship programmes).</span>
+                            {% if course.visibility == 'hidden' or course.visibility == 'private' %}
+                            <span class="block text-xs text-amber-400 mt-1">Note: this course is {{ course.visibility }}, so membership never auto-unlocks it regardless of this setting. Set visibility to Public or Members Only to include it.</span>
+                            {% endif %}
+                        </span>
+                    </label>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Member price (USD)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                <input type="number" name="member_price" min="0" step="0.01"
+                                    value="{% if course.member_price is not None %}{{ course.member_price }}{% endif %}"
+                                    placeholder="Members' price"
+                                    class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg pl-7 pr-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                            </div>
+                            <p class="text-[11px] text-gray-500 mt-1">Blank = members pay full price.</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Grants membership (months)</label>
+                            <input type="number" name="grants_membership_months" min="0" step="1"
+                                value="{% if course.grants_membership_months %}{{ course.grants_membership_months }}{% endif %}"
+                                placeholder="e.g. 12"
+                                class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                            <p class="text-[11px] text-gray-500 mt-1">Buying this course grants free membership.</p>
+                        </div>
+                    </div>
+                </div>
                 <script>
                     (function(){
                         const free = document.getElementById('cd-pricing-free');

@@ -46,6 +46,11 @@ def has_course_access(user, course):
         access = active_accesses.first()
         return True, access, f"Access granted via {access.get_source_display()}"
 
+    # Active membership unlocks the catalog (active, non-private, non-hidden).
+    from .membership import membership_covers_course
+    if membership_covers_course(user, course):
+        return True, None, "Access granted via membership"
+
     # Check if access exists but is expired/revoked
     any_access = CourseAccess.objects.filter(user=user, course=course).first()
     if any_access:
@@ -88,6 +93,26 @@ def batch_has_course_access(user, course_ids):
             result[acc.course_id] = (False, acc, "Access has expired")
         elif acc.status == 'unlocked' and (not acc.expires_at or acc.expires_at > now):
             result[acc.course_id] = (True, acc, f"Access granted via {acc.get_source_display()}")
+
+    # Fill remaining via active membership (active, non-private, non-hidden).
+    unresolved = [cid for cid, (ok, _, _) in result.items() if not ok]
+    if unresolved:
+        from .membership import get_membership_course_ids
+        courses_by_tenant = {}
+        for course in Course.objects.filter(id__in=unresolved).only('id', 'tenant_id'):
+            courses_by_tenant.setdefault(course.tenant_id, []).append(course.id)
+
+        from ..models import Tenant
+        membership_ids = set()
+        for tenant_id in courses_by_tenant:
+            tenant = Tenant.objects.filter(id=tenant_id).first()
+            if tenant is None:
+                continue
+            membership_ids |= get_membership_course_ids(user, tenant)
+
+        for cid in unresolved:
+            if cid in membership_ids:
+                result[cid] = (True, None, "Access granted via membership")
 
     return result
 
@@ -153,9 +178,18 @@ def get_user_accessible_courses(user, tenant=None):
     if tenant is not None:
         access_qs = access_qs.filter(tenant=tenant)
 
-    access_ids = access_qs.exclude(
+    access_ids = set(access_qs.exclude(
         Q(expires_at__isnull=False) & Q(expires_at__lt=now)
-    ).values_list('course_id', flat=True)
+    ).values_list('course_id', flat=True))
+
+    # Active membership unlocks the catalog (active, non-private, non-hidden).
+    from .membership import get_membership_course_ids
+    from ..models import Tenant
+    if tenant is not None:
+        access_ids |= get_membership_course_ids(user, tenant)
+    else:
+        for t in Tenant.objects.filter(student_subscriptions__user=user, student_subscriptions__status='active').distinct():
+            access_ids |= get_membership_course_ids(user, t)
 
     course_qs = Course.objects.filter(id__in=access_ids)
     if tenant is not None:
