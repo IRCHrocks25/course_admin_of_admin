@@ -57,6 +57,7 @@ from .models import (
     MembershipPlan,
     MembershipTier,
     StudentSubscription,
+    PendingRegistration,
     TenantNotificationDelivery,
     category_accent_color,
     category_initial,
@@ -1178,6 +1179,9 @@ def stripe_webhook(request):
             elif payment_flow == 'membership_checkout':
                 _membership_activate_from_checkout(session)
 
+            elif payment_flow == 'membership_registration':
+                _activate_membership_registration(session)
+
             elif mode in ('subscription', 'payment') and tenant and payment_flow != 'bundle_checkout':
                 _activate_signup_from_checkout_session(session)
 
@@ -1201,7 +1205,13 @@ def stripe_webhook(request):
             session = event['data']['object']
             metadata = session.get('metadata') or {}
             payment_flow = metadata.get('flow')
-            if payment_flow != 'bundle_checkout':
+            if payment_flow == 'membership_registration':
+                pending_id = metadata.get('pending_registration_id')
+                if pending_id:
+                    PendingRegistration.objects.filter(
+                        id=pending_id, consumed=False,
+                    ).delete()
+            elif payment_flow != 'bundle_checkout':
                 tenant_id = metadata.get('tenant_id')
                 admin_user_id = metadata.get('admin_user_id')
                 tenant = Tenant.objects.filter(
@@ -1287,6 +1297,8 @@ def stripe_tenant_webhook(request, tenant_slug):
             metadata = session.get('metadata') or {}
             if metadata.get('flow') == 'membership_checkout':
                 _membership_activate_from_checkout(session)
+            elif metadata.get('flow') == 'membership_registration':
+                _activate_membership_registration(session)
             elif metadata.get('flow') == 'bundle_checkout':
                 bundle_id = metadata.get('bundle_id')
                 user_id = metadata.get('user_id')
@@ -2209,6 +2221,195 @@ def _register_offerings(tenant):
     return membership_offer, programs
 
 
+def _plan_interval(value):
+    """Map a membership plan token from the landing page to a Stripe interval."""
+    return {
+        'month': 'month', 'monthly': 'month',
+        'year': 'year', 'yearly': 'year', 'annual': 'year', 'annually': 'year',
+    }.get((value or '').strip().lower())
+
+
+def _start_membership_registration(request, tenant, username, email, raw_password, interval, tier=None):
+    """
+    Payment-first signup: hold the account details in a PendingRegistration and
+    open a Stripe subscription checkout. The account is only created once payment
+    succeeds (via the success redirect or the webhook), so abandoning checkout
+    never leaves an unpaid ghost account.
+    Returns (checkout_url, error_message); exactly one is truthy.
+    """
+    from django.contrib.auth.hashers import make_password
+    from decimal import Decimal
+
+    config, use_own_keys, use_connect, err = _resolve_tenant_stripe_mode(tenant)
+    if err:
+        return None, err
+
+    # Resolve the offer price: a tier's Stripe price, or the legacy plan price.
+    stripe_price_id = ''
+    if tier is not None:
+        if not tier.is_available():
+            return None, 'That membership tier is not available.'
+        amount = tier.price_for(interval)
+        offer_name = tier.name
+        offer_desc = tier.description or f'{tier.name} membership'
+    else:
+        plan = MembershipPlan.objects.filter(tenant=tenant).first()
+        if not plan or not plan.is_purchasable():
+            return None, 'Membership is not available for this academy.'
+        amount = plan.monthly_price if interval == 'month' else plan.yearly_price
+        offer_name = plan.name
+        offer_desc = plan.description or 'All-access membership'
+
+    if use_own_keys:
+        stripe.api_key = config.stripe_own_secret_key.strip()
+    elif not _stripe_client_configured():
+        return None, 'Stripe is not configured.'
+
+    if tier is not None:
+        stripe_price_id = tier.stripe_price_id_for(interval)
+        if not stripe_price_id:
+            from .utils.membership_sync import sync_tier_prices
+            ok, _price_err = sync_tier_prices(tier)
+            if ok:
+                tier.refresh_from_db()
+                stripe_price_id = tier.stripe_price_id_for(interval)
+
+    if not stripe_price_id and not amount:
+        return None, f'No {interval}ly price is configured.'
+
+    pending = PendingRegistration.objects.create(
+        tenant=tenant,
+        username=username,
+        email=email,
+        password=make_password(raw_password),
+        interval=interval,
+        tier=tier,
+    )
+
+    try:
+        if stripe_price_id:
+            line_item = {'price': stripe_price_id, 'quantity': 1}
+        else:
+            amount_cents = int((Decimal(str(amount)) * 100).quantize(Decimal('1')))
+            if amount_cents <= 0:
+                pending.delete()
+                return None, 'Membership price must be greater than zero.'
+            line_item = {
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {'name': offer_name, 'description': offer_desc},
+                    'unit_amount': amount_cents,
+                    'recurring': {'interval': interval},
+                },
+                'quantity': 1,
+            }
+
+        base = f"{request.scheme}://{request.get_host()}"
+        success_url = f"{base}/register/complete/?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{base}/register/?resume=1"
+
+        metadata = {
+            'flow': 'membership_registration',
+            'tenant_id': str(tenant.id),
+            'pending_registration_id': str(pending.id),
+            'interval': interval,
+        }
+        if tier is not None:
+            metadata['membership_tier_id'] = str(tier.id)
+            metadata['membership_tier_code'] = tier.code
+
+        session_kwargs = dict(
+            mode='subscription',
+            line_items=[line_item],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            client_reference_id=f"tenant:{tenant.id}:membership_registration:{pending.id}",
+            metadata=metadata,
+            subscription_data={'metadata': dict(metadata)},
+        )
+        if email:
+            session_kwargs['customer_email'] = email
+        if use_connect:
+            session_kwargs['stripe_account'] = config.stripe_connect_account_id
+
+        session = stripe.checkout.Session.create(**session_kwargs)
+        pending.stripe_checkout_session_id = session.id
+        pending.save(update_fields=['stripe_checkout_session_id'])
+        return session.url, None
+    except Exception as exc:
+        pending.delete()
+        return None, str(exc)
+
+
+def _activate_membership_registration(session):
+    """
+    Create the account + active membership from a paid membership-registration
+    checkout. Idempotent and safe to call from both the success redirect and the
+    webhook (row-locked). Returns the User, or None when nothing was created.
+    """
+    metadata = session.get('metadata') or {}
+    if metadata.get('flow') != 'membership_registration':
+        return None
+    pending_id = metadata.get('pending_registration_id')
+    if not pending_id:
+        return None
+
+    with transaction.atomic():
+        pending = (
+            PendingRegistration.objects.select_for_update()
+            .filter(id=pending_id).first()
+        )
+        if pending is None:
+            return None
+
+        tenant = pending.tenant
+        existing = User.objects.filter(username=pending.username).first()
+
+        # Already handled (webhook or a prior redirect) → return existing user.
+        if pending.consumed or existing is not None:
+            if not pending.consumed:
+                pending.consumed = True
+                pending.save(update_fields=['consumed'])
+            return existing
+
+        user = User(username=pending.username, email=pending.email)
+        user.password = pending.password  # already hashed by make_password
+        user.save()
+
+        TenantMembership.objects.get_or_create(
+            tenant=tenant, user=user,
+            defaults={'role': 'student', 'is_active': True},
+        )
+
+        interval = pending.interval if pending.interval in ('month', 'year') else 'month'
+        sub, _ = StudentSubscription.objects.get_or_create(
+            tenant=tenant, user=user, defaults={'interval': interval},
+        )
+        sub.interval = interval
+        sub.status = 'active'
+        sub.is_complimentary = False
+        sub.canceled_at = None
+        if pending.tier is not None:
+            sub.access_mode = 'tiered'
+            sub.tier = pending.tier
+        else:
+            sub.access_mode = 'all_access'
+            sub.tier = None
+        sub_id = session.get('subscription')
+        if isinstance(sub_id, dict):
+            sub_id = sub_id.get('id', '')
+        if sub_id:
+            sub.stripe_subscription_id = str(sub_id)
+        if session.get('customer'):
+            sub.stripe_customer_id = str(session.get('customer'))
+        sub.last_synced_at = timezone.now()
+        sub.save()
+
+        pending.consumed = True
+        pending.save(update_fields=['consumed'])
+        return user
+
+
 def _post_auth_redirect(request, tenant):
     """Where to send a user after they authenticate, honoring any registration
     intent so the journey started on the landing page continues (e.g. straight
@@ -2218,10 +2419,7 @@ def _post_auth_redirect(request, tenant):
 
     intent = _registration_intent(request)
 
-    interval = {
-        'month': 'month', 'monthly': 'month',
-        'year': 'year', 'yearly': 'year', 'annual': 'year', 'annually': 'year',
-    }.get(intent['plan'].lower())
+    interval = _plan_interval(intent['plan'])
     if interval:
         return f"{reverse('courses')}?start_membership={interval}"
 
@@ -2264,10 +2462,19 @@ def register_view(request):
             if rendered is not None:
                 return rendered
         membership_offer, programs = _register_offerings(tenant)
+        # Returning from an abandoned membership checkout: prefill their details
+        # and re-select the plan so they can complete payment.
+        resume = request.GET.get('resume') == '1'
+        prefill = request.session.get('pending_registration_form') or {} if resume else {}
+        intent = _registration_intent(request)
+        if resume and not intent['plan'] and prefill.get('plan'):
+            intent['plan'] = prefill['plan']
         return render(request, 'register.html', {
-            'intent': _registration_intent(request),
+            'intent': intent,
             'membership_offer': membership_offer,
             'programs': programs,
+            'resume': resume,
+            'prefill': prefill,
         })
 
     if request.method == 'POST':
@@ -2287,6 +2494,26 @@ def register_view(request):
             return _render_register_page()
         if email and User.objects.filter(email=email).exists():
             messages.error(request, 'That email is already in use.')
+            return _render_register_page()
+
+        # Payment-first path: if a membership was selected, don't create the
+        # account yet — take payment, then create it on success.
+        intent = _registration_intent(request)
+        interval = _plan_interval(intent['plan'])
+        if interval:
+            tier = None
+            tier_code = (request.POST.get('tier_code') or '').strip()
+            if tier_code:
+                tier = MembershipTier.objects.filter(tenant=tenant, code=tier_code).first()
+            checkout_url, err = _start_membership_registration(
+                request, tenant, username, email, password, interval, tier,
+            )
+            if checkout_url:
+                request.session['pending_registration_form'] = {
+                    'username': username, 'email': email, 'plan': intent['plan'],
+                }
+                return redirect(checkout_url)
+            messages.error(request, f'Could not start membership checkout: {err}')
             return _render_register_page()
 
         user = User.objects.create_user(
@@ -2313,6 +2540,65 @@ def register_view(request):
         return redirect(_post_auth_redirect(request, tenant))
 
     return _render_register_page()
+
+
+def register_membership_complete(request):
+    """
+    Stripe success redirect for payment-first membership signups. Verifies the
+    payment, creates the account + active membership, and logs the student in.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.error(request, 'Unable to verify payment — no tenant context.')
+        return redirect('home')
+
+    session_id = (request.GET.get('session_id') or '').strip()
+    if not session_id:
+        messages.error(request, 'Missing payment session — contact support if you were charged.')
+        return redirect('register')
+
+    config = getattr(tenant, 'config', None)
+    use_own_keys = bool(config and config.stripe_own_secret_key)
+    use_connect = bool(config and config.stripe_connect_account_id)
+    try:
+        retrieve_kwargs = {'expand': ['subscription']}
+        if use_own_keys:
+            stripe.api_key = config.stripe_own_secret_key.strip()
+        elif use_connect:
+            _stripe_client_configured()
+            retrieve_kwargs['stripe_account'] = config.stripe_connect_account_id
+        else:
+            _stripe_client_configured()
+        session = stripe.checkout.Session.retrieve(session_id, **retrieve_kwargs)
+    except Exception:
+        messages.error(request, 'Could not verify your payment. If you were charged, contact support.')
+        return redirect('register')
+
+    metadata = session.get('metadata') or {}
+    if metadata.get('flow') != 'membership_registration' or metadata.get('tenant_id') != str(tenant.id):
+        messages.error(request, 'This payment session does not match this academy.')
+        return redirect('register')
+
+    stripe_sub = session.get('subscription')
+    sub_status = stripe_sub.get('status') if isinstance(stripe_sub, dict) else None
+    paid = session.get('payment_status') == 'paid' or sub_status in ('active', 'trialing')
+    if not paid:
+        messages.warning(
+            request,
+            'Payment is not confirmed yet. Once it clears your account will be created — '
+            'try signing in shortly, or contact support if you were charged.',
+        )
+        return redirect('login')
+
+    user = _activate_membership_registration(session)
+    if user is None:
+        messages.error(request, 'We could not finish creating your account. Please contact support.')
+        return redirect('register')
+
+    request.session.pop('pending_registration_form', None)
+    login(request, user)
+    messages.success(request, f'Welcome to {tenant.name}! Your membership is now active.')
+    return redirect('courses')
 
 
 def logout_view(request):

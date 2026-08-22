@@ -513,6 +513,8 @@
         .signin-link:hover { gap: 6px; }
 
         /* Offerings (membership + programmes) */
+        .resume-note { margin: 0 0 18px; padding: 12px 14px; border-radius: 12px; background: rgba(123,63,228,0.08); border: 1px solid rgba(123,63,228,0.25); color: #3f3355; font-size: 0.82rem; line-height: 1.5; }
+        .resume-note strong { display: block; color: #4c1d95; margin-bottom: 2px; font-size: 0.86rem; }
         .offerings { margin: 22px 0 4px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 18px; }
         .offerings-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
         .offerings-title { font-size: 0.9rem; font-weight: 700; color: #0f172a; letter-spacing: -0.01em; }
@@ -669,6 +671,13 @@
                 </div>
                 {% endif %}
 
+                {% if resume %}
+                <div class="resume-note">
+                    <strong>Almost there — complete payment to finish.</strong>
+                    Your details are saved below. Choose your membership and continue to secure checkout; your account is created the moment payment succeeds.
+                </div>
+                {% endif %}
+
                 <form method="post" novalidate>
                     {% csrf_token %}
                     <input type="hidden" name="plan" id="intent_plan" value="{{ intent.plan }}">
@@ -681,7 +690,8 @@
                             <div class="input-wrap">
                                 <input type="text" id="id_username" name="username" required
                                     autocomplete="username" autocapitalize="none"
-                                    spellcheck="false" placeholder="alex_smith">
+                                    spellcheck="false" placeholder="alex_smith"
+                                    value="{{ prefill.username|default:'' }}">
                             </div>
                         </div>
 
@@ -689,7 +699,8 @@
                             <label for="id_email">Email</label>
                             <div class="input-wrap">
                                 <input type="email" id="id_email" name="email"
-                                    autocomplete="email" placeholder="you@example.com">
+                                    autocomplete="email" placeholder="you@example.com"
+                                    value="{{ prefill.email|default:'' }}">
                             </div>
                         </div>
                     </div>
@@ -845,8 +856,8 @@
             planInput.value = plan;
             if (btn) btn.classList.add('is-selected');
             var word = plan === 'annual' ? 'annual' : 'monthly';
-            _announce('After signup we\u2019ll open ' + word + ' membership checkout.');
-            _setSubmitLabel('Create account & join ' + word);
+            _announce('You\u2019ll go straight to secure payment for the ' + word + ' membership. Your account is created the moment payment succeeds.');
+            _setSubmitLabel('Continue to secure payment');
         }
         function selectCourse(slug, btn) {
             var planInput = document.getElementById('intent_plan');
@@ -869,8 +880,8 @@
                 var pb = document.querySelector('.plan-opt[data-plan="' + plan + '"]');
                 if (pb) pb.classList.add('is-selected');
                 var word = plan === 'annual' ? 'annual' : 'monthly';
-                _announce('After signup we\u2019ll open ' + word + ' membership checkout.');
-                _setSubmitLabel('Create account & join ' + word);
+                _announce('You\u2019ll go straight to secure payment for the ' + word + ' membership. Your account is created the moment payment succeeds.');
+                _setSubmitLabel('Continue to secure payment');
             } else if (course) {
                 var cb = document.querySelector('.program-row[data-course="' + course + '"]');
                 if (cb) {

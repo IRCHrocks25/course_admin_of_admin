@@ -2045,6 +2045,38 @@ class StudentSubscription(models.Model):
         return False
 
 
+class PendingRegistration(models.Model):
+    """
+    A signup that chose a membership and is being held until Stripe payment
+    succeeds. The account is only created once payment completes (via the
+    checkout success redirect or the webhook), so abandoned checkouts never
+    leave an unpaid ghost account. The password is stored already-hashed.
+    """
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pending_registrations')
+    username = models.CharField(max_length=150)
+    email = models.EmailField(blank=True, default='')
+    password = models.CharField(max_length=256, help_text='Already hashed (make_password).')
+    interval = models.CharField(max_length=10, default='month')
+    tier = models.ForeignKey(
+        'MembershipTier', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='pending_registrations',
+    )
+    stripe_checkout_session_id = models.CharField(max_length=200, blank=True, default='', db_index=True)
+    consumed = models.BooleanField(default=False, help_text='Account has been created from this record.')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['stripe_checkout_session_id']),
+            models.Index(fields=['consumed', 'created_at']),
+        ]
+
+    def __str__(self):
+        state = 'consumed' if self.consumed else 'pending'
+        return f"PendingRegistration({self.username} @ {self.tenant.slug}, {state})"
+
+
 # ─── GHL (GoHighLevel) integration models ───
 # Defined in a sibling module to keep this file focused; imported here so
 # makemigrations/Django register them under the myApp app label.

@@ -37,6 +37,8 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('force-password-change/', views.force_password_change, name='force_password_change'),
     path('register/', views.register_view, name='register'),
+    # Stripe success redirect for payment-first membership signups.
+    path('register/complete/', views.register_membership_complete, name='register_membership_complete'),
     # Alias: some tenant custom signup pages hardcode action="/signup/".
     # Routing it to the same view means those forms POST cleanly instead of
     # 404'ing. /register/ remains the canonical URL.
