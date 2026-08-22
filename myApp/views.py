@@ -1683,6 +1683,12 @@ def _resolve_tenant_stripe_mode(tenant):
     use_connect = bool(
         config and config.stripe_connect_account_id and config.stripe_connect_charges_enabled
     )
+    # Own-keys takes precedence: a tenant charging on their own Stripe account
+    # must NOT also send a Connect `stripe_account` (a stale connect_account_id
+    # would otherwise trigger "Only Stripe Connect platforms can work with other
+    # accounts"). The two modes are mutually exclusive.
+    if use_own_keys:
+        use_connect = False
     if not use_own_keys and not use_connect:
         return config, False, False, 'Payments are not configured for this academy.'
     return config, use_own_keys, use_connect, ''
