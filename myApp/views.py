@@ -2214,7 +2214,7 @@ def _post_auth_redirect(request, tenant):
     intent so the journey started on the landing page continues (e.g. straight
     into membership checkout, or back to the programme they wanted to buy)."""
     from django.urls import reverse
-    from django.utils.http import url_has_allowed_host_or_scheme
+    from django.utils.http import url_has_allowed_host_and_scheme
 
     intent = _registration_intent(request)
 
@@ -2230,7 +2230,7 @@ def _post_auth_redirect(request, tenant):
             return reverse('course_detail', args=[intent['course']])
 
     next_url = intent['next']
-    if next_url and url_has_allowed_host_or_scheme(
+    if next_url and url_has_allowed_host_and_scheme(
         next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
     ):
         return next_url
