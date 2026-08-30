@@ -1,3 +1,10 @@
 .env
 node_modules/
 staticfiles/
+.venv/
+venv/
+myvenv/
+__pycache__/
+*.py[cod]
+db.sqlite3
+*.sqlite3
