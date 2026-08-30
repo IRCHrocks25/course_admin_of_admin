@@ -3260,6 +3260,17 @@ def lesson_detail(request, course_slug, lesson_slug):
     lesson_display = resolve_lesson(lesson, active_language)
     lesson_display_titles = build_lesson_title_map(all_lessons, active_language)
     quiz_display = resolve_quiz_display(lesson_quiz, active_language) if lesson_quiz else None
+    from myApp.utils.lesson_blocks import prepare_lesson_article
+
+    gen_settings = lesson.generation_settings if isinstance(lesson.generation_settings, dict) else {}
+    is_pdf_import = gen_settings.get('source') == 'pdf_import'
+    lesson_article = prepare_lesson_article(
+        lesson_display.content if isinstance(getattr(lesson_display, 'content', None), dict) else None,
+        title=getattr(lesson_display, 'title', None) or lesson.title,
+    )
+    has_lesson_video = bool(
+        lesson.google_drive_url or lesson.get_vimeo_embed_url() or lesson.video_url
+    )
 
     return render(request, 'lesson.html', {
         'course': course,
@@ -3287,6 +3298,9 @@ def lesson_detail(request, course_slug, lesson_slug):
         'show_language_switcher': show_language_switcher(tenant, language_config),
         'language_labels': LANGUAGE_LABELS,
         'lesson_display_titles': lesson_display_titles,
+        'lesson_article': lesson_article,
+        'is_pdf_import': is_pdf_import,
+        'has_lesson_video': has_lesson_video,
     })
 
 

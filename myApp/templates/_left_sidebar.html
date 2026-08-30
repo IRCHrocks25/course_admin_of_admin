@@ -34,7 +34,7 @@
             {% for module in course.modules.all %}
             <div class="sidebar-module">
                 <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="{{ module.id }}">
-                    <span>{{ module.name }}</span>
+                    <span class="min-w-0 flex-1 pr-2 break-words">{{ module.name }}</span>
                     <i class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
                 </button>
                 <div class="module-content pl-4 space-y-2" data-module="{{ module.id }}">
@@ -46,7 +46,7 @@
                             {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                             {{ forloop.counter }}
                         </div>
-                        <span class="flex-1 text-sm leading-snug sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                        <span class="flex-1 min-w-0 text-sm leading-snug break-words sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
                             {{ lesson_display_titles|dict_get:module_lesson.id|default:module_lesson.title }}
                         </span>
                         {% if module_lesson.id in completed_lessons %}
@@ -85,7 +85,7 @@
                                         {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                                         {{ forloop.counter }}
                                     </div>
-                                    <span class="flex-1 text-sm leading-snug sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                                    <span class="flex-1 min-w-0 text-sm leading-snug break-words sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
                                         {{ lesson_display_titles|dict_get:module_lesson.id|default:module_lesson.title }}
                                     </span>
                                     {% if module_lesson.id in completed_lessons %}
@@ -311,6 +311,9 @@
     .brand-theme-light .sidebar-resource:hover span { color: #141414 !important; }
     .brand-theme-light .sidebar-resource i { color: #a3a3a3 !important; }
     .brand-theme-light .sidebar-resource:hover i { color: #525252 !important; }
+    .sidebar-module-title span { overflow-wrap: anywhere; }
+    .sidebar-lesson-title { overflow-wrap: anywhere; }
+
     .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar { width: 5px; }
     .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
     .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar-thumb {
@@ -332,11 +335,11 @@
         }
         .center-content-inner {
             width: 100%;
-            max-width: 720px;
-            margin-left: auto;
-            margin-right: auto;
-            padding-left: 1.25rem;
-            padding-right: 1.25rem;
+            max-width: none;
+            margin-left: 0;
+            margin-right: 0;
+            padding-left: 1.75rem;
+            padding-right: 1.75rem;
             box-sizing: border-box;
         }
     }

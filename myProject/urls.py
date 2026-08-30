@@ -83,6 +83,7 @@ urlpatterns = [
     path('dashboard/courses/lesson-generator/', dashboard_views.dashboard_generate_lesson_draft, name='dashboard_generate_lesson_draft'),
     path('dashboard/courses/create-from-lessons/', dashboard_views.dashboard_create_course_from_lessons, name='dashboard_create_course_from_lessons'),
     path('dashboard/api/ai-generation-status/<int:course_id>/', dashboard_views.api_ai_generation_status, name='api_ai_generation_status'),
+    path('dashboard/courses/<slug:course_slug>/import-pdf/', dashboard_views.dashboard_import_course_pdf, name='dashboard_import_course_pdf'),
     path('dashboard/courses/<slug:course_slug>/', dashboard_views.dashboard_course_detail, name='dashboard_course_detail'),
     path('dashboard/courses/<slug:course_slug>/improve-description/', dashboard_views.dashboard_improve_course_description, name='dashboard_improve_course_description'),
     path('dashboard/courses/<slug:course_slug>/lessons/reorder/', dashboard_views.dashboard_reorder_course_lessons, name='dashboard_reorder_course_lessons'),

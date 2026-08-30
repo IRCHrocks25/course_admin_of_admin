@@ -592,6 +592,18 @@
                                     {% for item in block.data.items %}<li>{{ item }}</li>{% endfor %}
                                     {% if block.data.style == 'ordered' %}</ol>{% else %}</ul>{% endif %}
                                 {% elif block.type == 'quote' %}<blockquote>{{ block.data.text }}</blockquote>
+                                {% elif block.type == 'image' %}
+                                    {% if block.data.file.url %}
+                                    <figure>
+                                        <img src="{{ block.data.file.url }}" alt="{{ block.data.caption|default:'Lesson figure' }}" class="w-full h-auto rounded-lg">
+                                        {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                    </figure>
+                                    {% elif block.data.url %}
+                                    <figure>
+                                        <img src="{{ block.data.url }}" alt="{{ block.data.caption|default:'Lesson figure' }}" class="w-full h-auto rounded-lg">
+                                        {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                    </figure>
+                                    {% endif %}
                                 {% endif %}
                             {% endfor %}
                         {% else %}
@@ -1077,6 +1089,12 @@
                     }
                     return `<ul>${listItems}</ul>`;
                 }
+                if (block.type === 'image') {
+                    const url = (block.data.file && block.data.file.url) || block.data.url || '';
+                    if (!url) return '';
+                    const caption = escapeHtml(block.data.caption || '');
+                    return `<figure class="my-3"><img src="${escapeHtml(url)}" alt="${caption || 'Lesson figure'}" class="w-full h-auto rounded-lg">${caption ? `<figcaption class="text-sm text-gray-400 mt-2">${caption}</figcaption>` : ''}</figure>`;
+                }
                 return '';
             }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
         }
@@ -1113,6 +1131,16 @@
             }
             if (type === 'quote') {
                 return { type: 'quote', data: { text: data.text || '', caption: data.caption || '' } };
+            }
+            if (type === 'image') {
+                const file = data.file && typeof data.file === 'object' ? data.file : {};
+                return {
+                    type: 'image',
+                    data: {
+                        file: { url: file.url || data.url || '' },
+                        caption: data.caption || '',
+                    },
+                };
             }
             return { type: 'paragraph', data: { text: data.text || '' } };
         }
@@ -1171,6 +1199,13 @@
                         <textarea data-role="quote-text" rows="3" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm resize-y mb-3">${escapeHtml(block.data.text || '')}</textarea>
                         <label class="notes-editor-label">Caption (optional)</label>
                         <input data-role="quote-caption" type="text" value="${escapeHtml(block.data.caption || '')}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm" />
+                    `;
+                } else if (block.type === 'image') {
+                    const imageUrl = (block.data.file && block.data.file.url) || block.data.url || '';
+                    bodyHtml = `
+                        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" class="w-full h-auto rounded-lg mb-3">` : '<p class="text-sm text-gray-500 mb-3">Image URL missing.</p>'}
+                        <label class="notes-editor-label">Caption (optional)</label>
+                        <input data-role="image-caption" type="text" value="${escapeHtml(block.data.caption || '')}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm" />
                     `;
                 } else {
                     bodyHtml = `
@@ -1240,6 +1275,9 @@
                     contentBlocksState[index].data.text = value;
                 });
                 bindInput('[data-role="quote-caption"]', value => {
+                    contentBlocksState[index].data.caption = value;
+                });
+                bindInput('[data-role="image-caption"]', value => {
                     contentBlocksState[index].data.caption = value;
                 });
 

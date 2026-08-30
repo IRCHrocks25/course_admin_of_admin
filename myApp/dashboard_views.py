@@ -2723,6 +2723,13 @@ def create_editorjs_content(content_sections):
                 'text': section.get('text', ''),
                 'caption': section.get('caption', '')
             }))
+        elif section.get('type') == 'image':
+            url = section.get('url') or (section.get('file') or {}).get('url') or ''
+            if url:
+                blocks.append(create_editorjs_block('image', {
+                    'file': {'url': url},
+                    'caption': section.get('caption', ''),
+                }))
 
     return {
         "time": int(timezone.now().timestamp() * 1000),
@@ -4010,6 +4017,244 @@ def dashboard_course_add_seed_lessons(request, course_slug):
     })
 
 
+def _start_ai_progress_widget(request, course):
+    """Show the existing floating progress widget for a background course job."""
+    courses_list = request.session.get('ai_generating_courses', [])
+    if not isinstance(courses_list, list):
+        courses_list = []
+    courses_list.append({'id': course.id, 'name': course.name})
+    request.session['ai_generating_courses'] = courses_list
+    request.session.modified = True
+    _update_ai_gen_progress(course.id, course.name, 'starting', progress=0, current='Starting...')
+
+
+def _handle_pdf_course_import(request, tenant):
+    """Create a course from an uploaded manual PDF (verbatim, no AI rewrite)."""
+    from myApp.utils.pdf_course_import import save_import_pdf
+
+    name = (request.POST.get('name') or '').strip() or 'Imported PDF Course'
+    coach_name = (request.POST.get('coach_name') or 'Sprint Coach').strip() or 'Sprint Coach'
+    uploaded = request.FILES.get('manual_pdf')
+    raw_price = (request.POST.get('price') or '').strip()
+    try:
+        price = round(float(raw_price), 2) if raw_price else None
+        if price is not None and price <= 0:
+            price = None
+    except (ValueError, TypeError):
+        price = None
+    enrollment_method = 'purchase' if price else request.POST.get('enrollment_method', 'open')
+
+    ctx = {
+        'course_formats': COURSEFORGE_FORMAT_CHOICES,
+        'knowledge_levels': COURSEFORGE_LEVEL_CHOICES,
+        'reading_level_choices': READING_LEVEL_CHOICES,
+        'length_choices': LENGTH_CHOICES,
+        'depth_choices': DEPTH_CHOICES,
+        'class_length_choices': CLASS_LENGTH_CHOICES,
+        'show_onboarding': False,
+        'pdf_available': PDF_AVAILABLE,
+    }
+
+    if not PDF_AVAILABLE:
+        messages.error(request, 'PDF import is not available. Please install PyMuPDF.')
+        return render(request, 'dashboard/add_course.html', ctx)
+    if not uploaded:
+        messages.error(request, 'Please drop a PDF course manual to import.')
+        return render(request, 'dashboard/add_course.html', ctx)
+    filename = (getattr(uploaded, 'name', '') or '').lower()
+    if not filename.endswith('.pdf'):
+        messages.error(request, 'Please upload a PDF file.')
+        return render(request, 'dashboard/add_course.html', ctx)
+
+    slug = generate_slug(name or 'imported-course')
+    if len(slug) > 200:
+        slug = slug[:200].rstrip('-') or 'imported-course'
+    base_slug = slug
+    counter = 1
+    while Course.objects.filter(tenant=tenant, slug=slug).exists():
+        slug = f'{base_slug}-{counter}'
+        counter += 1
+
+    course = Course.objects.create(
+        tenant=tenant,
+        name=name[:200],
+        slug=slug,
+        short_description='Imported from uploaded course manual.',
+        description='Imported from uploaded course manual. Content will appear after the PDF is processed.',
+        course_type=request.POST.get('course_type', 'sprint'),
+        status=request.POST.get('status', 'active'),
+        coach_name=coach_name[:100],
+        creation_blueprint={'source': 'pdf_import', 'faithful': True},
+        price=price,
+        enrollment_method=enrollment_method,
+    )
+
+    try:
+        pdf_path = save_import_pdf(course.id, uploaded)
+    except Exception as exc:
+        course.delete()
+        messages.error(request, f'Could not store the uploaded PDF: {exc}')
+        return render(request, 'dashboard/add_course.html', ctx)
+
+    try:
+        from myApp.utils import iceberg
+
+        if iceberg.is_configured():
+            uploaded.seek(0)
+            key = (
+                f'course_resources/tenant_{tenant.id if tenant else "global"}/'
+                f'course_{course.id}/source_manual_{uuid.uuid4().hex}.pdf'
+            )
+            resource_url = iceberg.upload_fileobj(uploaded, key, 'application/pdf')
+            if resource_url:
+                CourseResource.objects.create(
+                    tenant=tenant,
+                    course=course,
+                    title='Source course manual (PDF)',
+                    description='Original uploaded manual used for faithful import.',
+                    resource_type='pdf',
+                    file_url=resource_url,
+                    order=0,
+                )
+    except Exception:
+        logger.exception('Could not attach source PDF as a course resource')
+
+    return _kickoff_pdf_import(request, course, pdf_path)
+
+
+@staff_member_required
+def dashboard_import_course_pdf(request, course_slug):
+    """Fill an existing empty course from a PDF (used when the first import created a shell only)."""
+    from myApp.utils.pdf_course_import import save_import_pdf
+
+    tenant = _get_dashboard_tenant(request)
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
+        messages.error(request, 'Tenant context is required.')
+        return redirect('dashboard_courses')
+    if request.method != 'POST':
+        return redirect('dashboard_course_detail', course_slug=course.slug)
+    if not PDF_AVAILABLE:
+        messages.error(request, 'PDF import is not available. Please install PyMuPDF.')
+        return redirect('dashboard_course_detail', course_slug=course.slug)
+    uploaded = request.FILES.get('manual_pdf')
+    if not uploaded:
+        messages.error(request, 'Please drop a PDF course manual to import.')
+        return redirect('dashboard_course_detail', course_slug=course.slug)
+    filename = (getattr(uploaded, 'name', '') or '').lower()
+    if not filename.endswith('.pdf'):
+        messages.error(request, 'Please upload a PDF file.')
+        return redirect('dashboard_course_detail', course_slug=course.slug)
+    if course.lessons.exists():
+        messages.error(request, 'This course already has lessons. Delete them first, or create a new course.')
+        return redirect('dashboard_course_detail', course_slug=course.slug)
+
+    try:
+        pdf_path = save_import_pdf(course.id, uploaded)
+    except Exception as exc:
+        messages.error(request, f'Could not store the uploaded PDF: {exc}')
+        return redirect('dashboard_course_detail', course_slug=course.slug)
+
+    blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+    blueprint.update({'source': 'pdf_import', 'faithful': True})
+    course.creation_blueprint = blueprint
+    course.save(update_fields=['creation_blueprint'])
+    return _kickoff_pdf_import(request, course, pdf_path)
+
+
+def _kickoff_pdf_import(request, course, pdf_path):
+    """Start PDF import for an existing course and return the courses-list redirect."""
+    _start_ai_progress_widget(request, course)
+    # Local DEBUG: run in-request so a reload/thread cannot swallow the import,
+    # and so a failure appears as a dashboard message instead of an empty course.
+    if settings.DEBUG:
+        result = _import_course_from_pdf(course.id, pdf_path, close_connection=False)
+        if result.get('ok'):
+            messages.success(
+                request,
+                f'Imported {result.get("modules", 0)} chapter(s) and {result.get("lessons", 0)} lesson(s).',
+            )
+        else:
+            messages.error(
+                request,
+                f'Course was created but the PDF could not be imported: {result.get("error") or "unknown error"}',
+            )
+        return redirect('dashboard_courses')
+
+    thread = threading.Thread(
+        target=_import_course_from_pdf,
+        args=(course.id, pdf_path),
+        daemon=True,
+    )
+    thread.start()
+    return redirect('dashboard_courses')
+
+
+def _import_course_from_pdf(course_id, pdf_path, close_connection=True):
+    """Parse a PDF and persist modules/lessons/quizzes verbatim."""
+    from django.db import connection
+    from myApp.utils.pdf_course_import import parse_pdf_bytes, persist_imported_course
+
+    if close_connection:
+        connection.close()
+    course_name = f'Course {course_id}'
+    try:
+        course = Course.objects.get(id=course_id)
+        course_name = course.name
+        _update_ai_gen_progress(
+            course_id, course_name, 'extracting', progress=10, current='Extracting PDF text and figures...',
+        )
+        with open(pdf_path, 'rb') as fh:
+            pdf_bytes = fh.read()
+        parsed = parse_pdf_bytes(pdf_bytes)
+        _update_ai_gen_progress(
+            course_id, course_name, 'creating_content', progress=40, current='Creating modules and lessons...',
+        )
+        stats = persist_imported_course(
+            course,
+            parsed,
+            generate_slug=generate_slug,
+            create_editorjs_content=create_editorjs_content,
+        )
+        try:
+            for lesson_id in stats.get('lesson_ids') or []:
+                lesson = Lesson.objects.filter(id=lesson_id).first()
+                if lesson:
+                    mark_lesson_chatbot_ready_async(lesson)
+        except Exception:
+            logger.exception('Chatbot readiness failed after PDF import for course %s', course_id)
+        _update_ai_gen_progress(
+            course_id,
+            course.name,
+            'completed',
+            progress=100,
+            total=stats.get('lessons') or 0,
+            current=(
+                f'Imported {stats.get("modules", 0)} chapter(s), '
+                f'{stats.get("lessons", 0)} lesson(s), '
+                f'{stats.get("questions", 0)} quiz question(s).'
+            ),
+        )
+        print(
+            f'[PDF import] complete for "{course_name}": '
+            f'{stats.get("modules", 0)} modules, {stats.get("lessons", 0)} lessons, '
+            f'{stats.get("questions", 0)} questions'
+        )
+        try:
+            if pdf_path and os.path.exists(pdf_path):
+                os.remove(pdf_path)
+        except OSError:
+            pass
+        return {'ok': True, **stats}
+    except Exception as exc:
+        _update_ai_gen_progress(course_id, course_name, 'failed', progress=0, error=str(exc))
+        logger.exception('PDF import failed for course %s', course_id)
+        print(f'[PDF import] FAILED for course {course_id}: {exc}')
+        import traceback
+        traceback.print_exc()
+        return {'ok': False, 'error': str(exc)}
+
+
 @staff_member_required
 def dashboard_add_course(request):
     """Add new course with optional AI generation"""
@@ -4027,6 +4272,9 @@ def dashboard_add_course(request):
         request.session.modified = True
 
     if request.method == 'POST':
+        if (request.POST.get('import_mode') or '').strip() == 'pdf':
+            return _handle_pdf_course_import(request, tenant)
+
         show_onboarding = True
         blueprint = _parse_course_creation_blueprint(request.POST)
         seed_lessons = _parse_seed_lessons(request.POST.get('cf_seed_lessons_json'))
@@ -4065,6 +4313,7 @@ def dashboard_add_course(request):
             'depth_choices': DEPTH_CHOICES,
             'class_length_choices': CLASS_LENGTH_CHOICES,
             'show_onboarding': show_onboarding,
+            'pdf_available': PDF_AVAILABLE,
         }
 
         if use_ai:
@@ -4171,15 +4420,7 @@ def dashboard_add_course(request):
 
         # Generate course structure with AI if requested (in background)
         if use_ai and description:
-            # Append to list so floating widget can show stacked progress for multiple courses
-            courses_list = request.session.get('ai_generating_courses', [])
-            if not isinstance(courses_list, list):
-                courses_list = []
-            courses_list.append({'id': course.id, 'name': course.name})
-            request.session['ai_generating_courses'] = courses_list
-            request.session.modified = True
-            # Initial progress before thread starts
-            _update_ai_gen_progress(course.id, course.name, 'starting', progress=0, current='Starting...')
+            _start_ai_progress_widget(request, course)
             thread = threading.Thread(
                 target=_generate_course_ai_content,
                 args=(course.id, name, description, course_type, coach_name),
@@ -4199,6 +4440,7 @@ def dashboard_add_course(request):
         'depth_choices': DEPTH_CHOICES,
         'class_length_choices': CLASS_LENGTH_CHOICES,
         'show_onboarding': show_onboarding,
+        'pdf_available': PDF_AVAILABLE,
     })
 
 

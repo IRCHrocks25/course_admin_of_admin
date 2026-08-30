@@ -436,6 +436,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return '<ul class="list-disc ml-5 space-y-1">' + listItems + '</ul>';
             }
+            if (block.type === 'image') {
+                const url = (block.data.file && block.data.file.url) || block.data.url || '';
+                if (!url) return '';
+                const caption = escapeHtml(block.data.caption || '');
+                return '<figure class="my-3"><img src="' + escapeHtml(url) + '" alt="' + (caption || 'Lesson figure') + '" class="w-full h-auto rounded-lg">' +
+                    (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
+            }
             return '';
         }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
     }

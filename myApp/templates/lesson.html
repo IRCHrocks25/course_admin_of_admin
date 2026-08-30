@@ -31,8 +31,9 @@
         <!-- Language Switcher -->
         {% include '_language_switcher.html' %}
 
-        <!-- Lesson Title -->
+        {% if has_lesson_video %}
         <h1 class="text-4xl lg:text-2xl font-semibold mb-6 lesson-page-title">{{ lesson_display.title }}</h1>
+        {% endif %}
 
         <!-- Video Container (only show if video exists) -->
         {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
@@ -114,7 +115,7 @@
             <!-- Lesson Content Sections -->
             <div class="space-y-6">
                 <!-- What You'll Learn Today -->
-                {% if lesson.show_what_youll_learn %}
+                {% if lesson.show_what_youll_learn and not is_pdf_import %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-4">What You'll Learn Today</h3>
                     <p class="text-gray-300 leading-relaxed">
@@ -125,35 +126,73 @@
                 
                 <!-- Lesson Notes / Content Blocks -->
                 {% if lesson.show_lesson_notes %}
-                {% if lesson_display.content and lesson_display.content.blocks %}
-                <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
+                {% if lesson_article.blocks or lesson_article.lead_images %}
+                <article class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl lesson-card lesson-article">
+                    {% if not has_lesson_video %}
+                    <header class="lesson-article-header">
+                        {% if lesson.module %}
+                        <p class="lesson-article-eyebrow">{{ lesson.module.name }}</p>
+                        {% endif %}
+                        <h1 class="lesson-page-title lesson-article-title">{{ lesson_display.title }}</h1>
+                    </header>
+                    {% elif not is_pdf_import %}
                     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
                         <i class="fas fa-sticky-note text-cyan-electric"></i>
                         Lesson Notes
                     </h2>
-                    <div class="prose prose-invert max-w-none">
-                        {% for block in lesson_display.content.blocks %}
+                    {% endif %}
+
+                    {% for block in lesson_article.lead_images %}
+                        {% if block.data.file.url %}
+                        <figure class="lesson-figure lesson-figure-lead">
+                            <img src="{{ block.data.file.url }}" alt="{{ block.data.caption|default:lesson_display.title }}">
+                        </figure>
+                        {% elif block.data.url %}
+                        <figure class="lesson-figure lesson-figure-lead">
+                            <img src="{{ block.data.url }}" alt="{{ block.data.caption|default:lesson_display.title }}">
+                        </figure>
+                        {% endif %}
+                    {% endfor %}
+
+                    <div class="lesson-article-body prose prose-invert max-w-none">
+                        {% for block in lesson_article.blocks %}
                             {% if block.type == 'paragraph' %}
-                                <p class="text-gray-300 leading-relaxed mb-4">{{ block.data.text|linebreaks }}</p>
+                                <p>{{ block.data.text|linebreaks }}</p>
                             {% elif block.type == 'header' %}
-                                <h{{ block.data.level }} class="text-white font-bold mb-4 mt-6 {% if block.data.level == 2 %}text-2xl{% elif block.data.level == 3 %}text-xl{% else %}text-lg{% endif %}">{{ block.data.text }}</h{{ block.data.level }}>
+                                <h{{ block.data.level }} class="{% if block.data.level == 2 %}text-2xl{% elif block.data.level == 3 %}text-xl{% else %}text-lg{% endif %}">{{ block.data.text }}</h{{ block.data.level }}>
                             {% elif block.type == 'list' %}
-                                <ul class="list-disc list-outside pl-6 space-y-1 mb-4 {% if block.data.style == 'ordered' %}list-decimal{% endif %}">
-                                    {% for item in block.data.items %}
-                                        <li class="text-gray-300 leading-normal">{{ item }}</li>
-                                    {% endfor %}
+                                {% if block.data.style == 'ordered' %}
+                                <ol class="lesson-article-list lesson-article-list-ordered">
+                                    {% for item in block.data.items %}<li>{{ item }}</li>{% endfor %}
+                                </ol>
+                                {% else %}
+                                <ul class="lesson-article-list lesson-article-list-bullets">
+                                    {% for item in block.data.items %}<li>{{ item }}</li>{% endfor %}
                                 </ul>
+                                {% endif %}
                             {% elif block.type == 'quote' %}
-                                <blockquote class="border-l-4 border-cyan-electric/50 pl-4 py-2 my-4 italic text-gray-300">
-                                    <p class="mb-2">{{ block.data.text }}</p>
+                                <blockquote>
+                                    <p>{{ block.data.text }}</p>
                                     {% if block.data.caption %}
-                                        <cite class="text-sm text-gray-400 not-italic">— {{ block.data.caption }}</cite>
+                                        <cite>— {{ block.data.caption }}</cite>
                                     {% endif %}
                                 </blockquote>
+                            {% elif block.type == 'image' %}
+                                {% if block.data.file.url %}
+                                <figure class="lesson-figure">
+                                    <img src="{{ block.data.file.url }}" alt="{{ block.data.caption|default:'Lesson figure' }}">
+                                    {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                </figure>
+                                {% elif block.data.url %}
+                                <figure class="lesson-figure">
+                                    <img src="{{ block.data.url }}" alt="{{ block.data.caption|default:'Lesson figure' }}">
+                                    {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                </figure>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
                     </div>
-                </section>
+                </article>
                 {% elif lesson_display.description %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
@@ -191,7 +230,7 @@
                 {% endif %}
 
                 <!-- This Lesson Will Produce -->
-                {% if lesson_display.get_outcomes_list %}
+                {% if lesson_display.get_outcomes_list and not is_pdf_import %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
                     <h3 class="text-xl font-bold text-white mb-6">This Lesson Will Produce</h3>
                     <ul class="space-y-4">
@@ -517,6 +556,93 @@
         transform: translateX(2px);
     }
 
+    .lesson-article {
+        padding: 2rem 2rem 2.25rem;
+    }
+    .lesson-article-header {
+        margin-bottom: 1.5rem;
+    }
+    .lesson-article-eyebrow {
+        font-size: 0.7rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        margin-bottom: 0.4rem;
+        font-weight: 600;
+    }
+    .lesson-article-title {
+        font-size: 2rem;
+        line-height: 1.2;
+        font-weight: 650;
+        margin: 0;
+    }
+    .lesson-article-body p {
+        font-size: 1.05rem;
+        line-height: 1.75;
+        margin: 0 0 1.15em;
+        color: inherit;
+    }
+    .lesson-article-body h2,
+    .lesson-article-body h3,
+    .lesson-article-body h4 {
+        line-height: 1.3;
+        margin: 1.6em 0 0.55em;
+        font-weight: 700;
+    }
+    .lesson-article-body h2:first-child,
+    .lesson-article-body h3:first-child {
+        margin-top: 0;
+    }
+    .lesson-article-body ul,
+    .lesson-article-body ol,
+    .lesson-article-list {
+        margin: 0 0 1.35em;
+        padding-left: 1.6rem;
+        list-style-position: outside;
+    }
+    .lesson-article-body ul,
+    .lesson-article-list-bullets {
+        list-style-type: disc !important;
+    }
+    .lesson-article-body ol,
+    .lesson-article-list-ordered {
+        list-style-type: decimal !important;
+    }
+    .lesson-article-body li,
+    .lesson-article-list li {
+        display: list-item;
+        font-size: 1.05rem;
+        line-height: 1.6;
+        margin: 0 0 0.55em;
+    }
+    .lesson-figure {
+        margin: 1.5rem 0;
+        text-align: center;
+    }
+    .lesson-figure img {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        width: auto;
+        height: auto;
+        max-height: 420px;
+        object-fit: contain;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(0, 240, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+    }
+    .lesson-figure-lead {
+        margin: 0 0 1.75rem;
+    }
+    .lesson-figure-lead img {
+        max-height: 280px;
+    }
+    .lesson-figure figcaption {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+    }
+
     /* LESSON PAGE - LIGHT THEME (Corporate B/W) */
     .brand-theme-light .lesson-main-shell {
         background: #f3f4f6 !important;
@@ -592,6 +718,16 @@
     }
 
     /* --- LESSON NOTES --- */
+    .brand-theme-light .lesson-article {
+        padding: 2.25rem 2.5rem 2.5rem;
+    }
+    .brand-theme-light .lesson-article-eyebrow {
+        color: #737373 !important;
+    }
+    .brand-theme-light .lesson-figure img {
+        border-color: #e5e5e5 !important;
+        background: #f8fafc;
+    }
     .brand-theme-light .lesson-page .prose-invert,
     .brand-theme-light .lesson-page .prose-invert p,
     .brand-theme-light .lesson-page .prose-invert li {
