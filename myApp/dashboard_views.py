@@ -1,12 +1,12 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse
+from django.urls import reverse, NoReverseMatch
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.db.models import Count, Q
@@ -29,7 +29,7 @@ from datetime import datetime
 import stripe
 from django.utils import timezone
 from django.utils.text import slugify
-from PIL import Image
+from PIL import Image, ImageOps
 try:
     import cloudinary.uploader as cloudinary_uploader
     CLOUDINARY_UPLOAD_AVAILABLE = True
@@ -90,7 +90,13 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from .utils.tenancy import get_default_tenant, is_clear_tenant_requested
 from .utils.domains import normalize_domain, ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
-from .utils.branding import get_tenant_branding, ensure_tenant_branding
+from .utils.branding import (
+    get_tenant_branding,
+    ensure_tenant_branding,
+    sanitize_certificate_field_layout,
+    resolve_certificate_field_layout,
+    default_certificate_field_layout,
+)
 from .utils.prompts import (
     LessonGenerationSettings,
     build_lesson_metadata_prompt,
@@ -994,82 +1000,201 @@ def _landing_html_has_styles(raw_html):
     return bool(re.search(r'<link[^>]*\brel=["\']stylesheet["\']', lower, flags=re.IGNORECASE))
 
 
-def _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file):
+def _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file, variant='default'):
     """
-    Convert uploaded logo to webp and upload to Cloudinary.
-    Returns secure URL on success, or empty string.
+    Convert uploaded logo to webp and upload to Iceberg (Cloudflare R2).
+    Returns the public CDN URL on success, or empty string.
+
+    (Name kept for call-site stability; storage backend is now Iceberg.)
     """
-    if not CLOUDINARY_UPLOAD_AVAILABLE:
-        return ''
-    if not (os.getenv('CLOUDINARY_CLOUD_NAME') and os.getenv('CLOUDINARY_API_KEY') and os.getenv('CLOUDINARY_API_SECRET')):
+    from myApp.utils import iceberg
+    if not iceberg.is_configured():
+        logger.warning("Iceberg logo upload skipped: ICEBERG_* settings are missing.")
         return ''
     if not logo_file:
         return ''
     try:
+        filename = (getattr(logo_file, 'name', '') or '').lower()
+        content_type = (getattr(logo_file, 'content_type', '') or '').lower()
+        is_svg = filename.endswith('.svg') or content_type == 'image/svg+xml'
+        safe_variant = re.sub(r'[^a-z0-9]+', '', (variant or 'default').lower()) or 'default'
+        key_suffix = '' if safe_variant == 'default' else f'_{safe_variant}'
+
+        if is_svg:
+            try:
+                logo_file.seek(0)
+            except Exception:
+                pass
+            key = f"tenant_logos/tenant_{tenant.id}_logo{key_suffix}.svg"
+            return iceberg.upload_bytes(logo_file.read(), key, 'image/svg+xml')
+
         image = Image.open(logo_file)
         if image.mode not in ('RGB', 'RGBA'):
             image = image.convert('RGBA')
         if image.mode == 'RGBA':
-            # Keep transparency if present.
             converted = image
         else:
             converted = image.convert('RGB')
 
         out = io.BytesIO()
         converted.save(out, format='WEBP', quality=88, method=6)
-        out.seek(0)
-        out.name = f"tenant_{tenant.id}_logo.webp"
-
-        result = cloudinary_uploader.upload(
-            out,
-            folder='courseforge/tenant_logos',
-            public_id=f"tenant_{tenant.id}_logo",
-            overwrite=True,
-            resource_type='image',
-            format='webp',
-        )
-        return (result.get('secure_url') or '').strip()
+        key = f"tenant_logos/tenant_{tenant.id}_logo{key_suffix}.webp"
+        return iceberg.upload_bytes(out.getvalue(), key, 'image/webp')
     except Exception:
+        logger.exception("Iceberg logo upload failed for tenant_id=%s", getattr(tenant, 'id', None))
         return ''
+
+
+_CERT_TEMPLATE_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+_CERT_TEMPLATE_PDF_EXTS = {'.pdf'}
+
+
+def _certificate_template_pdf_bytes(uploaded_file):
+    """Return ``(pdf_bytes, kind)`` where kind is ``'pdf'`` or ``'image'``.
+
+    Images are drawn onto a landscape A4 page (same size as issued certificates)
+    so name/course/date overlay still lands in the usual places. PDFs are stored
+    as uploaded.
+    """
+    if not uploaded_file:
+        return None, 'empty'
+
+    name = (getattr(uploaded_file, 'name', '') or '').lower()
+    ctype = (getattr(uploaded_file, 'content_type', '') or '').lower()
+    ext = os.path.splitext(name)[1]
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+    raw = uploaded_file.read()
+    if not raw:
+        return None, 'empty'
+
+    is_pdf = (
+        ext in _CERT_TEMPLATE_PDF_EXTS
+        or ctype == 'application/pdf'
+        or raw[:4] == b'%PDF'
+    )
+    is_image = ext in _CERT_TEMPLATE_IMAGE_EXTS or ctype.startswith('image/')
+    if is_pdf:
+        return raw, 'pdf'
+    if not is_image:
+        return None, 'unsupported'
+
+    img = Image.open(io.BytesIO(raw))
+    img = ImageOps.exif_transpose(img)
+    if getattr(img, 'n_frames', 1) > 1:
+        img.seek(0)
+        img = img.copy()
+    if img.mode == 'P':
+        img = img.convert('RGBA' if 'transparency' in getattr(img, 'info', {}) else 'RGB')
+    elif img.mode not in ('RGB', 'RGBA'):
+        img = img.convert('RGB')
+
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as pdf_canvas
+
+    page_w, page_h = landscape(A4)
+    img_buf = io.BytesIO()
+    if img.mode == 'RGBA':
+        img.save(img_buf, format='PNG')
+    else:
+        img.save(img_buf, format='JPEG', quality=92)
+    img_buf.seek(0)
+
+    iw, ih = img.size
+    if iw <= 0 or ih <= 0:
+        return None, 'unsupported'
+    scale = min(page_w / float(iw), page_h / float(ih))
+    draw_w, draw_h = iw * scale, ih * scale
+    x = (page_w - draw_w) / 2.0
+    y = (page_h - draw_h) / 2.0
+
+    out = io.BytesIO()
+    c = pdf_canvas.Canvas(out, pagesize=(page_w, page_h))
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(0, 0, page_w, page_h, fill=1, stroke=0)
+    c.drawImage(
+        ImageReader(img_buf),
+        x,
+        y,
+        width=draw_w,
+        height=draw_h,
+        preserveAspectRatio=True,
+        mask='auto',
+    )
+    c.showPage()
+    c.save()
+    return out.getvalue(), 'image'
 
 
 def _upload_tenant_certificate_template_to_cloudinary(tenant, template_file):
     """
-    Upload tenant certificate PDF template to Cloudinary and return secure URL.
-    """
-    if not CLOUDINARY_UPLOAD_AVAILABLE:
-        return ''
-    if not (os.getenv('CLOUDINARY_CLOUD_NAME') and os.getenv('CLOUDINARY_API_KEY') and os.getenv('CLOUDINARY_API_SECRET')):
-        return ''
-    if not template_file:
-        return ''
-    try:
-        name = (getattr(template_file, 'name', '') or '').lower()
-        if not name.endswith('.pdf'):
-            return ''
+    Upload tenant certificate PDF template to Iceberg and return ``(url, kind)``.
 
-        result = cloudinary_uploader.upload(
-            template_file,
-            folder='courseforge/certificate_templates',
-            public_id=f"tenant_{tenant.id}_certificate_template_{uuid.uuid4().hex[:10]}",
-            overwrite=True,
-            resource_type='raw',
-            format='pdf',
-        )
-        return (result.get('secure_url') or '').strip()
+    Accepts a PDF or an image (JPG/PNG/WebP/GIF); images are converted to PDF
+    first. (Name kept for call-site stability; storage backend is now Iceberg.)
+    """
+    from myApp.utils import iceberg
+    if not iceberg.is_configured():
+        logger.warning("Iceberg certificate upload skipped: ICEBERG_* settings are missing.")
+        return '', ''
+    if not template_file:
+        return '', ''
+    try:
+        pdf_bytes, kind = _certificate_template_pdf_bytes(template_file)
+        if not pdf_bytes or kind in ('empty', 'unsupported'):
+            return '', kind or 'unsupported'
+        key = f"certificate_templates/tenant_{tenant.id}_certificate_template_{uuid.uuid4().hex[:10]}.pdf"
+        url = iceberg.upload_bytes(pdf_bytes, key, 'application/pdf')
+        return (url or ''), kind
     except Exception:
-        return ''
+        logger.exception("Iceberg certificate upload failed for tenant_id=%s", getattr(tenant, 'id', None))
+        return '', 'error'
 
 
 def _is_valid_logo_url(raw_url):
     url = (raw_url or '').strip()
     if not url:
         return False
+    if url.startswith('/media/') or url.startswith('/static/'):
+        return True
     try:
         parsed = urlparse(url)
         return parsed.scheme in ('http', 'https') and bool(parsed.netloc)
     except Exception:
         return False
+
+
+def _apply_branding_logo_slot(request, tenant, updated, variant):
+    """Apply upload/URL/remove for a theme-specific logo slot (light or dark)."""
+    branding_key = f'logo_url_{variant}'
+    if request.POST.get(f'remove_logo_{variant}') == '1':
+        updated[branding_key] = ''
+        return None
+
+    logo_file = request.FILES.get(f'logo_file_{variant}')
+    logo_url_input = (request.POST.get(f'logo_url_{variant}') or '').strip()
+    label = 'light-background' if variant == 'light' else 'dark-background'
+
+    if logo_file:
+        logo_url = _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file, variant=variant)
+        if logo_url:
+            updated[branding_key] = logo_url
+        else:
+            from myApp.utils.iceberg import USER_UPLOAD_ERROR
+            messages.error(request, USER_UPLOAD_ERROR)
+        return None
+
+    if logo_url_input:
+        if not _is_valid_logo_url(logo_url_input):
+            return (
+                f'Please enter a valid {label} logo URL (http/https) '
+                'or an internal media path (for example: /media/...).'
+            )
+        updated[branding_key] = logo_url_input
+    return None
 
 
 def _is_valid_hex_color(raw_color):
@@ -7051,6 +7176,17 @@ def dashboard_make_primary_domain(request, domain_id):
     return redirect('dashboard_domain_settings')
 
 
+def _certificate_preview_url(request):
+    try:
+        url = reverse('dashboard_branding_certificate_preview')
+    except NoReverseMatch:
+        url = '/dashboard/branding-settings/certificate-preview/'
+    tenant_slug = (request.GET.get('tenant') or '').strip()
+    if tenant_slug:
+        url = f"{url}?{urlencode({'tenant': tenant_slug})}"
+    return url
+
+
 @staff_member_required
 def dashboard_branding_settings(request):
     """Tenant admin branding editor for copy shown across portal pages."""
@@ -7065,6 +7201,24 @@ def dashboard_branding_settings(request):
     features = config.features or {}
     custom_pages = features.get('custom_pages') or {}
 
+    def _redirect_to_branding_settings():
+        # Keep the open tab (and superadmin tenant scope) after POST redirects.
+        tab = (request.POST.get('branding_tab') or request.GET.get('tab') or '').strip()
+        if tab not in (
+            'identity', 'landing', 'signup', 'login', 'languages',
+            'certificate', 'logo', 'lessoncta',
+        ):
+            tab = ''
+        params = {}
+        if request.user.is_superuser and tenant is not None:
+            params['tenant'] = tenant.slug
+        if tab:
+            params['tab'] = tab
+        url = reverse('dashboard_branding_settings')
+        if params:
+            url = f"{url}?{urlencode(params)}"
+        return redirect(url)
+
     if request.method == 'POST':
         updated = dict(current_branding)
         theme_mode = (request.POST.get('theme_mode') or current_branding.get('theme_mode') or 'light').strip().lower()
@@ -7074,10 +7228,10 @@ def dashboard_branding_settings(request):
         accent_secondary = (request.POST.get('accent_secondary') or current_branding.get('accent_secondary') or '#a855f7').strip().lower()
         if not _is_valid_hex_color(accent_primary):
             messages.error(request, 'Primary accent color must be a valid hex color (example: #00f0ff).')
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
         if not _is_valid_hex_color(accent_secondary):
             messages.error(request, 'Secondary accent color must be a valid hex color (example: #a855f7).')
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
         updated.update({
             'brand_name': (request.POST.get('brand_name') or current_branding.get('brand_name', '')).strip(),
             'brand_short_name': (request.POST.get('brand_short_name') or current_branding.get('brand_short_name', '')).strip(),
@@ -7101,10 +7255,23 @@ def dashboard_branding_settings(request):
             'login_form_tagline': (request.POST.get('login_form_tagline') or current_branding.get('login_form_tagline', '')).strip(),
             'footer_copy': (request.POST.get('footer_copy') or current_branding.get('footer_copy', '')).strip(),
         })
+        overlay_color = (request.POST.get('certificate_overlay_color') or current_branding.get('certificate_overlay_color') or 'white').strip().lower()
+        if overlay_color not in ('white', 'black'):
+            overlay_color = 'white'
+        updated['certificate_overlay_color'] = overlay_color
+        raw_layout = (request.POST.get('certificate_field_layout') or '').strip()
+        if raw_layout:
+            try:
+                parsed_layout = json.loads(raw_layout)
+                sanitized_layout = sanitize_certificate_field_layout(parsed_layout)
+                if sanitized_layout:
+                    updated['certificate_field_layout'] = sanitized_layout
+            except json.JSONDecodeError:
+                pass
 
         if not updated['brand_name']:
             messages.error(request, 'Brand name is required.')
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
 
         landing_mode = (request.POST.get('landing_mode') or custom_pages.get('landing_mode') or 'default').strip()
         if landing_mode == 'cms':
@@ -7139,19 +7306,19 @@ def dashboard_branding_settings(request):
                 request,
                 'Custom landing is enabled but no HTML is provided yet. Upload/paste HTML or switch to default mode.'
             )
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
         if signup_mode == 'custom' and not signup_html_text and not existing_signup_html and not clear_signup_html:
             messages.error(
                 request,
                 'Custom sign-up page is enabled but no HTML is provided yet. Paste HTML or switch to default mode.'
             )
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
         if login_mode == 'custom' and not login_html_text and not existing_login_html and not clear_login_html:
             messages.error(
                 request,
                 'Custom login page is enabled but no HTML is provided yet. Paste HTML or switch to default mode.'
             )
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
 
         if html_text:
             sanitized_landing_html = _sanitize_uploaded_html(html_text, page_kind='landing')
@@ -7161,7 +7328,7 @@ def dashboard_branding_settings(request):
                     'Custom landing HTML must include a <style> block or stylesheet <link>. '
                     'Paste/upload the complete file starting with <!DOCTYPE html> and keep the entire <head> section.'
                 )
-                return redirect('dashboard_branding_settings')
+                return _redirect_to_branding_settings()
             custom_pages['landing_html'] = sanitized_landing_html
             # If admin provided HTML, auto-enable custom mode to avoid confusion.
             custom_pages['landing_mode'] = 'custom'
@@ -7187,40 +7354,31 @@ def dashboard_branding_settings(request):
                 custom_pages['login_mode'] = 'default'
                 messages.info(request, 'Login custom HTML was cleared, so login mode was switched to default.')
 
-        if request.POST.get('remove_logo') == '1':
-            if tenant.logo:
-                tenant.logo.delete(save=False)
-                tenant.logo = None
-                tenant.save(update_fields=['logo', 'updated_at'])
+        if request.POST.get('remove_logo') == '1' and request.POST.get('remove_logo_light') != '1':
+            if request.POST.get('remove_logo_dark') != '1':
+                request.POST = request.POST.copy()
+                request.POST['remove_logo_light'] = '1'
+                request.POST['remove_logo_dark'] = '1'
+
+        for variant in ('light', 'dark'):
+            logo_error = _apply_branding_logo_slot(request, tenant, updated, variant)
+            if logo_error:
+                messages.error(request, logo_error)
+                return _redirect_to_branding_settings()
+
+        updated['logo_url'] = (
+            (updated.get('logo_url_dark') or '').strip()
+            or (updated.get('logo_url_light') or '').strip()
+            or (updated.get('logo_url') or '').strip()
+        )
+        if request.POST.get('remove_logo_light') == '1' and request.POST.get('remove_logo_dark') == '1':
             updated['logo_url'] = ''
-
-        logo_url_input = (request.POST.get('logo_url') or '').strip()
-        if logo_url_input:
-            if not _is_valid_logo_url(logo_url_input):
-                messages.error(request, 'Please enter a valid logo URL (http or https).')
-                return redirect('dashboard_branding_settings')
-            updated['logo_url'] = logo_url_input
+            updated['logo_url_light'] = ''
+            updated['logo_url_dark'] = ''
             if tenant.logo:
                 tenant.logo.delete(save=False)
                 tenant.logo = None
                 tenant.save(update_fields=['logo', 'updated_at'])
-
-        logo_file = request.FILES.get('logo_file')
-        if logo_file and logo_url_input:
-            messages.info(request, 'External logo URL was provided, so uploaded logo file was skipped.')
-        if logo_file and not logo_url_input:
-            logo_url = _upload_tenant_logo_webp_to_cloudinary(tenant, logo_file)
-            if logo_url:
-                updated['logo_url'] = logo_url
-                # Clear local file pointer when cloud URL is now canonical.
-                if tenant.logo:
-                    tenant.logo.delete(save=False)
-                    tenant.logo = None
-                    tenant.save(update_fields=['logo', 'updated_at'])
-            else:
-                tenant.logo = logo_file
-                tenant.save(update_fields=['logo', 'updated_at'])
-                updated['logo_url'] = tenant.logo.url if tenant.logo else updated.get('logo_url', '')
 
         certificate_template_file = request.FILES.get('certificate_template_file')
         clear_certificate_template = request.POST.get('clear_certificate_template') == '1'
@@ -7228,15 +7386,25 @@ def dashboard_branding_settings(request):
             updated['certificate_template_url'] = ''
             messages.info(request, 'Custom certificate template removed. Default template will be used.')
         if certificate_template_file:
-            certificate_template_name = (getattr(certificate_template_file, 'name', '') or '').lower()
-            if not certificate_template_name.endswith('.pdf'):
-                messages.error(request, 'Certificate template must be a PDF file.')
-                return redirect('dashboard_branding_settings')
-            certificate_template_url = _upload_tenant_certificate_template_to_cloudinary(tenant, certificate_template_file)
+            certificate_template_url, template_kind = _upload_tenant_certificate_template_to_cloudinary(
+                tenant, certificate_template_file
+            )
+            if template_kind == 'unsupported':
+                messages.error(
+                    request,
+                    'Certificate template must be a PDF or an image (JPG, PNG, WebP, or GIF).',
+                )
+                return _redirect_to_branding_settings()
             if not certificate_template_url:
-                messages.error(request, 'Could not upload certificate template. Please try again.')
-                return redirect('dashboard_branding_settings')
+                from myApp.utils.iceberg import USER_UPLOAD_ERROR
+                messages.error(request, USER_UPLOAD_ERROR)
+                return _redirect_to_branding_settings()
             updated['certificate_template_url'] = certificate_template_url
+            if template_kind == 'image':
+                messages.success(
+                    request,
+                    'Certificate template saved. Your image was converted to a PDF background.',
+                )
 
         features['branding'] = updated
         features['custom_pages'] = custom_pages
@@ -7272,7 +7440,7 @@ def dashboard_branding_settings(request):
         cta_new_tab = request.POST.get('lesson_cta_new_tab') == '1'
         if cta_enabled and not re.match(r'^https?://', cta_url, re.IGNORECASE):
             messages.error(request, 'Lesson CTA requires a valid URL starting with http:// or https:// when enabled.')
-            return redirect('dashboard_branding_settings')
+            return _redirect_to_branding_settings()
         features['lesson_cta'] = {
             'enabled': cta_enabled,
             'url': cta_url,
@@ -7291,7 +7459,7 @@ def dashboard_branding_settings(request):
         }.get(custom_pages.get('landing_mode'), 'default template')
         html_len = len((custom_pages.get('landing_html') or '').strip())
         messages.success(request, f'Branding updated successfully. Landing mode: {mode_message}. HTML size: {html_len} chars.')
-        return redirect('dashboard_branding_settings')
+        return _redirect_to_branding_settings()
 
     cms_template_html = ''
     cms_schema = {'sections': [], 'defaults': {}, 'link_targets': []}
@@ -7320,6 +7488,10 @@ def dashboard_branding_settings(request):
         'signup_html_sample': SIGNUP_HTML_SAMPLE,
         'login_html_sample': LOGIN_HTML_SAMPLE,
         'certificate_template_sample_url': f"{settings.STATIC_URL}certificates/KATALYST_Certificate.pdf",
+        'certificate_field_layout': resolve_certificate_field_layout(current_branding),
+        'certificate_layout_defaults_custom': default_certificate_field_layout(True),
+        'certificate_layout_defaults_katalyst': default_certificate_field_layout(False),
+        'certificate_preview_url': _certificate_preview_url(request),
         'cms_schema': cms_schema,
         'cms_content': cms_content,
         'lesson_languages': lesson_languages,
@@ -7332,6 +7504,50 @@ def dashboard_branding_settings(request):
             'open_in_new_tab': bool((features.get('lesson_cta') or {}).get('open_in_new_tab', True)),
         },
     })
+
+
+@staff_member_required
+@require_http_methods(['GET'])
+def dashboard_branding_certificate_preview(request):
+    """Rasterize the tenant certificate template (or the platform default) for the layout editor."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        return HttpResponse('Tenant context is required.', status=400, content_type='text/plain; charset=utf-8')
+    if not PDF_AVAILABLE:
+        return HttpResponse('PDF preview is unavailable.', status=503, content_type='text/plain; charset=utf-8')
+
+    branding = get_tenant_branding(tenant)
+    pdf_bytes = None
+    template_url = (branding.get('certificate_template_url') or '').strip()
+    if template_url:
+        try:
+            response = requests.get(template_url, timeout=15)
+            if response.status_code == 200 and response.content:
+                pdf_bytes = response.content
+        except Exception:
+            pdf_bytes = None
+    if not pdf_bytes:
+        default_path = os.path.join(
+            settings.BASE_DIR, 'myApp', 'static', 'certificates', 'KATALYST_Certificate.pdf'
+        )
+        if os.path.exists(default_path):
+            with open(default_path, 'rb') as handle:
+                pdf_bytes = handle.read()
+    if not pdf_bytes:
+        return HttpResponse('Certificate template not found.', status=404, content_type='text/plain; charset=utf-8')
+
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype='pdf')
+        page = doc[0]
+        pix = page.get_pixmap(matrix=fitz.Matrix(1.6, 1.6), alpha=False)
+        png_bytes = pix.tobytes('png')
+        doc.close()
+    except Exception:
+        return HttpResponse('Could not render certificate preview.', status=500, content_type='text/plain; charset=utf-8')
+
+    response = HttpResponse(png_bytes, content_type='image/png')
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 # ========== LANDING PAGE CMS ==========

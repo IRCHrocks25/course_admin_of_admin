@@ -19,6 +19,11 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+USER_UPLOAD_ERROR = (
+    "Something went wrong while saving your file. Please try again in a moment — "
+    "lots of people are using the platform right now, and we're on it."
+)
+
 _TIMEOUT = 30
 
 

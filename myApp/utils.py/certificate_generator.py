@@ -9,8 +9,6 @@ from io import BytesIO
 from datetime import datetime
 import os
 import tempfile
-import cloudinary
-import cloudinary.uploader
 import requests
 import qrcode
 try:
@@ -31,7 +29,58 @@ DEFAULT_CERTIFICATE_TEMPLATE_RELATIVE_PATH = os.path.join(
 )
 
 
-def generate_certificate_from_template(template_path, user_name, course_name, issued_date, certificate_id=None, field_positions=None, verification_url=None):
+def _normalize_overlay_color(overlay_color):
+    color = str(overlay_color or 'white').strip().lower()
+    return color if color in ('white', 'black') else 'white'
+
+
+def _overlay_rgb(overlay_color):
+    return (0, 0, 0) if _normalize_overlay_color(overlay_color) == 'black' else (1, 1, 1)
+
+
+def _normalize_overlay_field_specs(field_positions, page_rect):
+    if not field_positions:
+        field_positions = {
+            'student_name': {'xPercent': 50, 'yPercent': 54, 'visible': True, 'align': 'center'},
+            'course_name': {'xPercent': 50, 'yPercent': 68, 'visible': True, 'align': 'center'},
+            'date': {'xPercent': 14, 'yPercent': 12, 'visible': True, 'align': 'left'},
+            'certificate_id': {'xPercent': 14, 'yPercent': 78, 'visible': True, 'align': 'left'},
+            'qr_code': {'xPercent': 50, 'yPercent': 72, 'visible': True, 'align': 'center'},
+        }
+    specs = {}
+    for name, pos in field_positions.items():
+        spec = {'visible': True, 'align': 'left', 'fontsize': None}
+        if isinstance(pos, (tuple, list)) and len(pos) >= 2:
+            spec['x'] = float(pos[0])
+            spec['y'] = float(pos[1])
+            if name in ('student_name', 'course_name', 'qr_code'):
+                spec['align'] = 'center'
+        elif isinstance(pos, dict):
+            spec['visible'] = pos.get('visible', True) is not False
+            align = str(pos.get('align') or '').strip().lower()
+            if align not in ('left', 'center', 'right'):
+                align = 'center' if name in ('student_name', 'course_name', 'qr_code') else 'left'
+            spec['align'] = align
+            if pos.get('xPercent') is not None and pos.get('yPercent') is not None:
+                spec['x'] = (float(pos['xPercent']) / 100.0) * page_rect.width
+                spec['y'] = (float(pos['yPercent']) / 100.0) * page_rect.height
+            elif pos.get('x') is not None and pos.get('y') is not None:
+                spec['x'] = float(pos['x'])
+                spec['y'] = float(pos['y'])
+            else:
+                continue
+            try:
+                if pos.get('fontsize'):
+                    spec['fontsize'] = float(pos['fontsize'])
+            except (TypeError, ValueError):
+                pass
+        else:
+            continue
+        specs[name] = spec
+    return specs
+
+
+def generate_certificate_from_template(template_path, user_name, course_name, issued_date, certificate_id=None, field_positions=None, verification_url=None, overlay_color='white'):
     """
     Generate a certificate by overlaying text on a PDF template.
     
@@ -59,43 +108,8 @@ def generate_certificate_from_template(template_path, user_name, course_name, is
     template_doc = fitz.open(template_path)
     page = template_doc[0]  # Use first page
     
-    # Default field positions (adjusted based on actual certificate layout)
-    if field_positions is None:
-        # Coordinates in PyMuPDF are from top-left (0,0 at top-left)
-        # y increases downward
-        page_rect = page.rect
-        center_x = page_rect.width / 2
-        
-        # Based on the actual certificate layout:
-        # - Date: Top left (~1.5 inches from edges)
-        # - Certificate ID: Top right, horizontal (not vertical)
-        # - Student Name: On first horizontal line in middle section
-        # - Course Name: On second horizontal line in middle section
-        field_positions = {
-            'date': (page_rect.width * 0.14, page_rect.height * 0.12),  # Top left
-            'certificate_id': (page_rect.width * 0.14, page_rect.height * 0.78),  # Left side signature line (bottom left, aligned with date)
-            'student_name': (center_x, page_rect.height * 0.54),  # Middle section, moved lower (from 0.51 to 0.54)
-            'course_name': (center_x, page_rect.height * 0.68),  # Middle section, moved lower (from 0.65 to 0.68)
-        }
-    else:
-        # Convert positions if they're in percentage format or need conversion
-        page_rect = page.rect
-        converted_positions = {}
-        for field_name, pos in field_positions.items():
-            if isinstance(pos, tuple):
-                # Already in (x, y) format
-                converted_positions[field_name] = pos
-            elif isinstance(pos, dict):
-                # Check if we have percentage values
-                if 'xPercent' in pos and 'yPercent' in pos:
-                    # Convert from percentage to PDF coordinates
-                    x = (pos['xPercent'] / 100) * page_rect.width
-                    y = (pos['yPercent'] / 100) * page_rect.height
-                    converted_positions[field_name] = (x, y)
-                elif 'x' in pos and 'y' in pos:
-                    # Use pixel values directly (assuming they're already in PDF coordinates)
-                    converted_positions[field_name] = (pos['x'], pos['y'])
-        field_positions = converted_positions
+    page_rect = page.rect
+    field_specs = _normalize_overlay_field_specs(field_positions, page_rect)
     
     # Format date
     date_str = issued_date.strftime("%B %d, %Y")
@@ -116,120 +130,91 @@ def generate_certificate_from_template(template_path, user_name, course_name, is
         'date': {'fontsize': 11, 'align': 'left'},
         'certificate_id': {'fontsize': 9, 'align': 'right'},
     }
-    
+    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+    bg_png = pix.tobytes('png')
+    width = float(page_rect.width)
+    height = float(page_rect.height)
+    template_doc.close()
+
+    # Rebuild as a fresh reportlab PDF. Overlaying onto the original template with
+    # PyMuPDF produced files some Windows readers refuse to open.
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=(width, height))
+    c.drawImage(
+        ImageReader(BytesIO(bg_png)),
+        0,
+        0,
+        width=width,
+        height=height,
+        preserveAspectRatio=False,
+        mask='auto',
+    )
+    fill = (
+        colors.HexColor('#000000')
+        if _normalize_overlay_color(overlay_color) == 'black'
+        else colors.HexColor('#FFFFFF')
+    )
+    c.setFillColor(fill)
+
+    def reportlab_y(top_y):
+        return height - float(top_y)
+
     for field_name, text in text_fields.items():
-        if field_name in field_positions and text:
-            x, y = field_positions[field_name]
-            style = field_styles.get(field_name, {'fontsize': 14, 'align': 'left'})
-            
-            # Certificate ID: Left-aligned, on left side
-            if field_name == 'certificate_id':
-                # Left-align the text (same as date)
-                point = fitz.Point(x, y)
-                page.insert_text(
-                    point,
-                    text,
-                    fontsize=style['fontsize'],
-                    color=(0, 0, 0),
-                    render_mode=0,
-                )
-            # Student name and course name: Center-aligned with Times-Roman font
-            elif field_name in ['student_name', 'course_name']:
-                # Use insert_text with manual centering for more reliable results
-                # Calculate approximate text width (Times-Roman is a serif font, slightly wider)
-                text_width = len(text) * (style['fontsize'] * 0.6)
-                
-                # Center the text by adjusting x position
-                point = fitz.Point(x - text_width/2, y)
-                try:
-                    # Use Times-Roman font (built-in PDF font)
-                    # PyMuPDF uses 'times' as the font name for Times-Roman
-                    page.insert_text(
-                        point,
-                        text,
-                        fontsize=style['fontsize'],
-                        color=(1, 1, 1),
-                        render_mode=0,
-                        fontname='times',  # Times-Roman in PyMuPDF
-                    )
-                except Exception as e:
-                    # If that fails, try textbox as fallback
-                    text_rect = fitz.Rect(x - 250, y - style['fontsize']*1.5, 
-                                         x + 250, y + style['fontsize']*1.5)
-                    try:
-                        page.insert_textbox(
-                            text_rect,
-                            text,
-                            fontsize=style['fontsize'],
-                            color=(1, 1, 1),
-                            align=1,  # Center alignment
-                            fontname='times',  # Times-Roman in PyMuPDF
-                        )
-                    except:
-                        # Final fallback without specifying font (uses default)
-                        page.insert_textbox(
-                            text_rect,
-                            text,
-                            fontsize=style['fontsize'],
-                            color=(1, 1, 1),
-                            align=1,
-                        )
-            # Date: Left-aligned
-            else:
-                point = fitz.Point(x, y)
-                page.insert_text(
-                    point,
-                    text,
-                    fontsize=style['fontsize'],
-                    color=(0, 0, 0),
-                    render_mode=0,
-                )
-    
-    # Add QR code for verification (always add if certificate_id exists)
-    if certificate_id:
+        spec = field_specs.get(field_name)
+        if not spec or not spec.get('visible', True) or not text:
+            continue
+        style = field_styles.get(field_name, {'fontsize': 14, 'align': 'left'})
+        fontsize = spec.get('fontsize') or style['fontsize']
+        align = spec.get('align') or style.get('align') or 'left'
+        x = float(spec['x'])
+        y = reportlab_y(spec['y'])
+        font = 'Times-Bold' if field_name in ('student_name', 'course_name') else 'Helvetica'
+        c.setFont(font, fontsize)
+        if align == 'center':
+            c.drawCentredString(x, y, text)
+        elif align == 'right':
+            c.drawRightString(x, y, text)
+        else:
+            c.drawString(x, y, text)
+
+    qr_spec = field_specs.get('qr_code') or {}
+    if certificate_id and qr_spec.get('visible', True):
         try:
             qr = qrcode.QRCode(version=1, box_size=4, border=2)
-            # Use verification URL if provided, otherwise use certificate info as fallback
             if verification_url:
                 qr.add_data(verification_url)
             else:
-                # Fallback: include certificate details in QR code
-                date_str = issued_date.strftime("%B %d, %Y")
-                qr_data = f"Certificate ID: {certificate_id}\nStudent: {user_name}\nCourse: {course_name}\nDate: {date_str}"
+                qr_data = (
+                    f"Certificate ID: {certificate_id}\nStudent: {user_name}\n"
+                    f"Course: {course_name}\nDate: {date_str}"
+                )
                 qr.add_data(qr_data)
             qr.make(fit=True)
             qr_img = qr.make_image(fill_color="black", back_color="white")
-            
-            # Save QR code to BytesIO buffer
             qr_buffer = BytesIO()
             qr_img.save(qr_buffer, format='PNG')
             qr_buffer.seek(0)
-            
-            # Position QR code at bottom center (matching the programmatic certificate layout)
-            page_rect = page.rect
-            qr_size = 100  # Larger size for better visibility and scanning
-            qr_x = (page_rect.width - qr_size) / 2  # Center horizontally
-            # Position near bottom center - in PyMuPDF y=0 is at top, so larger y = lower on page
-            # Certificate ID is at 0.78 (78% from top = near bottom)
-            # QR code should be in the bottom center area, lowered a bit more
-            # Position it around 72% from top (28% from bottom) - lowered more
-            qr_y = page_rect.height * 0.72  # 72% from top = 28% from bottom (lowered more)
-            
-            # Insert QR code image using stream (image bytes)
-            qr_rect = fitz.Rect(qr_x, qr_y, qr_x + qr_size, qr_y + qr_size)
-            page.insert_image(qr_rect, stream=qr_buffer.getvalue())
+            qr_size = min(width, height) * 0.12
+            qr_left = float(qr_spec.get('x', width / 2.0)) - qr_size / 2.0
+            qr_top = float(qr_spec.get('y', height * 0.72)) - qr_size / 2.0
+            qr_bottom = reportlab_y(qr_top) - qr_size
+            c.drawImage(
+                ImageReader(qr_buffer),
+                qr_left,
+                qr_bottom,
+                width=qr_size,
+                height=qr_size,
+                mask='auto',
+            )
         except Exception as e:
             print(f"Could not add QR code to template certificate: {e}")
-    
-    # Save to buffer
-    buffer = BytesIO()
-    template_doc.save(buffer)
-    template_doc.close()
+
+    c.save()
     buffer.seek(0)
     return buffer
 
 
-def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id=None, modules=None, template_path=None, field_positions=None, verification_url=None):
+def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id=None, modules=None, template_path=None, field_positions=None, verification_url=None, overlay_color='white'):
     """
     Generate a PDF certificate for course completion.
     If template_path is provided, uses the template. Otherwise, generates from scratch.
@@ -253,7 +238,7 @@ def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id
             print(f"Attempting to use template: {template_path}")
             return generate_certificate_from_template(
                 template_path, user_name, course_name, issued_date, 
-                certificate_id, field_positions, verification_url
+                certificate_id, field_positions, verification_url, overlay_color
             )
         except Exception as e:
             import traceback
@@ -272,6 +257,8 @@ def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id
     dark_teal = colors.HexColor("#0d9488")  # Adjust to match exact teal from design
     dark_gray = colors.HexColor("#374151")
     light_bg = colors.HexColor("#fefefe")  # Off-white background
+
+    overlay_fill = colors.HexColor("#000000") if _normalize_overlay_color(overlay_color) == 'black' else colors.HexColor("#FFFFFF")
 
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     
@@ -335,7 +322,7 @@ def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id
     # ===== Student Name Line =====
     name_y = height - inner_margin - 120
     c.setFont("Times-Bold", 36)  # Increased from 28 to 36 for more prominence
-    c.setFillColor(colors.HexColor("#FFFFFF"))
+    c.setFillColor(overlay_fill)
     # Draw a line for the name
     line_length = 400
     line_start_x = (width - line_length) / 2
@@ -358,7 +345,7 @@ def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id
     
     # Draw the course name, moved lower (from -50 to -40 to bring it closer to the line)
     c.setFont("Times-Bold", 20)  # Using Times-Roman Bold for elegant look
-    c.setFillColor(colors.HexColor("#FFFFFF"))
+    c.setFillColor(overlay_fill)
     course_display = course_name
     if len(course_display) > 50:
         course_display = course_display[:47] + "..."
@@ -414,45 +401,44 @@ def generate_certificate_pdf(user_name, course_name, issued_date, certificate_id
 
 def upload_certificate_to_cloudinary(pdf_buffer, user_id, course_slug):
     """
-    Upload certificate PDF to Cloudinary.
-    
+    Upload certificate PDF to Iceberg (Cloudflare R2).
+
+    (Name kept for call-site stability; storage backend is now Iceberg.)
+
     Args:
         pdf_buffer: BytesIO object containing the PDF
         user_id: User ID for organizing files
         course_slug: Course slug for organizing files
-        
+
     Returns:
-        Dictionary with 'url' and 'public_id' of uploaded certificate
+        Dictionary with 'url' and 'public_id' (the Iceberg key) of the upload,
+        or None on failure.
     """
     try:
-        # Configure Cloudinary if not already configured
-        if not cloudinary.config().cloud_name:
-            cloudinary.config(
-                cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-                api_key=os.getenv('CLOUDINARY_API_KEY'),
-                api_secret=os.getenv('CLOUDINARY_API_SECRET')
-            )
-        
-        # Upload PDF to Cloudinary
-        upload_result = cloudinary.uploader.upload(
-            pdf_buffer,
-            resource_type='raw',  # PDFs are raw files
-            folder=f'certificates/{course_slug}',
-            public_id=f'cert_{user_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
-            format='pdf',
-            overwrite=False
-        )
-        
+        from myApp.utils import iceberg
+        if not iceberg.is_configured():
+            print("Certificate upload skipped: ICEBERG_* settings are missing.")
+            return None
+
+        key = f'certificates/{course_slug}/cert_{user_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+        try:
+            pdf_buffer.seek(0)
+        except Exception:
+            pass
+        url = iceberg.upload_bytes(pdf_buffer.read(), key, 'application/pdf')
+        if not url:
+            return None
+
         return {
-            'url': upload_result['secure_url'],
-            'public_id': upload_result['public_id']
+            'url': url,
+            'public_id': key,
         }
     except Exception as e:
-        print(f"Error uploading certificate to Cloudinary: {str(e)}")
+        print(f"Error uploading certificate to Iceberg: {str(e)}")
         return None
 
 
-def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=True):
+def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=True, request=None):
     """
     Generate a certificate for a user and course.
     
@@ -460,7 +446,10 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
         user: User object
         course: Course object
         issued_date: Optional datetime (defaults to now)
-        upload_to_cloudinary: Whether to upload to Cloudinary (default True)
+        upload_to_cloudinary: Whether to upload to Iceberg (param name kept
+            for call-site stability; Cloudinary is no longer used).
+        request: Optional HTTP request so the QR verification URL uses the
+            live host instead of localhost / ALLOWED_HOSTS[0].
         
     Returns:
         Dictionary with certificate URL and certificate ID, or None if error
@@ -487,6 +476,18 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
     template_path = None
     field_positions = None
     temp_template_path = None  # Track temp files for cleanup
+    overlay_color = 'white'
+    tenant_branding = {}
+
+    if DJANGO_AVAILABLE:
+        try:
+            tenant = getattr(course, 'tenant', None)
+            if tenant is not None:
+                from myApp.utils.branding import get_tenant_branding
+                tenant_branding = get_tenant_branding(tenant) or {}
+                overlay_color = _normalize_overlay_color(tenant_branding.get('certificate_overlay_color'))
+        except Exception as e:
+            print(f"Could not load tenant branding for certificate: {e}")
     
     # First, try to use course-specific template (if this project has those fields)
     course_template_field = getattr(course, 'certificate_template', None)
@@ -504,7 +505,7 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
         except (AttributeError, KeyError):
             # Field doesn't exist in database yet
             field_positions = None
-        
+
         # Try to get local path first
         try:
             template_path = course_template_field.path
@@ -528,26 +529,27 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
                 print(f"Could not download template: {e}")
                 template_path = None
 
-    # Next, try tenant-level custom certificate template from branding settings.
-    if not template_path and DJANGO_AVAILABLE:
+    if field_positions is None and tenant_branding:
         try:
-            tenant = getattr(course, 'tenant', None)
-            if tenant is not None:
-                from myApp.models import TenantConfig
-                tenant_config = TenantConfig.objects.filter(tenant=tenant).only('features').first()
-                tenant_features = tenant_config.features if tenant_config and isinstance(tenant_config.features, dict) else {}
-                tenant_branding = tenant_features.get('branding') or {}
-                tenant_template_url = (tenant_branding.get('certificate_template_url') or '').strip()
-                if tenant_template_url:
-                    response = requests.get(tenant_template_url, timeout=12)
-                    if response.status_code == 200:
-                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-                        temp_file.write(response.content)
-                        temp_file.close()
-                        template_path = temp_file.name
-                        temp_template_path = template_path
+            from myApp.utils.branding import resolve_certificate_field_layout
+            field_positions = resolve_certificate_field_layout(tenant_branding)
         except Exception as e:
-            print(f"Could not load tenant certificate template: {e}")
+            print(f"Could not resolve certificate field layout: {e}")
+
+    # Next, try tenant-level custom certificate template from branding settings.
+    if not template_path:
+        tenant_template_url = (tenant_branding.get('certificate_template_url') or '').strip()
+        if tenant_template_url:
+            try:
+                response = requests.get(tenant_template_url, timeout=12)
+                if response.status_code == 200:
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+                    temp_file.write(response.content)
+                    temp_file.close()
+                    template_path = temp_file.name
+                    temp_template_path = template_path
+            except Exception as e:
+                print(f"Could not load tenant certificate template: {e}")
     
     # If no course-specific template, use local default template.
     if not template_path:
@@ -565,18 +567,18 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
         else:
             print(f"Default certificate template not found: {normalized_path}")
     
-    # Build verification URL for QR code
+    # Build verification URL for QR code from the tenant's public domain —
+    # never ALLOWED_HOSTS[0], which is often localhost after sorting.
     verification_url = None
     if DJANGO_AVAILABLE and certificate_id:
         try:
-            # Get base URL from settings or use default
-            domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else 'localhost:8000'
-            if not domain.startswith('http'):
-                protocol = 'https' if not settings.DEBUG else 'http'
-                domain = f"{protocol}://{domain}"
-            
-            # Build verification URL
-            verification_url = f"{domain}/verify-certificate/{certificate_id}/"
+            from myApp.utils.domains import build_certificate_verification_url
+            tenant = getattr(course, 'tenant', None)
+            verification_url = build_certificate_verification_url(
+                certificate_id,
+                tenant=tenant,
+                request=request,
+            ) or None
         except Exception as e:
             print(f"Could not build verification URL: {e}")
     
@@ -594,7 +596,8 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
             modules=modules,
             template_path=template_path,
             field_positions=field_positions,
-            verification_url=verification_url
+            verification_url=verification_url,
+            overlay_color=overlay_color,
         )
     finally:
         # Clean up temporary template file if it was downloaded
@@ -604,7 +607,7 @@ def generate_certificate(user, course, issued_date=None, upload_to_cloudinary=Tr
             except Exception as e:
                 print(f"Could not clean up temporary template file: {e}")
     
-    # Upload to Cloudinary if requested
+    # Upload to Iceberg if requested
     if upload_to_cloudinary:
         upload_result = upload_certificate_to_cloudinary(
             pdf_buffer,

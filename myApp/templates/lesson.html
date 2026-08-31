@@ -332,10 +332,29 @@
             <!-- Finish Lesson Button -->
             <div class="mt-8 pt-6 border-t border-cyan-electric/10">
                 {% if lesson.id in completed_lessons %}
-                <div class="flex items-center justify-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
-                    <i class="fas fa-check-circle text-green-400 text-xl"></i>
-                    <span class="text-green-400 font-semibold">Lesson Completed</span>
-                </div>
+                    {% if course_complete %}
+                    <div class="rounded-xl border border-green-500/30 bg-green-500/10 p-5 text-center space-y-3">
+                        <div class="flex items-center justify-center gap-2 text-green-400 font-semibold text-lg">
+                            <i class="fas fa-trophy"></i>
+                            <span>Congratulations — you finished this course</span>
+                        </div>
+                        <p class="text-sm text-gray-300">Your certificate is ready.</p>
+                        {% if course_certificate_url %}
+                        <a href="{{ course_certificate_url }}" class="inline-flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl bg-cyan-electric text-[#0a0e27] font-bold hover:opacity-90 transition lesson-primary-btn" download="certificate.pdf">
+                            <i class="fas fa-certificate"></i>
+                            View Certificate
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'student_certifications' %}" class="inline-flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl border border-cyan-electric/30 text-cyan-electric font-semibold hover:bg-cyan-electric/10">
+                            My Certifications
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="flex items-center justify-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                        <i class="fas fa-check-circle text-green-400 text-xl"></i>
+                        <span class="text-green-400 font-semibold">Lesson Completed</span>
+                    </div>
+                    {% endif %}
                 {% else %}
                     {% if lesson_quiz and lesson_quiz.is_required and not quiz_passed %}
                     <!-- Quiz Required Message -->
@@ -1544,17 +1563,43 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Celebrate, then auto-advance to the next unlocked lesson.
                         hideStudentPreloader();
                         launchLessonConfetti();
 
+                        const courseComplete = !!data.course_complete;
+                        const certificateUrl = data.certificate_url || '';
+                        const certificationsUrl = data.certifications_url || '{% url "student_certifications" %}';
+
                         let completionHTML = `
                             <div class="space-y-4">
+                        `;
+
+                        if (courseComplete && !nextLessonUrl) {
+                            completionHTML += `
+                                <div class="rounded-xl border border-green-500/30 bg-green-500/10 p-5 text-center space-y-3">
+                                    <div class="flex items-center justify-center gap-2 text-green-400 font-semibold text-lg">
+                                        <i class="fas fa-trophy"></i>
+                                        <span>Congratulations — you finished this course</span>
+                                    </div>
+                                    <p class="text-sm text-gray-300">Your certificate is ready.</p>
+                                    ${certificateUrl ? `
+                                    <a href="${certificateUrl}" class="inline-flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl bg-cyan-electric text-[#0a0e27] font-bold hover:opacity-90 transition" download="certificate.pdf">
+                                        <i class="fas fa-certificate"></i>
+                                        View Certificate
+                                    </a>` : ''}
+                                    <a href="${certificationsUrl}" class="inline-flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl border border-cyan-electric/30 text-cyan-electric font-semibold hover:bg-cyan-electric/10">
+                                        My Certifications
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            completionHTML += `
                                 <div class="flex items-center justify-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
                                     <i class="fas fa-check-circle text-green-400 text-xl"></i>
                                     <span class="text-green-400 font-semibold">Lesson Completed!</span>
                                 </div>
-                        `;
+                            `;
+                        }
 
                         // Add next lesson button if available
                         if (nextLessonUrl) {

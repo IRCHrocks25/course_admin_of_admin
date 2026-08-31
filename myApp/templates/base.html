@@ -222,6 +222,25 @@
             object-fit: contain;
             object-position: left center;
         }
+        .brand-logo-swap {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .brand-platform-logo {
+            width: auto;
+            height: auto;
+            max-height: 36px;
+            max-width: clamp(120px, 20vw, 240px);
+            object-fit: contain;
+            object-position: left center;
+            flex-shrink: 0;
+        }
+        .brand-theme-light .brand-logo-on-dark,
+        .brand-theme-dark .brand-logo-on-light {
+            display: none !important;
+        }
+        .brand-theme-light .logo-auto-dark { filter: invert(1) hue-rotate(180deg); }
         .brand-nav-wordmark {
             font-size: 0.8125rem;
             font-weight: 500;
@@ -264,7 +283,8 @@
             }
         }
         @media (max-width: 640px) {
-            .brand-logo-main {
+            .brand-logo-main,
+            .brand-platform-logo {
                 max-height: 32px;
                 max-width: 150px;
             }
@@ -524,12 +544,21 @@
             <!-- Brand -->
             <div class="brand-nav-brand flex items-center min-w-0">
                 <a href="{% url 'home' %}" class="brand-nav-branding hover:opacity-85 transition-opacity">
-                    <img
-                        src="{{ tenant_branding.logo_url|default:tenant_branding.platform_logo_url }}"
-                        alt="{{ tenant_branding.brand_name|default:'CourseForge' }}"
-                        class="brand-logo-main"
-                        loading="eager"
-                    >
+                    <span class="brand-logo-swap">
+                        <img
+                            src="{{ tenant_branding.nav_logo_light|default:tenant_branding.platform_logo_url }}"
+                            alt="{{ tenant_branding.brand_name|default:'CourseForge' }}"
+                            class="brand-platform-logo brand-logo-on-light{% if tenant_branding.logo_url_light == tenant_branding.logo_url_dark and tenant_branding.logo_is_light %} logo-auto-dark{% endif %}"
+                            loading="eager"
+                        >
+                        <img
+                            src="{{ tenant_branding.nav_logo_dark|default:tenant_branding.platform_logo_url }}"
+                            alt=""
+                            class="brand-platform-logo brand-logo-on-dark"
+                            loading="eager"
+                            aria-hidden="true"
+                        >
+                    </span>
                     {% if tenant and tenant_branding.show_sponsor_name and tenant_branding.sponsor_name %}
                     <span class="brand-sponsor-name">Sponsor: {{ tenant_branding.sponsor_name }}</span>
                     {% endif %}

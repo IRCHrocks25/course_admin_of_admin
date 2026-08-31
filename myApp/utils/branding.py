@@ -1,4 +1,8 @@
 import re
+import hashlib
+import threading
+
+from django.core.cache import cache
 
 from ..models import TenantConfig
 
@@ -9,6 +13,74 @@ HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 # tenant's uploaded logo, which is used on login/forum/sidebars). Tenants may
 # override it via branding.platform_logo_url.
 DEFAULT_PLATFORM_LOGO_URL = 'https://cdn.katalyst-crm.com/t1/SOP%20Master%20logo%20placeholder.png'
+
+
+def _logo_cache_key(logo_url):
+    return 'logo_is_light_' + hashlib.md5(logo_url.encode('utf-8')).hexdigest()
+
+
+def _compute_logo_is_light(logo_url):
+    """Download the logo and measure the average luminance of its visible
+    pixels. This makes a blocking network request + image decode, so it must
+    NEVER run in the request/response path — only from a background thread or
+    an explicit warm call. Returns False on any error / mid-tone / dark logo so
+    we only ever flag clearly-light logos for auto-darkening in light mode."""
+    result = False
+    try:
+        import requests
+        from io import BytesIO
+        from PIL import Image
+        resp = requests.get(logo_url, timeout=4)
+        resp.raise_for_status()
+        img = Image.open(BytesIO(resp.content)).convert('RGBA')
+        img.thumbnail((64, 64))
+        total_lum = 0.0
+        total_alpha = 0.0
+        for r, g, b, a in img.getdata():
+            if a == 0:
+                continue
+            lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+            total_lum += lum * a
+            total_alpha += a
+        if total_alpha > 0:
+            result = (total_lum / total_alpha) >= 0.65
+    except Exception:
+        result = False
+    return result
+
+
+def _warm_logo_is_light(logo_url, key):
+    """Compute and cache the light-logo flag off the request path."""
+    try:
+        result = _compute_logo_is_light(logo_url)
+        cache.set(key, result, 60 * 60 * 24 * 7)
+    finally:
+        cache.delete(key + '_pending')
+
+
+def _logo_is_light(logo_url):
+    """Request-path-safe: is the logo mostly light (so it would vanish on a
+    white light-mode nav)? This NEVER blocks — it only reads the cached result.
+    On a cache miss it kicks off a one-shot background thread to compute the
+    value and returns False (safe default) immediately, so page renders stay
+    fast. The next render picks up the cached answer."""
+    if not logo_url:
+        return False
+    key = _logo_cache_key(logo_url)
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    pending_key = key + '_pending'
+    if cache.add(pending_key, '1', 60):
+        try:
+            threading.Thread(
+                target=_warm_logo_is_light,
+                args=(logo_url, key),
+                daemon=True,
+            ).start()
+        except Exception:
+            cache.delete(pending_key)
+    return False
 
 
 def _trim(text, max_len=120):
@@ -91,6 +163,7 @@ def _with_derived_accent_colors(branding):
         # Readable text accents on light surfaces (cards, page bg).
         'accent_primary_ink': _ink_color_for_light_bg(primary),
         'accent_secondary_ink': _ink_color_for_light_bg(secondary),
+        'logo_is_light': _logo_is_light(branding.get('logo_url')),
     }
 
 
@@ -115,7 +188,11 @@ def build_default_branding(tenant, profile=None):
         'accent_primary': '#00f0ff',
         'accent_secondary': '#a855f7',
         'logo_url': '',
+        'logo_url_light': '',
+        'logo_url_dark': '',
         'certificate_template_url': '',
+        'certificate_overlay_color': 'white',
+        'certificate_field_layout': {},
         'headline_line1': 'Train Smarter.',
         'headline_line2': 'Scale Faster.',
         'headline_line3': 'Win Bigger.',
@@ -157,7 +234,13 @@ def get_tenant_branding(tenant):
             'accent_primary': '#00f0ff',
             'accent_secondary': '#a855f7',
             'logo_url': '',
+            'logo_url_light': '',
+            'logo_url_dark': '',
+            'nav_logo_light': DEFAULT_PLATFORM_LOGO_URL,
+            'nav_logo_dark': DEFAULT_PLATFORM_LOGO_URL,
             'certificate_template_url': '',
+            'certificate_overlay_color': 'white',
+            'certificate_field_layout': {},
             'headline_line1': 'Build your academy.',
             'headline_line2': 'Launch with confidence.',
             'headline_line3': 'Grow with leverage.',
@@ -183,9 +266,25 @@ def get_tenant_branding(tenant):
     # light mode) instead of forcing the built-in neon for un-branded tenants.
     merged['accent_is_custom'] = bool(branding.get('accent_primary') or branding.get('accent_secondary'))
 
-    # Platform logo shown in the student nav bar (falls back to the default).
-    if not merged.get('platform_logo_url'):
-        merged['platform_logo_url'] = DEFAULT_PLATFORM_LOGO_URL
+    if not merged.get('logo_url') and getattr(tenant, 'logo', None):
+        try:
+            merged['logo_url'] = tenant.logo.url
+        except Exception:
+            merged['logo_url'] = ''
+    tenant_logo = (merged.get('logo_url') or '').strip()
+    logo_light = (merged.get('logo_url_light') or '').strip()
+    logo_dark = (merged.get('logo_url_dark') or '').strip()
+    merged['logo_url'] = tenant_logo or logo_dark or logo_light
+    merged['logo_url_light'] = logo_light
+    merged['logo_url_dark'] = logo_dark
+    merged['nav_logo_light'] = logo_light or tenant_logo or logo_dark or DEFAULT_PLATFORM_LOGO_URL
+    merged['nav_logo_dark'] = logo_dark or tenant_logo or logo_light or DEFAULT_PLATFORM_LOGO_URL
+    # Student nav uses platform_logo_url as a generic fallback (dark-theme mark).
+    merged['platform_logo_url'] = (
+        merged['nav_logo_dark']
+        or (merged.get('platform_logo_url') or '').strip()
+        or DEFAULT_PLATFORM_LOGO_URL
+    )
 
     # Sponsor label: explicit branding flag wins, else default True.
     if 'show_sponsor_name' in branding:
@@ -194,12 +293,6 @@ def get_tenant_branding(tenant):
         merged['show_sponsor_name'] = bool(merged.get('show_sponsor_name', True))
     # sponsor_name is always computed from tenant.name (never stored).
     merged['sponsor_name'] = (tenant.name or merged.get('brand_name') or '').strip()
-
-    if not merged.get('logo_url') and getattr(tenant, 'logo', None):
-        try:
-            merged['logo_url'] = tenant.logo.url
-        except Exception:
-            merged['logo_url'] = ''
     return _with_derived_accent_colors(merged)
 
 
@@ -245,3 +338,74 @@ def ensure_tenant_branding(tenant):
         config.features = features
         config.save(update_fields=['features', 'updated_at'])
 
+
+CERTIFICATE_LAYOUT_FIELDS = (
+    'student_name',
+    'course_name',
+    'date',
+    'certificate_id',
+    'qr_code',
+)
+
+# Matches the built-in Katalyst landscape template.
+KATALYST_CERTIFICATE_LAYOUT = {
+    'student_name': {'xPercent': 50, 'yPercent': 54, 'visible': True, 'align': 'center'},
+    'course_name': {'xPercent': 50, 'yPercent': 68, 'visible': True, 'align': 'center'},
+    'date': {'xPercent': 14, 'yPercent': 12, 'visible': True, 'align': 'left'},
+    'certificate_id': {'xPercent': 14, 'yPercent': 78, 'visible': True, 'align': 'left'},
+    'qr_code': {'xPercent': 50, 'yPercent': 72, 'visible': True, 'align': 'center'},
+}
+
+# Starting points for uploaded designs (name/course centered, date on a footer line).
+CUSTOM_CERTIFICATE_LAYOUT = {
+    'student_name': {'xPercent': 50, 'yPercent': 48, 'visible': True, 'align': 'center'},
+    'course_name': {'xPercent': 50, 'yPercent': 58, 'visible': True, 'align': 'center'},
+    'date': {'xPercent': 18, 'yPercent': 83, 'visible': True, 'align': 'left'},
+    'certificate_id': {'xPercent': 18, 'yPercent': 90, 'visible': False, 'align': 'left'},
+    'qr_code': {'xPercent': 50, 'yPercent': 78, 'visible': False, 'align': 'center'},
+}
+
+
+def default_certificate_field_layout(has_custom_template=False):
+    source = CUSTOM_CERTIFICATE_LAYOUT if has_custom_template else KATALYST_CERTIFICATE_LAYOUT
+    return {key: dict(value) for key, value in source.items()}
+
+
+def sanitize_certificate_field_layout(raw):
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for key in CERTIFICATE_LAYOUT_FIELDS:
+        item = raw.get(key)
+        if not isinstance(item, dict):
+            continue
+        try:
+            x = float(item.get('xPercent'))
+            y = float(item.get('yPercent'))
+        except (TypeError, ValueError):
+            continue
+        align = str(item.get('align') or 'center').strip().lower()
+        if align not in ('left', 'center', 'right'):
+            align = 'center'
+        if key == 'qr_code':
+            align = 'center'
+        out[key] = {
+            'xPercent': round(max(0.0, min(100.0, x)), 2),
+            'yPercent': round(max(0.0, min(100.0, y)), 2),
+            'visible': item.get('visible', True) is not False,
+            'align': align,
+        }
+    return out
+
+
+def resolve_certificate_field_layout(branding):
+    branding = branding or {}
+    has_custom = bool((branding.get('certificate_template_url') or '').strip())
+    base = default_certificate_field_layout(has_custom)
+    saved = sanitize_certificate_field_layout(branding.get('certificate_field_layout'))
+    if not saved:
+        return base
+    merged = dict(base)
+    for key, value in saved.items():
+        merged[key] = value
+    return merged

@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.middleware.csrf import get_token
@@ -20,8 +20,11 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.html import escape
 from django.utils.text import slugify
 from datetime import datetime
+from io import BytesIO
+from pathlib import Path
 import importlib.util
 import json
+import logging
 import re
 import requests
 import uuid
@@ -29,7 +32,6 @@ import os
 import threading
 import stripe
 import time
-from pathlib import Path
 from .models import (
     Course,
     CourseCategory,
@@ -557,7 +559,53 @@ def _load_certificate_generator_fn():
     return _CERTIFICATE_GENERATOR_FN
 
 
-def _auto_issue_course_certificate(user, course, certification=None):
+def _course_certificate_ready(user, course):
+    """True when the learner has finished every lesson and required quiz gates."""
+    total_lessons = course.lessons.count()
+    if total_lessons <= 0:
+        return False
+    completed_lessons = UserProgress.objects.filter(
+        user=user,
+        lesson__course=course,
+        completed=True,
+    ).count()
+    if completed_lessons < total_lessons:
+        return False
+
+    required_quiz_ids = list(
+        LessonQuiz.objects.filter(
+            lesson__course=course,
+            is_required=True,
+        ).values_list('id', flat=True)
+    )
+    if required_quiz_ids:
+        passed_required = (
+            LessonQuizAttempt.objects.filter(
+                user=user,
+                quiz_id__in=required_quiz_ids,
+                passed=True,
+            )
+            .values('quiz_id')
+            .distinct()
+            .count()
+        )
+        if passed_required < len(required_quiz_ids):
+            return False
+
+    # A leftover/auto-generated final exam must not block the certificate.
+    # Required lesson quizzes are the only extra gate; optional quizzes are ignored.
+    return True
+
+
+def _issue_certificate_if_earned(user, course, request=None):
+    """Create/store the course PDF when requirements are met. No-op otherwise."""
+    if not _course_certificate_ready(user, course):
+        return None
+    cert = Certification.objects.filter(user=user, course=course).first()
+    return _auto_issue_course_certificate(user=user, course=course, certification=cert, request=request)
+
+
+def _auto_issue_course_certificate(user, course, certification=None, request=None):
     """
     Generate and persist certificate URL/ID when learner completed requirements.
     """
@@ -569,18 +617,31 @@ def _auto_issue_course_certificate(user, course, certification=None):
     if cert and cert.accredible_certificate_url and cert.accredible_certificate_id:
         return cert
 
-    def _store_pdf_buffer_locally(pdf_buffer, cert_id):
+    def _store_pdf_buffer_on_iceberg(pdf_buffer, cert_id):
         if not pdf_buffer:
             return ''
         try:
+            from myApp.utils import iceberg
             pdf_buffer.seek(0)
-            filename = (
+            key = (
                 f"certificates/generated/{course.slug}/"
                 f"{cert_id}_{uuid.uuid4().hex[:8]}.pdf"
             )
-            saved_path = default_storage.save(filename, ContentFile(pdf_buffer.read()))
-            return default_storage.url(saved_path)
+            if not iceberg.is_configured():
+                logging.getLogger(__name__).warning(
+                    'Certificate PDF not stored: Iceberg is not configured.'
+                )
+                return ''
+            url = iceberg.upload_bytes(pdf_buffer.read(), key, 'application/pdf')
+            if not url:
+                logging.getLogger(__name__).warning(
+                    'Certificate PDF Iceberg upload failed for key %s.', key
+                )
+            return url or ''
         except Exception:
+            logging.getLogger(__name__).exception(
+                'Certificate PDF Iceberg store failed for course %s.', getattr(course, 'slug', '')
+            )
             return ''
 
     try:
@@ -588,30 +649,33 @@ def _auto_issue_course_certificate(user, course, certification=None):
             user=user,
             course=course,
             issued_date=timezone.now(),
-            upload_to_cloudinary=True
+            upload_to_cloudinary=True,
+            request=request,
         )
     except Exception:
         return cert
 
-    # Fallback path: generate PDF buffer and store using Django storage.
+    # Fallback: generate the PDF buffer and upload it to Iceberg directly.
+    # Do not write certificates to local disk — MEDIA_ROOT is ephemeral.
     if not result:
         try:
             local_result = generator_fn(
                 user=user,
                 course=course,
                 issued_date=timezone.now(),
-                upload_to_cloudinary=False
+                upload_to_cloudinary=False,
+                request=request,
             )
         except Exception:
             local_result = None
 
         if local_result and local_result.get('pdf_buffer'):
             cert_id = local_result.get('certificate_id') or f"CERT-{course.slug.upper()}-{user.id}"
-            local_url = _store_pdf_buffer_locally(local_result.get('pdf_buffer'), cert_id)
-            if local_url:
+            iceberg_url = _store_pdf_buffer_on_iceberg(local_result.get('pdf_buffer'), cert_id)
+            if iceberg_url:
                 result = {
                     'certificate_id': cert_id,
-                    'certificate_url': local_url,
+                    'certificate_url': iceberg_url,
                 }
 
     if not result:
@@ -694,6 +758,67 @@ def verify_certificate(request, certificate_id):
         'certificate': cert,
         'is_valid': bool(cert),
     })
+
+
+def _pdf_bytes_from_url(url):
+    if not url:
+        return b''
+    try:
+        response = requests.get(url, timeout=20)
+        if response.status_code == 200 and response.content[:4] == b'%PDF':
+            return response.content
+    except Exception:
+        logging.getLogger(__name__).exception('Could not fetch certificate PDF from storage.')
+    return b''
+
+
+@login_required
+def download_course_certificate(request, course_slug):
+    """Stream a real PDF download with a .pdf filename (avoids broken CDN saves)."""
+    course = get_object_or_404(course_queryset_for_slug(request, course_slug))
+    if not _course_certificate_ready(request.user, course):
+        messages.info(request, 'Finish the course to download your certificate.')
+        return redirect('student_dashboard')
+
+    cert = _issue_certificate_if_earned(request.user, course, request=request)
+    pdf_bytes = b''
+    generator_fn = _load_certificate_generator_fn()
+    if generator_fn:
+        try:
+            result = generator_fn(
+                user=request.user,
+                course=course,
+                issued_date=timezone.now(),
+                upload_to_cloudinary=False,
+                request=request,
+            )
+        except Exception:
+            logging.getLogger(__name__).exception('Fresh certificate PDF generation failed.')
+            result = None
+        if result and result.get('pdf_buffer'):
+            buf = result['pdf_buffer']
+            try:
+                buf.seek(0)
+            except Exception:
+                pass
+            pdf_bytes = buf.read()
+
+    if not pdf_bytes or pdf_bytes[:4] != b'%PDF':
+        pdf_bytes = _pdf_bytes_from_url((cert.accredible_certificate_url if cert else '') or '')
+
+    if not pdf_bytes or pdf_bytes[:4] != b'%PDF':
+        messages.error(request, 'The certificate PDF could not be generated. Please try again.')
+        return redirect('student_course_progress', course_slug=course.slug)
+
+    buffer = BytesIO(pdf_bytes)
+    response = FileResponse(
+        buffer,
+        as_attachment=True,
+        filename='certificate.pdf',
+        content_type='application/pdf',
+    )
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @never_cache
@@ -3272,6 +3397,16 @@ def lesson_detail(request, course_slug, lesson_slug):
         lesson.google_drive_url or lesson.get_vimeo_embed_url() or lesson.video_url
     )
 
+    course_complete = False
+    course_certificate_url = ''
+    course_certificate_id = ''
+    if total_lessons > 0 and len(completed_lessons) >= total_lessons:
+        issued_cert = _issue_certificate_if_earned(request.user, course, request=request)
+        course_complete = _course_certificate_ready(request.user, course)
+        if issued_cert:
+            course_certificate_url = reverse('download_course_certificate', kwargs={'course_slug': course.slug})
+            course_certificate_id = issued_cert.accredible_certificate_id or ''
+
     return render(request, 'lesson.html', {
         'course': course,
         'lesson': lesson,
@@ -3301,6 +3436,9 @@ def lesson_detail(request, course_slug, lesson_slug):
         'lesson_article': lesson_article,
         'is_pdf_import': is_pdf_import,
         'has_lesson_video': has_lesson_video,
+        'course_complete': course_complete,
+        'course_certificate_url': course_certificate_url,
+        'course_certificate_id': course_certificate_id,
     })
 
 
@@ -3416,55 +3554,11 @@ def lesson_quiz_view(request, course_slug, lesson_slug):
         certificate_url = ''
         certificate_id = ''
         if passed:
-            total_lessons = course.lessons.count()
-            completed_lessons = UserProgress.objects.filter(
-                tenant=progress_tenant,
-                user=request.user,
-                lesson__course=course,
-                completed=True
-            ).count()
-            required_quiz_ids = list(
-                LessonQuiz.objects.filter(
-                    lesson__course=course,
-                    is_required=True
-                ).values_list('id', flat=True)
-            )
-            passed_required_quiz_count = LessonQuizAttempt.objects.filter(
-                user=request.user,
-                quiz_id__in=required_quiz_ids,
-                passed=True
-            ).values('quiz_id').distinct().count()
-            required_quizzes_complete = passed_required_quiz_count >= len(required_quiz_ids)
-
-            final_exam = Exam.objects.filter(course=course, is_active=True).first()
-            exam_required_for_certificate = bool(final_exam and not required_quiz_ids)
-            exam_passed = bool(
-                final_exam and ExamAttempt.objects.filter(
-                    user=request.user,
-                    exam=final_exam,
-                    passed=True
-                ).exists()
-            )
-            certificate_available = (
-                total_lessons > 0
-                and completed_lessons >= total_lessons
-                and required_quizzes_complete
-                and (not exam_required_for_certificate or exam_passed)
-            )
-
-            if certificate_available:
-                cert = Certification.objects.filter(
-                    user=request.user,
-                    course=course
-                ).first()
-                cert = _auto_issue_course_certificate(
-                    user=request.user,
-                    course=course,
-                    certification=cert
-                )
-                if cert:
-                    certificate_url = cert.accredible_certificate_url or ''
-                    certificate_id = cert.accredible_certificate_id or ''
+            cert = _issue_certificate_if_earned(request.user, course, request=request)
+            certificate_available = _course_certificate_ready(request.user, course)
+            if cert:
+                certificate_url = reverse('download_course_certificate', kwargs={'course_slug': course.slug})
+                certificate_id = cert.accredible_certificate_id or ''
 
         result = {
             'score': round(score, 1),
@@ -4439,10 +4533,22 @@ def complete_lesson(request, lesson_id):
     user_progress.progress_percentage = 100
     user_progress.save()
 
+    cert = _issue_certificate_if_earned(request.user, lesson.course, request=request)
+    course_complete = _course_certificate_ready(request.user, lesson.course)
+    certificate_url = ''
+    certificate_id = ''
+    if cert:
+        certificate_url = reverse('download_course_certificate', kwargs={'course_slug': lesson.course.slug})
+        certificate_id = cert.accredible_certificate_id or ''
+
     return JsonResponse({
         'success': True,
         'message': 'Lesson marked as complete',
-        'lesson_id': lesson_id
+        'lesson_id': lesson_id,
+        'course_complete': course_complete,
+        'certificate_url': certificate_url,
+        'certificate_id': certificate_id,
+        'certifications_url': reverse('student_certifications'),
     })
 
 
@@ -4701,15 +4807,7 @@ def student_course_progress(request, course_slug):
     required_quizzes_complete = len(passed_required_quiz_ids) >= len(required_quiz_ids)
 
     has_passed_exam = any(attempt.passed for attempt in exam_attempts)
-    # If required lesson quizzes exist, they become the completion gate.
-    # Final exam only blocks certification when no required lesson quizzes are configured.
-    exam_required_for_certificate = bool(exam and exam.is_active and not required_quiz_ids)
-    certificate_available = (
-        total_lessons > 0
-        and completed_lessons >= total_lessons
-        and required_quizzes_complete
-        and (not exam_required_for_certificate or has_passed_exam)
-    )
+    certificate_available = _course_certificate_ready(user, course)
 
     # Get certification
     try:
@@ -4722,6 +4820,7 @@ def student_course_progress(request, course_slug):
             user=user,
             course=course,
             certification=certification,
+            request=request,
         )
 
     # Get course resources (downloadable SOP materials)
@@ -4750,6 +4849,14 @@ def student_course_progress(request, course_slug):
 def student_certifications(request):
     """View all certifications"""
     user = request.user
+
+    finished_course_ids = (
+        UserProgress.objects.filter(user=user, completed=True)
+        .values_list('lesson__course_id', flat=True)
+        .distinct()
+    )
+    for course in Course.objects.filter(id__in=finished_course_ids).select_related('tenant'):
+        _issue_certificate_if_earned(user, course, request=request)
 
     certifications = Certification.objects.filter(user=user).select_related('course').order_by('-issued_at', '-created_at')
 

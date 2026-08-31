@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 from ..models import TenantDomain
 
@@ -165,4 +166,77 @@ def get_tenant_public_home_url(request, tenant):
             return f'{request.scheme}://{tenant_host}/'
         return f'{request.scheme}://{request.get_host()}/?tenant={tenant.slug}'
     return ''
+
+
+def _hostname_is_unusable_for_public_links(host):
+    """True for localhost, wildcards, and other hosts phones cannot open."""
+    host = (host or '').strip().lower().split(':')[0]
+    if not host or host == '*' or '*' in host or host.startswith('.'):
+        return True
+    if host in {'localhost', '127.0.0.1', '0.0.0.0', 'lvh.me'}:
+        return True
+    if host.startswith('127.') or host.endswith('.local') or host.endswith('.lvh.me'):
+        return True
+    return False
+
+
+def get_public_origin(request=None, tenant=None):
+    """Return an https origin for off-server links (certificate QR codes).
+
+    Prefers the tenant's public domain, then the current request host, then
+    PLATFORM_BASE_DOMAIN. Localhost / lvh.me / wildcard ALLOWED_HOSTS entries
+    are skipped so a deployed QR never encodes http://localhost.
+    """
+    candidates = []
+    if tenant is not None:
+        home = get_tenant_public_home_url(request, tenant)
+        if home:
+            candidates.append(home)
+        # Local-dev home URLs use lvh.me; still prefer the live tenant host
+        # (slug.PLATFORM_BASE_DOMAIN) for QR codes and other off-server links.
+        temp = build_temporary_domain(getattr(tenant, 'slug', ''))
+        if temp:
+            candidates.append(f'https://{temp}')
+    if request is not None:
+        host = ''
+        try:
+            host = (request.get_host() or '').strip()
+        except Exception:
+            host = (request.META.get('HTTP_HOST') or '').strip()
+        if host:
+            forwarded = (request.META.get('HTTP_X_FORWARDED_PROTO') or '').split(',')[0].strip().lower()
+            scheme = forwarded if forwarded in {'http', 'https'} else (getattr(request, 'scheme', None) or 'https')
+            candidates.append(f'{scheme}://{host}')
+    platform = get_platform_base_domain()
+    if platform:
+        candidates.append(f'https://{platform}')
+    env_url = (os.getenv('PUBLIC_SITE_URL') or os.getenv('CERTIFICATE_VERIFY_BASE_URL') or '').strip()
+    if env_url:
+        candidates.append(env_url)
+
+    for raw in candidates:
+        raw = (raw or '').strip()
+        if not raw:
+            continue
+        if '://' not in raw:
+            raw = f'https://{raw}'
+        parsed = urlparse(raw)
+        host = parsed.hostname or ''
+        if _hostname_is_unusable_for_public_links(host):
+            continue
+        port = parsed.port
+        netloc = f'{host}:{port}' if port and port not in (80, 443) else host
+        return f'https://{netloc}'
+    return ''
+
+
+def build_certificate_verification_url(certificate_id, tenant=None, request=None):
+    """Absolute /verify-certificate/<id>/ URL for QR codes."""
+    certificate_id = (certificate_id or '').strip()
+    if not certificate_id:
+        return ''
+    origin = get_public_origin(request=request, tenant=tenant)
+    if not origin:
+        return ''
+    return f'{origin}/verify-certificate/{certificate_id}/'
 

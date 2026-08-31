@@ -712,10 +712,10 @@
                 {% endif %}
             </div>
 
-            {% if cert.accredible_certificate_url %}
-            <a href="{{ cert.accredible_certificate_url }}" target="_blank" class="btn-cert-view">
-                <i class="fas fa-arrow-up-right-from-square"></i>
-                View on Accredible
+            {% if cert.status == 'passed' %}
+            <a href="{% url 'download_course_certificate' course_slug=cert.course.slug %}" class="btn-cert-view" download="certificate.pdf">
+                <i class="fas fa-download"></i>
+                View / Download certificate
             </a>
             {% elif cert.status == 'passed' %}
             <div class="btn-processing">

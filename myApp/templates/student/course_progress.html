@@ -458,9 +458,9 @@
                     <span class="cp-stat-value">{{ certification.issued_at|date:"M d, Y" }}</span>
                 </div>
                 {% endif %}
-                {% if certification.accredible_certificate_url %}
-                <a href="{{ certification.accredible_certificate_url }}" target="_blank" class="cp-btn-primary cp-btn-gold">
-                    <i class="fas fa-external-link-alt mr-2"></i>View Certificate
+                {% if certification.status == 'passed' %}
+                <a href="{% url 'download_course_certificate' course_slug=course.slug %}" class="cp-btn-primary cp-btn-gold" download="certificate.pdf">
+                    <i class="fas fa-download mr-2"></i>View / Download certificate
                 </a>
                 {% endif %}
             </div>
