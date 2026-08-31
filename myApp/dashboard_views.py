@@ -7380,6 +7380,32 @@ def dashboard_branding_settings(request):
                 tenant.logo = None
                 tenant.save(update_fields=['logo', 'updated_at'])
 
+        # Chat emblem — circular mark for the lesson AI coach sidebar.
+        if request.POST.get('remove_chat_emblem') == '1':
+            updated['chat_emblem_url'] = ''
+        else:
+            chat_emblem_file = request.FILES.get('chat_emblem_file')
+            chat_emblem_url_input = (request.POST.get('chat_emblem_url') or '').strip()
+            if chat_emblem_file:
+                emblem_url = _upload_tenant_logo_webp_to_cloudinary(
+                    tenant, chat_emblem_file, variant='chat_emblem'
+                )
+                if emblem_url:
+                    updated['chat_emblem_url'] = emblem_url
+                else:
+                    from myApp.utils.iceberg import USER_UPLOAD_ERROR
+                    messages.error(request, USER_UPLOAD_ERROR)
+                    return _redirect_to_branding_settings()
+            elif chat_emblem_url_input:
+                if not _is_valid_logo_url(chat_emblem_url_input):
+                    messages.error(
+                        request,
+                        'Please enter a valid chat emblem URL (http/https) '
+                        'or an internal media path (for example: /media/...).',
+                    )
+                    return _redirect_to_branding_settings()
+                updated['chat_emblem_url'] = chat_emblem_url_input
+
         certificate_template_file = request.FILES.get('certificate_template_file')
         clear_certificate_template = request.POST.get('clear_certificate_template') == '1'
         if clear_certificate_template and not certificate_template_file:

@@ -190,6 +190,7 @@ def build_default_branding(tenant, profile=None):
         'logo_url': '',
         'logo_url_light': '',
         'logo_url_dark': '',
+        'chat_emblem_url': '',
         'certificate_template_url': '',
         'certificate_overlay_color': 'white',
         'certificate_field_layout': {},
@@ -236,6 +237,8 @@ def get_tenant_branding(tenant):
             'logo_url': '',
             'logo_url_light': '',
             'logo_url_dark': '',
+            'chat_emblem_url': '',
+            'chat_avatar_url': '',
             'nav_logo_light': DEFAULT_PLATFORM_LOGO_URL,
             'nav_logo_dark': DEFAULT_PLATFORM_LOGO_URL,
             'certificate_template_url': '',
@@ -274,9 +277,13 @@ def get_tenant_branding(tenant):
     tenant_logo = (merged.get('logo_url') or '').strip()
     logo_light = (merged.get('logo_url_light') or '').strip()
     logo_dark = (merged.get('logo_url_dark') or '').strip()
+    chat_emblem = (merged.get('chat_emblem_url') or '').strip()
     merged['logo_url'] = tenant_logo or logo_dark or logo_light
     merged['logo_url_light'] = logo_light
     merged['logo_url_dark'] = logo_dark
+    merged['chat_emblem_url'] = chat_emblem
+    # Lesson AI chat avatar: dedicated emblem, else tenant/nav logo.
+    merged['chat_avatar_url'] = chat_emblem or merged['logo_url']
     merged['nav_logo_light'] = logo_light or tenant_logo or logo_dark or DEFAULT_PLATFORM_LOGO_URL
     merged['nav_logo_dark'] = logo_dark or tenant_logo or logo_light or DEFAULT_PLATFORM_LOGO_URL
     # Student nav uses platform_logo_url as a generic fallback (dark-theme mark).

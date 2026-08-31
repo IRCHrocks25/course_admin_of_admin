@@ -458,6 +458,40 @@
                     </label>
                 </div>
             </div>
+
+            <div class="mt-6 rounded-xl border border-white/10 bg-[#0a0e27] p-4 space-y-3">
+                <div>
+                    <h3 class="font-semibold text-sm text-white">Chat emblem</h3>
+                    <p class="text-xs text-gray-400 mt-1">
+                        Optional circular mark for the lesson AI coach sidebar. If empty, the main tenant logo is used.
+                    </p>
+                </div>
+                <div class="rounded-lg border border-white/10 bg-[#050816] p-4 min-h-[5.5rem] flex items-center justify-center">
+                    {% if branding.chat_emblem_url %}
+                    <img src="{{ branding.chat_emblem_url }}" alt="{{ branding.brand_name }} chat emblem" class="h-14 w-14 rounded-full object-cover">
+                    {% elif branding.logo_url %}
+                    <div class="flex flex-col items-center gap-2">
+                        <img src="{{ branding.logo_url }}" alt="{{ branding.brand_name }} logo fallback" class="h-14 w-14 rounded-full object-cover opacity-70">
+                        <span class="text-[11px] text-amber-200/90">Using main logo until you add a chat emblem</span>
+                    </div>
+                    {% else %}
+                    <span class="text-xs text-gray-500">No emblem yet</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Upload chat emblem</label>
+                    <input type="file" name="chat_emblem_file" accept="image/*" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Or paste chat emblem URL</label>
+                    <input type="text" name="chat_emblem_url" inputmode="url" value="{{ branding.chat_emblem_url|default:'' }}" placeholder="https://cdn.yourdomain.com/chat-emblem.webp" class="w-full rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white">
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" name="remove_chat_emblem" value="1" class="rounded">
+                    Remove chat emblem
+                </label>
+            </div>
+
             <p class="text-xs text-gray-500 mt-4">Upload flow: image → WebP conversion → cloud upload. If you only add one logo, it is used for both themes until you add the other.</p>
         </div>
 
