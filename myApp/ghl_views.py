@@ -34,7 +34,7 @@ from .integrations.ghl import embed as ghl_embed_helper
 from .integrations.ghl import sso, user_context
 from .integrations.ghl import webhook as ghl_webhook_mod
 from .integrations.ghl import events_sync
-from .models import Event, GHLConnection
+from .models import Event, GHLConnection, TenantConfig
 from .models_ghl import GHLLink, GhlEmbedSession
 from .utils.domains import get_tenant_public_home_url
 from .utils.tenancy import resolve_request_tenant
@@ -134,9 +134,11 @@ def ghl_settings(request):
                 calendar_error = f"Could not load calendars from GHL: {exc}"
 
     selected_calendar_ids = connection.event_calendar_id_list if connection else []
+    tenant_config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
     ctx = {
         "tenant": tenant,
         "connection": connection,
+        "registration_webhook": tenant_config.registration_webhook,
         "ghl_configured": config.is_configured(),
         "ghl_status": request.GET.get("ghl", ""),
         "scopes": config.scopes().split(),

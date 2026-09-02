@@ -21,8 +21,8 @@ class TenantAdmin(admin.ModelAdmin):
 
 @admin.register(TenantConfig)
 class TenantConfigAdmin(admin.ModelAdmin):
-    list_display = ['tenant', 'chatbot_webhook', 'vimeo_team_id', 'accredible_issuer_id', 'updated_at']
-    search_fields = ['tenant__name', 'tenant__slug', 'chatbot_webhook']
+    list_display = ['tenant', 'chatbot_webhook', 'registration_webhook', 'vimeo_team_id', 'accredible_issuer_id', 'updated_at']
+    search_fields = ['tenant__name', 'tenant__slug', 'chatbot_webhook', 'registration_webhook']
 
 
 @admin.register(TenantMembership)

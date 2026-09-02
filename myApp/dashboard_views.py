@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -8229,3 +8230,54 @@ def dashboard_lesson_translations_publish(request, lesson_id):
     except Exception as exc:
         messages.error(request, f'Publish failed: {exc}')
     return redirect('dashboard_lesson_translations', lesson_id=lesson.id)
+
+
+def _integrations_redirect(request, tenant):
+    url = reverse('ghl_settings')
+    if request.user.is_superuser and tenant is not None:
+        url = f"{url}?{urlencode({'tenant': tenant.slug})}"
+    return redirect(url)
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def dashboard_registration_webhook(request):
+    """Save or test the tenant's Katalyst registration webhook URL."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        messages.error(request, 'Tenant context is required to manage integrations.')
+        return redirect('dashboard_home')
+
+    config, _ = TenantConfig.objects.get_or_create(tenant=tenant)
+    action = (request.POST.get('action') or 'save').strip().lower()
+    url = (request.POST.get('registration_webhook') or '').strip()
+    if url:
+        try:
+            URLValidator(schemes=['http', 'https'])(url)
+        except ValidationError:
+            messages.error(
+                request,
+                'Enter a valid http(s) webhook URL, or leave it blank to disable.',
+            )
+            return _integrations_redirect(request, tenant)
+
+    config.registration_webhook = url
+    config.save(update_fields=['registration_webhook', 'updated_at'])
+
+    if action == 'test':
+        from .utils.registration_webhook import send_test_registration_webhook
+        if not url:
+            messages.error(request, 'Save a webhook URL before sending a test payload.')
+            return _integrations_redirect(request, tenant)
+        ok, detail = send_test_registration_webhook(tenant)
+        if ok:
+            messages.success(request, detail)
+        else:
+            messages.error(request, f'Test payload failed: {detail}')
+        return _integrations_redirect(request, tenant)
+
+    if url:
+        messages.success(request, 'Registration webhook saved.')
+    else:
+        messages.success(request, 'Registration webhook cleared.')
+    return _integrations_redirect(request, tenant)

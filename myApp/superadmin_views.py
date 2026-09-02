@@ -5,6 +5,8 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import user_passes_test
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -257,7 +259,21 @@ def superadmin_tenant_detail(request, tenant_id):
         ensure_tenant_branding(tenant)
         ensure_temporary_domain(tenant)
 
+        registration_webhook = request.POST.get(
+            'registration_webhook', config.registration_webhook,
+        ).strip()
+        if registration_webhook:
+            try:
+                URLValidator(schemes=['http', 'https'])(registration_webhook)
+            except ValidationError:
+                messages.error(
+                    request,
+                    'Registration webhook must be a valid http(s) URL, or blank to disable.',
+                )
+                return redirect('superadmin_tenant_detail', tenant_id=tenant.id)
+
         config.chatbot_webhook = request.POST.get('chatbot_webhook', config.chatbot_webhook).strip()
+        config.registration_webhook = registration_webhook
         config.vimeo_team_id = request.POST.get('vimeo_team_id', config.vimeo_team_id).strip()
         config.accredible_issuer_id = request.POST.get('accredible_issuer_id', config.accredible_issuer_id).strip()
 

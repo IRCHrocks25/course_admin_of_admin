@@ -55,6 +55,31 @@
   <div class="ghl-banner err">Authorization returned an agency-level token. Please install on a specific sub-account (location).</div>
 {% endif %}
 
+<div class="ghl-card" style="margin-bottom:18px;">
+  <div class="ghl-row">
+    <div>
+      <strong>Registration webhook</strong>
+      <div class="ghl-muted">Katalyst CRM URL posted when a student self-registers. Leave blank to disable.</div>
+    </div>
+    {% if registration_webhook %}
+      <span class="ghl-pill ok">● Enabled</span>
+    {% else %}
+      <span class="ghl-pill off">● Disabled</span>
+    {% endif %}
+  </div>
+  <form method="post" action="{% url 'dashboard_registration_webhook' %}" class="ghl-section" style="margin-top:8px; padding-top:8px;">
+    {% csrf_token %}
+    <label class="ghl-muted" for="registration_webhook">Webhook URL</label>
+    <input id="registration_webhook" type="url" name="registration_webhook" value="{{ registration_webhook }}" placeholder="https://katalyst-crm2.fly.dev/webhook/…" class="ghl-textarea" style="min-height:0; height:42px; margin-top:6px;">
+    <div class="ghl-row" style="justify-content:flex-end; border-bottom:0; padding-top:14px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="submit" name="action" value="save" class="ghl-btn secondary">Save webhook</button>
+        <button type="submit" name="action" value="test" class="ghl-btn primary">Send test payload</button>
+      </div>
+    </div>
+  </form>
+</div>
+
 <div class="ghl-card">
   {% if not ghl_configured %}
     <div class="ghl-row">

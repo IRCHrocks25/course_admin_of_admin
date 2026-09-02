@@ -17,6 +17,7 @@ from .base import SeededTestCase, ROLES
 # Named URLs the sweep should not GET (webhooks / health / logout side effects).
 SKIP_NAMES = {
     "logout", "stripe_webhook", "stripe_tenant_webhook", "healthz", "readyz",
+    "dashboard_registration_webhook",
 }
 
 

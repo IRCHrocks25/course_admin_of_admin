@@ -2538,6 +2538,8 @@ def _activate_membership_registration(session):
 
         pending.consumed = True
         pending.save(update_fields=['consumed'])
+        from .utils.registration_webhook import schedule_registration_webhook
+        schedule_registration_webhook(tenant, user, source='membership_signup')
         return user
 
 
@@ -2659,7 +2661,9 @@ def register_view(request):
             is_active=True
         )
         from .utils.coupons import attach_signup_coupon
+        from .utils.registration_webhook import schedule_registration_webhook
         used_coupon = attach_signup_coupon(request, membership)
+        schedule_registration_webhook(tenant, user, source='free_signup')
         login(request, user)
         if used_coupon:
             messages.success(

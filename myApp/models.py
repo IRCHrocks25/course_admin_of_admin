@@ -74,6 +74,10 @@ class TenantConfig(models.Model):
     """Tenant-level integration and feature configuration."""
     tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='config')
     chatbot_webhook = models.URLField(blank=True)
+    registration_webhook = models.URLField(
+        blank=True,
+        help_text="Katalyst CRM webhook URL. POSTed when a student self-registers. Leave blank to disable.",
+    )
     vimeo_team_id = models.CharField(max_length=255, blank=True)
     accredible_issuer_id = models.CharField(max_length=255, blank=True)
     stripe_connect_account_id = models.CharField(max_length=120, blank=True)
