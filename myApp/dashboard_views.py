@@ -100,9 +100,11 @@ from .utils.branding import (
 )
 from .utils.prompts import (
     LessonGenerationSettings,
+    build_course_structure_prompt,
     build_lesson_metadata_prompt,
     build_lesson_content_prompt,
     build_lesson_translation_prompt,
+    target_lesson_count,
 )
 
 # Tenant admins should use app login, not Django admin login.
@@ -502,8 +504,8 @@ def _blueprint_lesson_context_block(bp):
     if not bp or not isinstance(bp, dict) or not bp.get('topic'):
         return ''
     lines = [
-        'CourseForge brief (keep tone and difficulty consistent):',
-        f"- Topic: {bp.get('topic', '')}",
+        'CourseForge brief (tone, audience, and difficulty only — do not change the lesson subject if source notes are provided):',
+        f"- Topic (label only; ignore if it conflicts with the lesson source): {bp.get('topic', '')}",
         f"- Audience: {bp.get('target_audience', '')}",
         f"- Level: {bp.get('knowledge_level', '')}",
         f"- Promise: {bp.get('course_promise', '')}",
@@ -521,43 +523,74 @@ def _blueprint_lesson_context_block(bp):
 
 
 def _blueprint_structure_prompt_section(bp):
-    """Extra instructions for module/lesson structure generation."""
-    if not bp or not isinstance(bp, dict) or not bp.get('topic'):
+    """Extra instructions for module/lesson structure generation.
+
+    Always emit count/pacing when a blueprint exists. Topic is a label;
+    the course description / source brief is the subject.
+    """
+    if not bp or not isinstance(bp, dict):
         return ''
     fmt_labels = dict(COURSEFORGE_FORMAT_CHOICES)
     fmt = fmt_labels.get(bp.get('course_format'), bp.get('course_format', ''))
-    n = bp.get('total_classes') or 12
-    n = max(4, min(40, int(n)))
+    n = target_lesson_count(bp)
     framework_lines = ''
     if bp.get('framework_generate_auto'):
         framework_lines = (
             f"Teaching system name: \"{bp.get('framework_title', '')}\". "
             "Invent clear, memorable steps for this methodology and align module names and lesson flow with those steps."
         )
-    else:
-        steps = bp.get('framework_steps') or []
-        if steps:
-            framework_lines = (
-                f"Teaching system: \"{bp.get('framework_title', '')}\" with steps: "
-                + '; '.join(steps)
-                + ". Module boundaries should reflect this progression."
-            )
-        else:
-            framework_lines = f"Teaching system: \"{bp.get('framework_title', '')}\"."
-    return f"""
-Additional CourseForge requirements (follow closely):
-- Subject: {bp.get('topic', '')}
-- Audience: {bp.get('target_audience', '')}
-- Learning goals: {bp.get('learning_goals', '')}
-- Prior knowledge: {bp.get('required_knowledge', '')}
-- Difficulty: {bp.get('knowledge_level', '')}
-- Course format: {fmt} — match pacing and depth to this format (e.g. mini-course = tighter, fewer concepts per lesson).
-- Aim for approximately {n} lessons total across 3–6 modules (adjust counts to fit the format).
-- Typical session length context from author: {_class_length_label(bp.get('class_length'))}
-- Transformation promise: {bp.get('course_promise', '')}
-- {framework_lines}
-- Measurable outcomes (lessons should build toward these): {', '.join(bp.get('outcomes') or [])}
-"""
+    elif bp.get('framework_steps'):
+        framework_lines = (
+            f"Teaching system: \"{bp.get('framework_title', '')}\" with steps: "
+            + '; '.join(bp.get('framework_steps') or [])
+            + ". Module boundaries should reflect this progression."
+        )
+    elif bp.get('framework_title'):
+        framework_lines = f"Teaching system: \"{bp.get('framework_title', '')}\"."
+    lines = [
+        'Additional pacing requirements (follow exactly):',
+        f'- Working topic/title (label only): {bp.get("topic") or "(none)"}',
+        f'- Create EXACTLY {n} lessons total. Do not use a 12-30 default.',
+        f'- Typical session length: {_class_length_label(bp.get("class_length"))}',
+    ]
+    if fmt:
+        lines.append(f'- Course format: {fmt} — match pacing to this format, but do not change the lesson count.')
+    if bp.get('knowledge_level'):
+        lines.append(f'- Difficulty: {bp.get("knowledge_level")}')
+    if bp.get('target_audience'):
+        lines.append(f'- Audience: {bp.get("target_audience")}')
+    if bp.get('learning_goals'):
+        lines.append(f'- Learning goals: {bp.get("learning_goals")}')
+    if bp.get('required_knowledge'):
+        lines.append(f'- Prior knowledge: {bp.get("required_knowledge")}')
+    if bp.get('course_promise'):
+        lines.append(f'- Transformation promise: {bp.get("course_promise")}')
+    if framework_lines:
+        lines.append(f'- {framework_lines}')
+    if bp.get('outcomes'):
+        lines.append('- Measurable outcomes (lessons should build toward these): ' + ', '.join(bp.get('outcomes') or []))
+    return '\n'.join(lines)
+
+
+def _normalize_modules_to_lesson_count(modules_data, target_count):
+    """Trim extra AI lessons so the syllabus matches total_classes."""
+    if not isinstance(modules_data, list) or target_count < 1:
+        return modules_data or []
+    kept = []
+    remaining = target_count
+    for module_data in modules_data:
+        if remaining <= 0:
+            break
+        lessons = list(module_data.get('lessons') or [])
+        if not lessons:
+            kept.append(module_data)
+            continue
+        trimmed = lessons[:remaining]
+        remaining -= len(trimmed)
+        next_module = dict(module_data)
+        next_module['lessons'] = trimmed
+        kept.append(next_module)
+    return kept
 
 
 LANDING_HTML_SAMPLE = """<!DOCTYPE html>
@@ -3138,6 +3171,21 @@ def generate_ai_lesson_translation(client, lesson, language_code, tenant=None, c
         return None
 
 
+def _lesson_source_text_for_image(lesson):
+    """Prefer pasted notes/transcript over a possibly mismatched working title."""
+    parts = []
+    for value in (
+        getattr(lesson, 'transcription', None),
+        getattr(lesson, 'rough_notes', None),
+        getattr(lesson, 'description', None),
+        getattr(lesson, 'ai_full_description', None),
+    ):
+        text = (value or '').strip()
+        if text and text not in parts:
+            parts.append(text)
+    return '\n\n'.join(parts)
+
+
 def generate_image_brief(client, lesson, settings_obj):
     """
     Call gpt-4o-mini with a meta-prompt to produce a tailored image brief
@@ -3150,6 +3198,7 @@ def generate_image_brief(client, lesson, settings_obj):
 
         course = lesson.course
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
+        source_text = _lesson_source_text_for_image(lesson)
         meta_prompt = build_image_brief_meta_prompt(
             course_name=course.name or '',
             course_category=course.category or '',
@@ -3159,6 +3208,7 @@ def generate_image_brief(client, lesson, settings_obj):
             lesson_description=lesson.ai_full_description or lesson.description or '',
             lesson_outcomes=lesson.ai_outcomes if isinstance(lesson.ai_outcomes, list) else [],
             reading_level=getattr(settings_obj, 'reading_level', 'practitioner'),
+            source_text=source_text,
         )
 
         response = client.chat.completions.create(
@@ -3258,6 +3308,7 @@ def generate_ai_lesson_image(client, lesson, settings_obj):
                 clean_title=lesson.ai_clean_title or lesson.title,
                 short_summary=lesson.ai_short_summary or '',
                 reading_level=getattr(settings_obj, 'reading_level', 'practitioner'),
+                source_text=_lesson_source_text_for_image(lesson),
             )
 
         # Generate image via gpt-image-1. We use this instead of dall-e-3
@@ -3387,51 +3438,29 @@ def generate_ai_course_structure(course_name, description, course_type='sprint',
     try:
         client = OpenAI(api_key=api_key)
         blueprint_extra = _blueprint_structure_prompt_section(blueprint) if blueprint else ''
-
-        # Create prompt for AI
-        prompt = f"""You are an expert course creator. Based on the following course information, generate a complete course structure with modules and lessons.
-
-Course Name: {course_name}
-Course Type: {course_type}
-Coach Name: {coach_name}
-Description: {description}
-{blueprint_extra}
-Generate a comprehensive course structure with:
-1. 3-6 modules (logical groupings of lessons)
-2. 3-8 lessons per module (total 12-30 lessons)
-3. Each lesson should have a clear title and description
-4. Lessons should progress logically from basics to advanced concepts
-5. Make it practical and actionable
-
-Return the structure in JSON format:
-{{
-  "modules": [
-    {{
-      "name": "Module Name",
-      "description": "Brief module description",
-      "order": 1,
-      "lessons": [
-        {{
-          "title": "Lesson Title",
-          "description": "Detailed lesson description explaining what students will learn",
-          "order": 1
-        }}
-      ]
-    }}
-  ]
-}}
-
-Only return valid JSON, no additional text."""
+        short_description = ''
+        if course is not None:
+            short_description = getattr(course, 'short_description', '') or ''
+        prompt = build_course_structure_prompt(
+            course_name=course_name,
+            description=description,
+            course_type=course_type,
+            coach_name=coach_name,
+            blueprint=blueprint,
+            short_description=short_description,
+            blueprint_extra=blueprint_extra,
+        )
 
         # Call OpenAI API
+        lesson_target = target_lesson_count(blueprint)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are an expert course creator. Always return valid JSON only."},
+                {"role": "system", "content": "You are an expert course creator. Always return valid JSON only. Honor the exact lesson count and the source brief."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.8,
-            max_tokens=4000
+            temperature=0.6,
+            max_tokens=min(12000, 2000 + lesson_target * 180),
         )
         _log_openai_usage(
             feature='course_structure',
@@ -3464,6 +3493,9 @@ Only return valid JSON, no additional text."""
             else:
                 raise Exception('Failed to parse AI response as JSON.')
 
+        modules = course_data.get('modules') if isinstance(course_data, dict) else None
+        if isinstance(modules, list):
+            course_data['modules'] = _normalize_modules_to_lesson_count(modules, lesson_target)
         return course_data, client
 
     except Exception as e:
@@ -5052,16 +5084,18 @@ def generate_ai_quiz(lesson, quiz, num_questions=5):
     try:
         client = OpenAI(api_key=api_key)
 
-        # Gather lesson content for AI context
+        # Source notes first so a mismatched working title cannot steal the subject.
         lesson_content = []
-        if lesson.title:
-            lesson_content.append(f"Lesson Title: {lesson.title}")
-        if lesson.description:
-            lesson_content.append(f"Description: {lesson.description}")
         if lesson.transcription:
-            lesson_content.append(f"Transcription: {lesson.transcription[:2000]}")  # Limit transcription length
+            lesson_content.append(f"Transcription:\n{lesson.transcription[:8000]}")
+        if lesson.description:
+            lesson_content.append(f"Source notes / description:\n{lesson.description}")
         if lesson.ai_full_description:
-            lesson_content.append(f"Full Description: {lesson.ai_full_description}")
+            lesson_content.append(f"Full description:\n{lesson.ai_full_description}")
+        if lesson.rough_notes:
+            lesson_content.append(f"Creator notes:\n{lesson.rough_notes}")
+        if lesson.title:
+            lesson_content.append(f"Working title (label only): {lesson.title}")
 
         if not lesson_content:
             raise Exception('Lesson does not have enough content for AI generation. Please add a description or transcription.')
@@ -5074,8 +5108,13 @@ def generate_ai_quiz(lesson, quiz, num_questions=5):
 Lesson Content:
 {content_text}
 
+Grounding rules:
+- Quiz the SOURCE notes / transcription / description, not the working title.
+- If the title names a different subject than the source, ignore the title.
+- Every question must be answerable from the source facts, numbers, or definitions.
+
 Generate {num_questions} quiz questions with the following format:
-- Each question should test understanding of key concepts from the lesson
+- Each question should test understanding of key concepts from the source
 - Each question should have 4 options (A, B, C, D)
 - One option should be clearly correct
 - The other options should be plausible but incorrect
