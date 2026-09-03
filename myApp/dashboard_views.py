@@ -3192,17 +3192,63 @@ def generate_image_brief(client, lesson, settings_obj):
         return ''
 
 
+def _lesson_hero_iceberg_key(lesson):
+    """Stable Iceberg object key for a lesson hero banner."""
+    slug = re.sub(r'[^a-z0-9-]+', '', (lesson.slug or 'img').lower())[:80] or 'img'
+    return f'lesson_hero_images/lesson_{lesson.id}_{slug}.webp'
+
+
+def _lesson_hero_bytes_to_webp(image_bytes):
+    """Normalize hero image bytes to webp for Iceberg storage."""
+    image = Image.open(io.BytesIO(image_bytes))
+    if image.mode in ('RGBA', 'LA', 'P'):
+        image = image.convert('RGBA')
+        bg = Image.new('RGB', image.size, (255, 255, 255))
+        bg.paste(image, mask=image.split()[-1])
+        image = bg
+    else:
+        image = image.convert('RGB')
+    try:
+        image = ImageOps.fit(image, (1536, 1024), method=Image.Resampling.LANCZOS)
+    except Exception:
+        pass
+    out = io.BytesIO()
+    image.save(out, format='WEBP', quality=88, method=6)
+    return out.getvalue()
+
+
+def _delete_lesson_hero_from_iceberg(lesson):
+    """Best-effort delete of the stored hero asset on Iceberg."""
+    from myApp.utils import iceberg
+    if not iceberg.is_configured():
+        return
+    url = (lesson.ai_hero_image_url or '').strip()
+    if not url:
+        return
+    key = iceberg.key_from_url(url)
+    if key:
+        iceberg.delete(key)
+
+
 def generate_ai_lesson_image(client, lesson, settings_obj):
     """
     Generate a hero image for a lesson (via OpenAI gpt-image-1) and upload
-    to Cloudinary. Returns the Cloudinary URL, or '' on any failure.
+    to Iceberg. Returns the public CDN URL, or '' on any failure.
 
     Never raises — image generation must not break the lesson pipeline.
     """
+    from myApp.utils import iceberg
+
     try:
         import base64
-        import cloudinary.uploader
         from myApp.utils.prompts import build_lesson_image_prompt
+
+        if not iceberg.is_configured():
+            logger.warning(
+                'Hero image generation skipped for lesson %s: Iceberg is not configured',
+                getattr(lesson, 'id', '?'),
+            )
+            return ''
 
         # Stage 1: ask gpt-4o-mini to write a custom image brief for THIS lesson.
         # Falls back to the static template if the meta-call fails or returns empty.
@@ -3230,21 +3276,14 @@ def generate_ai_lesson_image(client, lesson, settings_obj):
         if not image_b64:
             return ''
         image_bytes = base64.b64decode(image_b64)
+        webp_bytes = _lesson_hero_bytes_to_webp(image_bytes)
 
-        # Upload to Cloudinary
-        upload_result = cloudinary.uploader.upload(
-            image_bytes,
-            folder="lesson_hero_images",
-            public_id=f"lesson_{lesson.id}_{lesson.slug or 'img'}",
-            resource_type="image",
-            overwrite=True,
-            format="webp",
-            transformation=[{"width": 1536, "height": 1024, "crop": "fill"}],
-        )
-        cloudinary_url = upload_result.get('secure_url', '')
+        _delete_lesson_hero_from_iceberg(lesson)
+        key = _lesson_hero_iceberg_key(lesson)
+        hero_url = iceberg.upload_bytes(webp_bytes, key, 'image/webp')
 
-        if cloudinary_url:
-            lesson.ai_hero_image_url = cloudinary_url
+        if hero_url:
+            lesson.ai_hero_image_url = hero_url
             lesson.ai_hero_image_prompt = prompt
             lesson.save(update_fields=['ai_hero_image_url', 'ai_hero_image_prompt'])
 
@@ -3271,11 +3310,10 @@ def generate_ai_lesson_image(client, lesson, settings_obj):
             except Exception:
                 pass  # cost logging must not break image generation
 
-        return cloudinary_url
+        return hero_url
 
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
+        logger.warning(
             "Image generation failed for lesson %s: %s",
             getattr(lesson, 'id', '?'), e
         )
@@ -3284,55 +3322,40 @@ def generate_ai_lesson_image(client, lesson, settings_obj):
 
 def upload_lesson_hero_image(lesson, image_file):
     """
-    Upload a user-supplied hero image for a lesson to Cloudinary (converted to
-    webp) and store it on the lesson. Uses the same folder/public_id as the
-    AI-generated image so it overwrites any existing hero in Cloudinary.
+    Upload a user-supplied hero image for a lesson to Iceberg (converted to
+    webp) and store it on the lesson. Overwrites any existing hero for that lesson.
 
-    Returns the Cloudinary secure URL on success, or '' on any failure.
+    Returns the Iceberg CDN URL on success, or '' on any failure.
     """
-    if not CLOUDINARY_UPLOAD_AVAILABLE:
-        return ''
-    if not (os.getenv('CLOUDINARY_CLOUD_NAME') and os.getenv('CLOUDINARY_API_KEY') and os.getenv('CLOUDINARY_API_SECRET')):
+    from myApp.utils import iceberg
+
+    if not iceberg.is_configured():
+        logger.warning(
+            'Hero image upload skipped for lesson %s: Iceberg is not configured',
+            getattr(lesson, 'id', '?'),
+        )
         return ''
     if not image_file:
         return ''
     try:
-        image = Image.open(image_file)
-        # Flatten transparency onto white so the hero never renders with gaps.
-        if image.mode in ('RGBA', 'LA', 'P'):
-            image = image.convert('RGBA')
-            bg = Image.new('RGB', image.size, (255, 255, 255))
-            bg.paste(image, mask=image.split()[-1])
-            image = bg
-        else:
-            image = image.convert('RGB')
+        try:
+            image_file.seek(0)
+        except Exception:
+            pass
+        webp_bytes = _lesson_hero_bytes_to_webp(image_file.read())
+        _delete_lesson_hero_from_iceberg(lesson)
+        key = _lesson_hero_iceberg_key(lesson)
+        hero_url = iceberg.upload_bytes(webp_bytes, key, 'image/webp')
 
-        out = io.BytesIO()
-        image.save(out, format='WEBP', quality=88, method=6)
-        out.seek(0)
-        out.name = f"lesson_{lesson.id}_hero.webp"
-
-        upload_result = cloudinary_uploader.upload(
-            out,
-            folder="lesson_hero_images",
-            public_id=f"lesson_{lesson.id}_{lesson.slug or 'img'}",
-            resource_type="image",
-            overwrite=True,
-            format="webp",
-            transformation=[{"width": 1536, "height": 1024, "crop": "fill"}],
-        )
-        cloudinary_url = (upload_result.get('secure_url') or '').strip()
-
-        if cloudinary_url:
-            lesson.ai_hero_image_url = cloudinary_url
+        if hero_url:
+            lesson.ai_hero_image_url = hero_url
             lesson.ai_hero_image_prompt = ''  # user upload — no AI prompt
             lesson.save(update_fields=['ai_hero_image_url', 'ai_hero_image_prompt'])
 
-        return cloudinary_url
+        return hero_url
 
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
+        logger.warning(
             "Hero image upload failed for lesson %s: %s",
             getattr(lesson, 'id', '?'), e
         )
@@ -3341,26 +3364,11 @@ def upload_lesson_hero_image(lesson, image_file):
 
 def delete_lesson_hero_image(lesson):
     """
-    Remove a lesson's hero image: delete the asset from Cloudinary (best effort)
+    Remove a lesson's hero image: delete the asset from Iceberg (best effort)
     and clear the stored URL/prompt. Returns True if anything was cleared.
     """
     had_image = bool(lesson.ai_hero_image_url)
-
-    if CLOUDINARY_UPLOAD_AVAILABLE:
-        try:
-            import cloudinary.uploader
-            cloudinary.uploader.destroy(
-                f"lesson_hero_images/lesson_{lesson.id}_{lesson.slug or 'img'}",
-                resource_type="image",
-                invalidate=True,
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                "Cloudinary destroy failed for lesson %s: %s",
-                getattr(lesson, 'id', '?'), e
-            )
-
+    _delete_lesson_hero_from_iceberg(lesson)
     lesson.ai_hero_image_url = ''
     lesson.ai_hero_image_prompt = ''
     lesson.save(update_fields=['ai_hero_image_url', 'ai_hero_image_prompt'])

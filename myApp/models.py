@@ -494,7 +494,7 @@ class Lesson(models.Model):
     ai_coach_actions = models.JSONField(default=list, blank=True, help_text="Recommended AI Coach actions for this lesson")
     ai_hero_image_url = models.URLField(
         blank=True, default='',
-        help_text="Cloudinary URL of the AI-generated hero image for this lesson"
+        help_text="Iceberg CDN URL of the AI-generated hero image for this lesson"
     )
     ai_hero_image_prompt = models.TextField(
         blank=True, default='',

@@ -4093,7 +4093,7 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                         if new_url:
                             messages.success(request, 'Hero image regenerated.')
                         else:
-                            messages.error(request, 'Hero image generation failed. Check server logs and Cloudinary config.')
+                            messages.error(request, 'Hero image generation failed. Check server logs and Iceberg config.')
                     except Exception as e:
                         messages.error(request, f'Hero image generation failed: {e}')
 
@@ -4119,7 +4119,7 @@ def generate_lesson_ai(request, course_slug, lesson_id):
                 if new_url:
                     messages.success(request, 'Hero image uploaded.')
                 else:
-                    messages.error(request, 'Hero image upload failed. Check Cloudinary config and try again.')
+                    messages.error(request, 'Hero image upload failed. Check Iceberg config and try again.')
 
         elif action == 'delete_image':
             if delete_lesson_hero_image(lesson):

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase
 
 from myApp.dashboard_views import (
+    _lesson_hero_iceberg_key,
     _overall_ai_generation_status,
     _parse_seed_lessons,
     _seed_modules_from_lessons,
@@ -96,6 +97,56 @@ class PromptSkipClauseTests(SimpleTestCase):
         )
         self.assertIn('Do not invent quiz', prompt)
         self.assertIn('Do not invent exercises', prompt)
+
+
+class LessonHeroIcebergTests(SimpleTestCase):
+    def test_hero_key_is_stable_webp_path(self):
+        lesson = MagicMock()
+        lesson.id = 42
+        lesson.slug = 'How To Brew'
+        self.assertEqual(
+            _lesson_hero_iceberg_key(lesson),
+            'lesson_hero_images/lesson_42_howtobrew.webp',
+        )
+
+    def test_generate_ai_lesson_image_uploads_to_iceberg(self):
+        from myApp.dashboard_views import generate_ai_lesson_image
+
+        lesson = MagicMock()
+        lesson.id = 7
+        lesson.slug = 'demo'
+        lesson.title = 'Demo'
+        lesson.ai_clean_title = 'Demo'
+        lesson.ai_short_summary = 'Summary'
+        lesson.tenant = MagicMock()
+        lesson.course = MagicMock()
+        lesson.ai_hero_image_url = ''
+        lesson.save = MagicMock()
+
+        client = MagicMock()
+        response = MagicMock()
+        response.data = [MagicMock()]
+        # Minimal valid 1x1 PNG
+        import base64
+        png_b64 = (
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        )
+        response.data[0].b64_json = png_b64
+        client.images.generate.return_value = response
+
+        with patch('myApp.dashboard_views.generate_image_brief', return_value='A hero banner'), \
+             patch('myApp.utils.iceberg.is_configured', return_value=True), \
+             patch('myApp.utils.iceberg.upload_bytes', return_value='https://cdn.example/t1/lesson_hero_images/lesson_7_demo.webp') as upload_bytes, \
+             patch('myApp.dashboard_views.AIUsageLog') as usage_log:
+            usage_log.objects.create = MagicMock()
+            url = generate_ai_lesson_image(client, lesson, MagicMock())
+
+        self.assertTrue(url.startswith('https://cdn.example/'))
+        upload_bytes.assert_called_once()
+        args, kwargs = upload_bytes.call_args
+        self.assertEqual(args[1], 'lesson_hero_images/lesson_7_demo.webp')
+        self.assertEqual(args[2], 'image/webp')
+        lesson.save.assert_called()
 
 
 class StructuredAiResultTests(SimpleTestCase):
