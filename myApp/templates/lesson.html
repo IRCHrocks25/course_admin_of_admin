@@ -189,6 +189,23 @@
                                     {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
                                 </figure>
                                 {% endif %}
+                            {% elif block.type == 'video' %}
+                                {% if block.data.embed_url %}
+                                <figure class="lesson-figure lesson-figure-video">
+                                    <div class="relative w-full rounded-xl overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;">
+                                        <iframe
+                                            src="{{ block.data.embed_url }}"
+                                            title="{{ block.data.caption|default:lesson_display.title }}"
+                                            class="absolute inset-0 w-full h-full"
+                                            frameborder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowfullscreen
+                                            referrerpolicy="strict-origin-when-cross-origin"
+                                        ></iframe>
+                                    </div>
+                                    {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                </figure>
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
                     </div>

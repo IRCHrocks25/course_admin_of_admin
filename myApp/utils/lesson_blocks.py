@@ -236,6 +236,14 @@ def _as_editorjs_block(block: dict[str, Any]) -> dict[str, Any]:
     if btype == 'image':
         url = block.get('url') or ''
         return {'type': 'image', 'data': {'file': {'url': url}, 'caption': block.get('caption', '')}}
+    if btype == 'video':
+        return {
+            'type': 'video',
+            'data': {
+                'url': block.get('url') or '',
+                'caption': block.get('caption', ''),
+            },
+        }
     return block
 
 
@@ -512,6 +520,9 @@ def prepare_lesson_article(content: dict[str, Any] | None, title: str | None = N
     while body and _is_uncaptioned_image(body[0]):
         leading.append(body.pop(0))
     body, lead_images = _interleave_parked_images(body, leading + trailing)
+
+    from myApp.utils.inline_media import enrich_video_block
+    body = [enrich_video_block(b) if _block_type(b) == 'video' else b for b in body]
 
     return {
         'lead_images': lead_images,

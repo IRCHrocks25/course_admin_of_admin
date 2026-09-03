@@ -1,9 +1,12 @@
 """
 Faithful PDF → CourseForge structure.
 
-Deterministic splitter: chapters become modules, X.Y sections become lessons,
-nested X.Y.Z stay as headers inside the parent lesson. Text is copied verbatim.
-Figures are extracted for Iceberg upload. Chapter quizzes become LessonQuiz rows.
+Deterministic splitter:
+- chapters become modules
+- X.Y sections become parent lessons
+- nested X.Y.Z sections become standalone sub-lessons (indented in the syllabus)
+- section order is normalized so parents sort before their children
+- text is copied verbatim; figures go to Iceberg; chapter quizzes become LessonQuiz rows
 """
 from __future__ import annotations
 
@@ -382,10 +385,15 @@ def _classify_line(text: str) -> tuple[str, Any]:
 
 
 def _new_lesson(title: str, kind: str, section_key: str | None, page: int, y0: float) -> dict[str, Any]:
+    nest_depth = 0
+    if section_key:
+        nest_depth = str(section_key).count('.')
     return {
         'title': title[:200],
         'kind': kind,
         'section_key': section_key,
+        'nest_depth': nest_depth,
+        'is_parent_stub': False,
         'raw_lines': [],
         'raw_items': [],
         'page': page,
@@ -396,6 +404,20 @@ def _new_lesson(title: str, kind: str, section_key: str | None, page: int, y0: f
         'quiz_questions': [],
         'blocks': [],
     }
+
+
+def _module_has_section_key(module: dict[str, Any], key: str, current_lesson: dict[str, Any] | None) -> bool:
+    if current_lesson and current_lesson.get('section_key') == key:
+        return True
+    return any(lesson.get('section_key') == key for lesson in (module.get('lessons') or []))
+
+
+def _pop_parent_stub(module: dict[str, Any], key: str) -> dict[str, Any] | None:
+    lessons = module.get('lessons') or []
+    for index, lesson in enumerate(lessons):
+        if lesson.get('section_key') == key and lesson.get('is_parent_stub'):
+            return lessons.pop(index)
+    return None
 
 
 def _append_line(lesson: dict[str, Any], item: dict[str, Any]) -> None:
@@ -515,32 +537,50 @@ def split_lines_into_modules(lines: list[dict[str, Any]]) -> list[dict[str, Any]
             if payload['major'] != current_module['number']:
                 ensure_module(payload['major'])
             if payload['nested']:
-                if current_lesson is None or current_lesson.get('section_key') != payload['key']:
+                # Parent/sub-lesson hierarchy: X.Y.Z is its own navigable lesson.
+                # If the parent X.Y has not appeared yet, insert a stub so the
+                # syllabus always has a place for the parent above its children.
+                parent_key = payload['key']
+                if not _module_has_section_key(current_module, parent_key, current_lesson):
                     flush_lesson()
-                    last_xy_key = payload['key']
-                    parent_title = payload['title']
-                    current_lesson = _new_lesson(
-                        f"{payload['key']} {parent_title}",
-                        'section',
-                        payload['key'],
-                        item['page'],
-                        item['y0'],
-                    )
+                    stub = _new_lesson(parent_key, 'section', parent_key, item['page'], item['y0'])
+                    stub['is_parent_stub'] = True
+                    current_module.setdefault('lessons', []).append(stub)
+                flush_lesson()
+                last_xy_key = payload['full_key']
+                section_title = _clean_section_heading(f"{payload['full_key']} {payload['title']}")
+                item = dict(item)
+                item['text'] = section_title
+                current_lesson = _new_lesson(
+                    section_title,
+                    'subsection',
+                    payload['full_key'],
+                    item['page'],
+                    item['y0'],
+                )
                 _append_line(current_lesson, item)
-                last_xy_key = payload['key']
                 continue
+            # Parent X.Y — upgrade an earlier stub if sub-lessons arrived first.
+            section_title = _clean_section_heading(f"{payload['key']} {payload['title']}")
+            stub = _pop_parent_stub(current_module, payload['key'])
             flush_lesson()
             last_xy_key = payload['key']
-            section_title = _clean_section_heading(f"{payload['key']} {payload['title']}")
             item = dict(item)
             item['text'] = section_title
-            current_lesson = _new_lesson(
-                section_title,
-                'section',
-                payload['key'],
-                item['page'],
-                item['y0'],
-            )
+            if stub:
+                stub['title'] = section_title[:200]
+                stub['is_parent_stub'] = False
+                stub['kind'] = 'section'
+                stub['nest_depth'] = 1
+                current_lesson = stub
+            else:
+                current_lesson = _new_lesson(
+                    section_title,
+                    'section',
+                    payload['key'],
+                    item['page'],
+                    item['y0'],
+                )
             # Keep the heading as a raw line so it becomes an H2
             _append_line(current_lesson, item)
             continue
@@ -985,8 +1025,26 @@ def parse_extracted(extracted: dict[str, Any]) -> dict[str, Any]:
 
     title = _guess_course_title(best_lines)
     first_para = ''
+    from myApp.utils.lesson_hierarchy import clean_lesson_nav_title, section_sort_key
+
     for module in best_modules:
-        for lesson in module.get('lessons') or []:
+        lessons = module.get('lessons') or []
+        for lesson in lessons:
+            lesson['title'] = clean_lesson_nav_title(lesson.get('title') or '') or lesson.get('title') or 'Untitled'
+        # Preserve original relative order among equal keys via enumerate fallback
+        lessons = [
+            lesson for _, lesson in sorted(
+                enumerate(lessons),
+                key=lambda pair: section_sort_key(
+                    pair[1].get('title') or '',
+                    fallback_order=pair[0],
+                    fallback_id=0,
+                    kind=pair[1].get('kind'),
+                ),
+            )
+        ]
+        module['lessons'] = lessons
+        for lesson in lessons:
             first_para = lesson.get('full_description') or ''
             if first_para:
                 break
@@ -1111,6 +1169,10 @@ def persist_imported_course(course, parsed: dict[str, Any], *, generate_slug, cr
             content = create_editorjs_content(sections) if sections else {}
             first = _first_paragraph_text(lesson_data.get('blocks') or [])
             outcomes = lesson_data.get('outcomes') or []
+            section_key = (lesson_data.get('section_key') or '').strip()
+            nest_depth = lesson_data.get('nest_depth')
+            if nest_depth is None:
+                nest_depth = section_key.count('.') if section_key else 0
             lesson = Lesson.objects.create(
                 tenant=tenant,
                 course=course,
@@ -1127,7 +1189,13 @@ def persist_imported_course(course, parsed: dict[str, Any], *, generate_slug, cr
                 ai_coach_actions=[],
                 content=content,
                 ai_generation_status='generated',
-                generation_settings={'source': 'pdf_import', 'faithful': True},
+                generation_settings={
+                    'source': 'pdf_import',
+                    'faithful': True,
+                    'section_key': section_key,
+                    'nest_depth': int(nest_depth or 0),
+                    'kind': lesson_data.get('kind') or '',
+                },
             )
             lessons_created += 1
 

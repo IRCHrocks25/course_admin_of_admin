@@ -398,7 +398,7 @@
           </div>
         </div>
         <div id="lp-no-video" class="hidden rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-400">
-          No video link found for this lesson yet.
+          No primary lesson video linked yet. Inline videos in Lesson Notes (if any) still appear below.
         </div>
         <div>
           <p class="text-[11px] uppercase tracking-wide text-cyan-electric/80 mb-1">Full Description</p>
@@ -484,6 +484,21 @@
           if (!url) return '';
           const caption = escapeHtml(block.data.caption || '');
           return '<figure class="my-3"><img src="' + escapeHtml(url) + '" alt="' + (caption || 'Lesson figure') + '" class="w-full h-auto rounded-lg">' +
+            (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
+        }
+        if (block.type === 'video') {
+          const raw = (block.data.url || block.data.embed_url || '').trim();
+          if (!raw || /^(javascript|data|vbscript):/i.test(raw)) return '';
+          let embed = raw;
+          const drive = raw.match(/(?:drive\.google\.com\/(?:file\/d\/|open\?id=)|docs\.google\.com\/file\/d\/)([a-zA-Z0-9_-]+)/i);
+          if (drive) embed = 'https://drive.google.com/file/d/' + drive[1] + '/preview';
+          const vimeo = raw.match(/(?:vimeo\.com\/(?:video\/|channels\/[^/]+\/|groups\/[^/]+\/videos\/|album\/\d+\/video\/|ondemand\/[^/]+\/|manage\/videos\/)?|player\.vimeo\.com\/video\/)(\d+)/i);
+          if (vimeo) embed = 'https://player.vimeo.com/video/' + vimeo[1];
+          const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/i);
+          if (yt) embed = 'https://www.youtube.com/embed/' + yt[1];
+          if (!/^https?:\/\//i.test(embed)) return '';
+          const caption = escapeHtml(block.data.caption || '');
+          return '<figure class="my-3"><div class="relative w-full rounded-lg overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;"><iframe src="' + escapeHtml(embed) + '" class="absolute inset-0 w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>' +
             (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
         }
         return '';

@@ -28,6 +28,8 @@ class LessonGenerationSettings:
     enabled_block_types: Tuple[str, ...] = ('paragraph', 'header', 'list', 'quote')
     audience_override: str = ''
     generate_image: bool = True
+    generate_quiz: bool = True
+    skip_exercise: bool = False
 
     @classmethod
     def from_dict(cls, data):
@@ -46,6 +48,8 @@ class LessonGenerationSettings:
                 enabled_block_types=tuple(data.get('enabled_block_types', defaults.enabled_block_types)),
                 audience_override=data.get('audience_override', defaults.audience_override),
                 generate_image=bool(data.get('generate_image', defaults.generate_image)),
+                generate_quiz=bool(data.get('generate_quiz', defaults.generate_quiz)),
+                skip_exercise=bool(data.get('skip_exercise', defaults.skip_exercise)),
             )
         except (TypeError, ValueError):
             return cls()
@@ -92,6 +96,10 @@ def _generation_directives_block(settings):
     dp = DEPTH_DIRECTIVES.get(settings.depth)
     if dp:
         parts.append(f"Content depth — {dp}")
+    if not getattr(settings, 'generate_quiz', True):
+        parts.append('Do not invent quiz sections, practice quizzes, or quiz questions in the lesson notes.')
+    if getattr(settings, 'skip_exercise', False):
+        parts.append('Do not invent exercises, drills, practice worksheets, or homework sections.')
     if not parts:
         return ''
     return "Generation directives (follow strictly):\n" + "\n".join(f"- {p}" for p in parts)

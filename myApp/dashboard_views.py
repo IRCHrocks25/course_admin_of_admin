@@ -293,7 +293,13 @@ def _parse_course_creation_blueprint(post):
 
 
 def _parse_seed_lessons(raw_json):
-    """Parse optional per-lesson source inputs from step 6 JSON."""
+    """Parse optional per-lesson source inputs from step 6 / Lesson Generator JSON."""
+    from myApp.utils.generation_directives import (
+        coerce_optional_bool,
+        effective_generate_quiz,
+        parse_generation_directives,
+    )
+
     if not raw_json:
         return []
     try:
@@ -309,14 +315,117 @@ def _parse_seed_lessons(raw_json):
         title = str(item.get('title') or '').strip()
         source = str(item.get('source') or '').strip()
         video_link = str(item.get('video_link') or '').strip()
+        module_name = str(item.get('module_name') or '').strip()
         if not title or not source:
             continue
+        explicit_quiz = coerce_optional_bool(item.get('generate_quiz'))
+        generate_quiz = effective_generate_quiz(title, source, explicit_quiz)
+        directives = parse_generation_directives(title, source)
         cleaned.append({
             'title': title[:200],
             'source': source[:20000],
             'video_link': video_link[:1000],
+            'module_name': module_name[:200],
+            'generate_quiz': generate_quiz,
+            'skip_exercise': bool(directives.skip_exercise),
         })
     return cleaned
+
+
+def _seed_modules_from_lessons(seed_lessons):
+    """Group seed lessons into modules by module_name (order = first appearance)."""
+    from collections import OrderedDict
+
+    groups = OrderedDict()
+    for idx, item in enumerate(seed_lessons):
+        name = (item.get('module_name') or '').strip() or 'Provided Lessons'
+        if name not in groups:
+            groups[name] = []
+        groups[name].append({
+            'title': item.get('title', 'Untitled Lesson'),
+            'description': item.get('source', ''),
+            'video_link': item.get('video_link', ''),
+            'generate_quiz': item.get('generate_quiz', True),
+            'skip_exercise': item.get('skip_exercise', False),
+            'order': idx + 1,
+        })
+    modules_data = []
+    for order, (name, lessons) in enumerate(groups.items(), start=1):
+        # Re-number lesson order within each module
+        for i, lesson in enumerate(lessons, start=1):
+            lesson['order'] = i
+        modules_data.append({
+            'name': name,
+            'description': 'Lessons generated from the creator-provided lesson inputs.',
+            'order': order,
+            'lessons': lessons,
+        })
+    return modules_data
+
+
+def _ai_ok_result(data):
+    return {'ok': True, 'data': data, 'error': None}
+
+
+def _ai_fail_result(error, data=None):
+    return {'ok': False, 'data': data, 'error': str(error) if error else 'Unknown error'}
+
+
+def _merge_lesson_ai_field_status(settings_dict, fields=None, errors=None):
+    """Merge per-field AI status into a generation_settings dict (mutates a copy)."""
+    out = dict(settings_dict) if isinstance(settings_dict, dict) else {}
+    status = out.get('ai_field_status') if isinstance(out.get('ai_field_status'), dict) else {}
+    field_map = dict(status.get('fields') or {})
+    err_map = dict(status.get('last_errors') or {})
+    if fields:
+        field_map.update(fields)
+    if errors:
+        for key, msg in errors.items():
+            if msg:
+                err_map[key] = str(msg)[:500]
+            elif key in err_map:
+                del err_map[key]
+    out['ai_field_status'] = {'fields': field_map, 'last_errors': err_map}
+    return out
+
+
+def _overall_ai_generation_status(field_map, require_quiz=False):
+    """Return pending|partial|generated from per-field statuses."""
+    meta = field_map.get('metadata')
+    content = field_map.get('content')
+    if meta == 'failed' or content == 'failed':
+        if meta == 'ok' or content == 'ok':
+            return 'partial'
+        return 'pending'
+    if meta != 'ok' or content != 'ok':
+        return 'pending'
+    if require_quiz and field_map.get('quiz') == 'failed':
+        return 'partial'
+    return 'generated'
+
+
+def _strip_code_fence(response_text):
+    text = (response_text or '').strip()
+    if text.startswith('```'):
+        text = text.split('```', 1)[1]
+        if text.startswith('json'):
+            text = text[4:]
+        text = text.strip()
+    if text.endswith('```'):
+        text = text.rsplit('```', 1)[0].strip()
+    return text
+
+
+def _parse_json_object(response_text):
+    """Parse a JSON object from model output; raise ValueError on failure."""
+    text = _strip_code_fence(response_text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if not json_match:
+            raise ValueError('Model response was not valid JSON')
+        return json.loads(json_match.group())
 
 
 def _validate_blueprint_for_ai(bp):
@@ -2856,6 +2965,13 @@ def create_editorjs_content(content_sections):
                     'file': {'url': url},
                     'caption': section.get('caption', ''),
                 }))
+        elif section.get('type') == 'video':
+            url = (section.get('url') or section.get('embed_url') or '').strip()
+            if url:
+                blocks.append(create_editorjs_block('video', {
+                    'url': url,
+                    'caption': section.get('caption', ''),
+                }))
 
     return {
         "time": int(timezone.now().timestamp() * 1000),
@@ -2865,7 +2981,7 @@ def create_editorjs_content(content_sections):
 
 
 def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context='', settings=None):
-    """Generate all AI lesson metadata fields (title, summary, description, outcomes, coach actions)"""
+    """Generate AI lesson metadata. Returns ``{ok, data, error}`` (no silent success)."""
     if settings is None:
         settings = LessonGenerationSettings()
     prompt = build_lesson_metadata_prompt(
@@ -2879,78 +2995,45 @@ def generate_ai_lesson_metadata(client, lesson_title, lesson_description, course
         settings=settings,
     )
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are an expert course creator. Always return valid JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=1500
-        )
-        _log_openai_usage(
-            feature='lesson_metadata',
-            response=response,
-            tenant=tenant,
-            course=course,
-            lesson=lesson,
-            model_name='gpt-4o-mini',
-        )
-
-        response_text = response.choices[0].message.content.strip()
-
-        # Clean up response
-        if response_text.startswith('```'):
-            response_text = response_text.split('```')[1]
-            if response_text.startswith('json'):
-                response_text = response_text[4:]
-            response_text = response_text.strip()
-        if response_text.endswith('```'):
-            response_text = response_text.rsplit('```', 1)[0].strip()
-
-        # Parse JSON
+    last_error = None
+    for attempt in range(2):
         try:
-            metadata = json.loads(response_text)
-            return {
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an expert course creator. Always return valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1500
+            )
+            _log_openai_usage(
+                feature='lesson_metadata',
+                response=response,
+                tenant=tenant,
+                course=course,
+                lesson=lesson,
+                model_name='gpt-4o-mini',
+            )
+            response_text = response.choices[0].message.content.strip()
+            metadata = _parse_json_object(response_text)
+            data = {
                 'clean_title': metadata.get('clean_title', lesson_title),
                 'short_summary': metadata.get('short_summary', ''),
                 'full_description': metadata.get('full_description', lesson_description),
-                'outcomes': metadata.get('outcomes', []),
-                'coach_actions': metadata.get('coach_actions', [])
+                'outcomes': metadata.get('outcomes', []) or [],
+                'coach_actions': metadata.get('coach_actions', []) or [],
             }
-        except json.JSONDecodeError:
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                metadata = json.loads(json_match.group())
-                return {
-                    'clean_title': metadata.get('clean_title', lesson_title),
-                    'short_summary': metadata.get('short_summary', ''),
-                    'full_description': metadata.get('full_description', lesson_description),
-                    'outcomes': metadata.get('outcomes', []),
-                    'coach_actions': metadata.get('coach_actions', [])
-                }
-            # Fallback to basic values
-            return {
-                'clean_title': lesson_title,
-                'short_summary': f"Learn key concepts from {lesson_title}",
-                'full_description': lesson_description,
-                'outcomes': [],
-                'coach_actions': []
-            }
-    except Exception as e:
-        # Return fallback values if generation fails
-        return {
-            'clean_title': lesson_title,
-            'short_summary': f"Learn key concepts from {lesson_title}",
-            'full_description': lesson_description,
-            'outcomes': [],
-            'coach_actions': []
-        }
+            return _ai_ok_result(data)
+        except Exception as e:
+            last_error = e
+            if attempt == 0:
+                continue
+    return _ai_fail_result(last_error)
 
 
 def generate_ai_lesson_content(client, lesson_title, lesson_description, course_name, course_type, tenant=None, course=None, lesson=None, blueprint_context='', settings=None):
-    """Generate detailed lesson content using AI (Editor.js blocks)"""
+    """Generate Editor.js content blocks. Returns ``{ok, data, error}`` where data is a list."""
     if settings is None:
         settings = LessonGenerationSettings()
     prompt = build_lesson_content_prompt(
@@ -2964,49 +3047,37 @@ def generate_ai_lesson_content(client, lesson_title, lesson_description, course_
         settings=settings,
     )
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are an expert course creator. Always return valid JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=2000
-        )
-        _log_openai_usage(
-            feature='lesson_content',
-            response=response,
-            tenant=tenant,
-            course=course,
-            lesson=lesson,
-            model_name='gpt-4o-mini',
-        )
-
-        response_text = response.choices[0].message.content.strip()
-
-        # Clean up response
-        if response_text.startswith('```'):
-            response_text = response_text.split('```')[1]
-            if response_text.startswith('json'):
-                response_text = response_text[4:]
-            response_text = response_text.strip()
-        if response_text.endswith('```'):
-            response_text = response_text.rsplit('```', 1)[0].strip()
-
-        # Parse JSON
+    last_error = None
+    for attempt in range(2):
         try:
-            content_data = json.loads(response_text)
-            return content_data.get('content', [])
-        except json.JSONDecodeError:
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                content_data = json.loads(json_match.group())
-                return content_data.get('content', [])
-            return []
-    except Exception as e:
-        # Return empty content if generation fails
-        return []
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an expert course creator. Always return valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=2000
+            )
+            _log_openai_usage(
+                feature='lesson_content',
+                response=response,
+                tenant=tenant,
+                course=course,
+                lesson=lesson,
+                model_name='gpt-4o-mini',
+            )
+            response_text = response.choices[0].message.content.strip()
+            content_data = _parse_json_object(response_text)
+            sections = content_data.get('content', [])
+            if not isinstance(sections, list) or not sections:
+                raise ValueError('Model returned empty lesson content')
+            return _ai_ok_result(sections)
+        except Exception as e:
+            last_error = e
+            if attempt == 0:
+                continue
+    return _ai_fail_result(last_error, data=[])
 
 
 def generate_ai_lesson_translation(client, lesson, language_code, tenant=None, course=None):
@@ -3561,20 +3632,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             if not api_key:
                 raise Exception('OPENAI_API_KEY not found in environment variables.')
             ai_client = OpenAI(api_key=api_key)
-            modules_data = [{
-                'name': 'Provided Lessons',
-                'description': 'Lessons generated from the creator-provided lesson inputs.',
-                'order': 1,
-                'lessons': [
-                    {
-                        'title': item.get('title', 'Untitled Lesson'),
-                        'description': item.get('source', ''),
-                        'video_link': item.get('video_link', ''),
-                        'order': idx + 1,
-                    }
-                    for idx, item in enumerate(seed_lessons)
-                ],
-            }]
+            modules_data = _seed_modules_from_lessons(seed_lessons)
         else:
             # Generate course structure with AI
             course_structure, ai_client = generate_ai_course_structure(
@@ -3628,7 +3686,15 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     lesson_counter += 1
 
                 # Generate all AI lesson metadata (title, summary, description, outcomes, coach actions)
-                lesson_metadata = generate_ai_lesson_metadata(
+                want_quiz = bool(lesson_data.get('generate_quiz', True))
+                skip_exercise = bool(lesson_data.get('skip_exercise', False))
+                lesson_settings = LessonGenerationSettings.from_dict({
+                    **gen_settings.to_dict(),
+                    'generate_quiz': want_quiz,
+                    'skip_exercise': skip_exercise,
+                })
+
+                meta_result = generate_ai_lesson_metadata(
                     client=ai_client,
                     lesson_title=lesson_title,
                     lesson_description=lesson_description,
@@ -3637,11 +3703,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     tenant=course.tenant,
                     course=course,
                     blueprint_context=lesson_blueprint_ctx,
-                    settings=gen_settings,
+                    settings=lesson_settings,
                 )
-
-                # Generate lesson content blocks using AI (Editor.js format)
-                lesson_content_sections = generate_ai_lesson_content(
+                content_result = generate_ai_lesson_content(
                     client=ai_client,
                     lesson_title=lesson_title,
                     lesson_description=lesson_description,
@@ -3650,12 +3714,37 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     tenant=course.tenant,
                     course=course,
                     blueprint_context=lesson_blueprint_ctx,
-                    settings=gen_settings,
+                    settings=lesson_settings,
                 )
 
-                # Convert content sections to Editor.js format
+                lesson_metadata = meta_result.get('data') if meta_result.get('ok') else {
+                    'clean_title': lesson_title,
+                    'short_summary': '',
+                    'full_description': lesson_description,
+                    'outcomes': [],
+                    'coach_actions': [],
+                }
+                lesson_content_sections = content_result.get('data') if content_result.get('ok') else []
                 lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
                 video_fields = _derive_video_fields(lesson_video_link)
+
+                field_status = {
+                    'metadata': 'ok' if meta_result.get('ok') else 'failed',
+                    'content': 'ok' if content_result.get('ok') else 'failed',
+                    'quiz': 'skipped' if not want_quiz else 'pending',
+                    'image': 'pending' if getattr(lesson_settings, 'generate_image', True) else 'skipped',
+                }
+                field_errors = {}
+                if not meta_result.get('ok'):
+                    field_errors['metadata'] = meta_result.get('error')
+                if not content_result.get('ok'):
+                    field_errors['content'] = content_result.get('error')
+                settings_payload = _merge_lesson_ai_field_status(
+                    lesson_settings.to_dict(),
+                    fields=field_status,
+                    errors=field_errors,
+                )
+                overall_status = _overall_ai_generation_status(field_status)
 
                 lesson = Lesson.objects.create(
                     tenant=course.tenant,
@@ -3679,16 +3768,23 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     ai_coach_actions=lesson_metadata.get('coach_actions', []),
                     # Editor.js content blocks
                     content=lesson_content,
-                    ai_generation_status='generated',
-                    generation_settings=gen_settings.to_dict(),
+                    ai_generation_status=overall_status,
+                    generation_settings=settings_payload,
                 )
                 lessons_created += 1
 
                 # --- AI Hero Image (non-blocking) ---
                 # Populates lesson.ai_hero_image_url; the lesson template
                 # renders it as a dedicated banner above the title.
-                if getattr(gen_settings, 'generate_image', True):
-                    generate_ai_lesson_image(ai_client, lesson, gen_settings)
+                if getattr(lesson_settings, 'generate_image', True):
+                    img_url = generate_ai_lesson_image(ai_client, lesson, lesson_settings)
+                    settings_payload = _merge_lesson_ai_field_status(
+                        lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                        fields={'image': 'ok' if img_url else 'failed'},
+                        errors={} if img_url else {'image': 'Hero image generation failed'},
+                    )
+                    lesson.generation_settings = settings_payload
+                    lesson.save(update_fields=['generation_settings', 'ai_hero_image_url', 'ai_hero_image_prompt'])
                 # --- end AI Hero Image ---
 
                 # --- AI Audio Narration (non-blocking) ---
@@ -3698,22 +3794,49 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 generate_lesson_audio_async(lesson)
                 # --- end AI Audio Narration ---
 
-                # Auto-generate quiz for this lesson
-                try:
-                    quiz, _ = LessonQuiz.objects.get_or_create(
-                        lesson=lesson,
-                        defaults={
-                            'tenant': lesson.tenant,
-                            'title': f'{lesson_title} Quiz',
-                            'passing_score': 70,
-                            'is_required': False
-                        },
+                # Auto-generate quiz for this lesson (unless skipped)
+                if want_quiz:
+                    try:
+                        quiz, _ = LessonQuiz.objects.get_or_create(
+                            lesson=lesson,
+                            defaults={
+                                'tenant': lesson.tenant,
+                                'title': f'{lesson_title} Quiz',
+                                'passing_score': 70,
+                                'is_required': False
+                            },
+                        )
+                        qc = generate_ai_quiz(lesson, quiz, num_questions=5)
+                        quiz_ok = qc > 0
+                        settings_payload = _merge_lesson_ai_field_status(
+                            lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                            fields={'quiz': 'ok' if quiz_ok else 'failed'},
+                            errors={} if quiz_ok else {'quiz': 'Quiz generation returned no questions'},
+                        )
+                        lesson.generation_settings = settings_payload
+                        field_status['quiz'] = 'ok' if quiz_ok else 'failed'
+                        lesson.ai_generation_status = _overall_ai_generation_status(field_status)
+                        lesson.save(update_fields=['generation_settings', 'ai_generation_status'])
+                        if quiz_ok:
+                            print(f'[Background] Quiz created for lesson: {lesson_title[:50]} ({qc} questions)')
+                    except Exception as eq:
+                        print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
+                        settings_payload = _merge_lesson_ai_field_status(
+                            lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                            fields={'quiz': 'failed'},
+                            errors={'quiz': str(eq)},
+                        )
+                        field_status['quiz'] = 'failed'
+                        lesson.generation_settings = settings_payload
+                        lesson.ai_generation_status = _overall_ai_generation_status(field_status)
+                        lesson.save(update_fields=['generation_settings', 'ai_generation_status'])
+                else:
+                    settings_payload = _merge_lesson_ai_field_status(
+                        lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                        fields={'quiz': 'skipped'},
                     )
-                    qc = generate_ai_quiz(lesson, quiz, num_questions=5)
-                    if qc > 0:
-                        print(f'[Background] Quiz created for lesson: {lesson_title[:50]} ({qc} questions)')
-                except Exception as eq:
-                    print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
+                    lesson.generation_settings = settings_payload
+                    lesson.save(update_fields=['generation_settings'])
                 # Auto-enable per-lesson AI assistant from stored lesson content
                 mark_lesson_chatbot_ready_async(lesson)
                 print(f'[Background] Chatbot ready queued for lesson: {lesson_title[:50]}')
@@ -3822,11 +3945,6 @@ def dashboard_generate_lesson_draft(request):
         length = 'standard'
     if depth not in {'overview', 'how_to', 'comprehensive'}:
         depth = 'how_to'
-    gen_settings = LessonGenerationSettings(
-        reading_level=reading_level,
-        length=length,
-        depth=depth,
-    )
 
     if not lesson_title:
         return JsonResponse({'success': False, 'error': 'Lesson title is required.'}, status=400)
@@ -3842,8 +3960,24 @@ def dashboard_generate_lesson_draft(request):
         source_for_ai = f"{source_for_ai}\n\nVideo reference link: {video_link}"
 
     try:
+        from myApp.utils.generation_directives import (
+            coerce_optional_bool,
+            effective_generate_quiz,
+            parse_generation_directives,
+        )
+
         client = OpenAI(api_key=api_key)
-        metadata = generate_ai_lesson_metadata(
+        explicit_quiz = coerce_optional_bool(request.POST.get('generate_quiz'))
+        want_quiz = effective_generate_quiz(lesson_title, source_text, explicit_quiz)
+        directives = parse_generation_directives(lesson_title, source_text)
+        gen_settings = LessonGenerationSettings(
+            reading_level=reading_level,
+            length=length,
+            depth=depth,
+            generate_quiz=want_quiz,
+            skip_exercise=bool(directives.skip_exercise),
+        )
+        meta_result = generate_ai_lesson_metadata(
             client=client,
             lesson_title=lesson_title,
             lesson_description=source_for_ai,
@@ -3855,7 +3989,7 @@ def dashboard_generate_lesson_draft(request):
             blueprint_context='Generated from dashboard Lesson Generator quick tool.',
             settings=gen_settings,
         )
-        content_sections = generate_ai_lesson_content(
+        content_result = generate_ai_lesson_content(
             client=client,
             lesson_title=lesson_title,
             lesson_description=source_for_ai,
@@ -3867,10 +4001,34 @@ def dashboard_generate_lesson_draft(request):
             blueprint_context='Generate practical, immediately usable standalone lesson notes.',
             settings=gen_settings,
         )
-        content_data = create_editorjs_content(content_sections)
+        fields_ok = {
+            'metadata': bool(meta_result.get('ok')),
+            'content': bool(content_result.get('ok')),
+            'quiz_skipped': not want_quiz,
+        }
+        errors = {}
+        if not meta_result.get('ok'):
+            errors['metadata'] = meta_result.get('error') or 'Metadata generation failed'
+        if not content_result.get('ok'):
+            errors['content'] = content_result.get('error') or 'Content generation failed'
+        if not meta_result.get('ok') and not content_result.get('ok'):
+            return JsonResponse({
+                'success': False,
+                'error': 'Lesson generation failed for metadata and notes.',
+                'fields_ok': fields_ok,
+                'errors': errors,
+            }, status=500)
+
+        metadata = meta_result.get('data') or {}
+        content_sections = content_result.get('data') if content_result.get('ok') else []
+        content_data = create_editorjs_content(content_sections) if content_sections else {'blocks': []}
 
         return JsonResponse({
-            'success': True,
+            'success': bool(meta_result.get('ok') and content_result.get('ok')),
+            'partial': not (meta_result.get('ok') and content_result.get('ok')),
+            'fields_ok': fields_ok,
+            'errors': errors,
+            'generate_quiz': want_quiz,
             'lesson': {
                 'clean_title': metadata.get('clean_title') or lesson_title,
                 'short_summary': metadata.get('short_summary') or '',
@@ -3970,12 +4128,11 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
         lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
         gen_settings = LessonGenerationSettings.from_dict(blueprint.get('generation_settings'))
-        target_module = None
+        default_module = None
         if module_id:
-            target_module = Module.objects.filter(id=module_id, course=course).first()
-        if target_module is None:
-            # Sensible default: if course already has modules, append into first module
-            target_module = course.modules.order_by('order', 'id').first()
+            default_module = Module.objects.filter(id=module_id, course=course).first()
+        if default_module is None:
+            default_module = course.modules.order_by('order', 'id').first()
 
         if not OPENAI_AVAILABLE:
             raise Exception('OpenAI is not available. Please install the openai package.')
@@ -3994,16 +4151,49 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
             current='Adding AI lessons to existing course...',
         )
 
-        if target_module:
-            max_order = Lesson.objects.filter(course=course, module=target_module).aggregate(models.Max('order'))['order__max'] or 0
-        else:
-            max_order = Lesson.objects.filter(course=course).aggregate(models.Max('order'))['order__max'] or 0
-        next_order = max_order + 1
+        module_cache = {}
+        if default_module:
+            module_cache[default_module.name] = default_module
+
+        def resolve_module(module_name):
+            name = (module_name or '').strip()
+            if not name:
+                return default_module
+            if name in module_cache:
+                return module_cache[name]
+            existing = Module.objects.filter(course=course, name=name).first()
+            if existing:
+                module_cache[name] = existing
+                return existing
+            max_mod_order = Module.objects.filter(course=course).aggregate(models.Max('order'))['order__max'] or 0
+            created = Module.objects.create(
+                tenant=course.tenant,
+                course=course,
+                name=name,
+                description='Lessons generated from creator-provided lesson inputs.',
+                order=max_mod_order + 1,
+            )
+            module_cache[name] = created
+            return created
 
         for idx, item in enumerate(seed_lessons):
+            target_module = resolve_module(item.get('module_name'))
+            if target_module:
+                max_order = Lesson.objects.filter(course=course, module=target_module).aggregate(models.Max('order'))['order__max'] or 0
+            else:
+                max_order = Lesson.objects.filter(course=course).aggregate(models.Max('order'))['order__max'] or 0
+            next_order = max_order + 1
+
             lesson_title = (item.get('title') or '').strip() or f'Lesson {next_order}'
             lesson_description = (item.get('source') or '').strip()
             lesson_video_link = (item.get('video_link') or '').strip()
+            want_quiz = bool(item.get('generate_quiz', True))
+            skip_exercise = bool(item.get('skip_exercise', False))
+            lesson_settings = LessonGenerationSettings.from_dict({
+                **gen_settings.to_dict(),
+                'generate_quiz': want_quiz,
+                'skip_exercise': skip_exercise,
+            })
             lesson_description_for_ai = lesson_description
             if lesson_video_link:
                 lesson_description_for_ai = f"{lesson_description_for_ai}\n\nVideo reference: {lesson_video_link}"
@@ -4015,7 +4205,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 lesson_slug = f"{base_lesson_slug}-{lesson_counter}"
                 lesson_counter += 1
 
-            lesson_metadata = generate_ai_lesson_metadata(
+            meta_result = generate_ai_lesson_metadata(
                 client=ai_client,
                 lesson_title=lesson_title,
                 lesson_description=lesson_description_for_ai,
@@ -4024,9 +4214,9 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 tenant=course.tenant,
                 course=course,
                 blueprint_context=lesson_blueprint_ctx,
-                settings=gen_settings,
+                settings=lesson_settings,
             )
-            lesson_content_sections = generate_ai_lesson_content(
+            content_result = generate_ai_lesson_content(
                 client=ai_client,
                 lesson_title=lesson_title,
                 lesson_description=lesson_description_for_ai,
@@ -4035,10 +4225,35 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 tenant=course.tenant,
                 course=course,
                 blueprint_context=lesson_blueprint_ctx,
-                settings=gen_settings,
+                settings=lesson_settings,
             )
+            lesson_metadata = meta_result.get('data') if meta_result.get('ok') else {
+                'clean_title': lesson_title,
+                'short_summary': '',
+                'full_description': lesson_description_for_ai,
+                'outcomes': [],
+                'coach_actions': [],
+            }
+            lesson_content_sections = content_result.get('data') if content_result.get('ok') else []
             lesson_content = create_editorjs_content(lesson_content_sections) if lesson_content_sections else {}
             video_fields = _derive_video_fields(lesson_video_link)
+
+            field_status = {
+                'metadata': 'ok' if meta_result.get('ok') else 'failed',
+                'content': 'ok' if content_result.get('ok') else 'failed',
+                'quiz': 'skipped' if not want_quiz else 'pending',
+                'image': 'pending' if getattr(lesson_settings, 'generate_image', True) else 'skipped',
+            }
+            field_errors = {}
+            if not meta_result.get('ok'):
+                field_errors['metadata'] = meta_result.get('error')
+            if not content_result.get('ok'):
+                field_errors['content'] = content_result.get('error')
+            settings_payload = _merge_lesson_ai_field_status(
+                lesson_settings.to_dict(),
+                fields=field_status,
+                errors=field_errors,
+            )
 
             lesson = Lesson.objects.create(
                 tenant=course.tenant,
@@ -4060,28 +4275,67 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 ai_outcomes=lesson_metadata.get('outcomes', []),
                 ai_coach_actions=lesson_metadata.get('coach_actions', []),
                 content=lesson_content,
-                ai_generation_status='generated',
-                generation_settings=gen_settings.to_dict(),
+                ai_generation_status=_overall_ai_generation_status(field_status),
+                generation_settings=settings_payload,
             )
 
-            try:
-                quiz, _ = LessonQuiz.objects.get_or_create(
-                    lesson=lesson,
-                    defaults={
-                        'tenant': lesson.tenant,
-                        'title': f'{lesson_title} Quiz',
-                        'passing_score': 70,
-                        'is_required': False,
-                    },
+            if getattr(lesson_settings, 'generate_image', True):
+                img_url = generate_ai_lesson_image(ai_client, lesson, lesson_settings)
+                settings_payload = _merge_lesson_ai_field_status(
+                    lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                    fields={'image': 'ok' if img_url else 'failed'},
+                    errors={} if img_url else {'image': 'Hero image generation failed'},
                 )
-                generate_ai_quiz(lesson, quiz, num_questions=5)
-            except Exception as eq:
-                print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
+                lesson.generation_settings = settings_payload
+                lesson.save(update_fields=['generation_settings', 'ai_hero_image_url', 'ai_hero_image_prompt'])
+
+            from myApp.utils.lesson_audio import generate_lesson_audio_async
+            generate_lesson_audio_async(lesson)
+
+            if want_quiz:
+                try:
+                    quiz, _ = LessonQuiz.objects.get_or_create(
+                        lesson=lesson,
+                        defaults={
+                            'tenant': lesson.tenant,
+                            'title': f'{lesson_title} Quiz',
+                            'passing_score': 70,
+                            'is_required': False,
+                        },
+                    )
+                    qc = generate_ai_quiz(lesson, quiz, num_questions=5)
+                    quiz_ok = qc > 0
+                    settings_payload = _merge_lesson_ai_field_status(
+                        lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                        fields={'quiz': 'ok' if quiz_ok else 'failed'},
+                        errors={} if quiz_ok else {'quiz': 'Quiz generation returned no questions'},
+                    )
+                    field_status['quiz'] = 'ok' if quiz_ok else 'failed'
+                    lesson.generation_settings = settings_payload
+                    lesson.ai_generation_status = _overall_ai_generation_status(field_status)
+                    lesson.save(update_fields=['generation_settings', 'ai_generation_status'])
+                except Exception as eq:
+                    print(f'[Background] Quiz generation failed for {lesson_title[:50]}: {eq}')
+                    settings_payload = _merge_lesson_ai_field_status(
+                        lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                        fields={'quiz': 'failed'},
+                        errors={'quiz': str(eq)},
+                    )
+                    field_status['quiz'] = 'failed'
+                    lesson.generation_settings = settings_payload
+                    lesson.ai_generation_status = _overall_ai_generation_status(field_status)
+                    lesson.save(update_fields=['generation_settings', 'ai_generation_status'])
+            else:
+                settings_payload = _merge_lesson_ai_field_status(
+                    lesson.generation_settings if isinstance(lesson.generation_settings, dict) else settings_payload,
+                    fields={'quiz': 'skipped'},
+                )
+                lesson.generation_settings = settings_payload
+                lesson.save(update_fields=['generation_settings'])
 
             mark_lesson_chatbot_ready_async(lesson)
             print(f'[Background] Chatbot ready queued for appended lesson: {lesson_title[:50]}')
 
-            next_order += 1
             pct = min(95, 15 + int(80 * (idx + 1) / total_items))
             _update_ai_gen_progress(
                 course.id,
@@ -4298,7 +4552,8 @@ def _kickoff_pdf_import(request, course, pdf_path):
         if result.get('ok'):
             messages.success(
                 request,
-                f'Imported {result.get("modules", 0)} chapter(s) and {result.get("lessons", 0)} lesson(s).',
+                f'Imported {result.get("modules", 0)} chapter(s) and {result.get("lessons", 0)} lesson(s). '
+                f'Nested sections (e.g. 2.4.1) are separate sub-lessons under their parents.',
             )
         else:
             messages.error(

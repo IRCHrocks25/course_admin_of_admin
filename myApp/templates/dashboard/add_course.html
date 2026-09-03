@@ -425,7 +425,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="import_mode" value="pdf">
                 <h3 class="text-lg font-semibold text-emerald-300">Import existing manual (PDF)</h3>
-                <p class="text-sm text-gray-400">Drop a course PDF. We keep the exact words and figures, split chapters into modules and numbered sections (1.1, 1.2) into lessons, and turn chapter quizzes into real quizzes. AI will not rewrite the copy.</p>
+                <p class="text-sm text-gray-400">Drop a course PDF. We keep the exact words and figures, split chapters into modules, numbered sections into lessons, and nested sub-sections (1.3.1, 2.4.2) into their own indented sub-lessons. Chapter quizzes become real quizzes. AI will not rewrite the copy.</p>
                 {% if not pdf_available %}
                 <p class="text-sm text-red-400">PDF import is not available on this server (PyMuPDF missing).</p>
                 {% endif %}
@@ -436,7 +436,11 @@
                 <div>
                     <label class="block text-sm font-semibold mb-1">PDF manual <span class="text-red-400">*</span></label>
                     <input type="file" name="manual_pdf" accept="application/pdf,.pdf" required class="w-full bg-[#0a0e27]/40 border border-emerald-400/20 rounded-lg px-4 py-3 text-sm file:mr-4 file:rounded-full file:border-0 file:bg-emerald-500/20 file:px-4 file:py-2 file:text-emerald-200">
-                    <p class="text-xs text-gray-500 mt-1">Chapters become modules. Section 1.1 / 1.2 become lessons. Nested 1.3.1 stays inside 1.3 as a heading.</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Chapters → modules.
+                        <span class="text-gray-400">1.1 / 2.4</span> → lessons.
+                        <span class="text-gray-400">1.3.1 / 2.4.2</span> → nested sub-lessons (indented in the syllabus under their parent).
+                    </p>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold mb-1">Coach name</label>
@@ -616,6 +620,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!url) return '';
                 const caption = escapeHtml(block.data.caption || '');
                 return '<figure class="my-3"><img src="' + escapeHtml(url) + '" alt="' + (caption || 'Lesson figure') + '" class="w-full h-auto rounded-lg">' +
+                    (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
+            }
+            if (block.type === 'video') {
+                const raw = (block.data.url || block.data.embed_url || '').trim();
+                if (!raw || /^(javascript|data|vbscript):/i.test(raw)) return '';
+                let embed = raw;
+                const drive = raw.match(/(?:drive\.google\.com\/(?:file\/d\/|open\?id=)|docs\.google\.com\/file\/d\/)([a-zA-Z0-9_-]+)/i);
+                if (drive) embed = 'https://drive.google.com/file/d/' + drive[1] + '/preview';
+                const vimeo = raw.match(/(?:vimeo\.com\/(?:video\/|channels\/[^/]+\/|groups\/[^/]+\/videos\/|album\/\d+\/video\/|ondemand\/[^/]+\/|manage\/videos\/)?|player\.vimeo\.com\/video\/)(\d+)/i);
+                if (vimeo) embed = 'https://player.vimeo.com/video/' + vimeo[1];
+                const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/i);
+                if (yt) embed = 'https://www.youtube.com/embed/' + yt[1];
+                if (!/^https?:\/\//i.test(embed)) return '';
+                const caption = escapeHtml(block.data.caption || '');
+                return '<figure class="my-3"><div class="relative w-full rounded-lg overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;"><iframe src="' + escapeHtml(embed) + '" class="absolute inset-0 w-full h-full" allowfullscreen></iframe></div>' +
                     (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
             }
             return '';
@@ -819,19 +838,41 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!lgLessonsList) return;
         const row = document.createElement('div');
         row.className = 'lg-lesson-row rounded-lg border border-purple-400/20 bg-[#0a0e27]/40 p-3 space-y-3';
+        row.dataset.quizManual = '0';
         row.innerHTML = [
             '<div class="flex items-center justify-between gap-2">',
             '<p class="text-xs text-purple-200 uppercase tracking-wide">Lesson</p>',
+            '<div class="flex items-center gap-2">',
+            '<button type="button" class="lg-quiz-toggle px-3 py-1 rounded-full text-xs font-semibold border transition-all bg-cyan-electric/15 border-cyan-electric/40 text-cyan-electric" data-on="1">Quiz: On</button>',
             '<button type="button" class="lg-remove-lesson text-xs text-red-300 hover:text-red-200">Remove</button>',
             '</div>',
+            '</div>',
+            '<p class="lg-quiz-hint hidden text-xs text-amber-300/90">Detected “no quiz” in lesson text.</p>',
             '<input type="text" class="lg-lesson-title w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Lesson title">',
             '<textarea rows="4" class="lg-lesson-source w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50 resize-y" placeholder="Lesson description or transcription"></textarea>',
+            '<div class="grid md:grid-cols-2 gap-3">',
+            '<input type="text" list="lg-module-datalist" class="lg-lesson-module w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Module name (optional)">',
             '<input type="url" class="lg-lesson-video w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Optional video link">',
+            '</div>',
         ].join('');
+        if (!document.getElementById('lg-module-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'lg-module-datalist';
+            lgLessonsList.parentElement.appendChild(dl);
+        }
         lgLessonsList.appendChild(row);
         row.querySelector('.lg-lesson-title').value = (data && data.title) || '';
         row.querySelector('.lg-lesson-source').value = (data && data.source) || '';
         row.querySelector('.lg-lesson-video').value = (data && data.video_link) || '';
+        const moduleEl = row.querySelector('.lg-lesson-module');
+        if (moduleEl) moduleEl.value = (data && data.module_name) || '';
+        const quizOn = (data && typeof data.generate_quiz === 'boolean') ? data.generate_quiz : true;
+        setQuizToggle(row, quizOn, !!data && data.generate_quiz === false && !(data && data._auto_off));
+        wireQuizToggleRow(row, '.lg-lesson-title', '.lg-lesson-source', '.lg-quiz-toggle', '.lg-quiz-hint');
+        refreshModuleDatalist('lg-module-datalist', '.lg-lesson-module');
+        if (moduleEl) {
+            moduleEl.addEventListener('input', function() { refreshModuleDatalist('lg-module-datalist', '.lg-lesson-module'); });
+        }
         const removeBtn = row.querySelector('.lg-remove-lesson');
         if (removeBtn) {
             removeBtn.addEventListener('click', function() {
@@ -843,6 +884,66 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function detectSkipQuiz(title, source) {
+        const blob = ((title || '') + '\n' + (source || '')).toLowerCase();
+        return /\bdo\s+not\s+generate\s+(a\s+|an\s+)?quiz\b/.test(blob)
+            || /\bdon'?t\s+generate\s+(a\s+|an\s+)?quiz\b/.test(blob)
+            || /\bno\s+quiz\b/.test(blob)
+            || /\bskip\s+(the\s+)?quiz\b/.test(blob)
+            || /\bwithout\s+(a\s+|an\s+)?quiz\b/.test(blob)
+            || /\bquiz\s*:\s*off\b/.test(blob);
+    }
+
+    function setQuizToggle(row, on, manual) {
+        const btn = row.querySelector('.lg-quiz-toggle') || row.querySelector('.seed-quiz-toggle') || row.querySelector('.ecl-quiz-toggle');
+        if (!btn) return;
+        btn.dataset.on = on ? '1' : '0';
+        btn.textContent = on ? 'Quiz: On' : 'Quiz: Off';
+        btn.classList.toggle('bg-cyan-electric/15', !!on);
+        btn.classList.toggle('border-cyan-electric/40', !!on);
+        btn.classList.toggle('text-cyan-electric', !!on);
+        btn.classList.toggle('bg-gray-700/40', !on);
+        btn.classList.toggle('border-gray-500/40', !on);
+        btn.classList.toggle('text-gray-300', !on);
+        if (manual) row.dataset.quizManual = '1';
+    }
+
+    function wireQuizToggleRow(row, titleSel, sourceSel, toggleSel, hintSel) {
+        const btn = row.querySelector(toggleSel);
+        const hint = hintSel ? row.querySelector(hintSel) : null;
+        const titleEl = row.querySelector(titleSel);
+        const sourceEl = row.querySelector(sourceSel);
+        if (btn) {
+            btn.addEventListener('click', function() {
+                const next = btn.dataset.on !== '1';
+                setQuizToggle(row, next, true);
+                if (hint) hint.classList.add('hidden');
+            });
+        }
+        function maybeAutoOff() {
+            if (row.dataset.quizManual === '1') return;
+            const detected = detectSkipQuiz(titleEl && titleEl.value, sourceEl && sourceEl.value);
+            setQuizToggle(row, !detected, false);
+            if (hint) hint.classList.toggle('hidden', !detected);
+        }
+        if (titleEl) titleEl.addEventListener('input', maybeAutoOff);
+        if (sourceEl) sourceEl.addEventListener('input', maybeAutoOff);
+        maybeAutoOff();
+    }
+
+    function refreshModuleDatalist(datalistId, inputSel) {
+        const dl = document.getElementById(datalistId);
+        if (!dl) return;
+        const names = new Set();
+        document.querySelectorAll(inputSel).forEach(function(el) {
+            const v = (el.value || '').trim();
+            if (v) names.add(v);
+        });
+        dl.innerHTML = Array.from(names).map(function(n) {
+            return '<option value="' + n.replace(/"/g, '&quot;') + '">';
+        }).join('');
+    }
+
     function collectLgLessons(validate) {
         if (!lgLessonsList) return [];
         const rows = Array.from(lgLessonsList.querySelectorAll('.lg-lesson-row'));
@@ -852,10 +953,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleEl = row.querySelector('.lg-lesson-title');
             const sourceEl = row.querySelector('.lg-lesson-source');
             const videoEl = row.querySelector('.lg-lesson-video');
+            const moduleEl = row.querySelector('.lg-lesson-module');
+            const quizBtn = row.querySelector('.lg-quiz-toggle');
             const title = titleEl ? titleEl.value.trim() : '';
             const source = sourceEl ? sourceEl.value.trim() : '';
             const video_link = videoEl ? videoEl.value.trim() : '';
-            if (!title && !source && !video_link) continue;
+            const module_name = moduleEl ? moduleEl.value.trim() : '';
+            const generate_quiz = quizBtn ? quizBtn.dataset.on === '1' : true;
+            if (!title && !source && !video_link && !module_name) continue;
             if (!title || !source) {
                 if (validate) {
                     if (!title && titleEl) titleEl.focus();
@@ -863,7 +968,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return null;
             }
-            parsed.push({ title: title, source: source, video_link: video_link });
+            parsed.push({
+                title: title,
+                source: source,
+                video_link: video_link,
+                module_name: module_name,
+                generate_quiz: generate_quiz,
+            });
         }
         if (validate && parsed.length === 0) {
             const t = lgLessonsList.querySelector('.lg-lesson-title');
@@ -903,19 +1014,44 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!seedLessonsList) return;
         const row = document.createElement('div');
         row.className = 'seed-lesson-row rounded-lg border border-purple-400/20 bg-[#0a0e27]/40 p-3 space-y-3';
+        row.dataset.quizManual = '0';
         row.innerHTML = [
             '<div class="flex items-center justify-between gap-2">',
             '<p class="text-xs text-purple-200 uppercase tracking-wide">Lesson input</p>',
+            '<div class="flex items-center gap-2">',
+            '<button type="button" class="seed-quiz-toggle px-3 py-1 rounded-full text-xs font-semibold border transition-all bg-cyan-electric/15 border-cyan-electric/40 text-cyan-electric" data-on="1">Quiz: On</button>',
             '<button type="button" class="seed-remove text-xs text-red-300 hover:text-red-200">Remove</button>',
             '</div>',
+            '</div>',
+            '<p class="seed-quiz-hint hidden text-xs text-amber-300/90">Detected “no quiz” in lesson text.</p>',
             '<input type="text" class="seed-title w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Lesson title">',
             '<textarea rows="4" class="seed-source w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50 resize-y" placeholder="Lesson description/transcription"></textarea>',
+            '<div class="grid md:grid-cols-2 gap-3">',
+            '<input type="text" list="seed-module-datalist" class="seed-module w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Module name (optional)">',
             '<input type="url" class="seed-video w-full bg-[#0a0e27]/40 border border-purple-400/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400/50" placeholder="Optional video link">',
+            '</div>',
         ].join('');
+        if (!document.getElementById('seed-module-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'seed-module-datalist';
+            seedLessonsList.parentElement.appendChild(dl);
+        }
         seedLessonsList.appendChild(row);
         row.querySelector('.seed-title').value = (data && data.title) || '';
         row.querySelector('.seed-source').value = (data && data.source) || '';
         row.querySelector('.seed-video').value = (data && data.video_link) || '';
+        const moduleEl = row.querySelector('.seed-module');
+        if (moduleEl) moduleEl.value = (data && data.module_name) || '';
+        const quizOn = (data && typeof data.generate_quiz === 'boolean') ? data.generate_quiz : true;
+        setQuizToggle(row, quizOn, false);
+        wireQuizToggleRow(row, '.seed-title', '.seed-source', '.seed-quiz-toggle', '.seed-quiz-hint');
+        refreshModuleDatalist('seed-module-datalist', '.seed-module');
+        if (moduleEl) {
+            moduleEl.addEventListener('input', function() {
+                refreshModuleDatalist('seed-module-datalist', '.seed-module');
+                syncSeedLessons(false);
+            });
+        }
         const removeBtn = row.querySelector('.seed-remove');
         if (removeBtn) {
             removeBtn.addEventListener('click', function() {
@@ -926,6 +1062,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 syncSeedLessons(false);
             });
         }
+        ['.seed-title', '.seed-source', '.seed-video'].forEach(function(sel) {
+            const el = row.querySelector(sel);
+            if (el) el.addEventListener('input', function() { syncSeedLessons(false); });
+        });
     }
 
     function syncSeedLessons(validate) {
@@ -941,11 +1081,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const titleInput = row.querySelector('.seed-title');
             const sourceInput = row.querySelector('.seed-source');
             const videoInput = row.querySelector('.seed-video');
+            const moduleInput = row.querySelector('.seed-module');
+            const quizBtn = row.querySelector('.seed-quiz-toggle');
             const title = titleInput ? titleInput.value.trim() : '';
             const source = sourceInput ? sourceInput.value.trim() : '';
             const video_link = videoInput ? videoInput.value.trim() : '';
+            const module_name = moduleInput ? moduleInput.value.trim() : '';
+            const generate_quiz = quizBtn ? quizBtn.dataset.on === '1' : true;
 
-            if (!title && !source && !video_link) {
+            if (!title && !source && !video_link && !module_name) {
                 continue;
             }
 
@@ -957,7 +1101,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return false;
             }
-            parsed.push({ title: title, source: source, video_link: video_link });
+            parsed.push({
+                title: title,
+                source: source,
+                video_link: video_link,
+                module_name: module_name,
+                generate_quiz: generate_quiz,
+            });
         }
         if (validate && parsed.length === 0) {
             const firstTitle = seedLessonsList.querySelector('.seed-title');
@@ -1226,6 +1376,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             lesson_source: row.source,
                             lesson_video_link: row.video_link || '',
                             course_context: courseTitleVal,
+                            generate_quiz: row.generate_quiz === false ? 'false' : 'true',
                         });
                         const resp = await fetch('{% url "dashboard_generate_lesson_draft" %}', {
                             method: 'POST',
@@ -1236,8 +1387,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             body: payload.toString(),
                         });
                         const data = await resp.json();
-                        if (!data.success || !data.lesson) {
+                        if (!data.lesson) {
                             throw new Error(data.error || ('Generation failed on lesson ' + (i + 1)));
+                        }
+                        if (!data.success) {
+                            const errBits = data.errors ? Object.values(data.errors).join('; ') : (data.error || 'Partial failure');
+                            setLessonGeneratorStatus('Lesson ' + (i + 1) + ' partial: ' + errBits, true);
                         }
                         renderLgResultCard({ lesson: data.lesson, input_title: row.title }, i);
                     }

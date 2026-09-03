@@ -483,6 +483,7 @@ class Lesson(models.Model):
     # AI Generated Content
     ai_generation_status = models.CharField(max_length=20, default='pending', choices=[
         ('pending', 'Pending'),
+        ('partial', 'Partial'),
         ('generated', 'Generated'),
         ('approved', 'Approved'),
     ])

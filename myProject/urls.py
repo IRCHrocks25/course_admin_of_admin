@@ -178,6 +178,7 @@ urlpatterns = [
     path('creator/courses/<slug:course_slug>/lessons/', views.course_lessons, name='course_lessons'),
     path('creator/courses/<slug:course_slug>/add-lesson/', views.add_lesson, name='add_lesson'),
     path('creator/courses/<slug:course_slug>/lessons/<int:lesson_id>/generate/', views.generate_lesson_ai, name='generate_lesson_ai'),
+    path('creator/lessons/<int:lesson_id>/upload-note-image/', views.upload_lesson_note_image, name='upload_lesson_note_image'),
     path('creator/verify-vimeo/', views.verify_vimeo_url, name='verify_vimeo_url'),
     path('creator/upload-video-transcribe/', views.upload_video_transcribe, name='upload_video_transcribe'),
     path('creator/lessons/<int:lesson_id>/transcription-status/', views.check_transcription_status, name='check_transcription_status'),

@@ -604,6 +604,14 @@
                                         {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
                                     </figure>
                                     {% endif %}
+                                {% elif block.type == 'video' %}
+                                    {% if block.data.url %}
+                                    <figure class="my-3">
+                                        <p class="text-xs text-cyan-electric mb-1"><i class="fas fa-video mr-1"></i>Inline video</p>
+                                        <p class="text-sm text-gray-400 break-all">{{ block.data.url }}</p>
+                                        {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                    </figure>
+                                    {% endif %}
                                 {% endif %}
                             {% endfor %}
                         {% else %}
@@ -628,6 +636,8 @@
                             <button type="button" id="add-note-header" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Header</button>
                             <button type="button" id="add-note-list" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Bullet/Numbered List</button>
                             <button type="button" id="add-note-quote" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Quote</button>
+                            <button type="button" id="add-note-image" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Image</button>
+                            <button type="button" id="add-note-video" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Video</button>
                         </div>
                         <p class="text-xs text-gray-500">Tip: use blank lines to separate paragraphs, one list item per line, and drag your focus between blocks with the arrow buttons.</p>
                         <div id="content-blocks-block-list" class="space-y-3"></div>
@@ -742,8 +752,44 @@
                 {% include "components/_step_slider.html" with name="gen_reading_level" value=gen_settings.reading_level options=reading_level_choices label="Reading level" helper="Vocabulary and assumed familiarity with the topic." %}
                 {% include "components/_step_slider.html" with name="gen_length" value=gen_settings.length options=length_choices label="Lesson length" helper="Target word count and number of content blocks." %}
                 {% include "components/_step_slider.html" with name="gen_depth" value=gen_settings.depth options=depth_choices label="Content depth" helper="How much theory, examples, and edge cases to include." %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Per-lesson quiz</label>
+                    <input type="hidden" name="gen_generate_quiz" id="gen_generate_quiz" value="{% if gen_settings.generate_quiz %}true{% else %}false{% endif %}">
+                    <button type="button" id="gen-quiz-toggle"
+                        class="px-4 py-2 rounded-full text-sm font-semibold border transition-all {% if gen_settings.generate_quiz %}bg-cyan-electric/15 border-cyan-electric/40 text-cyan-electric{% else %}bg-gray-700/40 border-gray-500/40 text-gray-300{% endif %}"
+                        data-on="{% if gen_settings.generate_quiz %}1{% else %}0{% endif %}">
+                        {% if gen_settings.generate_quiz %}Quiz: On{% else %}Quiz: Off{% endif %}
+                    </button>
+                    <p id="gen-quiz-hint" class="mt-2 text-xs text-amber-300/90 {% if gen_settings.generate_quiz %}hidden{% endif %}">Quiz generation is off for this lesson.</p>
+                </div>
             </div>
         </div>
+
+        {% if lesson.generation_settings.ai_field_status.fields %}
+        {% with field_status=lesson.generation_settings.ai_field_status %}
+        <div class="bg-[#0a0e27]/60 backdrop-blur-sm border border-amber-400/30 rounded-xl p-4 mt-6">
+            <h4 class="text-sm font-semibold text-amber-300 mb-2">AI field status</h4>
+            <ul class="text-sm text-gray-300 space-y-1">
+                {% for fname, fstatus in field_status.fields.items %}
+                <li>
+                    <span class="uppercase tracking-wide text-xs text-gray-500">{{ fname }}</span>:
+                    {% if fstatus == 'ok' %}<span class="text-green-400">ok</span>
+                    {% elif fstatus == 'failed' %}<span class="text-red-400">failed</span>
+                    {% elif fstatus == 'skipped' %}<span class="text-gray-400">skipped</span>
+                    {% else %}<span class="text-yellow-400">{{ fstatus }}</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% if field_status.last_errors %}
+            <div class="mt-2 text-xs text-red-300 space-y-1">
+                {% for ek, ev in field_status.last_errors.items %}
+                <p><strong>{{ ek }}:</strong> {{ ev }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endwith %}
+        {% endif %}
 
         <!-- Quick Lesson Preview -->
         <div class="mt-6">
@@ -759,34 +805,72 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="mt-8 flex gap-4">
-            <button
-                type="submit"
-                name="action"
-                value="generate"
-                class="flex-1 px-6 py-3 bg-purple-accent text-on-accent-secondary rounded-full font-bold hover:bg-purple-accent/90 transition-all"
-            >
-                <i class="fas fa-sync-alt mr-2"></i> Regenerate AI Content
-            </button>
-            <button 
-                type="submit" 
-                name="action" 
-                value="edit"
-                class="px-6 py-3 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/20 transition-all"
-            >
-                <i class="fas fa-save mr-2"></i> Save Edits
-            </button>
-            <button 
-                type="submit" 
-                name="action" 
-                value="approve"
-                class="px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all"
-            >
-                <i class="fas fa-check mr-2"></i> Approve & Save Lesson
-            </button>
+        <div class="mt-8 space-y-3">
+            <div class="flex flex-wrap gap-3">
+                <button type="submit" name="action" value="regenerate_metadata"
+                    class="px-4 py-2 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-sm font-semibold hover:bg-purple-accent/30 transition-all">
+                    Regenerate metadata
+                </button>
+                <button type="submit" name="action" value="regenerate_notes"
+                    class="px-4 py-2 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-sm font-semibold hover:bg-purple-accent/30 transition-all">
+                    Regenerate notes
+                </button>
+                <button type="submit" name="action" value="regenerate_quiz"
+                    class="px-4 py-2 bg-purple-accent/20 border border-purple-accent/40 rounded-full text-sm font-semibold hover:bg-purple-accent/30 transition-all">
+                    Regenerate quiz
+                </button>
+            </div>
+            <div class="flex gap-4">
+                <button
+                    type="submit"
+                    name="action"
+                    value="generate"
+                    class="flex-1 px-6 py-3 bg-purple-accent text-on-accent-secondary rounded-full font-bold hover:bg-purple-accent/90 transition-all"
+                >
+                    <i class="fas fa-sync-alt mr-2"></i> Regenerate AI Content
+                </button>
+                <button 
+                    type="submit" 
+                    name="action" 
+                    value="edit"
+                    class="px-6 py-3 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/20 transition-all"
+                >
+                    <i class="fas fa-save mr-2"></i> Save Edits
+                </button>
+                <button 
+                    type="submit" 
+                    name="action" 
+                    value="approve"
+                    class="px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all"
+                >
+                    <i class="fas fa-check mr-2"></i> Approve & Save Lesson
+                </button>
+            </div>
         </div>
     </form>
 </div>
+
+<script>
+(function() {
+    const btn = document.getElementById('gen-quiz-toggle');
+    const hidden = document.getElementById('gen_generate_quiz');
+    const hint = document.getElementById('gen-quiz-hint');
+    if (!btn || !hidden) return;
+    btn.addEventListener('click', function() {
+        const next = btn.dataset.on !== '1';
+        btn.dataset.on = next ? '1' : '0';
+        hidden.value = next ? 'true' : 'false';
+        btn.textContent = next ? 'Quiz: On' : 'Quiz: Off';
+        btn.classList.toggle('bg-cyan-electric/15', next);
+        btn.classList.toggle('border-cyan-electric/40', next);
+        btn.classList.toggle('text-cyan-electric', next);
+        btn.classList.toggle('bg-gray-700/40', !next);
+        btn.classList.toggle('border-gray-500/40', !next);
+        btn.classList.toggle('text-gray-300', !next);
+        if (hint) hint.classList.toggle('hidden', next);
+    });
+})();
+</script>
 
 <!-- Lesson Preview Modal -->
 <div id="lesson-preview-modal" class="hidden fixed inset-0 z-50 opacity-0 transition-opacity duration-200 ease-out">
@@ -1095,9 +1179,37 @@
                     const caption = escapeHtml(block.data.caption || '');
                     return `<figure class="my-3"><img src="${escapeHtml(url)}" alt="${caption || 'Lesson figure'}" class="w-full h-auto rounded-lg">${caption ? `<figcaption class="text-sm text-gray-400 mt-2">${caption}</figcaption>` : ''}</figure>`;
                 }
+                if (block.type === 'video') {
+                    const embed = buildInlineVideoEmbed(block.data.url || block.data.embed_url || '');
+                    if (!embed) return '';
+                    const caption = escapeHtml(block.data.caption || '');
+                    return `<figure class="my-3"><div class="relative w-full rounded-lg overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;"><iframe src="${escapeHtml(embed)}" class="absolute inset-0 w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>${caption ? `<figcaption class="text-sm text-gray-400 mt-2">${caption}</figcaption>` : ''}</figure>`;
+                }
                 return '';
             }).join('') || '<p class="text-gray-500 italic">No lesson notes yet.</p>';
         }
+
+        function buildInlineVideoEmbed(rawUrl) {
+            const url = (rawUrl || '').trim();
+            if (!url) return '';
+            if (/^(javascript|data|vbscript):/i.test(url)) return '';
+            const drive = url.match(/(?:drive\.google\.com\/(?:file\/d\/|open\?id=)|docs\.google\.com\/file\/d\/)([a-zA-Z0-9_-]+)/i);
+            if (drive) return `https://drive.google.com/file/d/${drive[1]}/preview`;
+            const vimeo = url.match(/(?:vimeo\.com\/(?:video\/|channels\/[^/]+\/|groups\/[^/]+\/videos\/|album\/\d+\/video\/|ondemand\/[^/]+\/|manage\/videos\/)?|player\.vimeo\.com\/video\/)(\d+)/i);
+            if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+            const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/i);
+            if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+            if (/^https?:\/\//i.test(url)) return url;
+            return '';
+        }
+
+        function getCsrfToken() {
+            const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        const noteImageUploadUrl = '{% url "upload_lesson_note_image" lesson.id %}';
+
 
         function buildContentBlocksPreview(rawValue) {
             if (!rawValue || !rawValue.trim()) {
@@ -1138,6 +1250,15 @@
                     type: 'image',
                     data: {
                         file: { url: file.url || data.url || '' },
+                        caption: data.caption || '',
+                    },
+                };
+            }
+            if (type === 'video') {
+                return {
+                    type: 'video',
+                    data: {
+                        url: data.url || data.embed_url || '',
                         caption: data.caption || '',
                     },
                 };
@@ -1203,9 +1324,24 @@
                 } else if (block.type === 'image') {
                     const imageUrl = (block.data.file && block.data.file.url) || block.data.url || '';
                     bodyHtml = `
-                        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" class="w-full h-auto rounded-lg mb-3">` : '<p class="text-sm text-gray-500 mb-3">Image URL missing.</p>'}
+                        ${imageUrl ? `<img data-role="image-preview" src="${escapeHtml(imageUrl)}" alt="" class="w-full h-auto rounded-lg mb-3">` : '<p data-role="image-missing" class="text-sm text-gray-500 mb-3">No image yet — paste a URL or upload a file.</p>'}
+                        <label class="notes-editor-label">Image URL</label>
+                        <input data-role="image-url" type="url" value="${escapeHtml(imageUrl)}" placeholder="https://…" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm mb-3" />
+                        <label class="notes-editor-label">Upload image</label>
+                        <input data-role="image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full text-sm text-gray-300 mb-2" />
+                        <p data-role="image-upload-status" class="text-xs text-gray-500 mb-3 hidden"></p>
                         <label class="notes-editor-label">Caption (optional)</label>
                         <input data-role="image-caption" type="text" value="${escapeHtml(block.data.caption || '')}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm" />
+                    `;
+                } else if (block.type === 'video') {
+                    const videoUrl = block.data.url || '';
+                    const embed = buildInlineVideoEmbed(videoUrl);
+                    bodyHtml = `
+                        ${embed ? `<div class="relative w-full rounded-lg overflow-hidden border border-cyan-electric/20 mb-3" style="padding-bottom:56.25%;"><iframe data-role="video-preview" src="${escapeHtml(embed)}" class="absolute inset-0 w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe></div>` : '<p class="text-sm text-gray-500 mb-3">Paste a Vimeo, YouTube, or Google Drive embed URL to preview.</p>'}
+                        <label class="notes-editor-label">Video URL</label>
+                        <input data-role="video-url" type="url" value="${escapeHtml(videoUrl)}" placeholder="https://vimeo.com/… or Drive / YouTube embed" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm mb-3" />
+                        <label class="notes-editor-label">Caption (optional)</label>
+                        <input data-role="video-caption" type="text" value="${escapeHtml(block.data.caption || '')}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm" />
                     `;
                 } else {
                     bodyHtml = `
@@ -1280,6 +1416,71 @@
                 bindInput('[data-role="image-caption"]', value => {
                     contentBlocksState[index].data.caption = value;
                 });
+                bindInput('[data-role="image-url"]', value => {
+                    if (!contentBlocksState[index].data.file) contentBlocksState[index].data.file = {};
+                    contentBlocksState[index].data.file.url = value;
+                    const preview = card.querySelector('[data-role="image-preview"]');
+                    const missing = card.querySelector('[data-role="image-missing"]');
+                    if (preview) {
+                        preview.src = value;
+                        preview.classList.toggle('hidden', !value);
+                    } else if (value) {
+                        renderNotesEditor();
+                        return;
+                    }
+                    if (missing) missing.classList.toggle('hidden', !!value);
+                });
+                bindInput('[data-role="video-url"]', value => {
+                    contentBlocksState[index].data.url = value;
+                    const embed = buildInlineVideoEmbed(value);
+                    const iframe = card.querySelector('[data-role="video-preview"]');
+                    if (iframe && embed) {
+                        iframe.src = embed;
+                    } else {
+                        renderNotesEditor();
+                    }
+                });
+                bindInput('[data-role="video-caption"]', value => {
+                    contentBlocksState[index].data.caption = value;
+                });
+
+                const imageFileInput = card.querySelector('[data-role="image-file"]');
+                if (imageFileInput) {
+                    imageFileInput.addEventListener('change', async function() {
+                        const file = this.files && this.files[0];
+                        if (!file) return;
+                        const statusEl = card.querySelector('[data-role="image-upload-status"]');
+                        if (statusEl) {
+                            statusEl.textContent = 'Uploading…';
+                            statusEl.classList.remove('hidden', 'text-red-300', 'text-emerald-300');
+                            statusEl.classList.add('text-gray-400');
+                        }
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        try {
+                            const resp = await fetch(noteImageUploadUrl, {
+                                method: 'POST',
+                                headers: { 'X-CSRFToken': getCsrfToken() },
+                                body: formData,
+                                credentials: 'same-origin',
+                            });
+                            const payload = await resp.json().catch(() => ({}));
+                            if (!resp.ok || !payload.url) {
+                                throw new Error(payload.error || 'Upload failed');
+                            }
+                            if (!contentBlocksState[index].data.file) contentBlocksState[index].data.file = {};
+                            contentBlocksState[index].data.file.url = payload.url;
+                            syncContentBlocksState();
+                            renderNotesEditor();
+                        } catch (err) {
+                            if (statusEl) {
+                                statusEl.textContent = err.message || 'Upload failed';
+                                statusEl.classList.remove('text-gray-400', 'text-emerald-300');
+                                statusEl.classList.add('text-red-300');
+                            }
+                        }
+                    });
+                }
 
                 notesEditorList.appendChild(card);
             });
@@ -1291,6 +1492,8 @@
                 header: { type: 'header', data: { text: '', level: 2 } },
                 list: { type: 'list', data: { style: 'unordered', items: [] } },
                 quote: { type: 'quote', data: { text: '', caption: '' } },
+                image: { type: 'image', data: { file: { url: '' }, caption: '' } },
+                video: { type: 'video', data: { url: '', caption: '' } },
             };
             contentBlocksState.push(presets[type] || presets.paragraph);
             syncContentBlocksState();
@@ -1307,11 +1510,15 @@
             const addHeaderBtn = document.getElementById('add-note-header');
             const addListBtn = document.getElementById('add-note-list');
             const addQuoteBtn = document.getElementById('add-note-quote');
+            const addImageBtn = document.getElementById('add-note-image');
+            const addVideoBtn = document.getElementById('add-note-video');
             const doneButtons = document.querySelectorAll('.content-blocks-done-btn');
             if (addParagraphBtn) addParagraphBtn.addEventListener('click', () => addContentBlock('paragraph'));
             if (addHeaderBtn) addHeaderBtn.addEventListener('click', () => addContentBlock('header'));
             if (addListBtn) addListBtn.addEventListener('click', () => addContentBlock('list'));
             if (addQuoteBtn) addQuoteBtn.addEventListener('click', () => addContentBlock('quote'));
+            if (addImageBtn) addImageBtn.addEventListener('click', () => addContentBlock('image'));
+            if (addVideoBtn) addVideoBtn.addEventListener('click', () => addContentBlock('video'));
             doneButtons.forEach(btn => {
                 btn.addEventListener('click', () => setNotesEditorOpen(false));
             });

@@ -1,5 +1,6 @@
 <!-- Left Column: Syllabus / Module Navigation - Stuck to Left Edge -->
 {% load dict_extras %}
+{% load lesson_nav_tags %}
 <!-- Mobile/Tablet: Normal flow -->
 <!-- Desktop: Fixed to left viewport edge -->
 <div class="w-full lg:fixed lg:left-0 lg:top-24 lg:w-[20%] lg:z-40 mb-6 lg:mb-0 sidebar-left-desktop">
@@ -31,51 +32,136 @@
         
         <!-- Modules -->
         <div class="space-y-4">
-            {% for module in course.modules.all %}
+            {% if syllabus_modules %}
+            {% for entry in syllabus_modules %}
             <div class="sidebar-module">
-                <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="{{ module.id }}">
-                    <span class="min-w-0 flex-1 pr-2 break-words">{{ module.name }}</span>
+                <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="{{ entry.module.id }}">
+                    <span class="min-w-0 flex-1 pr-2 break-words">{{ entry.module.name }}</span>
                     <i class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
                 </button>
-                <div class="module-content pl-4 space-y-2" data-module="{{ module.id }}">
-                    {% for module_lesson in module.lessons.all %}
+                <div class="module-content pl-2 space-y-1" data-module="{{ entry.module.id }}">
+                    {% for row in entry.lessons %}
+                    {% with module_lesson=row.lesson %}
                     {% if module_lesson.id in accessible_lessons %}
-                    <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}" class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson
+                    <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}"
+                       class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson {% if row.nest_depth >= 2 %}sidebar-lesson-nested pl-2 ml-4 border-l border-cyan-electric/15{% endif %}
                         {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
                         <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
                             {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
                             {{ forloop.counter }}
                         </div>
-                        <span class="flex-1 min-w-0 text-sm leading-snug break-words sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
-                            {{ lesson_display_titles|dict_get:module_lesson.id|default:module_lesson.title }}
+                        <span class="flex-1 min-w-0 text-sm leading-snug break-words sidebar-lesson-title {% if row.nest_depth >= 2 %}text-[13px]{% endif %} {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                            {{ row.display_title }}
                         </span>
                         {% if module_lesson.id in completed_lessons %}
                         <i class="fas fa-check-circle text-green-400 flex-shrink-0 sidebar-check"></i>
                         {% endif %}
                     </a>
                     {% else %}
-                    <div class="flex items-center gap-3 py-2 px-3 rounded-lg opacity-50 cursor-not-allowed sidebar-lesson-locked">
+                    <div class="flex items-center gap-3 py-2 px-3 rounded-lg opacity-50 cursor-not-allowed sidebar-lesson-locked {% if row.nest_depth >= 2 %}sidebar-lesson-nested ml-4 pl-2 border-l border-gray-700{% endif %}">
                         <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-800 text-gray-600">
                             {{ forloop.counter }}
                         </div>
                         <span class="flex-1 text-sm text-gray-500 leading-snug">
-                            {{ module_lesson.title }}
+                            {{ row.display_title }}
                         </span>
                         <i class="fas fa-lock text-gray-600 flex-shrink-0" title="Complete previous lessons to unlock"></i>
                     </div>
                     {% endif %}
+                    {% endwith %}
                     {% endfor %}
                 </div>
             </div>
             {% endfor %}
+            {% else %}
+            {% for module in course.modules.all %}
+            <div class="sidebar-module">
+                <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="{{ module.id }}">
+                    <span class="min-w-0 flex-1 pr-2 break-words">{{ module.name }}</span>
+                    <i class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
+                </button>
+                <div class="module-content pl-2 space-y-1" data-module="{{ module.id }}">
+                    {% for module_lesson in module.lessons.all %}
+                    {% with depth=module_lesson.title|nest_depth display_title=module_lesson.title|clean_nav_title %}
+                    {% if module_lesson.id in accessible_lessons %}
+                    <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}"
+                       class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson {% if depth >= 2 %}sidebar-lesson-nested pl-2 ml-4 border-l border-cyan-electric/15{% endif %}
+                        {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
+                            {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
+                            {{ forloop.counter }}
+                        </div>
+                        <span class="flex-1 min-w-0 text-sm leading-snug break-words sidebar-lesson-title {% if depth >= 2 %}text-[13px]{% endif %} {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                            {{ lesson_display_titles|dict_get:module_lesson.id|default:display_title }}
+                        </span>
+                        {% if module_lesson.id in completed_lessons %}
+                        <i class="fas fa-check-circle text-green-400 flex-shrink-0 sidebar-check"></i>
+                        {% endif %}
+                    </a>
+                    {% else %}
+                    <div class="flex items-center gap-3 py-2 px-3 rounded-lg opacity-50 cursor-not-allowed sidebar-lesson-locked {% if depth >= 2 %}ml-4 pl-2{% endif %}">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-800 text-gray-600">
+                            {{ forloop.counter }}
+                        </div>
+                        <span class="flex-1 text-sm text-gray-500 leading-snug">
+                            {{ display_title }}
+                        </span>
+                        <i class="fas fa-lock text-gray-600 flex-shrink-0" title="Complete previous lessons to unlock"></i>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
 
-            {% if orphan_lessons %}
+            {% if orphan_lesson_rows %}
                 <div class="sidebar-module">
                     <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="orphans">
                         <span>Additional Lessons</span>
                         <i class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
                     </button>
-                    <div class="module-content pl-4 space-y-2" data-module="orphans">
+                    <div class="module-content pl-2 space-y-1" data-module="orphans">
+                        {% for row in orphan_lesson_rows %}
+                            {% with module_lesson=row.lesson %}
+                                {% if module_lesson.id in accessible_lessons %}
+                                <a href="{% url 'lesson_detail' course.slug module_lesson.slug %}{% if active_language and active_language != 'en' %}?lang={{ active_language }}{% endif %}"
+                                   class="flex items-center gap-3 py-2 px-3 rounded-lg transition-all sidebar-lesson {% if row.nest_depth >= 2 %}sidebar-lesson-nested ml-4 pl-2 border-l border-cyan-electric/15{% endif %}
+                                    {% if module_lesson.id == lesson.id %}bg-cyan-electric/20 border-l-2 border-cyan-electric sidebar-lesson-active{% else %}hover:bg-cyan-electric/5{% endif %}">
+                                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 sidebar-lesson-number
+                                        {% if module_lesson.id == lesson.id %}bg-cyan-electric text-on-accent-primary sidebar-lesson-number-active{% else %}bg-gray-700 text-white{% endif %}">
+                                        {{ forloop.counter }}
+                                    </div>
+                                    <span class="flex-1 min-w-0 text-sm leading-snug break-words sidebar-lesson-title {% if module_lesson.id == lesson.id %}font-semibold text-cyan-electric{% else %}text-gray-300{% endif %}">
+                                        {{ row.display_title }}
+                                    </span>
+                                    {% if module_lesson.id in completed_lessons %}
+                                    <i class="fas fa-check-circle text-green-400 flex-shrink-0 sidebar-check"></i>
+                                    {% endif %}
+                                </a>
+                                {% else %}
+                                <div class="flex items-center gap-3 py-2 px-3 rounded-lg opacity-50 cursor-not-allowed sidebar-lesson-locked">
+                                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-800 text-gray-600">
+                                        {{ forloop.counter }}
+                                    </div>
+                                    <span class="flex-1 text-sm text-gray-500 leading-snug">
+                                        {{ row.display_title }}
+                                    </span>
+                                    <i class="fas fa-lock text-gray-600 flex-shrink-0" title="Complete previous lessons to unlock"></i>
+                                </div>
+                                {% endif %}
+                            {% endwith %}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% elif orphan_lessons %}
+                <div class="sidebar-module">
+                    <button class="w-full flex items-center justify-between text-left font-semibold text-sm mb-2 hover:text-cyan-electric transition-colors module-toggle sidebar-module-title" data-module="orphans">
+                        <span>Additional Lessons</span>
+                        <i class="fas fa-chevron-down text-xs text-gray-500 transition-transform"></i>
+                    </button>
+                    <div class="module-content pl-2 space-y-1" data-module="orphans">
                         {% for module_lesson in orphan_lessons %}
                             {% if not module_lesson.module_id %}
                                 {% if module_lesson.id in accessible_lessons %}
@@ -313,6 +399,17 @@
     .brand-theme-light .sidebar-resource:hover i { color: #525252 !important; }
     .sidebar-module-title span { overflow-wrap: anywhere; }
     .sidebar-lesson-title { overflow-wrap: anywhere; }
+    .sidebar-lesson-nested {
+        position: relative;
+    }
+    .brand-theme-light .sidebar-lesson-nested {
+        margin-left: 1rem !important;
+        padding-left: 0.5rem !important;
+        border-left: 1px solid #e5e5e5 !important;
+    }
+    .brand-theme-light .sidebar-lesson-nested.sidebar-lesson-active {
+        border-left-color: #141414 !important;
+    }
 
     .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar { width: 5px; }
     .brand-theme-light .sidebar-left-desktop .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }

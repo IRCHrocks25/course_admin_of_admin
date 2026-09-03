@@ -122,22 +122,66 @@ class PdfCourseParseTests(TestCase):
         self.assertTrue(any(t.startswith('1.1 ') for t in ch1_titles))
         self.assertTrue(any(t.startswith('1.2 ') for t in ch1_titles))
         self.assertTrue(any(t.startswith('1.3 ') for t in ch1_titles))
+        self.assertTrue(any(t.startswith('1.3.1 ') for t in ch1_titles))
         self.assertTrue(any('Quiz' in t for t in ch1_titles))
         self.assertTrue(any('Summary' in t for t in ch1_titles))
-        self.assertFalse(any(t.startswith('1.3.1') for t in ch1_titles))
 
-    def test_nested_section_stays_as_header_inside_parent(self):
+    def test_nested_section_becomes_standalone_lesson(self):
         parsed = parse_course_text(LIQUID_GYM_SAMPLE)
-        lesson_13 = next(
-            lesson for lesson in parsed['modules'][0]['lessons'] if lesson['title'].startswith('1.3 ')
+        ch1_lessons = parsed['modules'][0]['lessons']
+        nested = next(lesson for lesson in ch1_lessons if lesson['title'].startswith('1.3.1 '))
+        self.assertIn('BUOYANCY', nested['title'].upper())
+        self.assertEqual(nested.get('section_key'), '1.3.1')
+        self.assertEqual(nested.get('nest_depth'), 2)
+        self.assertEqual(nested.get('kind'), 'subsection')
+        texts = [b.get('text', '') for b in nested['blocks'] if b['type'] == 'paragraph']
+        self.assertTrue(
+            any('Buoyancy is the upward force that counteracts gravity.' in t for t in texts)
         )
-        header_texts = [b['text'] for b in lesson_13['blocks'] if b['type'] == 'header']
-        self.assertTrue(any('1.3.1' in text for text in header_texts))
-        buoyancy = next(b for b in lesson_13['blocks'] if b['type'] == 'paragraph' and 'Buoyancy is the upward force' in b['text'])
-        self.assertEqual(
-            buoyancy['text'],
-            'Buoyancy is the upward force that counteracts gravity.',
+        # Parent 1.3 overview remains its own lesson without swallowing 1.3.1 body
+        parent = next(lesson for lesson in ch1_lessons if lesson['title'].startswith('1.3 '))
+        self.assertEqual(parent.get('section_key'), '1.3')
+        self.assertEqual(parent.get('nest_depth'), 1)
+        parent_paras = [b.get('text', '') for b in parent['blocks'] if b['type'] == 'paragraph']
+        self.assertTrue(
+            any('mechanical and physiological effects' in t for t in parent_paras)
         )
+        self.assertFalse(
+            any('Buoyancy is the upward force that counteracts gravity.' in t for t in parent_paras)
+        )
+        # Parent sorts before its sub-lesson
+        titles = [lesson['title'] for lesson in ch1_lessons]
+        self.assertLess(titles.index(parent['title']), titles.index(nested['title']))
+
+    def test_nested_before_parent_heading_still_builds_hierarchy(self):
+        """If the PDF lists 2.4.1 before a proper 2.4 heading, keep parent + child."""
+        parsed = parse_extracted({
+            'lines': [
+                {'text': 'CHAPTER 2 — SAFETY', 'page': 0, 'y0': 80, 'size': 18},
+                {'text': 'INTRODUCTION - CHAPTER 2', 'page': 1, 'y0': 80, 'size': 14},
+                {'text': 'Overview of chapter two.', 'page': 1, 'y0': 120, 'size': 11},
+                {'text': '2.4.1 STEP ENTRY TECHNIQUE', 'page': 2, 'y0': 80, 'size': 16},
+                {'text': 'Step entry is common.', 'page': 2, 'y0': 140, 'size': 11},
+                {'text': '2.4 ENTRY & EXIT PROCEDURES', 'page': 3, 'y0': 80, 'size': 16},
+                {'text': 'Choose the safest entry method.', 'page': 3, 'y0': 140, 'size': 11},
+                {'text': '2.4.2 RAMP ENTRY', 'page': 4, 'y0': 80, 'size': 16},
+                {'text': 'Ramp entry for wheelchair users.', 'page': 4, 'y0': 140, 'size': 11},
+                {'text': 'CHAPTER 2 SUMMARY', 'page': 5, 'y0': 80, 'size': 16},
+                {'text': 'Safety first.', 'page': 5, 'y0': 140, 'size': 11},
+            ],
+            'images': [],
+        })
+        titles = [lesson['title'] for lesson in parsed['modules'][0]['lessons']]
+        parent = next(t for t in titles if t.startswith('2.4 '))
+        child_a = next(t for t in titles if t.startswith('2.4.1 '))
+        child_b = next(t for t in titles if t.startswith('2.4.2 '))
+        self.assertLess(titles.index(parent), titles.index(child_a))
+        self.assertLess(titles.index(child_a), titles.index(child_b))
+        self.assertIn('ENTRY', parent.upper())
+        lessons = {lesson['title']: lesson for lesson in parsed['modules'][0]['lessons']}
+        self.assertEqual(lessons[child_a]['nest_depth'], 2)
+        self.assertEqual(lessons[parent]['nest_depth'], 1)
+        self.assertFalse(lessons[parent].get('is_parent_stub'))
 
     def test_wording_is_verbatim(self):
         parsed = parse_course_text(LIQUID_GYM_SAMPLE)
