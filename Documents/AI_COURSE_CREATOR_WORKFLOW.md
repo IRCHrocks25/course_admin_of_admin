@@ -139,6 +139,12 @@ Source: `myProject/settings.py`, `myApp/dashboard_views.py`, `myApp/templates/da
 7. worker persists modules/lessons/quizzes/exam/content
 8. on done/fail, status endpoint returns terminal state and session entry is removed
 
+### Video scripts continue after Complete!
+
+As soon as each lesson’s notes are saved, a separate daemon thread writes a ~5-minute video script (`Lesson.video_script`) and, if Google Drive is configured, uploads a shooting-table Google Doc. The widget does **not** wait for those threads. After Complete!, wait a short extra beat before expecting every Doc to appear.
+
+Details and Drive OAuth: `Documents/LESSON_VIDEO_SCRIPTS_AND_GDRIVE.md`.
+
 ## 8) Replication Checklist for Another Project
 
 - [ ] Create "Add Course" form with title/short/long description.

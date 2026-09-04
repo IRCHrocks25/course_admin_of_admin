@@ -1,0 +1,118 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Google Drive Scripts{% endblock %}
+{% block page_title %}Google Drive Scripts{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap gap-3">
+    <a href="{% url 'superadmin_home' %}" class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition">&larr; Super Admin</a>
+</div>
+
+<div class="rounded-xl bg-white/5 border border-white/10 overflow-hidden max-w-3xl">
+    <div class="px-5 py-3 border-b border-white/10 flex items-center justify-between">
+        <div>
+            <span class="font-semibold">Lesson video scripts → Google Docs</span>
+            <span class="ml-2 text-xs text-gray-500">Platform-wide (one Google account)</span>
+        </div>
+        {% if config.gdrive_connected %}
+        <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 text-xs font-semibold">Connected</span>
+        {% elif using_env_token_fallback %}
+        <span class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs font-semibold">Env fallback</span>
+        {% else %}
+        <span class="px-2 py-0.5 rounded bg-white/5 text-gray-500 border border-white/10 text-xs">Not connected</span>
+        {% endif %}
+    </div>
+
+    <div class="p-5 space-y-5">
+        {% if not oauth_client_ready %}
+        <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200">
+            Set <code class="font-mono">GOOGLE_OAUTH_CLIENT_ID</code> and
+            <code class="font-mono">GOOGLE_OAUTH_CLIENT_SECRET</code> on the server, then refresh this page.
+        </div>
+        {% endif %}
+
+        <div class="p-3 rounded-lg bg-white/5 border border-white/10 text-sm text-gray-300">
+            <div class="text-xs uppercase tracking-wide text-gray-500 mb-1">Authorized redirect URI (Connect button)</div>
+            <code class="font-mono text-xs text-cyan-300 break-all">{{ redirect_uri }}</code>
+            <p class="text-xs text-gray-500 mt-2">
+                The Connect button needs this URI on a <strong>Web</strong> client.
+                If Google Cloud only has <code class="font-mono">http://127.0.0.1:8080/</code>, skip the button
+                and connect from the terminal instead:
+            </p>
+            <pre class="mt-2 text-xs font-mono text-cyan-200 bg-black/30 rounded-lg px-3 py-2 overflow-x-auto">python manage.py gdrive_oauth</pre>
+            <p class="text-xs text-gray-500 mt-2">
+                That command uses port 8080 (same URIs you already registered) and saves the token here.
+            </p>
+        </div>
+
+        <p class="text-sm text-gray-400">
+            Connect Google Drive so each lesson script is uploaded as a Doc under
+            <span class="text-gray-200">SOP Course Video Scripts / &lt;course&gt; /</span>.
+            The refresh token is stored encrypted in the database — not in <code class="font-mono">.env</code>.
+            Lesson JSON still saves if Drive is disconnected.
+        </p>
+
+        {% if config.gdrive_connected %}
+        <div class="p-3 rounded-lg bg-green-500/5 border border-green-500/15 text-sm text-gray-300 space-y-1">
+            <div>Status: connected{% if config.gdrive_connected_at %} {{ config.gdrive_connected_at|timesince }} ago{% endif %}</div>
+            {% if config.gdrive_connected_by %}
+            <div>Connected by: {{ config.gdrive_connected_by.email|default:config.gdrive_connected_by.username }}</div>
+            {% endif %}
+            <div class="text-xs text-gray-500">Testing-mode OAuth apps expire this token after 7 days. Click Connect again to refresh.</div>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <form method="post" action="{% url 'superadmin_gdrive_connect' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="px-4 py-2 rounded-lg bg-cyan-electric/15 border border-cyan-electric/40 text-cyan-electric hover:bg-cyan-electric/25 transition text-sm"
+                        {% if not oauth_client_ready %}disabled{% endif %}>
+                    Reconnect Google Drive
+                </button>
+            </form>
+            <form method="post" action="{% url 'superadmin_gdrive_disconnect' %}"
+                  onsubmit="return confirm('Disconnect Google Drive? New scripts will stay in the database only.');">
+                {% csrf_token %}
+                <button type="submit" class="px-4 py-2 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition text-sm">
+                    Disconnect
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <form method="post" action="{% url 'superadmin_gdrive_connect' %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="px-5 py-2.5 rounded-lg bg-cyan-electric text-on-accent-primary font-semibold hover:bg-cyan-electric/90 transition"
+                    {% if not oauth_client_ready %}disabled{% endif %}>
+                Connect Google Drive
+            </button>
+        </form>
+        {% if using_env_token_fallback %}
+        <p class="text-xs text-amber-300">A refresh token is still present in environment variables. Connecting here moves the live token into the database.</p>
+        {% endif %}
+        {% endif %}
+
+        <form method="post" class="pt-4 border-t border-white/10 space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_root">
+            <label class="block text-sm font-semibold text-gray-200" for="gdrive_scripts_root_id">Scripts root folder ID</label>
+            <p class="text-xs text-gray-500">
+                Create a Drive folder named <strong>SOP Course Video Scripts</strong> and paste its ID from the folder URL
+                (<code class="font-mono">drive.google.com/drive/folders/THIS_PART</code>).
+            </p>
+            <div class="flex flex-wrap gap-3">
+                <input id="gdrive_scripts_root_id" type="text" name="gdrive_scripts_root_id"
+                       value="{{ config.gdrive_scripts_root_id }}"
+                       placeholder="Google Drive folder ID"
+                       class="flex-1 min-w-[16rem] rounded-lg bg-[#0a0e27] border border-white/20 px-3 py-2 text-white text-sm">
+                <button type="submit"
+                        class="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-gray-200 hover:bg-white/15 transition text-sm">
+                    Save folder ID
+                </button>
+            </div>
+            {% if drive_ready %}
+            <p class="text-xs text-green-400">Ready: OAuth + folder ID are both set. New lesson scripts will upload as Docs.</p>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

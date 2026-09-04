@@ -105,6 +105,11 @@
                             {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
                             <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i> Video Ready</span>
                             {% endif %}
+                            {% if lesson.script_doc_url %}
+                            <a href="{{ lesson.script_doc_url }}" target="_blank" rel="noopener" class="text-cyan-electric hover:underline">
+                                <i class="fas fa-file-alt mr-1"></i> Video script
+                            </a>
+                            {% endif %}
                         </div>
                     </div>
                     <span class="px-3 py-1 rounded-full text-xs font-semibold
@@ -160,6 +165,11 @@
                             <div class="text-sm text-gray-400 flex items-center gap-4 mt-1">
                                 {% if lesson.google_drive_url or lesson.get_vimeo_embed_url or lesson.video_url %}
                                 <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i> Video Ready</span>
+                                {% endif %}
+                                {% if lesson.script_doc_url %}
+                                <a href="{{ lesson.script_doc_url }}" target="_blank" rel="noopener" class="text-cyan-electric hover:underline">
+                                    <i class="fas fa-file-alt mr-1"></i> Video script
+                                </a>
                                 {% endif %}
                             </div>
                         </div>

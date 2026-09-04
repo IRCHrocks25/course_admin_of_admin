@@ -18,6 +18,7 @@ from .base import SeededTestCase, ROLES
 SKIP_NAMES = {
     "logout", "stripe_webhook", "stripe_tenant_webhook", "healthz", "readyz",
     "dashboard_registration_webhook",
+    "superadmin_gdrive_connect", "superadmin_gdrive_disconnect", "superadmin_gdrive_callback",
 }
 
 
@@ -80,6 +81,7 @@ class AccessContractTest(SeededTestCase):
         # ↓ the two annotation-conflict crashes fixed in the audit
         "superadmin_analytics":      ({}, {"anon": 302, "student": 302, "admin": 302, "super": 200}),
         "superadmin_tenant_analytics": ("tenant", {"anon": 302, "student": 302, "admin": 302, "super": 200}),
+        "superadmin_gdrive_settings":  ({}, {"anon": 302, "student": 302, "admin": 302, "super": 200}),
     }
 
     def _kwargs(self, spec):

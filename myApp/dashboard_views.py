@@ -3635,6 +3635,133 @@ def _get_ai_gen_cache_key(course_id):
     return f'ai_gen_{course_id}'
 
 
+def _course_scripts_folder_id(course_name):
+    """Create or reuse the Drive folder for this course's video scripts. Never raises."""
+    try:
+        from myApp.utils.gdrive import ensure_course_folder, is_gdrive_configured
+        if not is_gdrive_configured():
+            return None
+        return ensure_course_folder(course_name)
+    except Exception as exc:
+        print(f'[Background] Drive scripts folder failed: {exc}')
+        logger.exception('[Background] Drive scripts folder failed')
+        return None
+
+
+def _maybe_spawn_video_script(lesson, course_name, course_folder_id=None):
+    """Start a script thread when GENERATE_LESSON_SCRIPTS is on. Never blocks."""
+    if not getattr(settings, 'GENERATE_LESSON_SCRIPTS', False):
+        return None
+    return _generate_and_upload_script(lesson.id, course_name, course_folder_id)
+
+
+def _generate_and_upload_script(lesson_id, course_name, course_folder_id=None):
+    """Fire-and-forget: OpenAI script JSON, then optional Google Doc upload."""
+
+    def _worker():
+        from django.db import connection
+        connection.close()
+        try:
+            _run_generate_and_upload_script(lesson_id, course_name, course_folder_id)
+        except Exception:
+            logger.exception('[Background] Video script failed for lesson %s', lesson_id)
+            print(f'[Background] Video script failed for lesson {lesson_id}')
+
+    thread = threading.Thread(
+        target=_worker,
+        daemon=True,
+        name=f'lesson-script-{lesson_id}',
+    )
+    thread.start()
+    return thread
+
+
+def _run_generate_and_upload_script(lesson_id, course_name, course_folder_id=None):
+    """Synchronous script pipeline used by the daemon thread and backfill command."""
+    from django.db import close_old_connections
+    from myApp.utils.video_script import (
+        flatten_lesson_source,
+        generate_video_script,
+        render_script_html,
+        script_display_title,
+        script_doc_title,
+    )
+
+    close_old_connections()
+    try:
+        lesson = Lesson.objects.select_related('tenant', 'course').get(id=lesson_id)
+    except Lesson.DoesNotExist:
+        return
+
+    source = flatten_lesson_source(lesson)
+    if not source:
+        print(
+            f"[Background] Skipping video script for lesson {lesson_id}: "
+            f"no content or rough_notes."
+        )
+        return
+
+    if not OPENAI_AVAILABLE:
+        print(f"[Background] Video script failed for lesson {lesson.title[:50]}: OpenAI not available")
+        return
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        print(f"[Background] Video script failed for lesson {lesson.title[:50]}: OPENAI_API_KEY missing")
+        return
+
+    client = OpenAI(api_key=api_key)
+    model_name = getattr(settings, 'VIDEO_SCRIPT_MODEL', 'gpt-4o-mini')
+
+    def _log(response, used_model):
+        _log_openai_usage(
+            feature='lesson_video_script',
+            response=response,
+            tenant=lesson.tenant,
+            course=lesson.course,
+            lesson=lesson,
+            model_name=used_model,
+        )
+
+    display_title = script_display_title(lesson)
+    script = generate_video_script(
+        client,
+        source,
+        display_title,
+        course_name=course_name or (lesson.course.name if lesson.course_id else ''),
+        model=model_name,
+        usage_logger=_log,
+    )
+    if not script:
+        print(f"[Background] Video script failed for lesson {lesson.title[:50]}")
+        return
+
+    close_old_connections()
+    lesson.video_script = script
+    lesson.save(update_fields=['video_script'])
+
+    if not course_folder_id:
+        return
+    try:
+        from myApp.utils.gdrive import create_or_update_script_doc, is_gdrive_configured
+        if not is_gdrive_configured():
+            return
+        html = render_script_html(script, display_title)
+        doc_id, doc_url = create_or_update_script_doc(
+            course_folder_id,
+            script_doc_title(display_title),
+            html,
+            existing_id=lesson.script_doc_id or None,
+        )
+        if doc_id:
+            close_old_connections()
+            lesson.script_doc_id = doc_id
+            lesson.script_doc_url = doc_url or ''
+            lesson.save(update_fields=['script_doc_id', 'script_doc_url'])
+    except Exception as exc:
+        print(f"[Background] Drive upload failed for lesson {lesson.title[:50]}: {exc}")
+        logger.exception('[Background] Drive upload failed for lesson %s', lesson_id)
+
+
 def _update_ai_gen_progress(course_id, course_name, status, progress=0, total=0, current='', error=None):
     """Update AI generation progress in cache (15 min TTL)"""
     data = {
@@ -3664,6 +3791,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
         gen_settings = LessonGenerationSettings.from_dict(blueprint.get('generation_settings'))
         seed_lessons = blueprint.get('seed_lessons') if isinstance(blueprint.get('seed_lessons'), list) else []
         modules_data = []
+        course_folder_id = _course_scripts_folder_id(course_name)
 
         if seed_lessons:
             if not OPENAI_AVAILABLE:
@@ -3713,6 +3841,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
             for lesson_data in module_data.get('lessons', []):
                 lesson_title = lesson_data.get('title', 'Untitled Lesson')
                 lesson_description = lesson_data.get('description', '')
+                source_notes = (lesson_description or '').strip()
                 lesson_video_link = (lesson_data.get('video_link') or '').strip()
                 if lesson_video_link:
                     lesson_description = f"{lesson_description}\n\nVideo reference: {lesson_video_link}"
@@ -3800,6 +3929,7 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     video_duration=video_fields['video_duration'],
                     order=lesson_data.get('order', 0),
                     working_title=lesson_title,
+                    rough_notes=source_notes,
                     # AI-generated metadata fields
                     ai_clean_title=lesson_metadata.get('clean_title', lesson_title),
                     ai_short_summary=lesson_metadata.get('short_summary', ''),
@@ -3810,6 +3940,9 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                     content=lesson_content,
                     ai_generation_status=overall_status,
                     generation_settings=settings_payload,
+                    video_script={},
+                    script_doc_id='',
+                    script_doc_url='',
                 )
                 lessons_created += 1
 
@@ -3833,6 +3966,10 @@ def _generate_course_ai_content(course_id, course_name, description, course_type
                 from myApp.utils.lesson_audio import generate_lesson_audio_async
                 generate_lesson_audio_async(lesson)
                 # --- end AI Audio Narration ---
+
+                # --- Video script (non-blocking; does not wait for the widget) ---
+                _maybe_spawn_video_script(lesson, course_name, course_folder_id)
+                # --- end Video script ---
 
                 # Auto-generate quiz for this lesson (unless skipped)
                 if want_quiz:
@@ -4168,6 +4305,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
         blueprint = course.creation_blueprint if isinstance(course.creation_blueprint, dict) else {}
         lesson_blueprint_ctx = _blueprint_lesson_context_block(blueprint)
         gen_settings = LessonGenerationSettings.from_dict(blueprint.get('generation_settings'))
+        course_folder_id = _course_scripts_folder_id(course.name)
         default_module = None
         if module_id:
             default_module = Module.objects.filter(id=module_id, course=course).first()
@@ -4309,6 +4447,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 video_duration=video_fields['video_duration'],
                 order=next_order,
                 working_title=lesson_title,
+                rough_notes=lesson_description,
                 ai_clean_title=lesson_metadata.get('clean_title', lesson_title),
                 ai_short_summary=lesson_metadata.get('short_summary', ''),
                 ai_full_description=lesson_metadata.get('full_description', lesson_description_for_ai),
@@ -4317,6 +4456,9 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
                 content=lesson_content,
                 ai_generation_status=_overall_ai_generation_status(field_status),
                 generation_settings=settings_payload,
+                video_script={},
+                script_doc_id='',
+                script_doc_url='',
             )
 
             if getattr(lesson_settings, 'generate_image', True):
@@ -4331,6 +4473,7 @@ def _append_seed_lessons_ai(course_id, seed_lessons, module_id=None):
 
             from myApp.utils.lesson_audio import generate_lesson_audio_async
             generate_lesson_audio_async(lesson)
+            _maybe_spawn_video_script(lesson, course.name, course_folder_id)
 
             if want_quiz:
                 try:

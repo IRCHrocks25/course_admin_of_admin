@@ -227,6 +227,12 @@ urlpatterns = [
     path('superadmin/notifications/<int:notification_id>/reshow/', superadmin_views.superadmin_notification_reshow, name='superadmin_notification_reshow'),
     path('superadmin/notifications/ai-improve/', superadmin_views.superadmin_notification_ai_improve, name='superadmin_notification_ai_improve'),
 
+    # Platform Google Drive (lesson video-script Docs)
+    path('superadmin/integrations/gdrive/', superadmin_views.superadmin_gdrive_settings, name='superadmin_gdrive_settings'),
+    path('superadmin/integrations/gdrive/connect/', superadmin_views.superadmin_gdrive_connect, name='superadmin_gdrive_connect'),
+    path('superadmin/integrations/gdrive/callback/', superadmin_views.superadmin_gdrive_callback, name='superadmin_gdrive_callback'),
+    path('superadmin/integrations/gdrive/disconnect/', superadmin_views.superadmin_gdrive_disconnect, name='superadmin_gdrive_disconnect'),
+
     # Tenant-side notification dismiss
     path('api/notifications/<int:delivery_id>/dismiss/', views.dismiss_notification, name='dismiss_notification'),
 

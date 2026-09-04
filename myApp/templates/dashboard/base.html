@@ -504,7 +504,7 @@
                 <div class="nav-section">
                     <div class="nav-section-title">Super Admin</div>
                     <div class="nav-stack">
-                        <a href="{% url 'superadmin_home' %}" class="nav-item {% if 'superadmin' in cur and 'tenant' not in cur and 'pricing' not in cur and 'notification' not in cur %}is-active{% endif %}">
+                        <a href="{% url 'superadmin_home' %}" class="nav-item {% if 'superadmin' in cur and 'tenant' not in cur and 'pricing' not in cur and 'notification' not in cur and 'gdrive' not in cur %}is-active{% endif %}">
                             <i class="fas fa-shield-halved nav-icon"></i>
                             <span>Super Admin</span>
                         </a>
@@ -519,6 +519,10 @@
                         <a href="{% url 'superadmin_notifications' %}" class="nav-item {% if 'notification' in cur %}is-active{% endif %}">
                             <i class="fas fa-bell nav-icon"></i>
                             <span>Notifications</span>
+                        </a>
+                        <a href="{% url 'superadmin_gdrive_settings' %}" class="nav-item {% if 'gdrive' in cur %}is-active{% endif %}">
+                            <i class="fas fa-cloud-arrow-up nav-icon"></i>
+                            <span>Google Drive</span>
                         </a>
                     </div>
                 </div>

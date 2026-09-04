@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Tenant, TenantConfig, TenantMembership, TenantDomain,
+    Tenant, TenantConfig, PlatformConfig, TenantMembership, TenantDomain,
     Course, CourseResource, Module, Lesson, LessonTranslation,
     CourseTranslation, ModuleTranslation, UserProfile,
     LessonQuizTranslation, LessonQuizQuestionTranslation,
@@ -23,6 +23,22 @@ class TenantAdmin(admin.ModelAdmin):
 class TenantConfigAdmin(admin.ModelAdmin):
     list_display = ['tenant', 'chatbot_webhook', 'registration_webhook', 'vimeo_team_id', 'accredible_issuer_id', 'updated_at']
     search_fields = ['tenant__name', 'tenant__slug', 'chatbot_webhook', 'registration_webhook']
+
+
+@admin.register(PlatformConfig)
+class PlatformConfigAdmin(admin.ModelAdmin):
+    list_display = ['id', 'gdrive_scripts_root_id', 'gdrive_connected_at', 'updated_at']
+    readonly_fields = ['gdrive_refresh_token_encrypted', 'gdrive_connected_at', 'gdrive_connected_by', 'updated_at']
+    fields = [
+        'gdrive_scripts_root_id',
+        'gdrive_refresh_token_encrypted',
+        'gdrive_connected_at',
+        'gdrive_connected_by',
+        'updated_at',
+    ]
+
+    def has_add_permission(self, request):
+        return not PlatformConfig.objects.exists()
 
 
 @admin.register(TenantMembership)
@@ -73,6 +89,9 @@ class LessonAdmin(admin.ModelAdmin):
         }),
         ('AI Generated Content', {
             'fields': ('ai_generation_status', 'ai_clean_title', 'ai_short_summary', 'ai_full_description', 'ai_outcomes', 'ai_coach_actions')
+        }),
+        ('Video Script', {
+            'fields': ('video_script', 'script_doc_id', 'script_doc_url')
         }),
         ('Resources', {
             'fields': ('description', 'workbook_url', 'resources_url')

@@ -99,6 +99,54 @@ class TenantConfig(models.Model):
         return f"Config for {self.tenant.name}"
 
 
+class PlatformConfig(models.Model):
+    """Singleton platform-wide integration settings (pk=1)."""
+    gdrive_refresh_token_encrypted = models.TextField(
+        blank=True,
+        default='',
+        help_text='Encrypted Google Drive OAuth refresh token',
+    )
+    gdrive_scripts_root_id = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='Drive folder ID for SOP Course Video Scripts/',
+    )
+    gdrive_connected_at = models.DateTimeField(null=True, blank=True)
+    gdrive_connected_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Platform Config'
+        verbose_name_plural = 'Platform Config'
+
+    def __str__(self):
+        return 'Platform Config'
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def set_gdrive_refresh_token(self, value):
+        from myApp.integrations.ghl import crypto
+        self.gdrive_refresh_token_encrypted = crypto.encrypt(value or '')
+
+    def get_gdrive_refresh_token(self):
+        from myApp.integrations.ghl import crypto
+        return crypto.decrypt(self.gdrive_refresh_token_encrypted)
+
+    @property
+    def gdrive_connected(self):
+        return bool(self.get_gdrive_refresh_token())
+
+
 class TenantDomain(models.Model):
     """Domain records for tenant routing (temporary + custom domains)."""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='domains')
@@ -543,6 +591,27 @@ class Lesson(models.Model):
     ], help_text="Status of AI audio narration generation")
     audio_error = models.TextField(blank=True, default='', help_text="Error message if audio generation fails")
     audio_duration_seconds = models.IntegerField(default=0, help_text="Duration of the narration MP3 in seconds")
+
+    # Per-lesson ~5-minute video script (JSON) + optional Google Doc
+    video_script = models.JSONField(
+        default=dict,
+        blank=True,
+        null=True,
+        help_text="Structured ~5-minute video script JSON (hook, sections, close, shot_list)",
+    )
+    script_doc_id = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        null=True,
+        help_text="Google Doc file ID for the uploaded video script",
+    )
+    script_doc_url = models.URLField(
+        blank=True,
+        default='',
+        null=True,
+        help_text="Google Doc URL for the uploaded video script",
+    )
 
     class Meta:
         ordering = ['order', 'id']
@@ -1452,6 +1521,7 @@ class AIUsageLog(models.Model):
         ('lesson_audio', 'Lesson Audio'),
         ('lesson_quiz', 'Lesson Quiz'),
         ('course_exam', 'Course Exam'),
+        ('lesson_video_script', 'Lesson Video Script'),
     ]
 
     tenant = models.ForeignKey(

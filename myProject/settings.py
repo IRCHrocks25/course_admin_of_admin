@@ -363,3 +363,16 @@ else:
             'LOCATION': 'courseforge-local-cache',
         }
     }
+
+# ─── Lesson video scripts + Google Drive Docs ───
+# Scripts are a fire-and-forget side effect of course/seed AI generation.
+GENERATE_LESSON_SCRIPTS = True
+VIDEO_SCRIPT_MODEL = "gpt-4o-mini"
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+# Optional exact callback URL registered in Google Cloud Console.
+# Defaults to request.build_absolute_uri(/superadmin/integrations/gdrive/callback/).
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "").strip()
+# Legacy fallbacks. Prefer Superadmin → Google Drive (token + folder ID in DB).
+GOOGLE_OAUTH_REFRESH_TOKEN = os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
+GDRIVE_SCRIPTS_ROOT_ID = os.getenv("GDRIVE_SCRIPTS_ROOT_ID", "").strip()

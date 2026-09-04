@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import timedelta
 
@@ -28,6 +29,7 @@ from .models import (
     CourseEnrollment,
     Lesson,
     AIUsageLog,
+    PlatformConfig,
     PricingTier,
     Tenant,
     TenantConfig,
@@ -39,6 +41,8 @@ from .models import (
 )
 from .utils.domains import ensure_temporary_domain, normalize_domain, get_platform_base_domain
 from .utils.branding import ensure_tenant_branding, get_tenant_branding
+
+logger = logging.getLogger(__name__)
 
 
 def superadmin_required(view_func):
@@ -935,4 +939,93 @@ def superadmin_notification_ai_improve(request):
         return JsonResponse({'success': False, 'error': 'AI returned invalid format. Try again.'}, status=500)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)[:200]}, status=500)
+
+
+@superadmin_required
+def superadmin_gdrive_settings(request):
+    from myApp.utils import gdrive
+
+    config = PlatformConfig.get_solo()
+    if request.method == 'POST' and request.POST.get('action') == 'save_root':
+        config.gdrive_scripts_root_id = (request.POST.get('gdrive_scripts_root_id') or '').strip()
+        config.save(update_fields=['gdrive_scripts_root_id', 'updated_at'])
+        messages.success(request, 'Scripts folder ID saved.')
+        return redirect('superadmin_gdrive_settings')
+
+    return render(request, 'superadmin/gdrive_settings.html', {
+        'config': config,
+        'oauth_client_ready': gdrive.oauth_client_configured(),
+        'drive_ready': gdrive.is_gdrive_configured(),
+        'redirect_uri': gdrive.resolve_redirect_uri(request),
+        'using_env_token_fallback': bool(
+            not config.gdrive_connected and gdrive.get_refresh_token()
+        ),
+    })
+
+
+@superadmin_required
+@require_http_methods(['POST'])
+def superadmin_gdrive_connect(request):
+    from myApp.utils import gdrive
+
+    if not gdrive.oauth_client_configured():
+        messages.error(
+            request,
+            'Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in the server environment first.',
+        )
+        return redirect('superadmin_gdrive_settings')
+
+    redirect_uri = gdrive.resolve_redirect_uri(request)
+    if not redirect_uri:
+        messages.error(request, 'Could not build the Google OAuth redirect URI.')
+        return redirect('superadmin_gdrive_settings')
+
+    logger.info('Google Drive OAuth redirect_uri=%s', redirect_uri)
+    state = gdrive.encode_oauth_state(request.user.id)
+    return redirect(gdrive.build_authorize_url(redirect_uri, state))
+
+
+@superadmin_required
+@require_http_methods(['GET'])
+def superadmin_gdrive_callback(request):
+    from django.core import signing
+    from myApp.utils import gdrive
+
+    error = request.GET.get('error')
+    code = request.GET.get('code', '')
+    raw_state = request.GET.get('state', '')
+
+    try:
+        payload = gdrive.decode_oauth_state(raw_state)
+    except signing.BadSignature:
+        messages.error(request, 'Google Drive sign-in expired or was invalid. Try Connect again.')
+        return redirect('superadmin_gdrive_settings')
+
+    if int(payload.get('u') or 0) != request.user.id:
+        messages.error(request, 'Google Drive sign-in was started by a different user.')
+        return redirect('superadmin_gdrive_settings')
+
+    if error or not code:
+        messages.error(request, f'Google Drive was not connected ({error or "no code"}).')
+        return redirect('superadmin_gdrive_settings')
+
+    try:
+        token = gdrive.exchange_code(code, gdrive.resolve_redirect_uri(request))
+        gdrive.save_refresh_token(token, user=request.user)
+    except Exception as exc:
+        messages.error(request, f'Google Drive connect failed: {str(exc)[:240]}')
+        return redirect('superadmin_gdrive_settings')
+
+    messages.success(request, 'Google Drive connected. Lesson scripts will upload as Docs.')
+    return redirect('superadmin_gdrive_settings')
+
+
+@superadmin_required
+@require_http_methods(['POST'])
+def superadmin_gdrive_disconnect(request):
+    from myApp.utils import gdrive
+
+    gdrive.clear_refresh_token()
+    messages.success(request, 'Google Drive disconnected. Lesson JSON scripts will still save.')
+    return redirect('superadmin_gdrive_settings')
 
