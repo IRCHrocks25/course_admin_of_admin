@@ -1,5 +1,7 @@
 # Lesson video scripts and Google Drive
 
+**Status (4 Sep 2026):** Shipped and verified locally. Course create writes `Lesson.video_script` JSON, then a Google Doc when Drive is connected. Superadmin Connect works once the redirect URIs below are on the Google Cloud client. CLI OAuth (`gdrive_oauth`) already connected a token to `PlatformConfig`.
+
 Per-lesson ~5-minute video scripts are a fire-and-forget side effect of Course Builder / Lesson Generator (and of appending seed lessons). They do **not** block course creation. The progress widget can say Complete! while script threads are still finishing.
 
 ## What is generated
@@ -32,11 +34,23 @@ The **refresh token** and **scripts folder ID** live in `PlatformConfig` (encryp
 
 1. Create a Google Cloud OAuth **Web application** client (Testing is fine).
 2. Enable the Google Drive API.
-3. Add this authorized redirect URI (must match exactly):
+3. Add **all** of these Authorized redirect URIs (exact match, trailing slash included):
 
-   `https://<your-host>/superadmin/integrations/gdrive/callback/`
+   **Production**
+   - `https://courseforge.katek-ai.com/superadmin/integrations/gdrive/callback/`
 
-   Local example: `http://127.0.0.1:8000/superadmin/integrations/gdrive/callback/`
+   **Local Superadmin Connect**
+   - `http://127.0.0.1:8000/superadmin/integrations/gdrive/callback/`
+   - `http://localhost:8000/superadmin/integrations/gdrive/callback/`
+
+   **CLI** (`python manage.py gdrive_oauth`)
+   - `http://localhost:8080/`
+   - `http://127.0.0.1:8080/`
+
+   Connect from `courseforge.katek-ai.com` or local `:8000`, not a `*.up.railway.app` host. If you ever open Superadmin on Railway, also add:
+   - `https://courseadminofadmin-production.up.railway.app/superadmin/integrations/gdrive/callback/`
+
+   Do **not** add the GHL callback (`/leadconnector/callback`) on this client.
 4. Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` on the server.
 5. Create a Drive folder named `SOP Course Video Scripts` and copy its ID from the folder URL.
 6. Sign in as a superuser → **Super Admin → Google Drive**:
@@ -98,3 +112,20 @@ Logs to look for:
 - `[Background] Drive upload failed for lesson …`
 - `[Background] Drive scripts folder failed`
 - `[Background] Video script failed for lesson …`
+
+## Finished 4 Sep 2026
+
+- Lesson fields + migrations `0066`–`0068` (`video_script` nullable so create does not fail)
+- Fire-and-forget worker on Course Builder / Lesson Generator / append seed
+- Drive token + folder ID on `PlatformConfig`; Superadmin Google Drive page
+- CLI OAuth connected locally; first Docs uploaded
+- Script follows finished notes, not a leftover working title (`ai_clean_title` + label-only prompt)
+- Verified on lesson 1604 (notes = personal development; script no longer invented a coffee recipe)
+
+## Still open
+
+- Add the production redirect URI in Google Cloud so Superadmin Connect works on [courseforge.katek-ai.com](https://courseforge.katek-ai.com/)
+- Testing-mode tokens expire after 7 days — reconnect weekly
+- Script length is often short of the 650–820 word target (subject is correct)
+- No dashboard regenerate button (use `generate_lesson_scripts --force`)
+- PDF import, translations, and “Regenerate AI Content” do not spawn scripts

@@ -143,7 +143,9 @@ Source: `myProject/settings.py`, `myApp/dashboard_views.py`, `myApp/templates/da
 
 As soon as each lesson’s notes are saved, a separate daemon thread writes a ~5-minute video script (`Lesson.video_script`) and, if Google Drive is configured, uploads a shooting-table Google Doc. The widget does **not** wait for those threads. After Complete!, wait a short extra beat before expecting every Doc to appear.
 
-Details and Drive OAuth: `Documents/LESSON_VIDEO_SCRIPTS_AND_GDRIVE.md`.
+The working title and course name are labels only. If they name a different subject than the finished notes, the notes win. The prompt uses `ai_clean_title` when present.
+
+Details, Drive OAuth, and redirect URIs: `Documents/LESSON_VIDEO_SCRIPTS_AND_GDRIVE.md`.
 
 ## 8) Replication Checklist for Another Project
 
