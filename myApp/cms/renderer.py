@@ -119,6 +119,26 @@ def _apply_field(element, field_type: str, value: str):
             source['src'] = value
         else:
             element['src'] = value
+    elif field_type == 'select':
+        from .parser import _select_style_prop
+        prop = _select_style_prop(element)
+        if prop:
+            style = element.get('style') or ''
+            style = re.sub(rf'{re.escape(prop)}\s*:\s*[^;]+;?', '', style, flags=re.IGNORECASE).strip()
+            if style and not style.endswith(';'):
+                style += ';'
+            style += f'{prop}:{value};'
+            element['style'] = style
+    elif field_type == 'embed':
+        element['src'] = value
+    elif field_type == 'code':
+        # Unsanitized on purpose — see parser._default_for_element's note on
+        # the 'code' type. The tenant is editing their own page; this is the
+        # same trust boundary as the existing "custom HTML" landing mode.
+        fragment = BeautifulSoup(value or '', 'html.parser')
+        element.clear()
+        for child in list(fragment.children):
+            element.append(child.extract())
 
 
 def _apply_hidden_sections(soup, hidden_sections, *, preview: bool):
@@ -150,7 +170,13 @@ PREVIEW_BRIDGE_JS = r"""
     '@keyframes cmsFlash{0%{outline-color:#2563eb;box-shadow:0 0 0 6px rgba(37,99,235,.35);}100%{box-shadow:0 0 0 0 rgba(37,99,235,0);}}',
     '[data-cms-flash]{outline:2px solid #2563eb!important;outline-offset:2px!important;animation:cmsFlash 1s ease-out 2;}',
     '#__cms_chip{position:fixed;z-index:2147483647;background:#2563eb;color:#fff;font:600 11px/1 -apple-system,"Segoe UI",Roboto,sans-serif;padding:4px 8px;border-radius:5px;pointer-events:none;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.4);display:none;}',
-    '#__cms_chip.annotate{background:#b45309;}'
+    '#__cms_chip.annotate{background:#b45309;}',
+    '[data-cms-section-selected]{outline:2px solid #2563eb!important;outline-offset:4px!important;border-radius:8px!important;}',
+    '#__cms_section_chip{position:fixed;z-index:2147483646;background:#2563eb;color:#fff;font:600 11px/1 -apple-system,"Segoe UI",Roboto,sans-serif;padding:4px 9px;border-radius:5px 5px 5px 0;pointer-events:none;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;}',
+    '#__cms_section_bar{position:fixed;z-index:2147483646;display:none;gap:2px;background:#0f172a;border-radius:8px;padding:3px;box-shadow:0 4px 14px rgba(0,0,0,.35);}',
+    '#__cms_section_bar button{width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:#e5e7eb;font-size:13px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}',
+    '#__cms_section_bar button:hover{background:rgba(255,255,255,.15);}',
+    '[data-cms-add-inside]:hover{background:#1d4ed8!important;}'
   ].join('\n');
   document.head.appendChild(style);
 
@@ -183,6 +209,7 @@ PREVIEW_BRIDGE_JS = r"""
     if (el.hasAttribute('data-edit')) return false;
     if (closestEdit(el.parentElement)) return false;
     if (el.id === '__cms_chip') return false;
+    if (el.closest && el.closest('#__cms_section_bar, #__cms_section_chip, [data-cms-empty-container]')) return false;
     if (tag !== 'img' && (el.textContent || '').trim().length < 1) return false;
     return true;
   }
@@ -229,6 +256,88 @@ PREVIEW_BRIDGE_JS = r"""
     if (el) el.setAttribute('data-cms-selected', '1');
   }
 
+  // ---- Section-level selection: the on-canvas outline + floating
+  // move/duplicate/remove toolbar that mirrors the Layers panel + Properties
+  // panel selection. sectionMeta is filled in by the parent (label + whether
+  // the section is one of our block instances, which is the only kind that
+  // supports move/duplicate/remove).
+  var sectionMeta = {};
+  var selectedSectionEl = null;
+  var sectionChip = null;
+  var sectionBar = null;
+
+  function ensureSectionUi() {
+    if (sectionChip) return;
+    sectionChip = document.createElement('div');
+    sectionChip.id = '__cms_section_chip';
+    document.body.appendChild(sectionChip);
+    sectionBar = document.createElement('div');
+    sectionBar.id = '__cms_section_bar';
+    document.body.appendChild(sectionBar);
+  }
+
+  function clearSectionSelection() {
+    if (selectedSectionEl) selectedSectionEl.removeAttribute('data-cms-section-selected');
+    selectedSectionEl = null;
+    if (sectionChip) sectionChip.style.display = 'none';
+    if (sectionBar) sectionBar.style.display = 'none';
+  }
+
+  function positionSectionUi() {
+    if (!selectedSectionEl) return;
+    var rect = selectedSectionEl.getBoundingClientRect();
+    var top = rect.top - 26;
+    if (top < 4) top = rect.top + 6;
+    sectionChip.style.top = top + 'px';
+    sectionChip.style.left = Math.max(4, rect.left) + 'px';
+    if (sectionBar.style.display !== 'none') {
+      var barTop = rect.top - 34;
+      if (barTop < 4) barTop = rect.top + 6;
+      sectionBar.style.top = barTop + 'px';
+      sectionBar.style.left = Math.max(4, rect.right - 108) + 'px';
+    }
+  }
+
+  function applySectionSelection(sectionId) {
+    ensureSectionUi();
+    clearSectionSelection();
+    if (!sectionId) return;
+    var el = document.querySelector('[data-section="' + sectionId.replace(/"/g, '\\"') + '"]');
+    if (!el) return;
+    selectedSectionEl = el;
+    el.setAttribute('data-cms-section-selected', '1');
+    var meta = sectionMeta[sectionId] || {};
+    sectionChip.textContent = meta.label || sectionId;
+    sectionChip.style.display = 'block';
+    sectionBar.innerHTML = '';
+    if (meta.isBlock) {
+      [['↑', 'move-up'], ['↓', 'move-down'], ['⎘', 'duplicate'], ['×', 'remove']].forEach(function (pair) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = pair[0];
+        btn.title = pair[1];
+        btn.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          post({ type: 'cms-block-action', action: pair[1], sectionId: sectionId });
+        });
+        sectionBar.appendChild(btn);
+      });
+      sectionBar.style.display = 'flex';
+    } else {
+      sectionBar.style.display = 'none';
+    }
+    positionSectionUi();
+  }
+
+  function selectSection(sectionId, focusFieldId) {
+    applySectionSelection(sectionId);
+    post({ type: 'cms-section-selected', sectionId: sectionId, focusFieldId: focusFieldId || null });
+  }
+
+  window.addEventListener('scroll', function () { positionSectionUi(); }, true);
+  window.addEventListener('resize', positionSectionUi);
+
   function findAnnotatable(start) {
     var cur = start;
     while (cur && cur.nodeType === 1 && !isAnnotatable(cur)) cur = cur.parentElement;
@@ -239,6 +348,7 @@ PREVIEW_BRIDGE_JS = r"""
   // select their field; anything else editable offers one-click annotation.
   document.addEventListener('mouseover', function (ev) {
     if (MODE === 'browse') return;
+    if (ev.target.closest && ev.target.closest('#__cms_section_bar, #__cms_section_chip, [data-cms-empty-container]')) return;
     clearHover();
     var editEl = closestEdit(ev.target);
     if (editEl) {
@@ -259,16 +369,41 @@ PREVIEW_BRIDGE_JS = r"""
 
   document.addEventListener('click', function (ev) {
     if (MODE === 'browse') return;
+    // Our own on-canvas toolbar (move/duplicate/remove) lives outside the
+    // page's data-section/data-edit markup, appended straight to <body>.
+    // Without this guard the capture-phase listener below swallows every
+    // click here before the toolbar's own button handlers ever run, and the
+    // generic "anything with text is annotatable" logic further down treats
+    // a plain <button> as something to offer up for annotation.
+    if (ev.target.closest && ev.target.closest('#__cms_section_bar, #__cms_section_chip')) return;
+    var addInside = ev.target.closest && ev.target.closest('[data-cms-add-inside]');
+    if (addInside) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var parentId = addInside.getAttribute('data-cms-add-inside') || closestSection(addInside);
+      post({ type: 'cms-add-inside', parentId: parentId });
+      if (parentId) selectSection(parentId, null);
+      return;
+    }
     ev.preventDefault();
     ev.stopPropagation();
     var editEl = closestEdit(ev.target);
     if (editEl) {
       selectElement(editEl);
-      post({ type: 'cms-element-selected', fieldId: editEl.getAttribute('data-edit') });
+      var fieldId = editEl.getAttribute('data-edit');
+      post({ type: 'cms-element-selected', fieldId: fieldId });
+      var editSection = closestSection(editEl);
+      if (editSection) selectSection(editSection, fieldId);
       return;
     }
     var target = findAnnotatable(ev.target);
-    if (!target) return;
+    if (!target) {
+      if (MODE === 'edit') {
+        var bareSection = closestSection(ev.target);
+        if (bareSection) selectSection(bareSection, null);
+      }
+      return;
+    }
     var tag = target.tagName.toLowerCase();
     var suggestedType = 'text';
     if (tag === 'img') suggestedType = 'image';
@@ -337,7 +472,13 @@ PREVIEW_BRIDGE_JS = r"""
       case 'cms-mode':
         MODE = data.mode || 'edit';
         clearHover();
-        if (MODE === 'browse') selectElement(null);
+        if (MODE === 'browse') { selectElement(null); clearSectionSelection(); }
+        break;
+      case 'cms-section-meta':
+        sectionMeta = data.sections || {};
+        break;
+      case 'cms-select-section':
+        applySectionSelection(data.sectionId);
         break;
       case 'cms-field-focus': {
         var el = document.querySelector('[data-edit="' + String(data.fieldId).replace(/"/g, '\\"') + '"]');

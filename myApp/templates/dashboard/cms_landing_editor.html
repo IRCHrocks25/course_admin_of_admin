@@ -6,11 +6,11 @@
 {% block content %}
 {% csrf_token %}
 <style>
-/* ===== CMS Editor (scoped: cmx-) ===== */
+/* ===== CMS Editor (scoped: cmx-) — light theme, matches the Locked CMS
+   builder's Layers / Live preview / Properties three-column layout ===== */
 #cmx-editor{
     margin:-1rem; display:flex; flex-direction:column; overflow:hidden;
-    background:#070b22; color:#e5e7eb;
-    font-size:13px; border-top:1px solid rgba(255,255,255,.06);
+    background:#eef1f7; color:#1f2937; font-size:13px; border-top:1px solid #dbe1ee;
 }
 @media (min-width:640px){ #cmx-editor{ margin:-1.5rem; } }
 @media (min-width:1024px){ #cmx-editor{ margin:-2rem; } }
@@ -18,330 +18,366 @@
 /* Toolbar */
 .cmx-toolbar{
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-    padding:8px 14px; background:rgba(13,18,48,.92); backdrop-filter:blur(8px);
-    border-bottom:1px solid rgba(255,255,255,.08); z-index:20;
+    padding:8px 14px; background:#fff; border-bottom:1px solid #dbe1ee; z-index:20;
 }
 .cmx-toolbar-group{ display:flex; align-items:center; gap:8px; }
 .cmx-toolbar-spacer{ flex:1 1 auto; }
-.cmx-title{ font-weight:700; color:#fff; font-size:14px; line-height:1.1; }
-.cmx-subtitle{ font-size:11px; color:#8b93b5; }
+.cmx-title{ font-weight:700; color:#111827; font-size:14px; line-height:1.1; }
+.cmx-subtitle{ font-size:11px; color:#6b7280; }
+.cmx-draft-pill{
+    font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    color:#6b7280; background:#eef1f7; border-radius:999px; padding:3px 9px;
+}
+.cmx-draft-pill.published{ color:#047857; background:rgba(5,150,105,.12); }
 .cmx-btn{
     display:inline-flex; align-items:center; gap:6px; padding:7px 12px;
-    border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04);
-    color:#d7dcf0; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+    border-radius:8px; border:1px solid #cbd5e6; background:#fff;
+    color:#374151; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
     transition:background .15s,border-color .15s,color .15s;
 }
-.cmx-btn:hover{ background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.25); }
+.cmx-btn:hover{ background:#f1f5fd; border-color:#93b4f5; color:#1f2937; }
 .cmx-btn:disabled{ opacity:.45; cursor:not-allowed; }
 .cmx-btn-icon{ padding:7px 9px; }
-.cmx-btn-primary{
-    background:linear-gradient(135deg,#3b82f6,#2563eb); border-color:transparent; color:#04121f;
-}
-.cmx-btn-primary:hover{ filter:brightness(1.1); background:linear-gradient(135deg,#3b82f6,#2563eb); }
-.cmx-btn-danger{ color:#fca5a5; border-color:rgba(248,113,113,.35); }
-.cmx-btn-danger:hover{ background:rgba(248,113,113,.12); }
+.cmx-btn-primary{ background:#2563eb; border-color:transparent; color:#fff; }
+.cmx-btn-primary:hover{ background:#1d4ed8; }
+.cmx-btn-danger{ color:#b91c1c; border-color:rgba(185,28,28,.35); }
+.cmx-btn-danger:hover{ background:rgba(185,28,28,.08); }
+.cmx-btn-block{ width:100%; justify-content:center; }
+.cmx-btn-sm{ padding:5px 10px; font-size:11.5px; }
 
-.cmx-seg{
-    display:inline-flex; padding:3px; border-radius:9px; background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.08);
-}
+.cmx-seg{ display:inline-flex; padding:3px; border-radius:9px; background:#e6eaf3; border:1px solid #d3dae8; }
 .cmx-seg button{
     display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:7px;
-    font-size:12px; font-weight:600; color:#9aa3c7; cursor:pointer; border:0; background:transparent;
+    font-size:12px; font-weight:600; color:#6b7280; cursor:pointer; border:0; background:transparent;
     transition:all .15s;
 }
-.cmx-seg button:hover{ color:#e5e7eb; }
-.cmx-seg button.active{ background:rgba(59,130,246,.18); color:#60a5fa; box-shadow:inset 0 0 0 1px rgba(59,130,246,.35); }
-.cmx-seg button.active.annotate{ background:rgba(251,191,36,.16); color:#fcd34d; box-shadow:inset 0 0 0 1px rgba(251,191,36,.4); }
+.cmx-seg button:hover{ color:#1f2937; }
+.cmx-seg button.active{ background:#fff; color:#1d4ed8; box-shadow:inset 0 0 0 1px rgba(37,99,235,.45); }
+.cmx-seg button.active.annotate{ background:#fff; color:#b45309; box-shadow:inset 0 0 0 1px rgba(180,83,9,.45); }
 
-.cmx-status{ display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#8b93b5; padding:0 4px; }
-.cmx-status-dot{ width:8px; height:8px; border-radius:50%; background:#64748b; transition:background .2s; }
-.cmx-status.saving .cmx-status-dot{ background:#fbbf24; animation:cmxPulse 1s infinite; }
-.cmx-status.saved .cmx-status-dot{ background:#34d399; }
-.cmx-status.error .cmx-status-dot{ background:#f87171; }
-.cmx-status.dirty .cmx-status-dot{ background:#fbbf24; }
+.cmx-status{ display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#6b7280; padding:0 4px; }
+.cmx-status-dot{ width:7px; height:7px; border-radius:50%; background:#94a3b8; transition:background .2s; }
+.cmx-status.saving .cmx-status-dot{ background:#f59e0b; animation:cmxPulse 1s infinite; }
+.cmx-status.saved .cmx-status-dot{ background:#10b981; }
+.cmx-status.error .cmx-status-dot{ background:#ef4444; }
+.cmx-status.dirty .cmx-status-dot{ background:#f59e0b; }
 @keyframes cmxPulse{ 50%{ opacity:.4; } }
 
-/* Body */
+/* Body: Layers | Live preview | Properties */
 .cmx-body{ display:flex; flex:1 1 auto; min-height:0; }
 
-/* Sidebar */
+/* Layers panel */
 .cmx-sidebar{
-    width:330px; flex:0 0 330px; display:flex; flex-direction:column; min-height:0;
-    background:#0b1030; border-right:1px solid rgba(255,255,255,.08);
-    transition:margin-left .2s ease;
+    width:236px; flex:0 0 236px; display:flex; flex-direction:column; min-height:0;
+    background:#f8f9fc; border-right:1px solid #dbe1ee; transition:margin-left .2s ease;
 }
-.cmx-sidebar.collapsed{ margin-left:-330px; }
-.cmx-search{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); position:relative; }
-.cmx-search i{ position:absolute; left:22px; top:50%; transform:translateY(-50%); color:#5c6488; font-size:11px; }
+.cmx-sidebar.collapsed{ margin-left:-236px; }
+.cmx-sidebar-head{ padding:12px 14px 4px; font-weight:700; font-size:13px; color:#111827; }
+.cmx-search{ padding:8px 12px; position:relative; }
+.cmx-search i{ position:absolute; left:22px; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:11px; }
 .cmx-search input{
-    width:100%; padding:7px 10px 7px 28px; border-radius:8px; background:rgba(255,255,255,.05);
-    border:1px solid rgba(255,255,255,.1); color:#fff; font-size:12px; outline:none;
+    width:100%; padding:7px 10px 7px 28px; border-radius:8px; background:#fff;
+    border:1px solid #cbd5e6; color:#111827; font-size:12px; outline:none;
 }
-.cmx-search input:focus{ border-color:rgba(59,130,246,.5); }
-.cmx-sections{ flex:1 1 auto; overflow-y:auto; padding:10px 12px 24px; }
+.cmx-search input:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cmx-add-section-wrap{ padding:4px 12px 10px; }
+.cmx-sections{ flex:1 1 auto; overflow-y:auto; padding:6px 10px 20px; }
 .cmx-sections::-webkit-scrollbar{ width:8px; }
-.cmx-sections::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.12); border-radius:4px; }
+.cmx-sections::-webkit-scrollbar-thumb{ background:rgba(15,23,42,.18); border-radius:4px; }
+.cmx-group-label{
+    font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em;
+    color:#9aa3b5; padding:10px 6px 4px;
+}
+.cmx-group-label:first-child{ padding-top:2px; }
+.cmx-layer-row{
+    display:flex; align-items:center; gap:8px; padding:8px 8px; border-radius:8px;
+    color:#374151; font-size:12.5px; cursor:pointer; transition:background .12s,color .12s;
+}
+.cmx-layer-row:hover{ background:#eef1f7; color:#1f2937; }
+.cmx-layer-row.active{ background:#e8effc; color:#1d4ed8; font-weight:600; }
+.cmx-layer-row .cmx-layer-icon{
+    width:22px; height:22px; border-radius:6px; background:#eef1f7; color:#6b7280;
+    display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; flex:0 0 22px;
+}
+.cmx-layer-row.active .cmx-layer-icon{ background:#2563eb; color:#fff; }
+.cmx-layer-row .cmx-layer-label{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cmx-layer-row.hidden-section{ opacity:.5; }
+.cmx-layer-row[hidden]{ display:none; }
+.cmx-sidebar-foot{ padding:10px 12px; border-top:1px solid #e5e9f2; }
 
-.cmx-section{
-    border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-bottom:8px;
-    background:rgba(255,255,255,.025); overflow:hidden;
-}
-.cmx-section.hidden-section{ opacity:.55; }
-.cmx-section-head{
-    display:flex; align-items:center; gap:8px; padding:9px 10px; cursor:pointer; user-select:none;
-}
-.cmx-section-head:hover{ background:rgba(255,255,255,.04); }
-.cmx-section-head .cmx-sec-icon{
-    width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center;
-    background:rgba(59,130,246,.12); color:#60a5fa; font-size:11px; flex:0 0 26px;
-}
-.cmx-section-head .cmx-sec-label{ font-weight:600; color:#e8ebf7; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
-.cmx-sec-count{ font-size:10px; color:#8b93b5; background:rgba(255,255,255,.07); border-radius:99px; padding:2px 7px; }
-.cmx-icon-btn{
-    width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center;
-    color:#8b93b5; background:transparent; border:0; cursor:pointer; font-size:11px; flex:0 0 24px;
-}
-.cmx-icon-btn:hover{ background:rgba(255,255,255,.1); color:#fff; }
-.cmx-sec-chevron{ transition:transform .18s; font-size:10px; color:#5c6488; }
-.cmx-section.open .cmx-sec-chevron{ transform:rotate(180deg); }
-.cmx-section-body{ display:none; padding:4px 10px 12px; border-top:1px solid rgba(255,255,255,.06); }
-.cmx-section.open .cmx-section-body{ display:block; }
-
-/* Fields */
-.cmx-field{ padding:8px 6px; border-radius:8px; margin-top:2px; }
-.cmx-field.flash{ background:rgba(59,130,246,.12); box-shadow:inset 0 0 0 1px rgba(59,130,246,.4); }
-.cmx-field-head{ display:flex; align-items:center; gap:6px; margin-bottom:5px; }
-.cmx-field-head label{ font-size:11px; color:#aab2d4; font-weight:600; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.cmx-type-badge{ font-size:9px; text-transform:uppercase; letter-spacing:.04em; color:#5c6488; border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:1px 5px; }
-.cmx-field-tools{ display:none; gap:2px; }
-.cmx-field:hover .cmx-field-tools{ display:inline-flex; }
-.cmx-input, .cmx-textarea{
-    width:100%; padding:7px 9px; border-radius:7px; background:#070b22;
-    border:1px solid rgba(255,255,255,.13); color:#fff; font-size:12px; outline:none;
-    transition:border-color .15s;
-}
-.cmx-input:focus, .cmx-textarea:focus{ border-color:rgba(59,130,246,.6); box-shadow:0 0 0 2px rgba(59,130,246,.12); }
-.cmx-textarea{ resize:vertical; min-height:56px; font-family:inherit; line-height:1.45; }
-.cmx-hint{ font-size:10px; color:#5c6488; margin-top:3px; }
-
-/* Rich text (WYSIWYG) control */
-.cmx-rte-toolbar{ display:flex; gap:3px; margin-bottom:4px; }
-.cmx-rte-btn{
-    width:26px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center;
-    color:#8b93b5; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
-    cursor:pointer; font-size:10.5px; transition:all .12s;
-}
-.cmx-rte-btn:hover{ background:rgba(59,130,246,.15); color:#60a5fa; border-color:rgba(59,130,246,.35); }
-.cmx-rte{
-    width:100%; min-height:56px; max-height:220px; overflow-y:auto; padding:7px 9px; border-radius:7px;
-    background:#070b22; border:1px solid rgba(255,255,255,.13); color:#fff; font-size:12px; outline:none;
-    line-height:1.5; transition:border-color .15s; cursor:text;
-}
-.cmx-rte:focus{ border-color:rgba(59,130,246,.6); box-shadow:0 0 0 2px rgba(59,130,246,.12); }
-.cmx-rte:empty::before{ content:attr(data-placeholder); color:#5c6488; pointer-events:none; }
-.cmx-rte a{ color:#60a5fa; text-decoration:underline; }
-.cmx-rte b, .cmx-rte strong{ font-weight:700; }
-
-.cmx-color-row{ display:flex; gap:6px; align-items:center; }
-.cmx-color-row input[type=color]{
-    width:34px; height:30px; padding:2px; border-radius:7px; background:#070b22;
-    border:1px solid rgba(255,255,255,.13); cursor:pointer; flex:0 0 34px;
-}
-.cmx-img-thumb{
-    width:100%; height:86px; border-radius:8px; border:1px dashed rgba(255,255,255,.2);
-    background-color:#070b22; background-size:cover; background-position:center;
-    display:flex; align-items:center; justify-content:center; cursor:pointer; margin-bottom:6px;
-    color:#5c6488; font-size:11px; gap:6px; transition:border-color .15s;
-    position:relative; overflow:hidden;
-}
-.cmx-img-thumb:hover{ border-color:rgba(59,130,246,.6); color:#60a5fa; }
-.cmx-img-thumb.dragover{ border-color:#3b82f6; background-color:rgba(59,130,246,.08); }
-.cmx-img-thumb.has-img span{ background:rgba(4,10,25,.75); padding:3px 8px; border-radius:6px; }
-.cmx-img-thumb.uploading::after{
-    content:'Uploading…'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    background:rgba(4,10,25,.8); color:#60a5fa; font-weight:600;
-}
-
-/* Canvas / stage */
+/* Stage (canvas) */
 .cmx-stage{ flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0; position:relative; }
+.cmx-stage-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 16px; }
+.cmx-stage-label{ font-size:12.5px; color:#6b7280; }
 .cmx-annotate-banner{
     display:none; align-items:center; gap:8px; padding:7px 14px; font-size:12px;
-    background:rgba(251,191,36,.12); border-bottom:1px solid rgba(251,191,36,.3); color:#fcd34d;
+    background:rgba(180,83,9,.08); border-bottom:1px solid rgba(180,83,9,.25); color:#92400e;
 }
 .cmx-stage.annotate .cmx-annotate-banner{ display:flex; }
 .cmx-canvas{
     flex:1 1 auto; min-height:0; overflow:auto; display:flex; justify-content:center;
-    padding:18px; background:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size:22px 22px;
+    padding:0 18px 18px; background:#eef1f7;
 }
 .cmx-device{
     display:flex; flex-direction:column; width:100%; max-width:100%; height:100%;
     border-radius:12px; overflow:hidden; background:#fff;
-    box-shadow:0 12px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1);
+    box-shadow:0 1px 3px rgba(15,23,42,.08), 0 0 0 1px #dbe1ee;
     transition:max-width .25s ease; margin:0 auto;
 }
 .cmx-device.tablet{ max-width:768px; }
 .cmx-device.mobile{ max-width:390px; }
-.cmx-device-bar{
-    display:flex; align-items:center; gap:6px; padding:7px 12px; background:#12172e;
-    border-bottom:1px solid rgba(255,255,255,.08); flex:0 0 auto;
-}
-.cmx-device-bar .dot{ width:9px; height:9px; border-radius:50%; }
-.cmx-device-bar .dot.r{ background:#f87171; } .cmx-device-bar .dot.y{ background:#fbbf24; } .cmx-device-bar .dot.g{ background:#34d399; }
-.cmx-device-url{
-    flex:1 1 auto; text-align:center; font-size:10.5px; color:#8b93b5; background:rgba(255,255,255,.06);
-    border-radius:6px; padding:3px 10px; margin:0 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
 #cmx-preview-frame{ width:100%; flex:1 1 auto; border:0; background:#fff; min-height:0; }
-.cmx-frame-loading{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(7,11,34,.35); z-index:5; }
+.cmx-frame-loading{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(238,241,247,.5); z-index:5; }
 .cmx-frame-loading.show{ display:flex; }
-.cmx-spinner{ width:26px; height:26px; border:3px solid rgba(96,165,250,.3); border-top-color:#60a5fa; border-radius:50%; animation:cmxSpin .7s linear infinite; }
+.cmx-spinner{ width:26px; height:26px; border:3px solid rgba(37,99,235,.2); border-top-color:#2563eb; border-radius:50%; animation:cmxSpin .7s linear infinite; }
 @keyframes cmxSpin{ to{ transform:rotate(360deg); } }
 
-/* Modals */
+/* Properties panel */
+.cmx-properties{
+    width:340px; flex:0 0 340px; display:flex; flex-direction:column; min-height:0;
+    background:#fff; border-left:1px solid #dbe1ee;
+}
+.cmx-properties-idle{
+    flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:30px; text-align:center; color:#6b7280; font-size:13px; line-height:1.5;
+}
+.cmx-properties-idle-icon{
+    width:44px; height:44px; border-radius:50%; background:#eef1f7; color:#9aa3b5;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+}
+.cmx-properties-body{ display:flex; flex-direction:column; min-height:0; height:100%; }
+.cmx-properties-head{ display:flex; align-items:center; gap:8px; padding:14px 16px 10px; }
+.cmx-properties-head h3{ flex:1 1 auto; font-size:14px; font-weight:700; color:#111827; margin:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cmx-properties-tabs{ display:flex; padding:0 16px; border-bottom:1px solid #e5e9f2; }
+.cmx-properties-tab{
+    flex:1; padding:9px 6px; text-align:center; font-size:12.5px; font-weight:600; color:#6b7280;
+    border:0; background:transparent; border-bottom:2px solid transparent; cursor:pointer;
+}
+.cmx-properties-tab.active{ color:#111827; border-bottom-color:#2563eb; }
+.cmx-properties-scroll{ flex:1 1 auto; overflow-y:auto; padding:14px 16px 24px; }
+.cmx-properties-pane[hidden]{ display:none; }
+
+.cmx-photo-block{ margin-bottom:14px; }
+.cmx-photo-block h4{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#9aa3b5; margin:0 0 8px; }
+.cmx-photo-actions{ display:flex; gap:8px; margin-top:8px; }
+.cmx-photo-hint{ font-size:10.5px; color:#9ca3af; margin-top:6px; line-height:1.4; }
+
+.cmx-properties-hint{
+    display:flex; gap:8px; padding:9px 10px; font-size:11.5px; color:#1e40af; line-height:1.5;
+    background:rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.18); border-radius:10px; margin-bottom:14px;
+}
+.cmx-properties-hint i{ margin-top:1px; }
+
+.cmx-fieldgroup{ border:1px solid #e5e9f2; border-radius:10px; background:#fbfcfe; overflow:hidden; }
+.cmx-fieldgroup-head{ display:flex; align-items:center; gap:6px; padding:9px 10px; border-bottom:1px solid #e5e9f2; }
+.cmx-fieldgroup-count{
+    font-size:11px; font-weight:600; color:#6b21a8; background:rgba(147,51,234,.1);
+    border-radius:999px; padding:2px 9px; margin-right:auto;
+}
+.cmx-block-controls{ display:inline-flex; gap:2px; }
+.cmx-icon-btn{
+    width:24px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center;
+    color:#6b7280; background:transparent; border:0; cursor:pointer; font-size:11px; flex:0 0 24px;
+}
+.cmx-icon-btn:hover{ background:#eef1f7; color:#111827; }
+
+.cmx-propfield{ border-bottom:1px solid #eef1f7; }
+.cmx-propfield:last-child{ border-bottom:0; }
+.cmx-propfield.flash{ background:rgba(37,99,235,.08); }
+.cmx-propfield-summary{
+    display:flex; align-items:center; gap:8px; padding:10px; cursor:pointer; list-style:none; user-select:none;
+}
+.cmx-propfield-summary::-webkit-details-marker{ display:none; }
+.cmx-propfield-summary:hover{ background:#f4f6fb; }
+.cmx-propfield-pencil{ color:#9ca3af; font-size:10.5px; flex:0 0 auto; }
+.cmx-propfield-label{ font-size:12.5px; font-weight:600; color:#374151; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cmx-propfield-hint{ font-size:10.5px; color:#9ca3af; cursor:pointer; }
+.cmx-propfield-hint:hover{ color:#2563eb; text-decoration:underline; }
+.cmx-propfield-summary .cmx-icon-btn{ opacity:0; transition:opacity .12s; }
+.cmx-propfield-summary:hover .cmx-icon-btn{ opacity:1; }
+.cmx-propfield-caret{ font-size:9px; color:#9ca3af; transition:transform .15s; }
+.cmx-propfield[open] .cmx-propfield-caret{ transform:rotate(180deg); }
+.cmx-propfield-body{ padding:0 10px 12px; }
+
+.cmx-container-children{ padding:8px; }
+.cmx-container-child-row{
+    display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;
+    padding:9px 10px; margin-bottom:6px; border:1px solid #e5e9f2; border-radius:8px; background:#fff;
+    font-size:12.5px; font-weight:600; color:#374151; cursor:pointer; text-align:left;
+}
+.cmx-container-child-row:hover{ border-color:#93b4f5; background:#f6f9ff; }
+.cmx-container-child-row i.fa-grip-lines{ color:#c2cbdd; margin-right:6px; }
+.cmx-container-child-row i.fa-chevron-right{ color:#9ca3af; font-size:10px; }
+.cmx-container-add{ margin-top:2px; }
+
+.cmx-styles-pane .cmx-label{ display:block; font-size:11px; font-weight:600; color:#4b5563; margin:0 0 5px; }
+.cmx-styles-note{ font-size:12px; color:#6b7280; line-height:1.6; background:#f8f9fc; border:1px solid #e5e9f2; border-radius:10px; padding:12px; }
+
+/* Field control primitives (shared by field rows + photo block) */
+.cmx-input, .cmx-textarea{
+    width:100%; padding:7px 9px; border-radius:7px; background:#fff;
+    border:1px solid #cbd5e6; color:#111827; font-size:12px; outline:none; transition:border-color .15s;
+}
+.cmx-input:focus, .cmx-textarea:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cmx-textarea{ resize:vertical; min-height:56px; font-family:inherit; line-height:1.45; }
+.cmx-hint{ font-size:10px; color:#8a94a6; margin-top:3px; }
+
+.cmx-rte-toolbar{ display:flex; gap:3px; margin-bottom:4px; }
+.cmx-rte-btn{
+    width:26px; height:24px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center;
+    color:#6b7280; background:#fff; border:1px solid #cbd5e6; cursor:pointer; font-size:10.5px; transition:all .12s;
+}
+.cmx-rte-btn:hover{ background:#f1f5fd; color:#1d4ed8; border-color:#93b4f5; }
+.cmx-rte{
+    width:100%; min-height:56px; max-height:220px; overflow-y:auto; padding:7px 9px; border-radius:7px;
+    background:#fff; border:1px solid #cbd5e6; color:#111827; font-size:12px; outline:none;
+    line-height:1.5; transition:border-color .15s; cursor:text;
+}
+.cmx-rte:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cmx-rte:empty::before{ content:attr(data-placeholder); color:#9ca3af; pointer-events:none; }
+.cmx-rte a{ color:#1d4ed8; text-decoration:underline; }
+.cmx-rte b, .cmx-rte strong{ font-weight:700; }
+
+.cmx-code-input{
+    width:100%; min-height:120px; padding:8px 9px; border-radius:7px; resize:vertical;
+    background:#0b1220; color:#e5e7eb; border:1px solid #cbd5e6; font-size:11.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; line-height:1.5; outline:none;
+    transition:border-color .15s;
+}
+.cmx-code-input:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
+.cmx-code-hint{ margin-top:5px; font-size:10.5px; color:#8a94a6; line-height:1.4; }
+
+.cmx-color-row{ display:flex; gap:6px; align-items:center; }
+.cmx-color-row input[type=color]{
+    width:34px; height:30px; padding:2px; border-radius:7px; background:#fff;
+    border:1px solid #cbd5e6; cursor:pointer; flex:0 0 34px;
+}
+.cmx-img-thumb{
+    width:100%; height:100px; border-radius:8px; border:1px dashed #c6cfe2;
+    background-color:#f4f6fb; background-size:cover; background-position:center;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; margin-bottom:6px;
+    color:#6b7280; font-size:11px; gap:6px; transition:border-color .15s; position:relative; overflow:hidden;
+}
+.cmx-img-thumb:hover{ border-color:#2563eb; color:#1d4ed8; }
+.cmx-img-thumb.dragover{ border-color:#2563eb; background-color:rgba(37,99,235,.06); }
+.cmx-img-thumb.has-img span{ background:rgba(17,24,39,.7); color:#fff; padding:3px 8px; border-radius:6px; }
+.cmx-img-thumb.uploading::after{
+    content:'Uploading…'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.85); color:#1d4ed8; font-weight:600;
+}
+
+/* Modals (import / add-section / annotate) */
 .cmx-modal-backdrop{
-    position:fixed; inset:0; background:rgba(3,6,20,.7); backdrop-filter:blur(3px);
+    position:fixed; inset:0; background:rgba(15,23,42,.45); backdrop-filter:blur(2px);
     display:none; align-items:center; justify-content:center; z-index:60; padding:16px;
 }
 .cmx-modal-backdrop.show{ display:flex; }
 .cmx-modal{
-    width:100%; max-width:560px; background:#0d1230; border:1px solid rgba(255,255,255,.12);
-    border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.6); overflow:hidden;
+    width:100%; max-width:560px; background:#fff; border:1px solid #e2e7f2;
+    border-radius:14px; box-shadow:0 20px 60px rgba(15,23,42,.25); overflow:hidden;
     max-height:90vh; display:flex; flex-direction:column;
 }
-.cmx-modal-head{ display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.08); }
-.cmx-modal-head h3{ font-size:14px; font-weight:700; color:#fff; flex:1; }
+.cmx-modal-head{ display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid #e9edf5; }
+.cmx-modal-head h3{ font-size:14px; font-weight:700; color:#111827; flex:1; margin:0; }
 .cmx-modal-body{ padding:16px 18px; overflow-y:auto; }
-.cmx-modal-foot{ display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid rgba(255,255,255,.08); }
-.cmx-label{ display:block; font-size:11px; font-weight:600; color:#aab2d4; margin:12px 0 5px; }
+.cmx-modal-foot{ display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; border-top:1px solid #e9edf5; }
+.cmx-label{ display:block; font-size:11px; font-weight:600; color:#4b5563; margin:12px 0 5px; }
 .cmx-label:first-child{ margin-top:0; }
-.cmx-note{ font-size:11px; color:#8b93b5; line-height:1.5; }
+.cmx-note{ font-size:11px; color:#6b7280; line-height:1.5; }
 .cmx-warn{
-    display:flex; gap:8px; font-size:11px; color:#fcd34d; background:rgba(251,191,36,.08);
-    border:1px solid rgba(251,191,36,.25); border-radius:8px; padding:8px 10px; line-height:1.45; margin-top:12px;
+    display:flex; gap:8px; font-size:11px; color:#92400e; background:rgba(251,191,36,.14);
+    border:1px solid rgba(180,83,9,.3); border-radius:8px; padding:8px 10px; line-height:1.45; margin-top:12px;
 }
-.cmx-saved-card, .cmx-ai-card{
-    display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:10px;
-    margin-top:12px; cursor:default;
-}
-.cmx-saved-card{ background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.3); }
-.cmx-ai-card{ background:rgba(167,139,250,.08); border:1px solid rgba(167,139,250,.3); }
+.cmx-saved-card, .cmx-ai-card{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:10px; margin-top:12px; cursor:default; }
+.cmx-saved-card{ background:rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.3); }
+.cmx-ai-card{ background:rgba(124,58,237,.07); border:1px solid rgba(124,58,237,.3); }
 #cmx-import-manual.dimmed{ opacity:.4; pointer-events:none; }
 .cmx-drop{
-    border:1.5px dashed rgba(255,255,255,.22); border-radius:10px; padding:18px; text-align:center;
-    color:#8b93b5; font-size:12px; cursor:pointer; transition:all .15s; margin-top:6px;
+    border:1.5px dashed #c6cfe2; border-radius:10px; padding:18px; text-align:center;
+    color:#6b7280; font-size:12px; cursor:pointer; transition:all .15s; margin-top:6px;
 }
-.cmx-drop:hover, .cmx-drop.dragover{ border-color:#3b82f6; color:#60a5fa; background:rgba(59,130,246,.06); }
+.cmx-drop:hover, .cmx-drop.dragover{ border-color:#2563eb; color:#1d4ed8; background:rgba(37,99,235,.05); }
 .cmx-code-snippet{
-    font-family:ui-monospace,Consolas,monospace; font-size:11px; color:#93c5fd; background:#070b22;
-    border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:8px 10px; margin-top:4px;
+    font-family:ui-monospace,Consolas,monospace; font-size:11px; color:#1d4ed8; background:#f4f6fb;
+    border:1px solid #dbe1ee; border-radius:8px; padding:8px 10px; margin-top:4px;
     max-height:64px; overflow:hidden; text-overflow:ellipsis; line-height:1.5;
 }
+.cmx-card-title{ font-weight:700; color:#111827; font-size:12.5px; }
+.cmx-accent-text{ color:#1d4ed8; }
+.cmx-purple-text{ color:#7c3aed; }
+.cmx-amber-text{ color:#b45309; }
+
+/* Add-A-Section modal: left nav + width picker / block grid */
+#cmx-addsection-modal .cmx-modal{ max-width:720px; height:min(600px,86vh); }
+#cmx-addsection-modal .cmx-modal-body{ display:flex; padding:0; overflow:hidden; flex:1 1 auto; }
+.cmx-as-nav{ width:150px; flex:0 0 150px; padding:14px 8px; background:#f8f9fc; border-right:1px solid #e9edf5; overflow-y:auto; }
+.cmx-as-nav-item{
+    display:flex; align-items:center; gap:8px; width:100%; padding:9px 10px; border-radius:9px;
+    border:0; background:transparent; color:#374151; font-size:12.5px; font-weight:600; cursor:pointer; text-align:left;
+}
+.cmx-as-nav-item:hover{ background:#eef1f7; }
+.cmx-as-nav-item.active{ background:#e8effc; color:#1d4ed8; }
+.cmx-as-main{ flex:1 1 auto; overflow-y:auto; padding:16px 18px; min-width:0; }
+.cmx-as-search{ margin-bottom:14px; }
+.cmx-as-hint{ font-size:12.5px; color:#4b5563; margin:0 0 14px; }
+.cmx-width-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.cmx-width-card{ border:1px solid #e5e9f2; border-radius:12px; padding:0; background:transparent; cursor:pointer; text-align:center; overflow:hidden; }
+.cmx-width-art{ display:flex; align-items:center; justify-content:center; gap:6px; height:76px; padding:14px; background:#f4f6fb; }
+.cmx-width-page{ flex:1; height:34px; border:1.5px solid #d1d5db; border-radius:4px; background:#fff; display:flex; align-items:center; justify-content:center; }
+.cmx-width-band{ height:15px; border-radius:2px; background:#c5cdd6; }
+.cmx-width-card[data-size="full"] .cmx-width-band{ width:92%; }
+.cmx-width-card[data-size="wide"] .cmx-width-band{ width:78%; }
+.cmx-width-card[data-size="medium"] .cmx-width-band{ width:58%; }
+.cmx-width-card[data-size="small"] .cmx-width-band{ width:38%; }
+.cmx-width-card:hover .cmx-width-page{ border-color:#93c5fd; }
+.cmx-width-card:hover .cmx-width-band{ background:#93c5fd; }
+.cmx-width-label{ display:block; padding:9px 6px; font-size:12.5px; font-weight:600; color:#111827; }
+.cmx-as-back{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#2563eb; cursor:pointer; margin-bottom:12px; background:none; border:0; padding:0; }
+.cmx-as-back:hover{ text-decoration:underline; }
+.cmx-block-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.cmx-block-card{
+    display:flex; flex-direction:column; gap:4px; text-align:left; padding:12px; border-radius:10px;
+    border:1px solid #e5e9f2; background:#fbfcfe; cursor:pointer; transition:all .15s;
+}
+.cmx-block-card:hover{ border-color:#2563eb; background:rgba(37,99,235,.05); }
+.cmx-block-card .cmx-block-card-title{ font-weight:700; font-size:12.5px; color:#111827; display:flex; align-items:center; gap:6px; }
+.cmx-block-card .cmx-block-card-meta{ font-size:10.5px; color:#6b7280; }
 
 /* Toasts */
 #cmx-toasts{ position:fixed; bottom:18px; right:18px; z-index:80; display:flex; flex-direction:column; gap:8px; }
 .cmx-toast{
     display:flex; align-items:center; gap:9px; padding:10px 14px; border-radius:10px; font-size:12px; font-weight:600;
-    background:#101636; border:1px solid rgba(255,255,255,.14); color:#e5e7eb;
-    box-shadow:0 8px 30px rgba(0,0,0,.5); animation:cmxToastIn .2s ease; max-width:340px;
+    background:#fff; border:1px solid #dbe1ee; color:#1f2937; box-shadow:0 8px 30px rgba(15,23,42,.18);
+    animation:cmxToastIn .2s ease; max-width:340px;
 }
-.cmx-toast.success{ border-color:rgba(52,211,153,.4); } .cmx-toast.success i{ color:#34d399; }
-.cmx-toast.error{ border-color:rgba(248,113,113,.4); } .cmx-toast.error i{ color:#f87171; }
-.cmx-toast.info i{ color:#60a5fa; }
+.cmx-toast.success{ border-color:rgba(16,185,129,.4); } .cmx-toast.success i{ color:#10b981; }
+.cmx-toast.error{ border-color:rgba(239,68,68,.4); } .cmx-toast.error i{ color:#ef4444; }
+.cmx-toast.info i{ color:#2563eb; }
 @keyframes cmxToastIn{ from{ transform:translateY(8px); opacity:0; } }
 
-.cmx-empty{ text-align:center; padding:30px 14px; color:#8b93b5; font-size:12px; line-height:1.6; }
-.cmx-empty i{ font-size:22px; color:#3b4470; display:block; margin-bottom:8px; }
+.cmx-empty{ text-align:center; padding:30px 14px; color:#6b7280; font-size:12px; line-height:1.6; }
+.cmx-empty i{ font-size:22px; color:#c2cbdd; display:block; margin-bottom:8px; }
 
+@media (max-width:1100px){
+    .cmx-properties{ position:absolute; top:0; bottom:0; right:0; z-index:30; box-shadow:-8px 0 30px rgba(15,23,42,.15); }
+}
 @media (max-width:900px){
-    .cmx-sidebar{ position:absolute; top:0; bottom:0; left:0; z-index:30; box-shadow:8px 0 30px rgba(0,0,0,.45); }
+    .cmx-sidebar{ position:absolute; top:0; bottom:0; left:0; z-index:31; box-shadow:8px 0 30px rgba(15,23,42,.15); }
     .cmx-sidebar.collapsed{ margin-left:0; transform:translateX(-100%); }
 }
-
-/* Accent utility classes (theme-aware) */
-.cmx-card-title{ font-weight:700; color:#e8ebf7; font-size:12.5px; }
-.cmx-accent-text{ color:#60a5fa; }
-.cmx-purple-text{ color:#a78bfa; }
-.cmx-amber-text{ color:#fcd34d; }
-
-/* ===== Light theme ===== */
-.brand-theme-light #cmx-editor{ background:#eef1f7; color:#1f2937; border-top-color:#dbe1ee; }
-.brand-theme-light .cmx-toolbar{ background:rgba(255,255,255,.95); border-bottom-color:#dbe1ee; }
-.brand-theme-light .cmx-title{ color:#111827; }
-.brand-theme-light .cmx-subtitle{ color:#6b7280; }
-.brand-theme-light .cmx-status{ color:#6b7280; }
-.brand-theme-light .cmx-btn{ background:#fff; border-color:#cbd5e6; color:#374151; }
-.brand-theme-light .cmx-btn:hover{ background:#f1f5fd; border-color:#93b4f5; color:#1f2937; }
-.brand-theme-light .cmx-btn-primary{ background:linear-gradient(135deg,#3b82f6,#2563eb); border-color:transparent; color:#fff; }
-.brand-theme-light .cmx-btn-primary:hover{ background:linear-gradient(135deg,#3b82f6,#2563eb); }
-.brand-theme-light .cmx-btn-danger{ color:#b91c1c; border-color:rgba(185,28,28,.35); }
-.brand-theme-light .cmx-btn-danger:hover{ background:rgba(185,28,28,.08); }
-.brand-theme-light .cmx-seg{ background:#e6eaf3; border-color:#d3dae8; }
-.brand-theme-light .cmx-seg button{ color:#6b7280; }
-.brand-theme-light .cmx-seg button:hover{ color:#1f2937; }
-.brand-theme-light .cmx-seg button.active{ background:#fff; color:#1d4ed8; box-shadow:inset 0 0 0 1px rgba(37,99,235,.45); }
-.brand-theme-light .cmx-seg button.active.annotate{ background:#fff; color:#b45309; box-shadow:inset 0 0 0 1px rgba(180,83,9,.45); }
-.brand-theme-light .cmx-sidebar{ background:#f8f9fc; border-right-color:#dbe1ee; }
-.brand-theme-light .cmx-search{ border-bottom-color:#e5e9f2; }
-.brand-theme-light .cmx-search i{ color:#9ca3af; }
-.brand-theme-light .cmx-sections::-webkit-scrollbar-thumb{ background:rgba(15,23,42,.18); }
-.brand-theme-light .cmx-section{ background:#fff; border-color:#e2e7f2; }
-.brand-theme-light .cmx-section-head:hover{ background:#f4f6fb; }
-.brand-theme-light .cmx-section-head .cmx-sec-icon{ background:rgba(37,99,235,.1); color:#1d4ed8; }
-.brand-theme-light .cmx-section-head .cmx-sec-label{ color:#1f2937; }
-.brand-theme-light .cmx-sec-count{ color:#6b7280; background:#eef1f7; }
-.brand-theme-light .cmx-icon-btn{ color:#6b7280; }
-.brand-theme-light .cmx-icon-btn:hover{ background:#eef1f7; color:#111827; }
-.brand-theme-light .cmx-sec-chevron{ color:#9ca3af; }
-.brand-theme-light .cmx-section-body{ border-top-color:#e9edf5; }
-.brand-theme-light .cmx-field.flash{ background:rgba(37,99,235,.08); box-shadow:inset 0 0 0 1px rgba(37,99,235,.4); }
-.brand-theme-light .cmx-field-head label{ color:#4b5563; }
-.brand-theme-light .cmx-type-badge{ color:#9ca3af; border-color:#dbe1ee; }
-.brand-theme-light .cmx-input, .brand-theme-light .cmx-textarea, .brand-theme-light .cmx-search input{ background:#fff; border-color:#cbd5e6; color:#111827; }
-.brand-theme-light .cmx-input:focus, .brand-theme-light .cmx-textarea:focus, .brand-theme-light .cmx-search input:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
-.brand-theme-light .cmx-hint{ color:#8a94a6; }
-.brand-theme-light .cmx-rte{ background:#fff; border-color:#cbd5e6; color:#111827; }
-.brand-theme-light .cmx-rte:focus{ border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.12); }
-.brand-theme-light .cmx-rte:empty::before{ color:#9ca3af; }
-.brand-theme-light .cmx-rte a{ color:#1d4ed8; }
-.brand-theme-light .cmx-rte-btn{ background:#fff; border-color:#cbd5e6; color:#6b7280; }
-.brand-theme-light .cmx-rte-btn:hover{ background:#f1f5fd; color:#1d4ed8; border-color:#93b4f5; }
-.brand-theme-light .cmx-color-row input[type=color]{ background:#fff; border-color:#cbd5e6; }
-.brand-theme-light .cmx-img-thumb{ background-color:#f4f6fb; border-color:#c6cfe2; color:#6b7280; }
-.brand-theme-light .cmx-img-thumb:hover{ border-color:#2563eb; color:#1d4ed8; }
-.brand-theme-light .cmx-canvas{ background:#e6eaf3 radial-gradient(rgba(15,23,42,.09) 1px, transparent 1px); background-size:22px 22px; }
-.brand-theme-light .cmx-annotate-banner{ background:rgba(180,83,9,.08); border-bottom-color:rgba(180,83,9,.25); color:#92400e; }
-.brand-theme-light .cmx-modal{ background:#fff; border-color:#e2e7f2; }
-.brand-theme-light .cmx-modal-head{ border-bottom-color:#e9edf5; }
-.brand-theme-light .cmx-modal-head h3{ color:#111827; }
-.brand-theme-light .cmx-modal-foot{ border-top-color:#e9edf5; }
-.brand-theme-light .cmx-label{ color:#4b5563; }
-.brand-theme-light .cmx-note{ color:#6b7280; }
-.brand-theme-light .cmx-warn{ color:#92400e; background:rgba(251,191,36,.14); border-color:rgba(180,83,9,.3); }
-.brand-theme-light .cmx-drop{ border-color:#c6cfe2; color:#6b7280; }
-.brand-theme-light .cmx-drop:hover, .brand-theme-light .cmx-drop.dragover{ border-color:#2563eb; color:#1d4ed8; background:rgba(37,99,235,.05); }
-.brand-theme-light .cmx-code-snippet{ color:#1d4ed8; background:#f4f6fb; border-color:#dbe1ee; }
-.brand-theme-light .cmx-toast{ background:#fff; border-color:#dbe1ee; color:#1f2937; }
-.brand-theme-light .cmx-saved-card{ background:rgba(37,99,235,.06); border-color:rgba(37,99,235,.3); }
-.brand-theme-light .cmx-ai-card{ background:rgba(124,58,237,.06); border-color:rgba(124,58,237,.3); }
-.brand-theme-light .cmx-card-title{ color:#111827; }
-.brand-theme-light .cmx-accent-text{ color:#1d4ed8; }
-.brand-theme-light .cmx-purple-text{ color:#7c3aed; }
-.brand-theme-light .cmx-amber-text{ color:#b45309; }
-.brand-theme-light .cmx-empty{ color:#6b7280; }
-.brand-theme-light .cmx-empty i{ color:#c2cbdd; }
 </style>
 
 <div id="cmx-editor">
     <!-- ===== Toolbar ===== -->
     <div class="cmx-toolbar">
         <div class="cmx-toolbar-group">
-            <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-toggle-sidebar" title="Toggle panel"><i class="fas fa-bars"></i></button>
+            <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-toggle-sidebar" title="Toggle Layers panel"><i class="fas fa-bars"></i></button>
             <a href="{% url 'dashboard_branding_settings' %}" class="cmx-btn cmx-btn-icon" title="Back to branding"><i class="fas fa-arrow-left"></i></a>
             <div>
-                <div class="cmx-title">Landing Editor</div>
-                {% if tenant %}<div class="cmx-subtitle">{{ tenant.name }}</div>{% endif %}
+                <div class="cmx-title">{% if tenant %}{{ tenant.name }}{% else %}Landing Editor{% endif %}</div>
+                <div class="cmx-subtitle">Visual landing editor</div>
             </div>
+            <span class="cmx-draft-pill{% if published %} published{% endif %}">{% if published %}Published{% else %}Draft{% endif %}</span>
             <span class="cmx-status" id="cmx-status"><span class="cmx-status-dot"></span><span id="cmx-status-text">All changes saved</span></span>
         </div>
 
@@ -352,11 +388,6 @@
                 <button type="button" data-mode="edit" class="active"><i class="fas fa-pen"></i> Edit</button>
                 <button type="button" data-mode="annotate"><i class="fas fa-crosshairs"></i> Annotate</button>
                 <button type="button" data-mode="browse"><i class="fas fa-hand-pointer"></i> Interact</button>
-            </div>
-            <div class="cmx-seg" id="cmx-device-seg" title="Preview size">
-                <button type="button" data-device="desktop" class="active" title="Desktop"><i class="fas fa-desktop"></i></button>
-                <button type="button" data-device="tablet" title="Tablet"><i class="fas fa-tablet-alt"></i></button>
-                <button type="button" data-device="mobile" title="Mobile"><i class="fas fa-mobile-alt"></i></button>
             </div>
             <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-undo" title="Undo (Ctrl+Z)" disabled><i class="fas fa-undo"></i></button>
             <button type="button" class="cmx-btn cmx-btn-icon" id="cmx-redo" title="Redo (Ctrl+Shift+Z)" disabled><i class="fas fa-redo"></i></button>
@@ -369,21 +400,25 @@
             <a href="{{ tenant_site_url }}" target="_blank" rel="noopener" class="cmx-btn"><i class="fas fa-external-link-alt"></i> Live site</a>
             {% endif %}
             <button type="button" class="cmx-btn cmx-btn-primary" id="cmx-publish">
-                <i class="fas fa-rocket"></i> <span id="cmx-publish-label">{% if published %}Published{% else %}Publish{% endif %}</span>
+                <i class="fas fa-rocket"></i> <span id="cmx-publish-label">{% if published %}Published{% else %}Publish page{% endif %}</span>
             </button>
         </div>
     </div>
 
-    <!-- ===== Body ===== -->
+    <!-- ===== Body: Layers | Live preview | Properties ===== -->
     <div class="cmx-body">
         <aside class="cmx-sidebar" id="cmx-sidebar">
+            <div class="cmx-sidebar-head">Layers</div>
             <div class="cmx-search">
                 <i class="fas fa-search"></i>
-                <input type="text" id="cmx-search-input" placeholder="Search fields…" autocomplete="off">
+                <input type="text" id="cmx-search-input" placeholder="Jump to section…" autocomplete="off">
+            </div>
+            <div class="cmx-add-section-wrap">
+                <button type="button" class="cmx-btn cmx-btn-primary cmx-btn-block" id="cmx-add-section-open"><i class="fas fa-plus"></i> Add section</button>
             </div>
             <div class="cmx-sections" id="cmx-sections"></div>
-            <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.07);display:flex;gap:8px;">
-                <button type="button" class="cmx-btn cmx-btn-danger" id="cmx-reset-template" style="flex:1;justify-content:center;"><i class="fas fa-history"></i> Reset template</button>
+            <div class="cmx-sidebar-foot">
+                <button type="button" class="cmx-btn cmx-btn-danger cmx-btn-block" id="cmx-reset-template"><i class="fas fa-history"></i> Reset template</button>
             </div>
         </aside>
 
@@ -392,18 +427,42 @@
                 <i class="fas fa-crosshairs"></i>
                 <span><strong>Annotate mode</strong> — click any text, image, button, or link in the preview to make it editable.</span>
             </div>
+            <div class="cmx-stage-head">
+                <span class="cmx-stage-label">Live preview</span>
+                <div class="cmx-seg" id="cmx-device-seg" title="Preview size">
+                    <button type="button" data-device="desktop" class="active">Desktop</button>
+                    <button type="button" data-device="tablet">Tablet</button>
+                    <button type="button" data-device="mobile">Mobile</button>
+                </div>
+            </div>
             <div class="cmx-canvas">
                 <div class="cmx-device" id="cmx-device">
-                    <div class="cmx-device-bar">
-                        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-                        <span class="cmx-device-url" id="cmx-device-url">{% if tenant_site_url %}{{ tenant_site_url }}{% else %}Landing page preview{% endif %}</span>
-                        <span style="font-size:10px;color:#5c6488;" id="cmx-device-size">100%</span>
-                    </div>
                     <iframe id="cmx-preview-frame" title="Landing preview" src="{% url 'dashboard_landing_cms_preview' %}"></iframe>
                 </div>
             </div>
             <div class="cmx-frame-loading" id="cmx-frame-loading"><div class="cmx-spinner"></div></div>
         </section>
+
+        <aside class="cmx-properties" id="cmx-properties">
+            <div class="cmx-properties-idle" id="cmx-properties-idle">
+                <div class="cmx-properties-idle-icon"><i class="fas fa-mouse-pointer"></i></div>
+                <p>Select an element to see and edit its properties here.</p>
+            </div>
+            <div class="cmx-properties-body" id="cmx-properties-body" hidden>
+                <div class="cmx-properties-head">
+                    <h3 id="cmx-properties-title"></h3>
+                    <button type="button" class="cmx-icon-btn" id="cmx-properties-close" title="Close"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="cmx-properties-tabs">
+                    <button type="button" class="cmx-properties-tab active" data-tab="general">General</button>
+                    <button type="button" class="cmx-properties-tab" data-tab="styles">Styles</button>
+                </div>
+                <div class="cmx-properties-scroll">
+                    <div class="cmx-properties-pane" id="cmx-properties-general"></div>
+                    <div class="cmx-properties-pane" id="cmx-properties-styles" hidden></div>
+                </div>
+            </div>
+        </aside>
     </div>
 </div>
 
@@ -420,7 +479,7 @@
 
             {% if has_saved_custom_html %}
             <div class="cmx-saved-card" id="cmx-use-saved-card">
-                <input type="checkbox" id="cmx-use-saved" checked style="accent-color:#3b82f6;width:15px;height:15px;flex:0 0 15px;margin-top:2px;cursor:pointer;">
+                <input type="checkbox" id="cmx-use-saved" checked style="accent-color:#2563eb;width:15px;height:15px;flex:0 0 15px;margin-top:2px;cursor:pointer;">
                 <div>
                     <div class="cmx-card-title">Use my saved custom HTML <span class="cmx-accent-text">(recommended)</span></div>
                     <div class="cmx-hint" style="margin-top:2px;">The landing HTML you saved in Branding Settings ({{ saved_custom_html_chars }} characters) — no need to paste it again.</div>
@@ -430,7 +489,7 @@
 
             {% if ai_available %}
             <div class="cmx-ai-card">
-                <input type="checkbox" id="cmx-use-ai" checked style="accent-color:#a78bfa;width:15px;height:15px;flex:0 0 15px;margin-top:2px;cursor:pointer;">
+                <input type="checkbox" id="cmx-use-ai" checked style="accent-color:#7c3aed;width:15px;height:15px;flex:0 0 15px;margin-top:2px;cursor:pointer;">
                 <div>
                     <div class="cmx-card-title"><i class="fas fa-wand-magic-sparkles cmx-purple-text"></i> Annotate with AI</div>
                     <div class="cmx-hint" style="margin-top:2px;">AI reads your page, names sections ("Hero banner", "Pricing"…), and makes every heading, paragraph, image, button and link editable — with friendly labels instead of tag names. Takes ~15 seconds.</div>
@@ -462,6 +521,25 @@
     </div>
 </div>
 
+<!-- ===== Add A Section modal ===== -->
+<div class="cmx-modal-backdrop" id="cmx-addsection-modal">
+    <div class="cmx-modal">
+        <div class="cmx-modal-head">
+            <h3 id="cmx-as-title">Quick Add</h3>
+            <button type="button" class="cmx-icon-btn" data-close-modal="cmx-addsection-modal"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cmx-modal-body">
+            <nav class="cmx-as-nav" id="cmx-as-nav">
+                <button type="button" class="cmx-as-nav-item" data-nav="quick"><i class="fas fa-bolt"></i> Quick Add</button>
+                <button type="button" class="cmx-as-nav-item" data-nav="sections"><i class="fas fa-table-cells-large"></i> Sections</button>
+                <button type="button" class="cmx-as-nav-item" data-nav="elements"><i class="fas fa-shapes"></i> Elements</button>
+                <button type="button" class="cmx-as-nav-item" data-nav="rows"><i class="fas fa-table-columns"></i> Rows</button>
+            </nav>
+            <div class="cmx-as-main" id="cmx-as-main"></div>
+        </div>
+    </div>
+</div>
+
 <!-- ===== Annotate modal ===== -->
 <div class="cmx-modal-backdrop" id="cmx-annotate-modal">
     <div class="cmx-modal" style="max-width:440px;">
@@ -484,7 +562,7 @@
                 <option value="image">Image</option>
                 <option value="link">Link URL</option>
             </select>
-            <div class="cmx-hint">The field appears in the side panel and updates the page live as you type.</div>
+            <div class="cmx-hint">The field appears in the Properties panel and updates the page live as you type.</div>
         </div>
         <div class="cmx-modal-foot">
             <button type="button" class="cmx-btn" data-close-modal="cmx-annotate-modal">Cancel</button>
@@ -497,6 +575,7 @@
 
 {{ schema|json_script:"cms-schema-data" }}
 {{ content|json_script:"cms-content-data" }}
+{{ block_palette|json_script:"cms-block-palette-data" }}
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -511,13 +590,23 @@ document.addEventListener('DOMContentLoaded', function () {
         importHtml: '{% url "dashboard_landing_cms_import_html" %}',
         reset: '{% url "dashboard_landing_cms_reset_template" %}',
         annotate: '{% url "dashboard_landing_cms_annotate_element" %}',
-        removeAnnotation: '{% url "dashboard_landing_cms_remove_annotation" %}'
+        removeAnnotation: '{% url "dashboard_landing_cms_remove_annotation" %}',
+        addBlock: '{% url "dashboard_landing_cms_add_block" %}',
+        removeBlock: '{% url "dashboard_landing_cms_remove_block" %}',
+        duplicateBlock: '{% url "dashboard_landing_cms_duplicate_block" %}',
+        reorderBlocks: '{% url "dashboard_landing_cms_reorder_blocks" %}',
+        setBlockWidth: '{% url "dashboard_landing_cms_set_block_width" %}',
+        addChildBlock: '{% url "dashboard_landing_cms_add_child_block" %}',
+        removeChildBlock: '{% url "dashboard_landing_cms_remove_child_block" %}',
+        duplicateChildBlock: '{% url "dashboard_landing_cms_duplicate_child_block" %}',
+        reorderChildBlocks: '{% url "dashboard_landing_cms_reorder_child_blocks" %}'
     };
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]') ? document.querySelector('[name=csrfmiddlewaretoken]').value : '';
 
     /* ---------- State ---------- */
     var schema = JSON.parse(document.getElementById('cms-schema-data').textContent || '{}');
     var savedContent = JSON.parse(document.getElementById('cms-content-data').textContent || '{}');
+    var blockPalette = JSON.parse((document.getElementById('cms-block-palette-data') || {}).textContent || '[]');
     var state = mergeDefaults(savedContent, schema.defaults || {});
     if (!Array.isArray(state._hidden)) state._hidden = Array.isArray(savedContent._hidden) ? savedContent._hidden.slice() : [];
     var dirty = false;
@@ -526,10 +615,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var undoStack = [], redoStack = [], lastSnapshotAt = 0;
     var suppressFocusMsg = false;
     var pendingAnnotate = null;
+    var selectedSectionId = null;
 
-    var ICONS = { menu:'fa-bars', layout:'fa-window-maximize', sparkles:'fa-star', grid:'fa-th-large',
-        'credit-card':'fa-credit-card', message:'fa-comment-alt', megaphone:'fa-bullhorn', palette:'fa-palette' };
-    var TYPE_LABEL = { text:'text', richtext:'styled', image:'image', link:'link', color:'color', video:'video' };
+    var TYPE_LABEL = { text:'text', richtext:'styled', image:'image', link:'link', color:'color', video:'video', select:'option', embed:'embed', code:'code' };
+    var WIDTH_OPTIONS = [
+        { value:'full', label:'Full Width' },
+        { value:'wide', label:'Wide' },
+        { value:'medium', label:'Medium' },
+        { value:'small', label:'Small' }
+    ];
+    // A handful of common picks surfaced up front on the "Quick Add" tab.
+    // "Elements" (below) lists everything else in the catalog; "Sections"
+    // is Locked CMS's real blank-container behavior — see createBlankSection.
+    var QUICK_ADD_KEYS = ['headline','image','button','testimonial','faq','pricing','cta_banner','video'];
 
     /* ---------- Elements ---------- */
     var editor = document.getElementById('cmx-editor');
@@ -540,11 +638,16 @@ document.addEventListener('DOMContentLoaded', function () {
     var statusText = document.getElementById('cmx-status-text');
     var publishBtn = document.getElementById('cmx-publish');
     var publishLabel = document.getElementById('cmx-publish-label');
+    var draftPill = document.querySelector('.cmx-draft-pill');
     var undoBtn = document.getElementById('cmx-undo');
     var redoBtn = document.getElementById('cmx-redo');
     var deviceEl = document.getElementById('cmx-device');
-    var deviceSize = document.getElementById('cmx-device-size');
     var stage = document.getElementById('cmx-stage');
+    var propertiesIdle = document.getElementById('cmx-properties-idle');
+    var propertiesBody = document.getElementById('cmx-properties-body');
+    var propertiesTitle = document.getElementById('cmx-properties-title');
+    var propertiesGeneral = document.getElementById('cmx-properties-general');
+    var propertiesStyles = document.getElementById('cmx-properties-styles');
 
     /* ---------- Layout ---------- */
     function sizeEditor() {
@@ -625,7 +728,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function applySnapshot(json) {
         state = JSON.parse(json);
         if (!Array.isArray(state._hidden)) state._hidden = [];
-        renderSidebar();
+        renderLayers();
+        if (selectedSectionId) selectSection(selectedSectionId);
         pushAllToPreview();
         markDirty();
     }
@@ -695,12 +799,21 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+    function sectionMetaMap() {
+        var map = {};
+        (schema.sections || []).forEach(function (section) {
+            map[section.id] = { label: section.label || section.id, isBlock: !!section.is_block };
+        });
+        return map;
+    }
     function syncFrameState() {
         postToFrame({ type: 'cms-mode', mode: mode });
+        postToFrame({ type: 'cms-section-meta', sections: sectionMetaMap() });
         (schema.sections || []).forEach(function (section) {
             var hidden = (state._hidden || []).indexOf(section.id) !== -1;
             postToFrame({ type: 'cms-section-visibility', sectionId: section.id, hidden: hidden });
         });
+        postToFrame({ type: 'cms-select-section', sectionId: selectedSectionId });
     }
     function refreshPreview(preserveScroll) {
         var scrollY = 0;
@@ -732,6 +845,16 @@ document.addEventListener('DOMContentLoaded', function () {
             syncFrameState();
         } else if (data.type === 'cms-element-selected') {
             focusFieldRow(data.fieldId);
+        } else if (data.type === 'cms-section-selected') {
+            selectSection(data.sectionId, data.focusFieldId);
+        } else if (data.type === 'cms-block-action') {
+            if (data.action === 'move-up') moveSection(data.sectionId, -1);
+            else if (data.action === 'move-down') moveSection(data.sectionId, 1);
+            else if (data.action === 'duplicate') duplicateSection(data.sectionId);
+            else if (data.action === 'remove') removeSection(data.sectionId);
+        } else if (data.type === 'cms-add-inside') {
+            if (data.parentId) selectSection(data.parentId);
+            openAddSectionModal(data.parentId || null);
         } else if (data.type === 'cms-annotate-request') {
             openAnnotateModal(data);
         }
@@ -761,13 +884,21 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.classList.add('active');
         var device = btn.getAttribute('data-device');
         deviceEl.className = 'cmx-device' + (device === 'desktop' ? '' : ' ' + device);
-        deviceSize.textContent = device === 'tablet' ? '768px' : device === 'mobile' ? '390px' : '100%';
     });
 
-    /* ---------- Sidebar rendering ---------- */
-    function renderSidebar() {
+    /* ---------- Layers panel ---------- */
+    var SITE_GROUPS = ['footer', 'navigation', 'nav', 'header'];
+    function layerIcon(section) {
+        if (section.id === 'brand') return 'fa-palette';
+        if (section.is_container) return 'fa-square-plus';
+        if (section.is_block) return 'fa-layer-group';
+        return 'fa-window-maximize';
+    }
+    function renderLayers() {
         sectionsWrap.innerHTML = '';
-        var sections = schema.sections || [];
+        // Children of a blank section live inside its own Properties panel
+        // (see buildContainerChildren) rather than cluttering this flat list.
+        var sections = (schema.sections || []).filter(function (s) { return !s.parent_id; });
         if (!sections.length) {
             var empty = document.createElement('div');
             empty.className = 'cmx-empty';
@@ -775,100 +906,426 @@ document.addEventListener('DOMContentLoaded', function () {
             sectionsWrap.appendChild(empty);
             return;
         }
-        sections.forEach(function (section, idx) {
-            sectionsWrap.appendChild(buildSection(section, idx === 0));
-        });
+        var theme = sections.filter(function (s) { return s.id === 'brand'; });
+        var site = sections.filter(function (s) { return s.id !== 'brand' && SITE_GROUPS.indexOf((s.group || '').toLowerCase()) !== -1; });
+        var rest = sections.filter(function (s) { return theme.indexOf(s) === -1 && site.indexOf(s) === -1; });
+        function addGroup(label, list) {
+            if (!list.length) return;
+            var heading = document.createElement('div');
+            heading.className = 'cmx-group-label';
+            heading.textContent = label;
+            sectionsWrap.appendChild(heading);
+            list.forEach(function (section) { sectionsWrap.appendChild(buildLayerRow(section)); });
+        }
+        addGroup('Theme', theme);
+        addGroup('Site', site);
+        addGroup('Sections', rest);
         applySearchFilter();
     }
 
-    function buildSection(section, openByDefault) {
+    function buildLayerRow(section) {
         var isHidden = (state._hidden || []).indexOf(section.id) !== -1;
-        var wrap = document.createElement('div');
-        wrap.className = 'cmx-section' + (openByDefault ? ' open' : '') + (isHidden ? ' hidden-section' : '');
-        wrap.dataset.sectionId = section.id;
+        var row = document.createElement('div');
+        row.className = 'cmx-layer-row' + (isHidden ? ' hidden-section' : '') + (section.id === selectedSectionId ? ' active' : '');
+        row.dataset.sectionId = section.id;
+        row.dataset.search = ((section.label || '') + ' ' + section.id).toLowerCase();
+        row.innerHTML =
+            '<span class="cmx-layer-icon"><i class="fas ' + layerIcon(section) + '"></i></span>' +
+            '<span class="cmx-layer-label"></span>';
+        row.querySelector('.cmx-layer-label').textContent = section.label || section.id;
+        row.addEventListener('click', function () { selectSection(section.id); });
+        return row;
+    }
 
+    /* ---------- Search ---------- */
+    var searchInput = document.getElementById('cmx-search-input');
+    searchInput.addEventListener('input', applySearchFilter);
+    function applySearchFilter() {
+        var query = (searchInput.value || '').trim().toLowerCase();
+        sectionsWrap.querySelectorAll('.cmx-layer-row').forEach(function (row) {
+            row.hidden = !!query && row.dataset.search.indexOf(query) === -1;
+        });
+        sectionsWrap.querySelectorAll('.cmx-group-label').forEach(function (heading) {
+            var next = heading.nextElementSibling;
+            var anyVisible = false;
+            while (next && !next.classList.contains('cmx-group-label')) {
+                if (!next.hidden) anyVisible = true;
+                next = next.nextElementSibling;
+            }
+            heading.style.display = anyVisible ? '' : 'none';
+        });
+    }
+
+    /* ---------- Selection & Properties panel ---------- */
+    function findSectionSchema(id) {
+        return (schema.sections || []).find(function (s) { return s.id === id; }) || null;
+    }
+
+    function selectSection(sectionId, focusFieldId) {
+        var section = findSectionSchema(sectionId);
+        if (!section) { clearSelection(); return; }
+        selectedSectionId = sectionId;
+        sectionsWrap.querySelectorAll('.cmx-layer-row').forEach(function (row) {
+            row.classList.toggle('active', row.dataset.sectionId === sectionId);
+        });
+        renderProperties(section);
+        postToFrame({ type: 'cms-select-section', sectionId: sectionId });
+        if (focusFieldId) focusFieldRow(focusFieldId);
+    }
+
+    function clearSelection() {
+        selectedSectionId = null;
+        sectionsWrap.querySelectorAll('.cmx-layer-row').forEach(function (row) { row.classList.remove('active'); });
+        propertiesIdle.hidden = false;
+        propertiesBody.hidden = true;
+        postToFrame({ type: 'cms-select-section', sectionId: null });
+    }
+    document.getElementById('cmx-properties-close').addEventListener('click', clearSelection);
+
+    document.querySelectorAll('.cmx-properties-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () { switchPropertiesTab(tab.getAttribute('data-tab')); });
+    });
+    function switchPropertiesTab(name) {
+        document.querySelectorAll('.cmx-properties-tab').forEach(function (t) {
+            t.classList.toggle('active', t.getAttribute('data-tab') === name);
+        });
+        propertiesGeneral.hidden = name !== 'general';
+        propertiesStyles.hidden = name !== 'styles';
+    }
+
+    function renderProperties(section) {
+        propertiesIdle.hidden = true;
+        propertiesBody.hidden = false;
+        propertiesTitle.textContent = section.label || section.id;
+        switchPropertiesTab('general');
+        propertiesGeneral.innerHTML = '';
+        propertiesGeneral.appendChild(buildPropertiesGeneral(section));
+        propertiesStyles.innerHTML = '';
+        propertiesStyles.appendChild(buildPropertiesStyles(section));
+    }
+
+    function buildPropertiesGeneral(section) {
+        var wrap = document.createElement('div');
+
+        if (section.parent_id) {
+            var parent = findSectionSchema(section.parent_id);
+            var back = document.createElement('button');
+            back.type = 'button';
+            back.className = 'cmx-as-back';
+            back.innerHTML = '<i class="fas fa-arrow-left"></i> ';
+            back.appendChild(document.createTextNode('Back to ' + (parent ? (parent.label || parent.id) : 'section')));
+            back.addEventListener('click', function () { selectSection(section.parent_id); });
+            wrap.appendChild(back);
+        }
+
+        var fields = section.fields || [];
+        var featuredImage = fields.find(function (f) { return f.type === 'image'; }) || null;
+
+        if (featuredImage) wrap.appendChild(buildPhotoBlock(featuredImage, section));
+
+        var hint = document.createElement('div');
+        hint.className = 'cmx-properties-hint';
+        hint.innerHTML = section.is_container
+            ? '<i class="fas fa-circle-info"></i><span>This is a blank section — add blocks to it below.</span>'
+            : '<i class="fas fa-circle-info"></i><span>Edit the fields below — the preview updates live as you type.</span>';
+        wrap.appendChild(hint);
+
+        var group = document.createElement('div');
+        group.className = 'cmx-fieldgroup';
         var head = document.createElement('div');
-        head.className = 'cmx-section-head';
-        head.innerHTML =
-            '<span class="cmx-sec-icon"><i class="fas ' + (ICONS[section.icon] || 'fa-window-maximize') + '"></i></span>' +
-            '<span class="cmx-sec-label"></span>' +
-            '<span class="cmx-sec-count">' + (section.fields || []).length + '</span>';
-        head.querySelector('.cmx-sec-label').textContent = section.label || section.id;
+        head.className = 'cmx-fieldgroup-head';
+        var badge = document.createElement('span');
+        badge.className = 'cmx-fieldgroup-count';
+        if (section.is_container) {
+            var childCount = section.child_count || 0;
+            badge.textContent = childCount + ' block' + (childCount === 1 ? '' : 's');
+        } else {
+            badge.textContent = fields.length + ' field' + (fields.length === 1 ? '' : 's');
+        }
+        head.appendChild(badge);
 
         if (section.id !== 'brand') {
+            var isHidden = (state._hidden || []).indexOf(section.id) !== -1;
             var eye = document.createElement('button');
             eye.type = 'button';
             eye.className = 'cmx-icon-btn';
             eye.title = isHidden ? 'Show section on the live page' : 'Hide section from the live page';
             eye.innerHTML = '<i class="fas ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
-            eye.addEventListener('click', function (ev) {
-                ev.stopPropagation();
-                snapshot();
-                var list = state._hidden || (state._hidden = []);
-                var pos = list.indexOf(section.id);
-                var nowHidden = pos === -1;
-                if (nowHidden) list.push(section.id); else list.splice(pos, 1);
-                wrap.classList.toggle('hidden-section', nowHidden);
-                eye.innerHTML = '<i class="fas ' + (nowHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
-                eye.title = nowHidden ? 'Show section on the live page' : 'Hide section from the live page';
-                postToFrame({ type: 'cms-section-visibility', sectionId: section.id, hidden: nowHidden });
-                markDirty();
-            });
+            eye.addEventListener('click', function () { toggleSectionVisibility(section.id); });
             head.appendChild(eye);
         }
+        if (section.is_block) {
+            var controls = document.createElement('span');
+            controls.className = 'cmx-block-controls';
+            var mkBtn = function (icon, title, handler) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'cmx-icon-btn';
+                b.title = title;
+                b.innerHTML = '<i class="fas ' + icon + '"></i>';
+                b.addEventListener('click', handler);
+                return b;
+            };
+            controls.appendChild(mkBtn('fa-arrow-up', 'Move up', function () { moveSection(section.id, -1); }));
+            controls.appendChild(mkBtn('fa-arrow-down', 'Move down', function () { moveSection(section.id, 1); }));
+            controls.appendChild(mkBtn('fa-copy', 'Duplicate', function () { duplicateSection(section.id); }));
+            controls.appendChild(mkBtn('fa-trash', 'Remove section', function () { removeSection(section.id); }));
+            head.appendChild(controls);
+        }
+        group.appendChild(head);
 
-        var chev = document.createElement('i');
-        chev.className = 'fas fa-chevron-down cmx-sec-chevron';
-        head.appendChild(chev);
-        head.addEventListener('click', function () { wrap.classList.toggle('open'); });
-        wrap.appendChild(head);
-
-        var body = document.createElement('div');
-        body.className = 'cmx-section-body';
-        (section.fields || []).forEach(function (field) { body.appendChild(buildField(field)); });
-        wrap.appendChild(body);
+        if (section.is_container) {
+            group.appendChild(buildContainerChildren(section));
+        } else {
+            fields.forEach(function (field) {
+                if (field === featuredImage) return;
+                group.appendChild(buildPropertyField(field));
+            });
+        }
+        wrap.appendChild(group);
         return wrap;
     }
 
-    function buildField(field) {
-        var row = document.createElement('div');
-        row.className = 'cmx-field';
-        row.dataset.fieldId = field.id;
-        row.dataset.search = ((field.label || '') + ' ' + field.id).toLowerCase();
+    function buildContainerChildren(section) {
+        var wrap = document.createElement('div');
+        wrap.className = 'cmx-container-children';
+        var children = (schema.sections || []).filter(function (s) { return s.parent_id === section.id; });
+        if (!children.length) {
+            var empty = document.createElement('div');
+            empty.className = 'cmx-empty';
+            empty.innerHTML = '<i class="fas fa-layer-group"></i>This section is empty.';
+            wrap.appendChild(empty);
+        } else {
+            children.forEach(function (child) {
+                var row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'cmx-container-child-row';
+                row.innerHTML = '<span><i class="fas fa-grip-lines"></i> ' + (child.label || child.id) + '</span><i class="fas fa-chevron-right"></i>';
+                row.addEventListener('click', function () { selectSection(child.id); });
+                wrap.appendChild(row);
+            });
+        }
+        var addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'cmx-btn cmx-btn-block cmx-container-add';
+        addBtn.innerHTML = '<i class="fas fa-plus"></i> Add block';
+        addBtn.addEventListener('click', function () { openAddSectionModal(section.id); });
+        wrap.appendChild(addBtn);
+        return wrap;
+    }
 
-        var head = document.createElement('div');
-        head.className = 'cmx-field-head';
-        var label = document.createElement('label');
-        label.textContent = field.label || field.id;
-        head.appendChild(label);
-        var badge = document.createElement('span');
-        badge.className = 'cmx-type-badge';
-        badge.textContent = TYPE_LABEL[field.type] || field.type;
-        head.appendChild(badge);
+    function toggleSectionVisibility(sectionId) {
+        snapshot();
+        var list = state._hidden || (state._hidden = []);
+        var pos = list.indexOf(sectionId);
+        var nowHidden = pos === -1;
+        if (nowHidden) list.push(sectionId); else list.splice(pos, 1);
+        postToFrame({ type: 'cms-section-visibility', sectionId: sectionId, hidden: nowHidden });
+        markDirty();
+        renderLayers();
+        var section = findSectionSchema(sectionId);
+        if (section && selectedSectionId === sectionId) renderProperties(section);
+    }
 
-        var tools = document.createElement('span');
-        tools.className = 'cmx-field-tools';
+    function buildPhotoBlock(field, section) {
+        var wrap = document.createElement('div');
+        wrap.className = 'cmx-photo-block';
+        var h = document.createElement('h4');
+        h.textContent = 'Photo';
+        wrap.appendChild(h);
+        var thumb = document.createElement('div');
+        thumb.className = 'cmx-img-thumb';
+        updateThumb(thumb, getValue(field.id));
+
+        var fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        function uploadFile(file) {
+            if (!file) return;
+            thumb.classList.add('uploading');
+            var fd = new FormData();
+            fd.append('file', file);
+            api(URLS.upload, fd, false).then(function (data) {
+                thumb.classList.remove('uploading');
+                if (data.success && data.url) {
+                    updateThumb(thumb, data.url);
+                    setFieldValue(field, data.url);
+                    toast('Image uploaded', 'success');
+                } else toast(data.error || 'Upload failed', 'error');
+            }).catch(function () { thumb.classList.remove('uploading'); toast('Upload failed', 'error'); });
+        }
+        thumb.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () { uploadFile(fileInput.files[0]); });
+        ['dragover', 'dragenter'].forEach(function (evt) {
+            thumb.addEventListener(evt, function (ev) { ev.preventDefault(); thumb.classList.add('dragover'); });
+        });
+        ['dragleave', 'drop'].forEach(function (evt) {
+            thumb.addEventListener(evt, function (ev) { ev.preventDefault(); thumb.classList.remove('dragover'); });
+        });
+        thumb.addEventListener('drop', function (ev) {
+            if (ev.dataTransfer.files && ev.dataTransfer.files[0]) uploadFile(ev.dataTransfer.files[0]);
+        });
+        wrap.appendChild(thumb);
+        wrap.appendChild(fileInput);
+
+        var actions = document.createElement('div');
+        actions.className = 'cmx-photo-actions';
+        var uploadBtn = document.createElement('button');
+        uploadBtn.type = 'button';
+        uploadBtn.className = 'cmx-btn cmx-btn-primary cmx-btn-sm';
+        uploadBtn.textContent = 'Upload';
+        uploadBtn.addEventListener('click', function () { fileInput.click(); });
+        var urlBtn = document.createElement('button');
+        urlBtn.type = 'button';
+        urlBtn.className = 'cmx-btn cmx-btn-sm';
+        urlBtn.textContent = 'Paste URL…';
+        urlBtn.addEventListener('click', function () {
+            var url = prompt('Image URL', getValue(field.id) || 'https://');
+            if (url === null) return;
+            updateThumb(thumb, url.trim());
+            setFieldValue(field, url.trim());
+        });
+        actions.appendChild(uploadBtn);
+        actions.appendChild(urlBtn);
+        wrap.appendChild(actions);
+
+        var note = document.createElement('p');
+        note.className = 'cmx-photo-hint';
+        note.textContent = 'This is the picture in ' + (section.label || section.id) + '.';
+        wrap.appendChild(note);
+        return wrap;
+    }
+
+    function buildPropertiesStyles(section) {
+        var wrap = document.createElement('div');
+        wrap.className = 'cmx-styles-pane';
+        if (section.is_block) {
+            var label = document.createElement('label');
+            label.className = 'cmx-label';
+            label.textContent = 'Section width';
+            wrap.appendChild(label);
+            var select = document.createElement('select');
+            select.className = 'cmx-input';
+            WIDTH_OPTIONS.forEach(function (opt) {
+                var o = document.createElement('option');
+                o.value = opt.value;
+                o.textContent = opt.label;
+                select.appendChild(o);
+            });
+            select.value = section.block_width || 'full';
+            select.addEventListener('change', function () {
+                api(URLS.setBlockWidth, { instance_id: section.id, width: select.value }).then(function (data) {
+                    if (!data.success) { toast(data.error || 'Could not update width', 'error'); return; }
+                    applyBlockResponse(data);
+                    selectSection(section.id);
+                    switchPropertiesTab('styles');
+                    refreshPreview(true);
+                }).catch(function () { toast('Could not update width', 'error'); });
+            });
+            wrap.appendChild(select);
+            var hint = document.createElement('p');
+            hint.className = 'cmx-hint';
+            hint.style.marginTop = '8px';
+            hint.textContent = 'How wide this section sits on the page — the same choice offered when you added it.';
+            wrap.appendChild(hint);
+        } else {
+            var note = document.createElement('div');
+            note.className = 'cmx-styles-note';
+            note.textContent = "This section's width and layout come from your page template, not from a section instance, so there's nothing to adjust here yet.";
+            wrap.appendChild(note);
+        }
+        return wrap;
+    }
+
+    function buildPropertyField(field) {
+        var det = document.createElement('details');
+        det.className = 'cmx-propfield';
+        det.open = true;
+        det.dataset.fieldId = field.id;
+
+        var summary = document.createElement('summary');
+        summary.className = 'cmx-propfield-summary';
+        summary.innerHTML =
+            '<i class="fas fa-pen cmx-propfield-pencil"></i>' +
+            '<span class="cmx-propfield-label"></span>' +
+            '<span class="cmx-propfield-hint">edit on page</span>';
+        summary.querySelector('.cmx-propfield-label').textContent = field.label || field.id;
+        summary.querySelector('.cmx-propfield-hint').addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            det.open = true;
+            postToFrame({ type: 'cms-field-focus', fieldId: field.id });
+            flashPropertyField(field.id);
+        });
+
         var resetBtn = document.createElement('button');
         resetBtn.type = 'button';
         resetBtn.className = 'cmx-icon-btn';
         resetBtn.title = 'Reset to original';
         resetBtn.innerHTML = '<i class="fas fa-undo-alt"></i>';
-        resetBtn.addEventListener('click', function () { setFieldValue(field, field.default || '', true); });
-        tools.appendChild(resetBtn);
+        resetBtn.addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setFieldValue(field, field.default || '', true); });
+        summary.appendChild(resetBtn);
+
         if (field.id.indexOf('brand.') !== 0) {
             var unlink = document.createElement('button');
             unlink.type = 'button';
             unlink.className = 'cmx-icon-btn';
             unlink.title = 'Remove this editable field';
             unlink.innerHTML = '<i class="fas fa-unlink"></i>';
-            unlink.addEventListener('click', function () { removeAnnotation(field); });
-            tools.appendChild(unlink);
+            unlink.addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); removeAnnotation(field); });
+            summary.appendChild(unlink);
         }
-        head.appendChild(tools);
-        row.appendChild(head);
 
-        row.appendChild(buildControl(field, row));
-        return row;
+        var caret = document.createElement('i');
+        caret.className = 'fas fa-chevron-down cmx-propfield-caret';
+        summary.appendChild(caret);
+        det.appendChild(summary);
+
+        var body = document.createElement('div');
+        body.className = 'cmx-propfield-body';
+        body.dataset.fieldId = field.id;
+        body.appendChild(buildControl(field, body));
+        det.appendChild(body);
+        return det;
+    }
+
+    function flashPropertyField(fieldId) {
+        var det = propertiesGeneral.querySelector('.cmx-propfield[data-field-id="' + fieldId + '"]');
+        if (!det) return;
+        det.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        det.classList.add('flash');
+        setTimeout(function () { det.classList.remove('flash'); }, 1800);
+    }
+
+    function focusFieldRow(fieldId) {
+        if (!fieldId) return;
+        var parts = splitId(fieldId);
+        var sectionId = parts[0];
+        if (selectedSectionId !== sectionId) {
+            var section = findSectionSchema(sectionId);
+            if (!section) return;
+            selectedSectionId = sectionId;
+            sectionsWrap.querySelectorAll('.cmx-layer-row').forEach(function (row) {
+                row.classList.toggle('active', row.dataset.sectionId === sectionId);
+            });
+            renderProperties(section);
+            postToFrame({ type: 'cms-select-section', sectionId: sectionId });
+        }
+        requestAnimationFrame(function () {
+            var det = propertiesGeneral.querySelector('.cmx-propfield[data-field-id="' + fieldId + '"]');
+            if (!det) return;
+            det.open = true;
+            det.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            det.classList.add('flash');
+            setTimeout(function () { det.classList.remove('flash'); }, 1800);
+            var input = det.querySelector('.cmx-main-input');
+            if (input) {
+                suppressFocusMsg = true;
+                input.focus({ preventScroll: true });
+                setTimeout(function () { suppressFocusMsg = false; }, 100);
+            }
+        });
     }
 
     function setFieldValue(field, value, fromReset) {
@@ -879,16 +1336,16 @@ document.addEventListener('DOMContentLoaded', function () {
         pushFieldToPreview(field.id, field.type, value, field.label);
         markDirty();
         if (fromReset) {
-            var row = sectionsWrap.querySelector('[data-field-id="' + field.id + '"]');
-            if (row) {
-                var input = row.querySelector('.cmx-main-input');
+            var body = propertiesGeneral.querySelector('.cmx-propfield-body[data-field-id="' + field.id + '"]');
+            if (body) {
+                var input = body.querySelector('.cmx-main-input');
                 if (input) {
                     if (input.classList.contains('cmx-rte')) input.innerHTML = sanitizeRteHtml(value);
                     else input.value = value;
                 }
-                var thumb = row.querySelector('.cmx-img-thumb');
+                var thumb = body.querySelector('.cmx-img-thumb');
                 if (thumb) updateThumb(thumb, value);
-                var swatch = row.querySelector('input[type=color]');
+                var swatch = body.querySelector('input[type=color]');
                 if (swatch && /^#[0-9a-f]{6}$/i.test(value)) swatch.value = value;
             }
         }
@@ -898,7 +1355,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (url) {
             thumb.style.backgroundImage = 'url("' + url.replace(/"/g, '%22') + '")';
             thumb.classList.add('has-img');
-            thumb.innerHTML = '<span><i class="fas fa-exchange-alt"></i> Replace image</span>';
         } else {
             thumb.style.backgroundImage = '';
             thumb.classList.remove('has-img');
@@ -1023,7 +1479,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 b.className = 'cmx-rte-btn';
                 b.title = tool.title;
                 b.innerHTML = '<i class="fas ' + tool.icon + '"></i>';
-                // mousedown+preventDefault keeps the text selection inside the editor
                 b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
                 b.addEventListener('click', function () { rte.focus(); tool.run(); syncRte(); });
                 toolbar.appendChild(b);
@@ -1038,6 +1493,45 @@ document.addEventListener('DOMContentLoaded', function () {
             attachFocusSync(rte, field);
             wrap.appendChild(toolbar);
             wrap.appendChild(rte);
+
+        } else if (field.type === 'select') {
+            var select = document.createElement('select');
+            select.className = 'cmx-input cmx-main-input';
+            (field.options || []).forEach(function (opt) {
+                var optEl = document.createElement('option');
+                optEl.value = opt.value;
+                optEl.textContent = opt.label;
+                if (opt.value === value) optEl.selected = true;
+                select.appendChild(optEl);
+            });
+            select.addEventListener('change', function () { setFieldValue(field, select.value); });
+            attachFocusSync(select, field);
+            wrap.appendChild(select);
+
+        } else if (field.type === 'embed') {
+            var embedInput = document.createElement('input');
+            embedInput.type = 'url';
+            embedInput.className = 'cmx-input cmx-main-input';
+            embedInput.placeholder = 'https://… embed URL';
+            embedInput.value = value;
+            embedInput.addEventListener('input', function () { setFieldValue(field, embedInput.value); });
+            attachFocusSync(embedInput, field);
+            wrap.appendChild(embedInput);
+
+        } else if (field.type === 'code') {
+            var codeArea = document.createElement('textarea');
+            codeArea.className = 'cmx-input cmx-main-input cmx-code-input';
+            codeArea.spellcheck = false;
+            codeArea.rows = 8;
+            codeArea.placeholder = '<div>Paste HTML or an embed snippet…</div>';
+            codeArea.value = value;
+            codeArea.addEventListener('input', function () { setFieldValue(field, codeArea.value); });
+            attachFocusSync(codeArea, field);
+            var codeHint = document.createElement('div');
+            codeHint.className = 'cmx-code-hint';
+            codeHint.textContent = 'Raw HTML — rendered as-is on the live page. Same trust level as "Custom HTML" landing mode.';
+            wrap.appendChild(codeArea);
+            wrap.appendChild(codeHint);
 
         } else {
             var input = document.createElement('input');
@@ -1073,43 +1567,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     document.body.appendChild(datalist);
 
-    /* ---------- Two-way sync: preview click -> sidebar ---------- */
-    function focusFieldRow(fieldId) {
-        var row = sectionsWrap.querySelector('[data-field-id="' + fieldId + '"]');
-        if (!row) return;
-        var sidebar = document.getElementById('cmx-sidebar');
-        if (sidebar.classList.contains('collapsed')) sidebar.classList.remove('collapsed');
-        var section = row.closest('.cmx-section');
-        if (section && !section.classList.contains('open')) section.classList.add('open');
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        row.classList.add('flash');
-        setTimeout(function () { row.classList.remove('flash'); }, 1800);
-        var input = row.querySelector('.cmx-main-input');
-        if (input) {
-            suppressFocusMsg = true;
-            input.focus({ preventScroll: true });
-            setTimeout(function () { suppressFocusMsg = false; }, 100);
-        }
-    }
-
-    /* ---------- Search ---------- */
-    var searchInput = document.getElementById('cmx-search-input');
-    searchInput.addEventListener('input', applySearchFilter);
-    function applySearchFilter() {
-        var query = (searchInput.value || '').trim().toLowerCase();
-        sectionsWrap.querySelectorAll('.cmx-section').forEach(function (section) {
-            var any = false;
-            section.querySelectorAll('.cmx-field').forEach(function (row) {
-                var match = !query || row.dataset.search.indexOf(query) !== -1;
-                row.style.display = match ? '' : 'none';
-                if (match) any = true;
-            });
-            section.style.display = any ? '' : 'none';
-            if (query && any) section.classList.add('open');
-        });
-    }
-
-    /* ---------- Annotate flow ---------- */
+    /* ---------- Modals (generic) ---------- */
     function openModal(id) { document.getElementById(id).classList.add('show'); }
     function closeModal(id) { document.getElementById(id).classList.remove('show'); }
     document.querySelectorAll('[data-close-modal]').forEach(function (btn) {
@@ -1119,6 +1577,7 @@ document.addEventListener('DOMContentLoaded', function () {
         backdrop.addEventListener('click', function (ev) { if (ev.target === backdrop) backdrop.classList.remove('show'); });
     });
 
+    /* ---------- Annotate flow ---------- */
     function openAnnotateModal(req) {
         pendingAnnotate = req;
         document.getElementById('cmx-annotate-snippet').textContent = '<' + req.tag + '> ' + (req.snippet || '');
@@ -1144,13 +1603,13 @@ document.addEventListener('DOMContentLoaded', function () {
             schema = data.schema;
             state = mergeDefaults(state, schema.defaults || {});
             if (!Array.isArray(state._hidden)) state._hidden = [];
-            renderSidebar();
+            renderLayers();
             var fieldId = data.field_id;
             var onLoad = function () {
                 frame.removeEventListener('load', onLoad);
                 setTimeout(function () {
                     setMode('edit');
-                    postToFrame({ type: 'cms-field-focus', fieldId: fieldId });
+                    postToFrame({ type: 'cms-section-meta', sections: sectionMetaMap() });
                     focusFieldRow(fieldId);
                 }, 150);
             };
@@ -1167,7 +1626,11 @@ document.addEventListener('DOMContentLoaded', function () {
             schema = data.schema;
             var parts = splitId(field.id);
             if (state[parts[0]]) delete state[parts[0]][parts[1]];
-            renderSidebar();
+            renderLayers();
+            if (selectedSectionId) {
+                var section = findSectionSchema(selectedSectionId);
+                if (section) renderProperties(section); else clearSelection();
+            }
             refreshPreview(true);
             toast('Field removed', 'success');
         }).catch(function () { toast('Could not remove field', 'error'); });
@@ -1243,6 +1706,289 @@ document.addEventListener('DOMContentLoaded', function () {
         }).catch(function () { btn.disabled = false; btn.innerHTML = originalHtml; toast('Import failed', 'error'); });
     });
 
+    /* ---------- Blocks (add / remove / duplicate / reorder curated sections) ---------- */
+    function applyBlockResponse(data) {
+        schema = data.schema;
+        state = mergeDefaults(data.content || {}, schema.defaults || {});
+        if (!Array.isArray(state._hidden)) state._hidden = [];
+        renderLayers();
+        postToFrame({ type: 'cms-section-meta', sections: sectionMetaMap() });
+        setStatus('saved', 'All changes saved');
+    }
+
+    /* ---------- Add A Section modal ----------
+       "Sections" is Locked CMS's real behavior: pick a width, get a BLANK
+       section, then fill it in with blocks afterward (see buildContainerBody
+       below for the "+ Add block" that appears inside it). It's not a picker
+       of pre-made content — "Quick Add" and "Elements" cover that instead.
+       When opened from inside a container's own Properties panel (via its
+       "+ Add block" button), the modal is scoped to that one section: the
+       Sections/Rows tabs are hidden (you can't nest a blank section, or a
+       width-picked one, inside another section) and picks land in that
+       container's children instead of the page. */
+    var asNav = document.getElementById('cmx-as-nav');
+    var asMain = document.getElementById('cmx-as-main');
+    var asTitle = document.getElementById('cmx-as-title');
+    var NAV_TITLES = { quick: 'Quick Add', sections: 'Add A Section', elements: 'Add An Element', rows: 'Add A Row' };
+    var currentNav = 'quick';
+    var addTargetParentId = null; // set => the modal adds INTO this container's children instead of the page
+
+    function catalogByKey(key) {
+        return blockPalette.find(function (b) { return b.key === key; }) || null;
+    }
+
+    asNav.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('.cmx-as-nav-item');
+        if (!btn || btn.hidden) return;
+        currentNav = btn.getAttribute('data-nav');
+        renderAddSection();
+    });
+
+    document.getElementById('cmx-add-section-open').addEventListener('click', function () {
+        openAddSectionModal(null);
+    });
+
+    function openAddSectionModal(parentId) {
+        addTargetParentId = parentId || null;
+        currentNav = addTargetParentId ? 'elements' : 'quick';
+        asNav.querySelectorAll('.cmx-as-nav-item').forEach(function (b) {
+            var nav = b.getAttribute('data-nav');
+            b.hidden = !!addTargetParentId && (nav === 'sections' || nav === 'rows');
+        });
+        renderAddSection();
+        openModal('cmx-addsection-modal');
+    }
+
+    function renderAddSection() {
+        asNav.querySelectorAll('.cmx-as-nav-item').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-nav') === currentNav);
+        });
+        asTitle.textContent = addTargetParentId ? 'Add A Block' : (NAV_TITLES[currentNav] || 'Add A Section');
+        asMain.innerHTML = '';
+
+        if (currentNav === 'rows') {
+            var empty = document.createElement('div');
+            empty.className = 'cmx-empty';
+            empty.innerHTML = '<i class="fas fa-table-columns"></i>Multi-column layouts aren\'t available yet — coming soon.';
+            asMain.appendChild(empty);
+            return;
+        }
+
+        if (currentNav === 'sections') {
+            renderWidthPicker();
+            return;
+        }
+
+        var keys = (currentNav === 'quick' ? QUICK_ADD_KEYS : blockPalette.map(function (b) { return b.key; }))
+            .filter(function (k) { return k !== 'container'; });
+        renderBlockGrid(keys);
+    }
+
+    function renderWidthPicker() {
+        var hint = document.createElement('p');
+        hint.className = 'cmx-as-hint';
+        hint.textContent = 'How wide should this section sit on the page? It starts blank — you add blocks to it next.';
+        asMain.appendChild(hint);
+        var grid = document.createElement('div');
+        grid.className = 'cmx-width-grid';
+        WIDTH_OPTIONS.forEach(function (opt) {
+            var card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'cmx-width-card';
+            card.setAttribute('data-size', opt.value);
+            card.innerHTML =
+                '<span class="cmx-width-art"><span class="cmx-width-page"><i class="cmx-width-band"></i></span></span>' +
+                '<span class="cmx-width-label"></span>';
+            card.querySelector('.cmx-width-label').textContent = opt.label;
+            card.addEventListener('click', function () { createBlankSection(opt.value); });
+            grid.appendChild(card);
+        });
+        asMain.appendChild(grid);
+    }
+
+    function renderBlockGrid(keys) {
+        var search = document.createElement('div');
+        search.className = 'cmx-as-search';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'cmx-input';
+        input.placeholder = 'Search…';
+        search.appendChild(input);
+        asMain.appendChild(search);
+
+        var grid = document.createElement('div');
+        grid.className = 'cmx-block-grid';
+        asMain.appendChild(grid);
+
+        function draw(filterText) {
+            grid.innerHTML = '';
+            var items = keys.map(catalogByKey).filter(Boolean);
+            if (filterText) {
+                var q = filterText.toLowerCase();
+                items = items.filter(function (b) { return b.label.toLowerCase().indexOf(q) !== -1; });
+            }
+            if (!items.length) {
+                grid.innerHTML = '<div class="cmx-empty" style="grid-column:1/-1;">No matches.</div>';
+                return;
+            }
+            items.forEach(function (b) {
+                var card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'cmx-block-card';
+                card.innerHTML =
+                    '<span class="cmx-block-card-title"><i class="fas fa-' + (b.icon || 'square') + '"></i> ' + b.label + '</span>' +
+                    '<span class="cmx-block-card-meta">' + b.category + ' &middot; ' + b.field_count + ' field' + (b.field_count === 1 ? '' : 's') + '</span>';
+                card.addEventListener('click', function () {
+                    if (addTargetParentId) addChildBlockInstance(addTargetParentId, b.key);
+                    else addBlockInstance(b.key, null);
+                });
+                grid.appendChild(card);
+            });
+        }
+        draw('');
+        input.addEventListener('input', function () { draw(input.value.trim()); });
+    }
+
+    function createBlankSection(width) {
+        closeModal('cmx-addsection-modal');
+        api(URLS.addBlock, { block_key: 'container', width: width || null }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not add section', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            var newId = data.instance_id;
+            var onLoad = function () {
+                frame.removeEventListener('load', onLoad);
+                setTimeout(function () { if (newId) selectSection(newId); }, 150);
+            };
+            frame.addEventListener('load', onLoad);
+            toast('Blank section added — click “+ Add Section” to fill it in.', 'success');
+        }).catch(function () { toast('Could not add section', 'error'); });
+    }
+
+    function addBlockInstance(key, width) {
+        closeModal('cmx-addsection-modal');
+        api(URLS.addBlock, { block_key: key, width: width || null }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not add section', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            var newId = data.instance_id;
+            var onLoad = function () {
+                frame.removeEventListener('load', onLoad);
+                setTimeout(function () { if (newId) selectSection(newId); }, 150);
+            };
+            frame.addEventListener('load', onLoad);
+            toast('Section added — edit it in the Properties panel.', 'success');
+        }).catch(function () { toast('Could not add section', 'error'); });
+    }
+
+    function addChildBlockInstance(parentId, key) {
+        closeModal('cmx-addsection-modal');
+        api(URLS.addChildBlock, { parent_id: parentId, block_key: key }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not add block', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            var newId = data.instance_id;
+            var onLoad = function () {
+                frame.removeEventListener('load', onLoad);
+                setTimeout(function () { if (newId) selectSection(newId); }, 150);
+            };
+            frame.addEventListener('load', onLoad);
+            toast('Block added.', 'success');
+        }).catch(function () { toast('Could not add block', 'error'); });
+    }
+
+    function removeBlockInstance(instanceId) {
+        if (!confirm('Remove this section from the page? This cannot be undone.')) return;
+        api(URLS.removeBlock, { instance_id: instanceId }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not remove section', 'error'); return; }
+            if (selectedSectionId === instanceId) clearSelection();
+            applyBlockResponse(data);
+            refreshPreview(true);
+            toast('Section removed', 'success');
+        }).catch(function () { toast('Could not remove section', 'error'); });
+    }
+
+    function duplicateBlockInstance(instanceId) {
+        api(URLS.duplicateBlock, { instance_id: instanceId }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not duplicate section', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            toast('Section duplicated', 'success');
+        }).catch(function () { toast('Could not duplicate section', 'error'); });
+    }
+
+    function moveBlockInstance(instanceId, direction) {
+        var blockIds = (schema.sections || []).filter(function (s) { return s.is_block && !s.parent_id; }).map(function (s) { return s.id; });
+        var idx = blockIds.indexOf(instanceId);
+        var swapWith = idx + direction;
+        if (idx === -1 || swapWith < 0 || swapWith >= blockIds.length) return;
+        var tmp = blockIds[idx]; blockIds[idx] = blockIds[swapWith]; blockIds[swapWith] = tmp;
+        api(URLS.reorderBlocks, { order: blockIds }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not reorder sections', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            if (selectedSectionId === instanceId) selectSection(instanceId);
+        }).catch(function () { toast('Could not reorder sections', 'error'); });
+    }
+
+    /* ---------- Child (nested) block instances — one level deep, inside a
+       blank "container" section only. See buildContainerChildren for the UI
+       that calls these, and moveSection/duplicateSection/removeSection below
+       for the dispatch that picks these over the top-level functions above. */
+    function removeChildBlockInstance(parentId, childId) {
+        if (!confirm('Remove this block? This cannot be undone.')) return;
+        api(URLS.removeChildBlock, { parent_id: parentId, child_id: childId }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not remove block', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            if (selectedSectionId === childId || selectedSectionId === parentId) selectSection(parentId);
+            toast('Block removed', 'success');
+        }).catch(function () { toast('Could not remove block', 'error'); });
+    }
+
+    function duplicateChildBlockInstance(parentId, childId) {
+        api(URLS.duplicateChildBlock, { parent_id: parentId, child_id: childId }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not duplicate block', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            if (selectedSectionId === parentId) selectSection(parentId);
+            toast('Block duplicated', 'success');
+        }).catch(function () { toast('Could not duplicate block', 'error'); });
+    }
+
+    function moveChildBlockInstance(parentId, childId, direction) {
+        var childIds = (schema.sections || []).filter(function (s) { return s.parent_id === parentId; }).map(function (s) { return s.id; });
+        var idx = childIds.indexOf(childId);
+        var swapWith = idx + direction;
+        if (idx === -1 || swapWith < 0 || swapWith >= childIds.length) return;
+        var tmp = childIds[idx]; childIds[idx] = childIds[swapWith]; childIds[swapWith] = tmp;
+        api(URLS.reorderChildBlocks, { parent_id: parentId, order: childIds }).then(function (data) {
+            if (!data.success) { toast(data.error || 'Could not reorder blocks', 'error'); return; }
+            applyBlockResponse(data);
+            refreshPreview(true);
+            if (selectedSectionId === childId) selectSection(childId);
+        }).catch(function () { toast('Could not reorder blocks', 'error'); });
+    }
+
+    // Dispatch used by both the on-canvas toolbar (cms-block-action messages)
+    // and the Properties panel's own controls, so neither has to know
+    // whether a section is a top-level block or nested inside a container.
+    function moveSection(sectionId, direction) {
+        var section = findSectionSchema(sectionId);
+        if (section && section.parent_id) moveChildBlockInstance(section.parent_id, sectionId, direction);
+        else moveBlockInstance(sectionId, direction);
+    }
+    function duplicateSection(sectionId) {
+        var section = findSectionSchema(sectionId);
+        if (section && section.parent_id) duplicateChildBlockInstance(section.parent_id, sectionId);
+        else duplicateBlockInstance(sectionId);
+    }
+    function removeSection(sectionId) {
+        var section = findSectionSchema(sectionId);
+        if (section && section.parent_id) removeChildBlockInstance(section.parent_id, sectionId);
+        else removeBlockInstance(sectionId);
+    }
+
     /* ---------- Reset / publish ---------- */
     document.getElementById('cmx-reset-template').addEventListener('click', function () {
         if (!confirm('Reset to the default template? Your imported HTML and all edits will be lost.')) return;
@@ -1259,20 +2005,21 @@ document.addEventListener('DOMContentLoaded', function () {
             publishBtn.disabled = false;
             if (data && data.success) {
                 publishLabel.textContent = 'Published';
+                if (draftPill) { draftPill.textContent = 'Published'; draftPill.classList.add('published'); }
                 toast('Landing page published — it is now live.', 'success');
             } else {
-                publishLabel.textContent = 'Publish';
+                publishLabel.textContent = 'Publish page';
                 toast((data && data.error) || 'Publish failed', 'error');
             }
         }).catch(function () {
             publishBtn.disabled = false;
-            publishLabel.textContent = 'Publish';
+            publishLabel.textContent = 'Publish page';
             toast('Publish failed', 'error');
         });
     });
 
     /* ---------- Init ---------- */
-    renderSidebar();
+    renderLayers();
     frameLoading.classList.add('show');
 });
 </script>

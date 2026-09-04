@@ -8059,15 +8059,17 @@ def dashboard_landing_cms_editor(request):
         config.save(update_fields=['features', 'updated_at'])
 
     template_html = _ensure_landing_cms_template(config, tenant)
-    from myApp.cms.parser import build_schema
+    from myApp.cms.blocks import build_schema_with_blocks, palette as block_palette
     from myApp.cms.storage import get_landing_cms_content
-    schema = build_schema(template_html)
+    landing_content = get_landing_cms_content(config)
+    schema = build_schema_with_blocks(template_html, landing_content)
     saved_custom_html = (custom_pages.get('landing_html') or '').strip()
     return render(request, 'dashboard/cms_landing_editor.html', {
         'tenant': tenant,
         'branding': get_tenant_branding(tenant),
         'schema': schema,
-        'content': get_landing_cms_content(config),
+        'content': landing_content,
+        'block_palette': block_palette(),
         'published': custom_pages.get('landing_cms_published', False),
         'tenant_site_url': get_tenant_public_home_url(request, tenant),
         'has_saved_custom_html': bool(saved_custom_html),
@@ -8102,12 +8104,10 @@ def dashboard_landing_cms_preview(request):
     tenant, config, error = _landing_cms_tenant_config(request)
     if error:
         return error
-    from myApp.cms.parser import build_schema
-    from myApp.cms.renderer import merge_with_defaults, render_site
-    from myApp.cms.storage import get_landing_cms_content, get_landing_cms_template_html
+    from myApp.cms.blocks import render_with_blocks
+    from myApp.cms.storage import get_landing_cms_content
 
     template_html = _ensure_landing_cms_template(config, tenant)
-    schema = build_schema(template_html)
     if request.method == 'POST':
         try:
             payload = json.loads(request.body.decode('utf-8') or '{}')
@@ -8116,11 +8116,10 @@ def dashboard_landing_cms_preview(request):
         content = payload.get('content') if isinstance(payload.get('content'), dict) else get_landing_cms_content(config)
     else:
         content = get_landing_cms_content(config)
-    merged = merge_with_defaults(content, schema.get('defaults'))
     branding = get_tenant_branding(tenant)
-    html = render_site(
+    html = render_with_blocks(
         template_html,
-        merged,
+        content,
         preview=True,
         site_settings={'title': branding.get('brand_name', tenant.name)},
     )
@@ -8142,6 +8141,241 @@ def dashboard_landing_cms_publish(request):
     set_landing_cms_published(config, True)
     config.save(update_fields=['features', 'updated_at'])
     return JsonResponse({'success': True, 'published': True})
+
+
+def _landing_cms_block_response(config, tenant, content):
+    """Shared tail for the block-management endpoints: persist content, then
+    return the updated schema + content so the editor can replace its local
+    state with server truth rather than guessing the new structure."""
+    from myApp.cms.blocks import build_schema_with_blocks
+    from myApp.cms.storage import save_landing_cms_content
+
+    save_landing_cms_content(config, content)
+    config.save(update_fields=['features', 'updated_at'])
+    template_html = _ensure_landing_cms_template(config, tenant)
+    schema = build_schema_with_blocks(template_html, content)
+    return JsonResponse({'success': True, 'schema': schema, 'content': content})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_add_block(request):
+    """Add one instance of a curated block to the tenant's landing page.
+    Never touches the tenant's existing template or content beyond appending
+    to content['_blocks'] — see myApp/cms/blocks.py for the safety guarantee."""
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    block_key = (payload.get('block_key') or '').strip()
+    width = (payload.get('width') or '').strip() or None
+    from myApp.cms.blocks import add_block
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    try:
+        instance_id = add_block(content, block_key, width=width)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    response = _landing_cms_block_response(config, tenant, content)
+    response_data = json.loads(response.content.decode('utf-8'))
+    response_data['instance_id'] = instance_id
+    return JsonResponse(response_data)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_remove_block(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    instance_id = (payload.get('instance_id') or '').strip()
+    from myApp.cms.blocks import remove_block
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    remove_block(content, instance_id)
+    return _landing_cms_block_response(config, tenant, content)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_duplicate_block(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    instance_id = (payload.get('instance_id') or '').strip()
+    from myApp.cms.blocks import duplicate_block
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    try:
+        new_id = duplicate_block(content, instance_id)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    if new_id is None:
+        return JsonResponse({'success': False, 'error': 'Block not found.'}, status=404)
+    response = _landing_cms_block_response(config, tenant, content)
+    response_data = json.loads(response.content.decode('utf-8'))
+    response_data['instance_id'] = new_id
+    return JsonResponse(response_data)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_reorder_blocks(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    order = payload.get('order')
+    if not isinstance(order, list):
+        return JsonResponse({'success': False, 'error': 'order must be a list of instance ids.'}, status=400)
+    from myApp.cms.blocks import reorder_blocks
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    reorder_blocks(content, order)
+    return _landing_cms_block_response(config, tenant, content)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_set_block_width(request):
+    """Properties panel > Styles tab: change an already-added section's
+    width (the same Full Width/Wide/Medium/Small choice offered when it was
+    first added)."""
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    instance_id = (payload.get('instance_id') or '').strip()
+    width = (payload.get('width') or '').strip() or None
+    from myApp.cms.blocks import set_block_width
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    if not set_block_width(content, instance_id, width):
+        return JsonResponse({'success': False, 'error': 'Section not found.'}, status=404)
+    return _landing_cms_block_response(config, tenant, content)
+
+
+@staff_member_required
+def dashboard_landing_cms_block_palette(request):
+    """The available block palette for the "Add block" picker (no HTML —
+    just what the picker needs to render cards)."""
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    from myApp.cms.blocks import palette
+    return JsonResponse({'success': True, 'blocks': palette()})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_add_child_block(request):
+    """Add a block INSIDE a "Blank section" container — the second half of
+    the start-blank-then-add-blocks flow. Mirrors dashboard_landing_cms_add_block
+    but scoped to one container instance's own children list."""
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    parent_id = (payload.get('parent_id') or '').strip()
+    block_key = (payload.get('block_key') or '').strip()
+    from myApp.cms.blocks import add_child_block
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    try:
+        instance_id = add_child_block(content, parent_id, block_key)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    response = _landing_cms_block_response(config, tenant, content)
+    response_data = json.loads(response.content.decode('utf-8'))
+    response_data['instance_id'] = instance_id
+    return JsonResponse(response_data)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_remove_child_block(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    parent_id = (payload.get('parent_id') or '').strip()
+    child_id = (payload.get('child_id') or '').strip()
+    from myApp.cms.blocks import remove_child_block
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    remove_child_block(content, parent_id, child_id)
+    return _landing_cms_block_response(config, tenant, content)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_duplicate_child_block(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    parent_id = (payload.get('parent_id') or '').strip()
+    child_id = (payload.get('child_id') or '').strip()
+    from myApp.cms.blocks import duplicate_child_block
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    try:
+        new_id = duplicate_child_block(content, parent_id, child_id)
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    if new_id is None:
+        return JsonResponse({'success': False, 'error': 'Block not found.'}, status=404)
+    response = _landing_cms_block_response(config, tenant, content)
+    response_data = json.loads(response.content.decode('utf-8'))
+    response_data['instance_id'] = new_id
+    return JsonResponse(response_data)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_landing_cms_reorder_child_blocks(request):
+    tenant, config, error = _landing_cms_tenant_config(request)
+    if error:
+        return error
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+    parent_id = (payload.get('parent_id') or '').strip()
+    order = payload.get('order')
+    if not isinstance(order, list):
+        return JsonResponse({'success': False, 'error': 'order must be a list of instance ids.'}, status=400)
+    from myApp.cms.blocks import reorder_child_blocks
+    from myApp.cms.storage import get_landing_cms_content
+    content = get_landing_cms_content(config)
+    reorder_child_blocks(content, parent_id, order)
+    return _landing_cms_block_response(config, tenant, content)
 
 
 @staff_member_required

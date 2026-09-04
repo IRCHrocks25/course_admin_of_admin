@@ -507,8 +507,7 @@ def _render_tenant_custom_html(request, tenant, custom_html, *, inject_fallbacks
 
 def _render_tenant_cms_landing(request, tenant, custom_pages):
     """Render annotation-based CMS landing page for a tenant."""
-    from myApp.cms.parser import build_schema
-    from myApp.cms.renderer import merge_with_defaults, render_site
+    from myApp.cms.blocks import render_with_blocks
     from myApp.cms.storage import get_landing_cms_content, get_landing_cms_template_html
 
     try:
@@ -524,12 +523,10 @@ def _render_tenant_cms_landing(request, tenant, custom_pages):
         save_landing_cms_template_html(config, tenant.id, template_html)
         config.save(update_fields=['features', 'updated_at'])
 
-    schema = build_schema(template_html)
-    merged = merge_with_defaults(get_landing_cms_content(config), schema.get('defaults'))
     branding = get_tenant_branding(tenant)
-    html = render_site(
+    html = render_with_blocks(
         template_html,
-        merged,
+        get_landing_cms_content(config),
         preview=False,
         site_settings={'title': branding.get('brand_name', getattr(tenant, 'name', ''))},
     )
