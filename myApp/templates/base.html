@@ -577,6 +577,7 @@
                 <a href="{% url 'forum_feed' %}" class="brand-nav-link {% if '/community' in request.path %}is-active{% endif %}">Community</a>
                 {% endif %}
                 <a href="{% url 'events' %}" class="brand-nav-link {% if '/events' in request.path %}is-active{% endif %}">Events</a>
+                <a href="{% url 'library' %}" class="brand-nav-link {% if '/library' in request.path %}is-active{% endif %}">Library</a>
                 {% if user.is_authenticated %}
                 <a href="{% url 'student_certifications' %}" class="brand-nav-link {% if '/my-certifications' in request.path %}is-active{% endif %}">Certifications</a>
                 {% endif %}
@@ -618,6 +619,7 @@
                 <a href="{% url 'forum_feed' %}" class="brand-nav-link {% if '/community' in request.path %}is-active{% endif %}">Community</a>
                 {% endif %}
                 <a href="{% url 'events' %}" class="brand-nav-link {% if '/events' in request.path %}is-active{% endif %}">Events</a>
+                <a href="{% url 'library' %}" class="brand-nav-link {% if '/library' in request.path %}is-active{% endif %}">Library</a>
                 {% if user.is_authenticated %}
                 <a href="{% url 'student_certifications' %}" class="brand-nav-link {% if '/my-certifications' in request.path %}is-active{% endif %}">Certifications</a>
                 {% endif %}

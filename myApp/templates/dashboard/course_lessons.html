@@ -521,8 +521,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
             }
             if (block.type === 'video') {
-                const raw = (block.data.url || block.data.embed_url || '').trim();
+                const raw = (block.data.url || block.data.embed_url || block.data.file_url || '').trim();
                 if (!raw || /^(javascript|data|vbscript):/i.test(raw)) return '';
+                const captionEarly = escapeHtml(block.data.caption || '');
+                const capEarly = captionEarly ? '<figcaption class="text-sm text-gray-400 mt-2">' + captionEarly + '</figcaption>' : '';
+                const isFile = (block.data.source || '') === 'upload' || /\.(webm|mp4|ogg|ogv|mov)(\?|#|$)/i.test(raw) || /katalyst-crm\.com\/objects\//i.test(raw);
+                if (isFile) {
+                    return '<figure class="my-3"><video src="' + escapeHtml(raw) + '" controls playsinline preload="metadata" class="w-full rounded-lg border border-cyan-electric/20 bg-black"></video>' + capEarly + '</figure>';
+                }
                 let embed = raw;
                 const drive = raw.match(/(?:drive\.google\.com\/(?:file\/d\/|open\?id=)|docs\.google\.com\/file\/d\/)([a-zA-Z0-9_-]+)/i);
                 if (drive) embed = 'https://drive.google.com/file/d/' + drive[1] + '/preview';

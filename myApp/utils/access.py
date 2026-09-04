@@ -7,6 +7,27 @@ from django.db.models import Q
 from ..models import CourseAccess, Course
 
 
+def can_access_library(user, tenant):
+    """
+    Whether the user may play or download Library items for this tenant.
+
+    Staff and tenant admins preview the library. Students need an active
+    Academy membership (StudentSubscription), not merely a TenantMembership.
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return True
+    if tenant is not None:
+        from ..models import TenantMembership
+        if TenantMembership.objects.filter(
+            tenant=tenant, user=user, role='tenant_admin', is_active=True,
+        ).exists():
+            return True
+    from .membership import has_active_membership
+    return has_active_membership(user, tenant)
+
+
 def has_event_access(user, event):
     """
     Check if a user is registered for an event (free registration).

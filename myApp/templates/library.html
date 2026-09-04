@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Library{% endblock %}
+
+{% block content %}
+<style>
+  .lib-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .lib-page, .lib-modal { --lib-accent: var(--brand-accent-primary); }
+  /* Light mode: use the darkened ink accent, never neon cyan fills. */
+  .brand-theme-light .lib-page,
+  .brand-theme-light .lib-modal {
+    --lib-accent: var(--brand-accent-primary-ink, #1e3a8a);
+  }
+  .lib-head { margin-bottom: 1.75rem; }
+  .lib-eyebrow {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--lib-accent);
+    background: color-mix(in srgb, var(--lib-accent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lib-accent) 30%, transparent);
+    border-radius: 999px; padding: .3rem .75rem; margin-bottom: .9rem;
+  }
+  .lib-title { font-size: 34px; font-weight: 800; color: var(--brand-text-primary); letter-spacing: -.02em; margin: 0 0 .4rem; }
+  .lib-sub { color: var(--brand-text-muted); font-size: 16px; margin: 0; max-width: 38rem; }
+  .lib-search { margin: 1.4rem 0 1rem; }
+  .lib-search input {
+    width: 100%; max-width: 420px; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--brand-border); background: var(--brand-surface);
+    color: var(--brand-text-primary); font-size: 14px;
+  }
+  .lib-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.4rem; }
+  .lib-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    color: var(--brand-text-muted); border: 1px solid var(--brand-border);
+    background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface));
+  }
+  .lib-chip.is-on, .lib-chip:hover {
+    color: var(--brand-text-primary);
+    border-color: color-mix(in srgb, var(--lib-accent) 45%, transparent);
+  }
+  .lib-chip.is-on { background: color-mix(in srgb, var(--lib-accent) 12%, transparent); color: var(--lib-accent); }
+  .lib-cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
+  .lib-cat {
+    display: flex; flex-direction: column; text-decoration: none;
+    border: 1px solid var(--brand-border); border-radius: 14px; overflow: hidden;
+    background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface));
+    transition: border-color .15s, transform .15s;
+  }
+  .lib-cat:hover { border-color: color-mix(in srgb, var(--lib-accent) 45%, transparent); transform: translateY(-2px); }
+  .lib-cat-thumb { height: 88px; display: flex; align-items: center; justify-content: center; background-size: cover; background-position: center; }
+  .lib-cat-thumb span { font-size: 22px; font-weight: 800; color: #fff; }
+  .lib-cat-body { padding: .85rem 1rem 1rem; }
+  .lib-cat-name { font-size: 15px; font-weight: 700; color: var(--brand-text-primary); margin: 0; }
+  .lib-cat-count { font-size: 12px; color: var(--brand-text-muted); margin: .2rem 0 0; }
+  .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+  .lib-card {
+    display: flex; flex-direction: column; width: 100%; text-align: left; cursor: pointer;
+    background: color-mix(in srgb, var(--brand-text-primary) 4%, var(--brand-surface));
+    border: 1px solid var(--brand-border); border-radius: 14px; overflow: hidden;
+    transition: border-color .15s, transform .15s; box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    color: inherit; font: inherit; padding: 0;
+  }
+  .brand-theme-light .lib-card,
+  .brand-theme-light .lib-cat,
+  .brand-theme-light .lib-modal-panel {
+    background: #ffffff;
+  }
+  .brand-theme-light .lib-chip {
+    background: #ffffff;
+  }
+  .lib-card:hover { border-color: color-mix(in srgb, var(--lib-accent) 45%, transparent); transform: translateY(-2px); }
+  .lib-card-thumb {
+    height: 140px; background: linear-gradient(135deg, color-mix(in srgb, var(--lib-accent) 18%, var(--brand-surface)), color-mix(in srgb, var(--brand-accent-secondary) 18%, var(--brand-surface)));
+    background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .lib-card-thumb i { font-size: 34px; color: color-mix(in srgb, var(--lib-accent) 65%, transparent); }
+  .lib-lock {
+    position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--brand-surface) 80%, transparent); color: var(--brand-text-muted); font-size: 11px;
+  }
+  .lib-card-body { padding: 1.1rem 1.2rem 1.3rem; display: flex; flex-direction: column; gap: .55rem; flex: 1; }
+  .lib-card-title { font-size: 18px; font-weight: 700; color: var(--brand-text-primary); line-height: 1.3; margin: 0; }
+  .lib-card-desc { font-size: 14px; color: var(--brand-text-muted); line-height: 1.55; margin: 0; flex: 1; }
+  .lib-meta { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .lib-pill {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+    color: var(--brand-text-muted); background: color-mix(in srgb, var(--brand-text-primary) 6%, transparent);
+    border: 1px solid var(--brand-border); border-radius: 99px; padding: 4px 10px;
+  }
+  .lib-cta { margin-top: .35rem; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--lib-accent); }
+  .lib-empty { text-align: center; color: var(--brand-text-muted); padding: 3rem 1rem; border: 1px dashed var(--brand-border); border-radius: 14px; }
+  .lib-modal { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; background: rgba(15,23,42,.55); backdrop-filter: blur(6px); padding: 1rem; }
+  .lib-modal.is-open { display: flex; }
+  .lib-modal-panel {
+    width: 100%; max-width: 760px; max-height: 92vh; overflow-y: auto;
+    background: var(--brand-surface); border: 1px solid var(--brand-border);
+    border-radius: 16px; box-shadow: 0 24px 60px rgba(15,23,42,.25);
+  }
+  .lib-modal-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.4rem 1rem; }
+  .lib-modal-hd h3 { margin: 0; font-size: 22px; font-weight: 800; color: var(--brand-text-primary); }
+  .lib-modal-x { background: none; border: 0; color: var(--brand-text-muted); cursor: pointer; font-size: 1.15rem; padding: 4px; }
+  .lib-modal-body { padding: 0 1.4rem 1.5rem; }
+  .lib-modal-desc { color: var(--brand-text-muted); font-size: 15px; line-height: 1.6; margin: 0 0 1rem; }
+  .lib-player { position: relative; padding-top: 56.25%; border-radius: 12px; overflow: hidden; background: #0b1220; margin-bottom: 1rem; }
+  .lib-player video, .lib-player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .lib-file-box {
+    display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.2rem;
+    border: 1px solid var(--brand-border); border-radius: 12px;
+    background: color-mix(in srgb, var(--brand-text-primary) 4%, transparent);
+  }
+  .lib-file-box i { font-size: 28px; color: var(--lib-accent); }
+  .lib-open {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: .25rem;
+    padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700;
+    background: var(--lib-accent); color: #fff; text-decoration: none;
+  }
+  .lib-locked { text-align: center; padding: .5rem 0 1rem; }
+  .lib-locked i { font-size: 28px; color: var(--lib-accent); margin-bottom: .7rem; display: block; }
+  .lib-locked p { color: var(--brand-text-muted); font-size: 15px; line-height: 1.6; margin: 0 0 1.1rem; }
+  .lib-locked-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .lib-locked-actions a, .lib-locked-actions button {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700;
+    border: 0; cursor: pointer; text-decoration: none;
+    background: var(--lib-accent); color: #fff;
+  }
+  .lib-locked-actions .alt {
+    background: transparent; color: var(--brand-text-primary);
+    border: 1px solid var(--brand-border);
+  }
+</style>
+
+<div class="lib-page">
+  <div class="lib-head">
+    <span class="lib-eyebrow">Member Library</span>
+    <h1 class="lib-title">Library</h1>
+    <p class="lib-sub">Webinar recordings, short lectures, and professional resources — included with Academy membership.</p>
+    <form class="lib-search" method="get" action="{% url 'library' %}">
+      {% if type_filter %}<input type="hidden" name="type" value="{{ type_filter }}">{% endif %}
+      {% if category_id %}<input type="hidden" name="category" value="{{ category_id }}">{% endif %}
+      <input type="text" name="search" value="{{ search_query }}" placeholder="Search the library…">
+    </form>
+    <div class="lib-chips">
+      <a class="lib-chip {% if not type_filter %}is-on{% endif %}" href="{% url 'library' %}{% if search_query or category_id %}?{% if search_query %}search={{ search_query|urlencode }}{% endif %}{% if search_query and category_id %}&{% endif %}{% if category_id %}category={{ category_id }}{% endif %}{% endif %}">All</a>
+      {% for value, label in item_type_choices %}
+      <a class="lib-chip {% if type_filter == value %}is-on{% endif %}" href="{% url 'library' %}?type={{ value }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if category_id %}&category={{ category_id }}{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if show_category_cards %}
+  <div class="lib-cats">
+    {% for cat in category_cards %}
+    <a class="lib-cat" href="{% url 'library' %}?category={{ cat.id }}">
+      <div class="lib-cat-thumb" {% if cat.thumbnail_url %}style="background-image:url('{{ cat.thumbnail_url }}')"{% else %}style="background: {{ cat.color }};"{% endif %}>
+        {% if not cat.thumbnail_url %}<span>{{ cat.initial }}</span>{% endif %}
+      </div>
+      <div class="lib-cat-body">
+        <p class="lib-cat-name">{{ cat.name }}</p>
+        <p class="lib-cat-count">{{ cat.count }} item{{ cat.count|pluralize }}</p>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% elif category_id %}
+  <div class="lib-chips" style="margin-top:-.4rem;">
+    <a class="lib-chip" href="{% url 'library' %}{% if type_filter %}?type={{ type_filter }}{% endif %}">← All categories</a>
+  </div>
+  {% endif %}
+
+  {% if items %}
+  <div class="lib-grid">
+    {% for item in items %}
+    <button type="button" class="lib-card" data-item-id="{{ item.id }}" onclick="openLibraryItem({{ item.id }})">
+      <div class="lib-card-thumb"{% if item.get_thumbnail_url %} style="background-image:url('{{ item.get_thumbnail_url }}')"{% endif %}>
+        {% if not item.get_thumbnail_url %}
+        <i class="fas {% if item.item_type == 'recording' %}fa-video{% elif item.item_type == 'lecture' %}fa-chalkboard-user{% elif item.item_type == 'tool' %}fa-screwdriver-wrench{% else %}fa-file-lines{% endif %}"></i>
+        {% endif %}
+        {% if not can_access_library %}<span class="lib-lock" title="Members only"><i class="fas fa-lock"></i></span>{% endif %}
+      </div>
+      <div class="lib-card-body">
+        <h3 class="lib-card-title">{{ item.title }}</h3>
+        {% if item.short_description %}<p class="lib-card-desc">{{ item.short_description|truncatechars:120 }}</p>{% endif %}
+        <div class="lib-meta">
+          <span class="lib-pill">{{ item.get_item_type_display }}</span>
+          {% if item.category %}<span class="lib-pill">{{ item.category.name }}</span>{% endif %}
+        </div>
+        <span class="lib-cta">
+          {% if can_access_library %}
+            {% if item.is_video_type %}Watch <i class="fas fa-play"></i>{% else %}Open <i class="fas fa-arrow-right"></i>{% endif %}
+          {% else %}
+            Members only <i class="fas fa-lock"></i>
+          {% endif %}
+        </span>
+      </div>
+    </button>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="lib-empty">
+    <i class="fas fa-photo-film" style="font-size:28px;display:block;margin-bottom:.7rem;"></i>
+    {% if search_query or type_filter or category_id %}
+      No matching library items.
+    {% else %}
+      The library is being prepared. Check back soon.
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div id="lib-viewer" class="lib-modal" role="dialog" aria-modal="true">
+  <div class="lib-modal-panel">
+    <div class="lib-modal-hd">
+      <div>
+        <div class="lib-meta" id="lib-viewer-pills" style="margin-bottom:.45rem;"></div>
+        <h3 id="lib-viewer-title">Library item</h3>
+      </div>
+      <button type="button" class="lib-modal-x" onclick="closeLibraryItem()" aria-label="Close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="lib-modal-body" id="lib-viewer-body"></div>
+  </div>
+</div>
+
+{{ items_payload|json_script:"library-items-data" }}
+<script>
+const LIBRARY_ITEMS = JSON.parse(document.getElementById('library-items-data').textContent);
+const CAN_ACCESS = {{ can_access_library|yesno:"true,false" }};
+const IS_AUTH = {{ request.user.is_authenticated|yesno:"true,false" }};
+const LOGIN_URL = "{% url 'login' %}?next={{ request.path }}";
+const COURSES_URL = "{% url 'courses' %}";
+
+function openLibraryItem(id) {
+  const item = LIBRARY_ITEMS.find(x => x.id === id);
+  if (!item) return;
+  const pills = document.getElementById('lib-viewer-pills');
+  pills.innerHTML = '';
+  [item.type_label, item.category].forEach((label) => {
+    if (!label) return;
+    const span = document.createElement('span');
+    span.className = 'lib-pill';
+    span.textContent = label;
+    pills.appendChild(span);
+  });
+  document.getElementById('lib-viewer-title').textContent = item.title;
+  document.getElementById('lib-viewer-body').innerHTML = buildViewerBody(item);
+  hydrateMedia(item);
+  document.getElementById('lib-viewer').classList.add('is-open');
+  document.body.style.overflow = 'hidden';
+}
+
+function buildViewerBody(item) {
+  if (!CAN_ACCESS) {
+    let actions = '';
+    if (!IS_AUTH) {
+      actions = `<a href="${LOGIN_URL}">Log in</a>`;
+    } else {
+      {% if membership_offer or membership_tiers %}
+      actions = `<a href="${COURSES_URL}">Become a member</a>`;
+      {% else %}
+      actions = `<a href="${COURSES_URL}">View membership</a>`;
+      {% endif %}
+    }
+    return `
+      <div class="lib-locked">
+        <i class="fas fa-lock"></i>
+        <p>This library is included with Academy membership. Join to watch recordings and download professional resources.</p>
+        <div class="lib-locked-actions">${actions}</div>
+      </div>`;
+  }
+
+  const desc = item.description ? '<p class="lib-modal-desc"></p>' : '';
+  let media = '';
+  if (item.is_video && item.is_direct_video && item.media_url) {
+    media = `<div class="lib-player"><video id="lib-video" src="" controls playsinline preload="metadata"></video></div>`;
+  } else if (item.is_video && item.embed_url) {
+    media = `<div class="lib-player"><iframe id="lib-iframe" src="" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+  } else if (item.media_url) {
+    media = `
+      <div class="lib-file-box">
+        <i class="fas fa-file-arrow-down"></i>
+        <div>
+          <div style="font-weight:700;color:var(--brand-text-primary);">Download or open this resource</div>
+          <a class="lib-open" id="lib-file-link" href="#" target="_blank" rel="noopener noreferrer">Open <i class="fas fa-arrow-up-right-from-square"></i></a>
+        </div>
+      </div>`;
+  } else {
+    media = `<p class="lib-modal-desc">This item does not have a file attached yet.</p>`;
+  }
+  return desc + media;
+}
+
+function hydrateMedia(item) {
+  const desc = document.querySelector('#lib-viewer-body .lib-modal-desc');
+  if (desc && item.description) desc.textContent = item.description;
+  const video = document.getElementById('lib-video');
+  if (video && item.media_url) video.src = item.media_url;
+  const iframe = document.getElementById('lib-iframe');
+  if (iframe && item.embed_url) iframe.src = item.embed_url;
+  const link = document.getElementById('lib-file-link');
+  if (link && item.media_url) link.href = item.media_url;
+}
+
+function closeLibraryItem() {
+  const video = document.getElementById('lib-video');
+  if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
+  const iframe = document.getElementById('lib-iframe');
+  if (iframe) iframe.src = '';
+  document.getElementById('lib-viewer').classList.remove('is-open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('lib-viewer').addEventListener('click', (e) => {
+  if (e.target.id === 'lib-viewer') closeLibraryItem();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLibraryItem(); });
+</script>
+{% endblock %}

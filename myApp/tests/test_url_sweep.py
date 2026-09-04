@@ -54,6 +54,8 @@ class AccessContractTest(SeededTestCase):
         # ── public ──
         "home":                      ({}, {"anon": 200, "student": 200, "admin": 200, "super": 200}),
         "courses":                   ({}, {"anon": 200, "student": 200, "admin": 200, "super": 200}),
+        "library":                   ({}, {"anon": 200, "student": 200, "admin": 200, "super": 200}),
+        "events":                    ({}, {"anon": 200, "student": 200, "admin": 200, "super": 200}),
         "verify_certificate":        ({"certificate_id": "ABC123"}, {"anon": 200, "student": 200, "admin": 200, "super": 200}),
         "login":                     ({}, {"anon": 200, "student": 302, "admin": 302, "super": 302}),
         "register":                  ({}, {"anon": 200, "student": 302, "admin": 302, "super": 302}),
@@ -70,6 +72,7 @@ class AccessContractTest(SeededTestCase):
         "dashboard_home":            ({}, {"anon": 302, "student": 302, "admin": 200, "super": 200}),
         "dashboard_analytics":       ({}, {"anon": 302, "student": 302, "admin": 200, "super": 200}),
         "dashboard_courses":         ({}, {"anon": 302, "student": 302, "admin": 200, "super": 200}),
+        "dashboard_library":         ({}, {"anon": 302, "student": 302, "admin": 200, "super": 200}),
         "dashboard_students":        ({}, {"anon": 302, "student": 302, "admin": 200, "super": 200}),
         # ↓ the two templates created in the audit fix
         "dashboard_student_progress": ({}, {"anon": 302, "student": 302, "admin": 200, "super": 200}),

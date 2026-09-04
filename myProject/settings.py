@@ -223,6 +223,9 @@ STATICFILES_DIRS = [
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Lesson-note video uploads (WebM convert + Iceberg) can be tens of MB.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 120 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Cloudinary configuration (for AI-generated lesson images & uploads)
 CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')

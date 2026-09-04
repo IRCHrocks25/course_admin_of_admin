@@ -67,6 +67,9 @@ urlpatterns = [
     path('events/<slug:event_slug>/', views.event_detail, name='event_detail'),
     path('events/<slug:event_slug>/register/', views.register_event, name='register_event'),
 
+    # Member Library (standalone resources — not courses)
+    path('library/', views.library, name='library'),
+
     # Student Dashboard (Client-facing)
     path('my-dashboard/', views.student_dashboard, name='student_dashboard'),
     path('my-dashboard/course/<slug:course_slug>/', views.student_course_progress, name='student_course_progress'),
@@ -83,6 +86,12 @@ urlpatterns = [
     path('dashboard/categories/create/', dashboard_views.dashboard_create_category, name='dashboard_create_category'),
     path('dashboard/categories/<int:category_id>/delete/', dashboard_views.dashboard_delete_category, name='dashboard_delete_category'),
     path('dashboard/courses/add/', dashboard_views.dashboard_add_course, name='dashboard_add_course'),
+    path('dashboard/courses/manual/create/', dashboard_views.dashboard_manual_create_course, name='dashboard_manual_create_course'),
+    path('dashboard/courses/manual/add-lesson/', dashboard_views.dashboard_manual_add_lesson, name='dashboard_manual_add_lesson'),
+    path('dashboard/courses/manual/save-lesson/', dashboard_views.dashboard_manual_save_lesson, name='dashboard_manual_save_lesson'),
+    path('dashboard/courses/manual/add-resource/', dashboard_views.dashboard_manual_add_resource, name='dashboard_manual_add_resource'),
+    path('dashboard/courses/manual/upload-hero/', dashboard_views.dashboard_manual_upload_hero, name='dashboard_manual_upload_hero'),
+    path('dashboard/courses/manual/save-hero-video/', dashboard_views.dashboard_manual_save_hero_video, name='dashboard_manual_save_hero_video'),
     path('dashboard/courses/lesson-generator/', dashboard_views.dashboard_generate_lesson_draft, name='dashboard_generate_lesson_draft'),
     path('dashboard/courses/create-from-lessons/', dashboard_views.dashboard_create_course_from_lessons, name='dashboard_create_course_from_lessons'),
     path('dashboard/api/ai-generation-status/<int:course_id>/', dashboard_views.api_ai_generation_status, name='api_ai_generation_status'),
@@ -104,6 +113,7 @@ urlpatterns = [
     path('dashboard/events/add/', dashboard_views.dashboard_add_event, name='dashboard_add_event'),
     path('dashboard/events/<slug:event_slug>/', dashboard_views.dashboard_event_detail, name='dashboard_event_detail'),
     path('dashboard/events/<slug:event_slug>/delete/', dashboard_views.dashboard_delete_event, name='dashboard_delete_event'),
+    path('dashboard/library/', dashboard_views.dashboard_library, name='dashboard_library'),
 
     path('dashboard/lessons/', dashboard_views.dashboard_lessons, name='dashboard_lessons'),
     path('dashboard/lessons/add/', dashboard_views.dashboard_add_lesson, name='dashboard_add_lesson'),
@@ -189,6 +199,8 @@ urlpatterns = [
     path('creator/courses/<slug:course_slug>/add-lesson/', views.add_lesson, name='add_lesson'),
     path('creator/courses/<slug:course_slug>/lessons/<int:lesson_id>/generate/', views.generate_lesson_ai, name='generate_lesson_ai'),
     path('creator/lessons/<int:lesson_id>/upload-note-image/', views.upload_lesson_note_image, name='upload_lesson_note_image'),
+    path('creator/lessons/<int:lesson_id>/upload-note-video/', views.upload_lesson_note_video, name='upload_lesson_note_video'),
+    path('creator/lessons/<int:lesson_id>/save-note-blocks/', views.save_lesson_note_blocks, name='save_lesson_note_blocks'),  # autosave notes editor
     path('creator/verify-vimeo/', views.verify_vimeo_url, name='verify_vimeo_url'),
     path('creator/upload-video-transcribe/', views.upload_video_transcribe, name='upload_video_transcribe'),
     path('creator/lessons/<int:lesson_id>/transcription-status/', views.check_transcription_status, name='check_transcription_status'),

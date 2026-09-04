@@ -558,6 +558,12 @@ class Lesson(models.Model):
         default=True,
         help_text='Show the "What You\'ll Learn Today" section on the student lesson page',
     )
+    what_youll_learn_heading = models.CharField(
+        max_length=200,
+        default="What You'll Learn Today",
+        blank=True,
+        help_text='Heading shown above the What you\'ll learn body on the student lesson page',
+    )
     show_lesson_notes = models.BooleanField(
         default=True,
         help_text='Show the "Lesson Notes" section on the student lesson page',
@@ -1781,6 +1787,134 @@ class ForumReaction(models.Model):
     def __str__(self):
         target = f"post {self.post_id}" if self.post_id else f"comment {self.comment_id}"
         return f"{self.user.username} {self.reaction_type} on {target}"
+
+
+class LibraryCategory(models.Model):
+    """Shelf for Library items. Independent of CourseCategory — never creates a course."""
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='library_categories',
+        null=True, blank=True,
+    )
+    name = models.CharField(max_length=120)
+    thumbnail = models.ImageField(upload_to='library_category_thumbnails/', null=True, blank=True)
+    thumbnail_url = models.URLField(
+        max_length=500, blank=True,
+        help_text='Iceberg CDN URL for the category thumbnail.',
+    )
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Library category'
+        verbose_name_plural = 'Library categories'
+        ordering = ['display_order', 'name']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='uniq_library_category_tenant_name'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def get_thumbnail_url(self):
+        if self.thumbnail_url:
+            return self.thumbnail_url
+        if not self.thumbnail:
+            return ''
+        try:
+            return self.thumbnail.url
+        except Exception:
+            return ''
+
+
+class LibraryItem(models.Model):
+    """
+    A standalone member resource (recording, lecture, document, tool).
+    NOT a course — no syllabus, enrollment, or lesson progress.
+    Playback/download is gated by Academy membership (see can_access_library).
+    """
+    ITEM_TYPES = [
+        ('recording', 'Webinar recording'),
+        ('lecture', 'Short lecture'),
+        ('document', 'Document'),
+        ('tool', 'Tool'),
+    ]
+    VIDEO_TYPES = frozenset({'recording', 'lecture'})
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+    ]
+
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='library_items',
+        null=True, blank=True,
+    )
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
+    short_description = models.CharField(max_length=1000, blank=True)
+    description = models.TextField(blank=True)
+    item_type = models.CharField(max_length=20, choices=ITEM_TYPES, default='document')
+    category = models.ForeignKey(
+        LibraryCategory, on_delete=models.SET_NULL, related_name='library_items',
+        null=True, blank=True,
+    )
+    thumbnail = models.ImageField(upload_to='library_item_thumbnails/', null=True, blank=True)
+    thumbnail_url = models.URLField(
+        max_length=500, blank=True,
+        help_text='Iceberg CDN URL for the item thumbnail.',
+    )
+    file_url = models.URLField(
+        max_length=500, blank=True,
+        help_text='Iceberg CDN URL or external link for documents and tools.',
+    )
+    video_url = models.URLField(
+        max_length=500, blank=True,
+        help_text='Iceberg file, Vimeo, YouTube, or Drive URL for recordings and lectures.',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    display_order = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Library item'
+        verbose_name_plural = 'Library items'
+        ordering = ['display_order', 'title']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'slug'], name='uniq_library_item_tenant_slug'),
+        ]
+
+    def __str__(self):
+        return self.title
+
+    def is_video_type(self):
+        return self.item_type in self.VIDEO_TYPES
+
+    def get_media_url(self):
+        if self.is_video_type():
+            return (self.video_url or self.file_url or '').strip()
+        return (self.file_url or self.video_url or '').strip()
+
+    def get_thumbnail_url(self):
+        if self.thumbnail_url:
+            return self.thumbnail_url
+        if not self.thumbnail:
+            return ''
+        try:
+            return self.thumbnail.url
+        except Exception:
+            return ''
+
+    def is_direct_media_file(self):
+        from myApp.utils.inline_media import is_direct_video_file
+        return is_direct_video_file(self.get_media_url())
+
+    def get_embed_url(self):
+        from myApp.utils.inline_media import normalize_inline_video_embed
+        url = self.get_media_url()
+        if not url or self.is_direct_media_file():
+            return ''
+        return normalize_inline_video_embed(url)
 
 
 class Event(models.Model):

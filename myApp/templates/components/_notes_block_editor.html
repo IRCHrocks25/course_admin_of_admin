@@ -1,0 +1,58 @@
+{% comment %}
+Reusable lesson-notes block editor.
+Expected context:
+  start_open, show_preview, show_editing_banner, done_label,
+  empty_preview, input_id, input_name, display_id, editor_id
+{% endcomment %}
+<div class="notes-block-editor space-y-3" data-notes-editor-root>
+    {% if show_preview != False %}
+    <div {% if display_id %}id="{{ display_id }}"{% endif %} data-notes-display class="notes-preview text-gray-300 text-sm space-y-3 max-h-[32rem] overflow-y-auto pr-1{% if start_open %} hidden{% endif %}">
+        {{ empty_preview|default:'<p class="text-gray-500 italic">No lesson notes yet.</p>'|safe }}
+    </div>
+    {% endif %}
+    <div {% if editor_id %}id="{{ editor_id }}"{% endif %} data-notes-editor class="border border-cyan-electric/20 rounded-xl p-4 space-y-4 bg-[#0a0e27]/30{% if start_open == False %} hidden{% endif %}">
+        {% if show_editing_banner != False %}
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-cyan-electric/30 bg-cyan-electric/5 px-3 py-2">
+            <p class="text-sm text-cyan-electric font-medium">
+                <i class="fas fa-pen-to-square mr-1"></i> You are editing lesson notes
+            </p>
+            <button
+                type="button"
+                data-notes-done
+                class="content-blocks-done-btn notes-done-primary px-4 py-2 bg-cyan-electric text-on-accent-primary rounded-full text-sm font-bold hover:bg-cyan-electric/90 transition-all"
+            >
+                <i class="fas fa-check mr-1"></i> {{ done_label|default:"Done Editing Notes" }}
+            </button>
+        </div>
+        {% endif %}
+        <div class="notes-add-bar">
+            <div class="flex flex-wrap gap-2">
+                <button type="button" data-add-block="paragraph" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Paragraph</button>
+                <button type="button" data-add-block="header" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Header</button>
+                <button type="button" data-add-block="list" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Bullet/Numbered List</button>
+                <button type="button" data-add-block="quote" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Quote</button>
+                <button type="button" data-add-block="image" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Image</button>
+                <button type="button" data-add-block="video" class="px-3 py-1.5 text-xs bg-cyan-electric/10 border border-cyan-electric/30 rounded-full hover:bg-cyan-electric/20 transition-all">+ Video</button>
+            </div>
+            <p data-notes-feedback class="notes-add-feedback mt-2" aria-live="polite"></p>
+        </div>
+        <p class="text-xs text-gray-500">Tip: use blank lines to separate paragraphs, one list item per line, and move blocks with the arrow buttons.</p>
+        <div data-notes-block-list class="space-y-3"></div>
+        <div class="pt-1 flex justify-end">
+            <button
+                type="button"
+                data-notes-done
+                class="content-blocks-done-btn notes-done-primary px-5 py-2 bg-cyan-electric text-on-accent-primary rounded-full text-sm font-bold hover:bg-cyan-electric/90 transition-all"
+            >
+                <i class="fas fa-check mr-1"></i> {{ done_label|default:"Done Editing Notes" }}
+            </button>
+        </div>
+    </div>
+    <textarea
+        {% if input_name %}name="{{ input_name }}"{% endif %}
+        {% if input_id %}id="{{ input_id }}"{% endif %}
+        data-notes-input
+        rows="12"
+        class="hidden w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm font-mono focus:outline-none focus:border-cyan-electric/50 resize-none"
+    ></textarea>
+</div>

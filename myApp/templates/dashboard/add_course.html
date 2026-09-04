@@ -1,10 +1,12 @@
 {% extends 'dashboard/base.html' %}
+{% load static %}
 
 {% block title %}Create New Course{% endblock %}
 {% block page_title %}Create New Course{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+{% include "components/_notes_block_editor_styles.html" %}
+<div id="add-course-wrap" class="max-w-3xl mx-auto">
     <div class="mb-6">
         <a href="{% url 'dashboard_courses' %}" class="text-cyan-electric hover:text-cyan-electric/80 text-sm mb-4 inline-block">
             <i class="fas fa-arrow-left mr-2"></i> Back to Courses
@@ -25,8 +27,9 @@
                 <button type="button" id="tab-course-builder" class="px-4 py-2 rounded-md text-sm font-medium bg-cyan-electric/20 text-cyan-electric">Course Builder</button>
                 <button type="button" id="tab-lesson-generator" class="px-4 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-cyan-electric">Lesson Generator</button>
                 <button type="button" id="tab-pdf-import" class="px-4 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-cyan-electric">Import Manual (PDF)</button>
+                <button type="button" id="tab-manual-creation" class="px-4 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-cyan-electric">Manual Creation</button>
             </div>
-            <p class="text-xs text-gray-500 mt-2">Use Lesson Generator if your client already has lesson materials and you want AI to expand each lesson one by one. Use Import Manual to keep the exact wording from a PDF.</p>
+            <p class="text-xs text-gray-500 mt-2">Use Lesson Generator if your client already has lesson materials and you want AI to expand each lesson one by one. Use Import Manual to keep the exact wording from a PDF. Use Manual Creation to write the course yourself.</p>
         </div>
 
         <div id="course-builder-panel">
@@ -481,6 +484,120 @@
                 </div>
             </form>
         </div>
+
+        <div id="manual-creation-panel" class="hidden space-y-8">
+            {% csrf_token %}
+            <div>
+                <h3 class="text-lg font-semibold text-cyan-electric">Manual Creation</h3>
+                <p class="text-sm text-gray-400 mt-1">Write the course yourself. We save as you go so image and video uploads already have a lesson to attach to.</p>
+            </div>
+
+            <section class="space-y-4">
+                <h4 class="text-sm font-semibold uppercase tracking-wide text-gray-400">Course</h4>
+                <div id="mc-course-setup" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Course title <span class="text-red-400">*</span></label>
+                        <input type="text" id="mc-course-title" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50" placeholder="e.g. How to make a caramel macchiato">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Short description <span class="text-gray-500 font-normal">(optional)</span></label>
+                        <textarea id="mc-course-description" rows="3" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-electric/50 resize-none" placeholder="A sentence or two students will see in the catalog"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-3">Pricing</label>
+                        <div class="flex gap-3 mb-3">
+                            <label class="flex-1 flex items-center gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-[#0a0e27]/40 cursor-pointer">
+                                <input type="radio" name="mc_pricing_type" value="free" checked class="text-cyan-electric" id="mc-pricing-free">
+                                <div>
+                                    <div class="text-sm font-medium">Free</div>
+                                    <div class="text-xs text-gray-500">Open enrollment</div>
+                                </div>
+                            </label>
+                            <label class="flex-1 flex items-center gap-3 p-3 rounded-lg border border-cyan-electric/20 bg-[#0a0e27]/40 cursor-pointer">
+                                <input type="radio" name="mc_pricing_type" value="paid" class="text-cyan-electric" id="mc-pricing-paid">
+                                <div>
+                                    <div class="text-sm font-medium">Paid</div>
+                                    <div class="text-xs text-gray-500">Students pay first</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div id="mc-price-amount-row" class="hidden">
+                            <label class="block text-xs text-gray-400 mb-1">Price (USD)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                <input type="number" id="mc-price-input" min="0.50" step="0.01" placeholder="e.g. 49.00"
+                                    class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg pl-7 pr-4 py-3 text-sm focus:outline-none focus:border-cyan-electric/50">
+                            </div>
+                        </div>
+                    </div>
+                    <p id="mc-course-status" class="text-sm text-gray-400"></p>
+                    <button type="button" id="mc-create-course-btn" class="px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
+                        Create course
+                    </button>
+                </div>
+                <div id="mc-course-live" class="hidden rounded-xl border border-cyan-electric/20 bg-cyan-electric/5 p-4">
+                    <p class="text-xs uppercase tracking-wide text-cyan-electric/80 mb-1">Course created</p>
+                    <p id="mc-course-live-name" class="text-lg font-bold text-white"></p>
+                    <a id="mc-course-live-link" href="#" class="text-sm text-cyan-electric hover:underline mt-1 inline-block">Open course dashboard</a>
+                </div>
+            </section>
+
+            <section id="mc-lessons-section" class="hidden space-y-4">
+                <div class="flex items-center justify-between gap-3">
+                    <h4 class="text-sm font-semibold uppercase tracking-wide text-gray-400">Lessons</h4>
+                    <button type="button" id="mc-add-lesson-btn" class="px-4 py-2 text-sm rounded-full border border-cyan-electric/30 text-cyan-electric hover:bg-cyan-electric/10 transition-all">
+                        <i class="fas fa-plus mr-1"></i> Add lesson
+                    </button>
+                </div>
+                <div id="mc-lessons-list" class="space-y-4"></div>
+            </section>
+
+            <section id="mc-resources-section" class="hidden space-y-4">
+                <h4 class="text-sm font-semibold uppercase tracking-wide text-gray-400">Course resources</h4>
+                <p class="text-sm text-gray-400">Add PDFs, workbooks, or other files students can download from the course.</p>
+                <div id="mc-resources-list" class="space-y-2"></div>
+                <div class="rounded-xl border border-cyan-electric/20 bg-[#0a0e27]/40 p-4 space-y-3">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Resource title</label>
+                        <input type="text" id="mc-resource-title" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50" placeholder="e.g. Recipe workbook">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Type</label>
+                        <select id="mc-resource-type" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                            <option value="pdf">PDF</option>
+                            <option value="workbook">Workbook</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Upload file</label>
+                        <input type="file" id="mc-resource-file" class="w-full text-sm text-gray-300">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Or URL</label>
+                        <input type="url" id="mc-resource-url" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-electric/50" placeholder="https://…">
+                    </div>
+                    <p id="mc-resource-status" class="text-sm text-gray-400"></p>
+                    <button type="button" id="mc-add-resource-btn" class="px-4 py-2 text-sm rounded-full bg-cyan-electric text-on-accent-primary font-semibold hover:bg-cyan-electric/90">
+                        Add resource
+                    </button>
+                </div>
+            </section>
+
+            <div id="mc-footer-actions" class="hidden pt-6 mt-2 border-t border-cyan-electric/10 flex flex-wrap items-center gap-3">
+                <a id="mc-view-live-btn" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center px-6 py-3 bg-cyan-electric text-on-accent-primary rounded-full font-bold hover:bg-cyan-electric/90 transition-all">
+                    <i class="fas fa-external-link-alt mr-2"></i> View live course
+                </a>
+                <a id="mc-view-dashboard-btn" href="#" class="inline-flex items-center justify-center px-6 py-3 border border-cyan-electric/30 rounded-full font-medium hover:bg-cyan-electric/10 transition-all">
+                    Open course dashboard
+                </a>
+            </div>
+        </div>
+
+        <template id="mc-notes-editor-template">
+            {% include "components/_notes_block_editor.html" with start_open=True show_preview=True show_editing_banner=True done_label="Done" %}
+        </template>
+        <div id="mc-toast" class="hidden fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border border-cyan-electric/40 bg-[#0a0e27] text-sm text-cyan-electric shadow-lg" role="status"></div>
     </div>
 </div>
 
@@ -527,6 +644,7 @@
     </div>
 </div>
 
+<script src="{% static 'js/notes_block_editor.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('create-course-form');
@@ -553,9 +671,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const tabCourseBuilder = document.getElementById('tab-course-builder');
     const tabLessonGenerator = document.getElementById('tab-lesson-generator');
     const tabPdfImport = document.getElementById('tab-pdf-import');
+    const tabManualCreation = document.getElementById('tab-manual-creation');
     const courseBuilderPanel = document.getElementById('course-builder-panel');
     const lessonGeneratorPanel = document.getElementById('lesson-generator-panel');
     const pdfImportPanel = document.getElementById('pdf-import-panel');
+    const manualCreationPanel = document.getElementById('manual-creation-panel');
+    const addCourseWrap = document.getElementById('add-course-wrap');
     const lgGenerateBtn = document.getElementById('lg-generate-btn');
     const lgGenerateText = document.getElementById('lg-generate-text');
     const lgGenerateLoading = document.getElementById('lg-generate-loading');
@@ -623,8 +744,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
             }
             if (block.type === 'video') {
-                const raw = (block.data.url || block.data.embed_url || '').trim();
+                const raw = (block.data.url || block.data.embed_url || block.data.file_url || '').trim();
                 if (!raw || /^(javascript|data|vbscript):/i.test(raw)) return '';
+                const caption = escapeHtml(block.data.caption || '');
+                const cap = caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '';
+                const isFile = (block.data.source || '') === 'upload' || /\.(webm|mp4|ogg|ogv|mov)(\?|#|$)/i.test(raw) || /katalyst-crm\.com\/objects\//i.test(raw);
+                if (isFile) {
+                    return '<figure class="my-3"><video src="' + escapeHtml(raw) + '" controls playsinline preload="metadata" class="w-full rounded-lg border border-cyan-electric/20 bg-black"></video>' + cap + '</figure>';
+                }
                 let embed = raw;
                 const drive = raw.match(/(?:drive\.google\.com\/(?:file\/d\/|open\?id=)|docs\.google\.com\/file\/d\/)([a-zA-Z0-9_-]+)/i);
                 if (drive) embed = 'https://drive.google.com/file/d/' + drive[1] + '/preview';
@@ -633,9 +760,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/i);
                 if (yt) embed = 'https://www.youtube.com/embed/' + yt[1];
                 if (!/^https?:\/\//i.test(embed)) return '';
-                const caption = escapeHtml(block.data.caption || '');
-                return '<figure class="my-3"><div class="relative w-full rounded-lg overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;"><iframe src="' + escapeHtml(embed) + '" class="absolute inset-0 w-full h-full" allowfullscreen></iframe></div>' +
-                    (caption ? '<figcaption class="text-sm text-gray-400 mt-2">' + caption + '</figcaption>' : '') + '</figure>';
+                return '<figure class="my-3"><div class="relative w-full rounded-lg overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;"><iframe src="' + escapeHtml(embed) + '" class="absolute inset-0 w-full h-full" allowfullscreen></iframe></div>' + cap + '</figure>';
             }
             return '';
         }).join('') || '<p class="text-gray-500 italic">No lesson notes generated.</p>';
@@ -806,9 +931,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const showCourse = tabName === 'course';
         const showLesson = tabName === 'lesson';
         const showImport = tabName === 'import';
+        const showManual = tabName === 'manual';
         if (courseBuilderPanel) courseBuilderPanel.classList.toggle('hidden', !showCourse);
         if (lessonGeneratorPanel) lessonGeneratorPanel.classList.toggle('hidden', !showLesson);
         if (pdfImportPanel) pdfImportPanel.classList.toggle('hidden', !showImport);
+        if (manualCreationPanel) manualCreationPanel.classList.toggle('hidden', !showManual);
+        if (addCourseWrap) {
+            addCourseWrap.classList.toggle('max-w-3xl', !showManual);
+            addCourseWrap.classList.toggle('max-w-5xl', showManual);
+        }
         function styleTab(btn, active) {
             if (!btn) return;
             btn.classList.toggle('bg-cyan-electric/20', active);
@@ -818,6 +949,7 @@ document.addEventListener('DOMContentLoaded', function() {
         styleTab(tabCourseBuilder, showCourse);
         styleTab(tabLessonGenerator, showLesson);
         styleTab(tabPdfImport, showImport);
+        styleTab(tabManualCreation, showManual);
     }
 
     function setLessonGeneratorBusy(isBusy) {
@@ -1293,6 +1425,11 @@ document.addEventListener('DOMContentLoaded', function() {
             setActiveTopTab('import');
         });
     }
+    if (tabManualCreation) {
+        tabManualCreation.addEventListener('click', function() {
+            setActiveTopTab('manual');
+        });
+    }
     (function() {
         const free = document.getElementById('pdf-pricing-free');
         const paid = document.getElementById('pdf-pricing-paid');
@@ -1501,6 +1638,536 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    (function initManualCreation() {
+        const createUrl = '{% url "dashboard_manual_create_course" %}';
+        const addLessonUrl = '{% url "dashboard_manual_add_lesson" %}';
+        const saveLessonUrl = '{% url "dashboard_manual_save_lesson" %}';
+        const addResourceUrl = '{% url "dashboard_manual_add_resource" %}';
+        const uploadHeroUrl = '{% url "dashboard_manual_upload_hero" %}';
+        const saveHeroVideoUrl = '{% url "dashboard_manual_save_hero_video" %}';
+        const csrfInput = document.querySelector('#manual-creation-panel [name="csrfmiddlewaretoken"]')
+            || document.querySelector('[name="csrfmiddlewaretoken"]');
+        const csrfToken = csrfInput ? csrfInput.value : '';
+        const titleInput = document.getElementById('mc-course-title');
+        const descInput = document.getElementById('mc-course-description');
+        const createBtn = document.getElementById('mc-create-course-btn');
+        const statusEl = document.getElementById('mc-course-status');
+        const setupEl = document.getElementById('mc-course-setup');
+        const liveEl = document.getElementById('mc-course-live');
+        const liveName = document.getElementById('mc-course-live-name');
+        const liveLink = document.getElementById('mc-course-live-link');
+        const footerActions = document.getElementById('mc-footer-actions');
+        const viewLiveBtn = document.getElementById('mc-view-live-btn');
+        const viewDashboardBtn = document.getElementById('mc-view-dashboard-btn');
+        const lessonsSection = document.getElementById('mc-lessons-section');
+        const lessonsList = document.getElementById('mc-lessons-list');
+        const addLessonBtn = document.getElementById('mc-add-lesson-btn');
+        const resourcesSection = document.getElementById('mc-resources-section');
+        const resourcesList = document.getElementById('mc-resources-list');
+        const addResourceBtn = document.getElementById('mc-add-resource-btn');
+        const resourceTitle = document.getElementById('mc-resource-title');
+        const resourceType = document.getElementById('mc-resource-type');
+        const resourceFile = document.getElementById('mc-resource-file');
+        const resourceUrl = document.getElementById('mc-resource-url');
+        const resourceStatus = document.getElementById('mc-resource-status');
+        const toastEl = document.getElementById('mc-toast');
+        const notesTemplate = document.getElementById('mc-notes-editor-template');
+        const freeRadio = document.getElementById('mc-pricing-free');
+        const paidRadio = document.getElementById('mc-pricing-paid');
+        const priceRow = document.getElementById('mc-price-amount-row');
+        const priceInput = document.getElementById('mc-price-input');
+
+        let courseSlug = '';
+        let toastTimer = null;
+        const lessonEditors = {};
+
+        function getCsrf() {
+            const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return (match ? decodeURIComponent(match[1]) : '') || csrfToken;
+        }
+
+        function showToast(message) {
+            if (!toastEl) return;
+            toastEl.textContent = message;
+            toastEl.classList.remove('hidden');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(function () { toastEl.classList.add('hidden'); }, 2400);
+        }
+
+        function setStatus(el, message, isError) {
+            if (!el) return;
+            el.textContent = message || '';
+            el.classList.toggle('text-red-400', !!isError);
+            el.classList.toggle('text-green-400', !isError && !!message);
+            el.classList.toggle('text-gray-400', !message);
+        }
+
+        if (freeRadio && paidRadio && priceRow) {
+            function togglePrice() {
+                priceRow.classList.toggle('hidden', !paidRadio.checked);
+            }
+            freeRadio.addEventListener('change', togglePrice);
+            paidRadio.addEventListener('change', togglePrice);
+        }
+
+        async function postJson(url, payload) {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json().catch(function () { return {}; });
+            if (!resp.ok || data.ok === false) {
+                throw new Error(data.error || 'Request failed');
+            }
+            return data;
+        }
+
+        function collapseLessonCards(exceptCard) {
+            if (!lessonsList) return;
+            lessonsList.querySelectorAll('.mc-lesson-card').forEach(function (card) {
+                const body = card.querySelector('[data-mc-lesson-body]');
+                const toggle = card.querySelector('[data-mc-lesson-toggle]');
+                const collapsed = card !== exceptCard;
+                if (body) body.classList.toggle('hidden', collapsed);
+                if (toggle) toggle.innerHTML = collapsed
+                    ? '<i class="fas fa-chevron-down"></i>'
+                    : '<i class="fas fa-chevron-up"></i>';
+            });
+        }
+
+        async function saveLessonCard(card) {
+            if (!card || !courseSlug) return;
+            const lessonId = card.dataset.lessonId;
+            const editor = lessonEditors[lessonId];
+            const titleEl = card.querySelector('[data-mc-lesson-title]');
+            const headingEl = card.querySelector('[data-mc-lesson-heading]');
+            const bodyEl = card.querySelector('[data-mc-lesson-learn]');
+            await postJson(saveLessonUrl, {
+                lesson_id: Number(lessonId),
+                title: titleEl ? titleEl.value : '',
+                heading: headingEl ? headingEl.value : '',
+                learn_body: bodyEl ? bodyEl.value : '',
+                blocks: editor ? editor.getBlocks() : [],
+            });
+        }
+
+        function bindAutosave(card) {
+            ['[data-mc-lesson-title]', '[data-mc-lesson-heading]', '[data-mc-lesson-learn]'].forEach(function (sel) {
+                const el = card.querySelector(sel);
+                if (!el) return;
+                el.addEventListener('blur', function () {
+                    saveLessonCard(card).catch(function (err) {
+                        showToast(err.message || 'Could not save lesson');
+                    });
+                });
+            });
+        }
+
+        function mountLessonEditor(card, urls) {
+            const mount = card.querySelector('[data-mc-notes-mount]');
+            if (!mount || !notesTemplate || !window.CourseforgeNotesEditor) return;
+            mount.innerHTML = '';
+            mount.appendChild(notesTemplate.content.cloneNode(true));
+            const root = mount.querySelector('[data-notes-editor-root]');
+            const editBtn = card.querySelector('[data-mc-notes-edit]');
+            const editor = window.CourseforgeNotesEditor.mount(root, {
+                uploadImageUrl: urls.upload_image_url,
+                uploadVideoUrl: urls.upload_video_url,
+                saveNotesUrl: urls.save_notes_url,
+                initialBlocks: [],
+                startOpen: true,
+                doneLabel: 'Done',
+                toggleBtn: editBtn,
+                onPersist: function () {
+                    saveLessonCard(card).then(function () {
+                        showToast('Lesson saved.');
+                    }).catch(function (err) {
+                        showToast(err.message || 'Could not save lesson');
+                    });
+                },
+            });
+            lessonEditors[urls.lesson_id] = editor;
+            if (editBtn) {
+                editBtn.addEventListener('click', function () {
+                    if (!editor) return;
+                    editor.setOpen(!editor.isOpen());
+                });
+            }
+        }
+
+        function createLessonCard(data) {
+            const card = document.createElement('div');
+            card.className = 'mc-lesson-card rounded-xl border border-cyan-electric/20 bg-[#0a0e27]/40 p-4 space-y-4';
+            card.dataset.lessonId = String(data.lesson_id);
+            card.innerHTML = `
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1">
+                        <label class="block text-xs uppercase tracking-wide text-gray-400 mb-1">Lesson title</label>
+                        <input type="text" data-mc-lesson-title value="${(window.CourseforgeNotesEditor ? window.CourseforgeNotesEditor.escapeHtml(data.title || '') : (data.title || ''))}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                    </div>
+                    <button type="button" data-mc-lesson-toggle class="mt-6 px-2 py-1 text-gray-400 hover:text-white" aria-label="Collapse lesson">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+                <div data-mc-lesson-body class="space-y-4">
+                    <div class="rounded-lg border border-cyan-electric/15 p-3 space-y-3">
+                        <p class="text-sm font-semibold text-white">Hero image</p>
+                        <p class="text-xs text-gray-400">Shows above the lesson title on the student page when there is no lesson video.</p>
+                        <img data-mc-hero-preview alt="" class="hidden w-full h-auto rounded-lg border border-cyan-electric/15">
+                        <input type="file" data-mc-hero-file accept="image/png,image/jpeg,image/webp" class="w-full text-sm text-gray-300">
+                        <p data-mc-hero-status class="text-xs text-gray-400"></p>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" data-mc-hero-remove class="hidden px-3 py-1.5 text-xs rounded-full border border-red-400/40 text-red-300 hover:bg-red-500/10">Remove</button>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-cyan-electric/15 p-3 space-y-3">
+                        <p class="text-sm font-semibold text-white">Hero video</p>
+                        <p class="text-xs text-gray-400">Shows at the top of the student lesson page and replaces the hero image.</p>
+                        <video data-mc-hero-video-preview controls playsinline preload="metadata" class="hidden w-full rounded-lg border border-cyan-electric/15 bg-black"></video>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Upload video</label>
+                            <input type="file" data-mc-hero-video-file accept="video/mp4,video/webm,video/quicktime,video/*" class="w-full text-sm text-gray-300">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Or video URL</label>
+                            <input type="url" data-mc-hero-video-url placeholder="Vimeo, YouTube, Drive, or a direct video link" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                        </div>
+                        <p data-mc-hero-video-status class="text-xs text-gray-400"></p>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" data-mc-hero-video-save class="px-3 py-1.5 text-xs rounded-full border border-cyan-electric/30 text-cyan-electric hover:bg-cyan-electric/10">Save URL</button>
+                            <button type="button" data-mc-hero-video-remove class="hidden px-3 py-1.5 text-xs rounded-full border border-red-400/40 text-red-300 hover:bg-red-500/10">Remove</button>
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-cyan-electric/15 p-3 space-y-3">
+                        <p class="text-sm font-semibold text-white">What you’ll learn</p>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Heading</label>
+                            <input type="text" data-mc-lesson-heading value="${(window.CourseforgeNotesEditor ? window.CourseforgeNotesEditor.escapeHtml(data.heading || "What You'll Learn Today") : (data.heading || "What You'll Learn Today"))}" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-electric/50">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Body</label>
+                            <textarea data-mc-lesson-learn rows="4" class="w-full bg-[#0a0e27]/40 border border-cyan-electric/20 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:border-cyan-electric/50" placeholder="What students will take away from this lesson">${(window.CourseforgeNotesEditor ? window.CourseforgeNotesEditor.escapeHtml(data.learn_body || '') : '')}</textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between gap-3 mb-2">
+                            <p class="text-sm font-semibold text-white">Create your lesson</p>
+                            <button type="button" data-mc-notes-edit class="px-3 py-1 bg-cyan-electric/10 border border-cyan-electric/30 rounded-full text-xs font-medium hover:bg-cyan-electric/20 transition-all">
+                                <i class="fas fa-check mr-1"></i> Done
+                            </button>
+                        </div>
+                        <div data-mc-notes-mount></div>
+                    </div>
+                </div>
+            `;
+            const toggle = card.querySelector('[data-mc-lesson-toggle]');
+            toggle.addEventListener('click', function () {
+                const body = card.querySelector('[data-mc-lesson-body]');
+                const hidden = body.classList.toggle('hidden');
+                toggle.innerHTML = hidden
+                    ? '<i class="fas fa-chevron-down"></i>'
+                    : '<i class="fas fa-chevron-up"></i>';
+                if (hidden) {
+                    saveLessonCard(card).catch(function () {});
+                }
+            });
+            bindAutosave(card);
+            bindHeroUpload(card);
+            bindHeroVideo(card);
+            setHeroPreview(card, data.hero_url || '');
+            setHeroVideoPreview(card, data.hero_video_url || '');
+            return card;
+        }
+
+        function setHeroPreview(card, url) {
+            const preview = card.querySelector('[data-mc-hero-preview]');
+            const removeBtn = card.querySelector('[data-mc-hero-remove]');
+            if (preview) {
+                preview.src = url || '';
+                preview.classList.toggle('hidden', !url);
+            }
+            if (removeBtn) removeBtn.classList.toggle('hidden', !url);
+        }
+
+        function bindHeroUpload(card) {
+            const fileInput = card.querySelector('[data-mc-hero-file]');
+            const statusEl = card.querySelector('[data-mc-hero-status]');
+            const removeBtn = card.querySelector('[data-mc-hero-remove]');
+            if (!fileInput) return;
+
+            async function sendHero(action, file) {
+                const formData = new FormData();
+                formData.append('lesson_id', card.dataset.lessonId);
+                formData.append('action', action);
+                if (file) formData.append('hero_image', file);
+                const resp = await fetch(uploadHeroUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrf() },
+                    credentials: 'same-origin',
+                    body: formData,
+                });
+                const data = await resp.json().catch(function () { return {}; });
+                if (!resp.ok || !data.ok) {
+                    throw new Error(data.error || 'Could not update hero image');
+                }
+                return data;
+            }
+
+            fileInput.addEventListener('change', async function () {
+                const file = this.files && this.files[0];
+                if (!file) return;
+                setStatus(statusEl, 'Uploading hero image…');
+                try {
+                    const data = await sendHero('upload', file);
+                    setHeroPreview(card, data.hero_url);
+                    setStatus(statusEl, 'Hero image uploaded.', false);
+                    showToast('Hero image uploaded.');
+                } catch (err) {
+                    setStatus(statusEl, err.message || 'Upload failed.', true);
+                } finally {
+                    this.value = '';
+                }
+            });
+
+            if (removeBtn) {
+                removeBtn.addEventListener('click', async function () {
+                    if (!window.confirm('Remove this hero image?')) return;
+                    setStatus(statusEl, 'Removing…');
+                    try {
+                        await sendHero('delete');
+                        setHeroPreview(card, '');
+                        setStatus(statusEl, 'Hero image removed.', false);
+                    } catch (err) {
+                        setStatus(statusEl, err.message || 'Could not remove image.', true);
+                    }
+                });
+            }
+        }
+
+        function setHeroVideoPreview(card, url) {
+            const preview = card.querySelector('[data-mc-hero-video-preview]');
+            const urlInput = card.querySelector('[data-mc-hero-video-url]');
+            const removeBtn = card.querySelector('[data-mc-hero-video-remove]');
+            const isFile = !!(url && (/\.(webm|mp4|ogg|ogv|mov|m4v)(\?|#|$)/i.test(url) || /katalyst-crm\.com\/objects\//i.test(url)));
+            if (preview) {
+                preview.src = isFile ? (url || '') : '';
+                preview.classList.toggle('hidden', !isFile);
+            }
+            if (urlInput && url) urlInput.value = url;
+            if (removeBtn) removeBtn.classList.toggle('hidden', !url);
+        }
+
+        function bindHeroVideo(card) {
+            const fileInput = card.querySelector('[data-mc-hero-video-file]');
+            const urlInput = card.querySelector('[data-mc-hero-video-url]');
+            const saveBtn = card.querySelector('[data-mc-hero-video-save]');
+            const removeBtn = card.querySelector('[data-mc-hero-video-remove]');
+            const statusEl = card.querySelector('[data-mc-hero-video-status]');
+            if (!fileInput && !urlInput) return;
+
+            async function sendHeroVideo(action, opts) {
+                const formData = new FormData();
+                formData.append('lesson_id', card.dataset.lessonId);
+                formData.append('action', action);
+                if (opts && opts.file) formData.append('hero_video', opts.file);
+                if (opts && opts.url) formData.append('video_url', opts.url);
+                const resp = await fetch(saveHeroVideoUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrf() },
+                    credentials: 'same-origin',
+                    body: formData,
+                });
+                const data = await resp.json().catch(function () { return {}; });
+                if (!resp.ok || !data.ok) {
+                    throw new Error(data.error || 'Could not update hero video');
+                }
+                return data;
+            }
+
+            if (fileInput) {
+                fileInput.addEventListener('change', async function () {
+                    const file = this.files && this.files[0];
+                    if (!file) return;
+                    setStatus(statusEl, 'Converting and uploading video… this can take a minute.');
+                    try {
+                        const data = await sendHeroVideo('save', { file: file });
+                        setHeroVideoPreview(card, data.hero_video_url || '');
+                        setStatus(statusEl, 'Hero video uploaded.', false);
+                        showToast('Hero video uploaded.');
+                    } catch (err) {
+                        setStatus(statusEl, err.message || 'Upload failed.', true);
+                    } finally {
+                        this.value = '';
+                    }
+                });
+            }
+
+            async function saveUrl() {
+                const url = urlInput ? urlInput.value.trim() : '';
+                if (!url) {
+                    setStatus(statusEl, 'Paste a video URL first.', true);
+                    return;
+                }
+                setStatus(statusEl, 'Saving video URL…');
+                try {
+                    const data = await sendHeroVideo('save', { url: url });
+                    setHeroVideoPreview(card, data.hero_video_url || url);
+                    setStatus(statusEl, 'Hero video saved.', false);
+                    showToast('Hero video saved.');
+                } catch (err) {
+                    setStatus(statusEl, err.message || 'Could not save URL.', true);
+                }
+            }
+
+            if (saveBtn) saveBtn.addEventListener('click', saveUrl);
+            if (urlInput) {
+                urlInput.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        saveUrl();
+                    }
+                });
+            }
+
+            if (removeBtn) {
+                removeBtn.addEventListener('click', async function () {
+                    if (!window.confirm('Remove this hero video?')) return;
+                    setStatus(statusEl, 'Removing…');
+                    try {
+                        await sendHeroVideo('delete');
+                        if (urlInput) urlInput.value = '';
+                        setHeroVideoPreview(card, '');
+                        setStatus(statusEl, 'Hero video removed.', false);
+                    } catch (err) {
+                        setStatus(statusEl, err.message || 'Could not remove video.', true);
+                    }
+                });
+            }
+        }
+
+        if (createBtn) {
+            createBtn.addEventListener('click', async function () {
+                const title = titleInput ? titleInput.value.trim() : '';
+                if (!title) {
+                    setStatus(statusEl, 'Enter a course title to start.', true);
+                    if (titleInput) titleInput.focus();
+                    return;
+                }
+                createBtn.disabled = true;
+                setStatus(statusEl, 'Creating course…');
+                try {
+                    const payload = {
+                        title: title,
+                        short_description: descInput ? descInput.value.trim() : '',
+                        pricing_type: paidRadio && paidRadio.checked ? 'paid' : 'free',
+                        price: priceInput ? priceInput.value : '',
+                    };
+                    const data = await postJson(createUrl, payload);
+                    courseSlug = data.slug;
+                    if (setupEl) setupEl.classList.add('hidden');
+                    if (liveEl) liveEl.classList.remove('hidden');
+                    if (liveName) liveName.textContent = data.name || title;
+                    if (liveLink) liveLink.href = data.dashboard_url || '#';
+                    if (viewLiveBtn) viewLiveBtn.href = data.live_url || ('/courses/' + encodeURIComponent(courseSlug) + '/');
+                    if (viewDashboardBtn) viewDashboardBtn.href = data.dashboard_url || '#';
+                    if (footerActions) footerActions.classList.remove('hidden');
+                    if (lessonsSection) lessonsSection.classList.remove('hidden');
+                    if (resourcesSection) resourcesSection.classList.remove('hidden');
+                    setStatus(statusEl, '');
+                    showToast('Course created. Add your first lesson.');
+                } catch (err) {
+                    setStatus(statusEl, err.message || 'Could not create course.', true);
+                    createBtn.disabled = false;
+                }
+            });
+        }
+
+        if (addLessonBtn) {
+            addLessonBtn.addEventListener('click', async function () {
+                if (!courseSlug) {
+                    showToast('Create the course first.');
+                    return;
+                }
+                addLessonBtn.disabled = true;
+                try {
+                    const data = await postJson(addLessonUrl, { course_slug: courseSlug });
+                    const card = createLessonCard(data);
+                    collapseLessonCards(card);
+                    lessonsList.appendChild(card);
+                    mountLessonEditor(card, data);
+                    card.classList.add('notes-editor-card-just-added');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    setTimeout(function () { card.classList.remove('notes-editor-card-just-added'); }, 1600);
+                    showToast((data.title || 'Lesson') + ' added — it’s highlighted below.');
+                    const titleEl = card.querySelector('[data-mc-lesson-title]');
+                    if (titleEl) titleEl.focus();
+                } catch (err) {
+                    showToast(err.message || 'Could not add lesson');
+                } finally {
+                    addLessonBtn.disabled = false;
+                }
+            });
+        }
+
+        if (addResourceBtn) {
+            addResourceBtn.addEventListener('click', async function () {
+                if (!courseSlug) {
+                    showToast('Create the course first.');
+                    return;
+                }
+                const title = resourceTitle ? resourceTitle.value.trim() : '';
+                if (!title) {
+                    setStatus(resourceStatus, 'Enter a resource title.', true);
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('course_slug', courseSlug);
+                formData.append('title', title);
+                formData.append('resource_type', resourceType ? resourceType.value : 'pdf');
+                if (resourceUrl && resourceUrl.value.trim()) {
+                    formData.append('file_url', resourceUrl.value.trim());
+                }
+                if (resourceFile && resourceFile.files && resourceFile.files[0]) {
+                    formData.append('file', resourceFile.files[0]);
+                }
+                addResourceBtn.disabled = true;
+                setStatus(resourceStatus, 'Adding resource…');
+                try {
+                    const resp = await fetch(addResourceUrl, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCsrf() },
+                        credentials: 'same-origin',
+                        body: formData,
+                    });
+                    const data = await resp.json().catch(function () { return {}; });
+                    if (!resp.ok || !data.ok) {
+                        throw new Error(data.error || 'Could not add resource');
+                    }
+                    const row = document.createElement('div');
+                    row.className = 'rounded-lg border border-cyan-electric/15 px-3 py-2 text-sm flex items-center justify-between gap-3';
+                    row.innerHTML = '<span class="text-white font-medium"></span><span class="text-xs uppercase text-gray-400"></span>';
+                    row.querySelector('span').textContent = data.title;
+                    row.querySelectorAll('span')[1].textContent = data.resource_type || '';
+                    resourcesList.appendChild(row);
+                    if (resourceTitle) resourceTitle.value = '';
+                    if (resourceUrl) resourceUrl.value = '';
+                    if (resourceFile) resourceFile.value = '';
+                    setStatus(resourceStatus, 'Resource added.', false);
+                    showToast('Resource added.');
+                } catch (err) {
+                    setStatus(resourceStatus, err.message || 'Could not add resource.', true);
+                } finally {
+                    addResourceBtn.disabled = false;
+                }
+            });
+        }
+    })();
 });
 </script>
 {% endblock %}

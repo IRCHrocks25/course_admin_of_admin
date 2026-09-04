@@ -9,6 +9,7 @@ from .models import (
     PricingTier, TenantNotification, TenantNotificationDelivery,
     ForumCategory, ForumPost, ForumComment, ForumReaction,
     GHLConnection,
+    LibraryCategory, LibraryItem,
 )
 
 
@@ -329,6 +330,23 @@ class ForumCommentAdmin(admin.ModelAdmin):
 class ForumReactionAdmin(admin.ModelAdmin):
     list_display = ['user', 'reaction_type', 'post', 'comment', 'created_at']
     list_filter = ['reaction_type', 'tenant']
+
+
+# ========== LIBRARY ==========
+
+@admin.register(LibraryCategory)
+class LibraryCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'display_order', 'updated_at']
+    list_filter = ['tenant']
+    search_fields = ['name', 'tenant__name']
+
+
+@admin.register(LibraryItem)
+class LibraryItemAdmin(admin.ModelAdmin):
+    list_display = ['title', 'item_type', 'category', 'status', 'tenant', 'updated_at']
+    list_filter = ['item_type', 'status', 'tenant']
+    search_fields = ['title', 'short_description', 'tenant__name']
+    prepopulated_fields = {'slug': ('title',)}
 
 
 # ========== GHL INTEGRATION ==========

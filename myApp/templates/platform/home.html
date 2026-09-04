@@ -26,9 +26,9 @@
   --white:      #ffffff;
   --text:       #e6e9f2;
   --text-2:     #b4bacb;
-  --muted:      #7a8299;
-  --dim:        #525a72;
-  --dimmer:     #363d52;
+  --muted:      #8d94ab;
+  --dim:        #6c7390;
+  --dimmer:     #414968;
 
   --orange:     #ff6a1f;
   --orange-hi:  #ff8444;
@@ -59,6 +59,39 @@ body {
 }
 
 ::selection { background: var(--orange); color: var(--white); }
+
+a, button { color: inherit; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--orange-hi);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 16px;
+  z-index: 1000;
+  background: var(--white);
+  color: var(--bg);
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}
 
 /* ═══ AMBIENT BACKGROUND LAYER ═══ */
 .ambient {
@@ -212,6 +245,48 @@ nav {
 }
 .nav-cta:hover .kbd { background: rgba(0,0,0,0.2); border-color: rgba(0,0,0,0.3); opacity: 0.9; }
 
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 7px;
+  border: 1px solid var(--border-2);
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.nav-toggle:hover { background: rgba(255,255,255,0.06); }
+.nav-toggle svg { width: 18px; height: 18px; }
+.nav-toggle .icon-close { display: none; }
+.nav-toggle[aria-expanded="true"] .icon-open { display: none; }
+.nav-toggle[aria-expanded="true"] .icon-close { display: block; }
+
+.nav-mobile-panel {
+  position: fixed;
+  top: 64px; left: 0; right: 0;
+  z-index: 99;
+  max-height: 0;
+  overflow: hidden;
+  background: rgba(6, 9, 18, 0.97);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  transition: max-height .25s ease;
+}
+.nav-mobile-panel.open { max-height: 420px; }
+.nav-mobile-panel ul { list-style: none; padding: 8px 16px 20px; display: flex; flex-direction: column; gap: 2px; }
+.nav-mobile-panel a {
+  display: block;
+  padding: 12px 10px;
+  font-size: 0.95rem;
+  color: var(--text-2);
+  text-decoration: none;
+  border-radius: 6px;
+}
+.nav-mobile-panel a:hover { color: var(--white); background: rgba(255,255,255,0.04); }
+.nav-mobile-panel .nav-mobile-divider { height: 1px; background: var(--border); margin: 8px 10px; }
+
 /* ═══ HERO ═══ */
 .hero {
   position: relative;
@@ -275,6 +350,20 @@ nav {
 .hero-h1 .highlight {
   color: var(--orange);
   position: relative;
+  white-space: nowrap;
+}
+.hero-h1 .highlight::after {
+  content: '';
+  position: absolute;
+  left: 2px; right: 2px;
+  bottom: 0.06em;
+  height: 0.1em;
+  background: linear-gradient(90deg, var(--orange-dk), var(--orange) 60%, transparent);
+  border-radius: 2px;
+  opacity: 0.55;
+}
+@media (max-width: 640px) {
+  .hero-h1 .highlight { white-space: normal; }
 }
 
 .hero-sub {
@@ -710,6 +799,67 @@ nav {
   font-size: 0.62rem;
   color: var(--dim);
   flex-shrink: 0;
+}
+
+/* ═══ COMPARISON ═══ */
+.compare {
+  margin-top: 56px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+}
+.compare-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.compare-head-cell {
+  padding: 18px 24px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+.compare-head-cell.old { color: var(--muted); background: rgba(255,255,255,0.015); }
+.compare-head-cell.new {
+  color: var(--orange);
+  background: linear-gradient(90deg, rgba(255,106,31,0.1), rgba(255,106,31,0.02));
+  border-left: 1px solid var(--border);
+}
+.compare-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.compare-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+.compare-cell {
+  padding: 20px 24px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.compare-cell.old { color: var(--text-2); }
+.compare-cell.new { color: var(--text); border-left: 1px solid var(--border); }
+.compare-cell .mark {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  margin-top: 1px;
+}
+.compare-cell.old .mark { background: rgba(255,74,106,0.12); color: var(--red); }
+.compare-cell.new .mark { background: rgba(36,217,122,0.14); color: var(--green); }
+@media (max-width: 760px) {
+  .compare-head-cell.new, .compare-cell.new { border-left: none; border-top: 1px solid var(--border); }
+  .compare-head, .compare-row { grid-template-columns: 1fr; }
+  .compare-row:not(:last-child) { border-bottom: none; }
+  .compare-row { border-bottom: 1px solid var(--border); }
 }
 
 /* ═══ LOGO STRIP ═══ */
@@ -1407,9 +1557,13 @@ footer {
   .pc-stats { grid-template-columns: repeat(2, 1fr); }
   .pc-split { grid-template-columns: 1fr; }
 }
+@media (max-width: 860px) {
+  .nav-links { display: none; }
+  .nav-toggle { display: flex; }
+}
 @media (max-width: 640px) {
   nav { padding: 0 16px; }
-  .nav-links { display: none; }
+  .nav-right .signin { display: none; }
   .hero { padding: 120px 16px 64px; }
   .hero-product { padding: 0 16px; }
   .section { padding: 80px 16px; }
@@ -1423,8 +1577,10 @@ footer {
 </head>
 <body>
 
-<div class="ambient"></div>
-<div class="grid-bg"></div>
+<a href="#main" class="skip-link">Skip to content</a>
+
+<div class="ambient" aria-hidden="true"></div>
+<div class="grid-bg" aria-hidden="true"></div>
 
 <!-- ═══ NAV ═══ -->
 <nav>
@@ -1442,11 +1598,26 @@ footer {
   <div class="nav-right">
     <a href="{% url 'login' %}" class="signin">Sign in</a>
     <a href="{% url 'start_academy' %}" class="nav-cta">Get started <span class="kbd">↵</span></a>
+    <button type="button" class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navMobilePanel" aria-label="Open menu">
+      <svg class="icon-open" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <svg class="icon-close" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
   </div>
 </nav>
+<div class="nav-mobile-panel" id="navMobilePanel">
+  <ul>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#customers">Customers</a></li>
+    <li><a href="{% url 'login' %}">Docs</a></li>
+    <li class="nav-mobile-divider"></li>
+    <li><a href="{% url 'login' %}">Sign in</a></li>
+  </ul>
+</div>
 
 <!-- ═══ HERO ═══ -->
-<section class="hero">
+<section class="hero" id="main">
   <div class="hero-inner">
     <a href="#features" class="hero-pill">
       <span class="tag">New</span>
@@ -1481,7 +1652,7 @@ footer {
 </section>
 
 <!-- ═══ HERO PRODUCT SHOT ═══ -->
-<div class="hero-product">
+<div class="hero-product" aria-hidden="true">
   <div class="hero-product-wrap">
     <div class="pc-chrome">
       <div class="pc-dots"><span></span><span></span><span></span></div>
@@ -1641,6 +1812,43 @@ footer {
     </div>
   </div>
 </div>
+
+<!-- ═══ COMPARISON ═══ -->
+<section class="section" style="padding-bottom:40px;">
+  <div class="section-inner">
+    <div class="reveal">
+      <span class="section-kicker">The honest question</span>
+      <h2 class="section-h2">"Why not just stitch it<br><span class="muted">together myself?"</span></h2>
+      <p class="section-deck">Because that "stitch" is a course host, a design contractor, a Zapier subscription, and a spreadsheet — and it still won't look native.</p>
+    </div>
+    <div class="compare reveal">
+      <div class="compare-head">
+        <div class="compare-head-cell old">The DIY stack</div>
+        <div class="compare-head-cell new">CourseForge</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell old"><span class="mark">✕</span> A generic host with your logo pasted over someone else's template</div>
+        <div class="compare-cell new"><span class="mark">✓</span> Full white-label — your domain, your colors, your brand on every page</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell old"><span class="mark">✕</span> Building the curriculum yourself, slide by slide, over weeks</div>
+        <div class="compare-cell new"><span class="mark">✓</span> Describe your expertise — AI drafts modules, lessons, and assessments in under 60 seconds</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell old"><span class="mark">✕</span> Duct-taping Zapier between your host, Stripe, and a spreadsheet</div>
+        <div class="compare-cell new"><span class="mark">✓</span> Stripe wired in natively — one-time, subscription, or cohort pricing</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell old"><span class="mark">✕</span> Guessing why clients quietly stop showing up halfway through</div>
+        <div class="compare-cell new"><span class="mark">✓</span> Per-lesson completion and cohort retention, visible at a glance</div>
+      </div>
+      <div class="compare-row">
+        <div class="compare-cell old"><span class="mark">✕</span> Paying a designer for covers, thumbnails, and a certificate template</div>
+        <div class="compare-cell new"><span class="mark">✓</span> AI-generated covers and auto-issued branded certificates</div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- ═══ LOGO STRIP ═══ -->
 <section class="logos">
@@ -2084,6 +2292,24 @@ footer {
     });
   }, { threshold: 0.1, rootMargin: '0px 0px -80px 0px' });
   els.forEach(el => io.observe(el));
+
+  const navToggle = document.getElementById('navToggle');
+  const navPanel = document.getElementById('navMobilePanel');
+  if (navToggle && navPanel) {
+    navToggle.addEventListener('click', () => {
+      const open = navToggle.getAttribute('aria-expanded') === 'true';
+      navToggle.setAttribute('aria-expanded', String(!open));
+      navToggle.setAttribute('aria-label', open ? 'Open menu' : 'Close menu');
+      navPanel.classList.toggle('open', !open);
+    });
+    navPanel.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        navToggle.setAttribute('aria-expanded', 'false');
+        navToggle.setAttribute('aria-label', 'Open menu');
+        navPanel.classList.remove('open');
+      });
+    });
+  }
 </script>
 
 </body>

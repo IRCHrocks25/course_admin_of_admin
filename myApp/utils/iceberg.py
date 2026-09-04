@@ -1,8 +1,13 @@
 """
 Iceberg CDN client (self-hosted CDN on Cloudflare R2).
 
-Public URL shape:
+Public URL shape (legacy tenant, e.g. t1):
     {ICEBERG_CDN_BASE}/{ICEBERG_TENANT_SEGMENT}/{key}
+
+Public URL shape (current Iceberg tenants):
+    {ICEBERG_CDN_BASE}/{StorageKey}   # StorageKey is "objects/{asset_id}"
+    from the assets/complete response. New uploads must use that URL —
+    the legacy segment/key path 404s on the new tenant.
 
 Upload flow (bytes go directly to R2, not through the Iceberg API):
     1. POST {ICEBERG_API_BASE}/assets/init-upload   -> presigned R2 PUT URL
@@ -53,17 +58,34 @@ def is_configured():
 
 
 def public_url(key):
-    """Build the public CDN URL for a key."""
+    """Build the legacy public CDN URL for a key (segment/key path)."""
     segment = _tenant_segment()
     if segment:
         return f'{_cdn_base()}/{segment}/{key}'
     return f'{_cdn_base()}/{key}'
 
 
+def public_url_from_asset(payload, key):
+    """Prefer Iceberg's StorageKey (objects/{id}); fall back to the legacy path."""
+    storage_key = ((payload or {}).get('StorageKey') or (payload or {}).get('storage_key') or '').strip().lstrip('/')
+    if storage_key:
+        return f'{_cdn_base()}/{storage_key}'
+    return public_url(key)
+
+
 def key_from_url(url):
-    """Extract the storage key from a CDN URL, or '' if it doesn't match."""
+    """Extract the storage key from a CDN URL, or '' if it doesn't match.
+
+    Understands both the legacy ``/{segment}/{key}`` URLs and the current
+    ``/objects/{id}`` URLs (returns ``objects/{id}`` in that case).
+    """
+    if not url:
+        return ''
+    cdn = _cdn_base()
+    if cdn and url.startswith(cdn + '/objects/'):
+        return url[len(cdn) + 1:]
     prefix = public_url('')
-    if url and prefix and url.startswith(prefix):
+    if prefix and url.startswith(prefix):
         return url[len(prefix):]
     return ''
 
@@ -130,7 +152,7 @@ def upload_bytes(data, key, content_type):
             timeout=_TIMEOUT,
         )
         done.raise_for_status()
-        return public_url(key)
+        return public_url_from_asset(done.json() if done.content else {}, key)
     except Exception as e:
         logger.warning('Iceberg upload failed for %s: %s', key, e)
         return ''
@@ -170,8 +192,13 @@ def upload_fileobj(fileobj, key, content_type):
 
 
 def delete(key):
-    """Best-effort delete; returns True on success."""
-    if not is_configured():
+    """Best-effort delete; returns True on success.
+
+    ``key`` may be the original object key (``lesson_hero_images/...``) or a
+    StorageKey (``objects/{id}``). Iceberg accepts the catalog key; for
+    objects/ URLs we try the asset id as well.
+    """
+    if not is_configured() or not key:
         return False
     try:
         resp = requests.delete(
@@ -179,7 +206,16 @@ def delete(key):
             headers=_auth_headers(),
             timeout=_TIMEOUT,
         )
-        return resp.ok
+        if resp.ok:
+            return True
+        if key.startswith('objects/'):
+            resp = requests.delete(
+                f'{_api_base()}/assets/{key.split("/", 1)[1]}',
+                headers=_auth_headers(),
+                timeout=_TIMEOUT,
+            )
+            return resp.ok
+        return False
     except Exception as e:
         logger.warning('Iceberg delete failed for %s: %s', key, e)
         return False

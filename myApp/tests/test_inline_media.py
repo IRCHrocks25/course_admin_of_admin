@@ -1,7 +1,11 @@
 """Tests for inline note image/video helpers and student article enrichment."""
 from django.test import SimpleTestCase
 
-from myApp.utils.inline_media import enrich_video_block, normalize_inline_video_embed
+from myApp.utils.inline_media import (
+    enrich_video_block,
+    is_direct_video_file,
+    normalize_inline_video_embed,
+)
 from myApp.utils.lesson_blocks import prepare_lesson_article
 from myApp.management.commands.split_nested_lesson_headers import _split_points
 
@@ -37,6 +41,22 @@ class InlineMediaNormalizeTests(SimpleTestCase):
             'data': {'url': 'https://vimeo.com/42', 'caption': 'Demo'},
         })
         self.assertEqual(block['data']['embed_url'], 'https://player.vimeo.com/video/42')
+        self.assertEqual(block['data']['file_url'], '')
+
+    def test_direct_file_uses_video_tag_not_iframe(self):
+        self.assertTrue(is_direct_video_file('https://cdn.example.com/clip.webm'))
+        self.assertTrue(is_direct_video_file(
+            'https://cdn.katalyst-crm.com/objects/d36bfb91-84a8-d032-c158-f6eecdabc573',
+        ))
+        block = enrich_video_block({
+            'type': 'video',
+            'data': {
+                'url': 'https://cdn.katalyst-crm.com/objects/d36bfb91-84a8-d032-c158-f6eecdabc573',
+                'source': 'upload',
+            },
+        })
+        self.assertEqual(block['data']['file_url'], block['data']['url'])
+        self.assertEqual(block['data']['embed_url'], '')
 
 
 class PrepareLessonArticleVideoTests(SimpleTestCase):

@@ -62,7 +62,18 @@
                     ></iframe>
                     <script src="https://player.vimeo.com/api/player.js"></script>
                 {% elif lesson.video_url %}
+                    {% if hero_video_is_file %}
+                    <video
+                        src="{{ lesson.video_url }}"
+                        controls
+                        playsinline
+                        preload="metadata"
+                        title="{{ lesson.title }}"
+                        style="position:absolute;top:0;left:0;width:100%;height:100%;background:#000;"
+                    ></video>
+                    {% else %}
                     <iframe src="{{ lesson.get_video_embed_url }}" title="{{ lesson.title }}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe>
+                    {% endif %}
                 {% endif %}
                 <div class="absolute top-3 left-3">
                     <span class="bg-cyan-electric/90 text-on-accent-primary text-[10px] uppercase tracking-wider px-2 py-1 rounded font-bold">
@@ -116,12 +127,16 @@
             <div class="space-y-6">
                 <!-- What You'll Learn Today -->
                 {% if lesson.show_what_youll_learn and not is_pdf_import %}
+                {% with learn_body=lesson_display.ai_full_description|default:lesson_display.description %}
+                {% if learn_body %}
                 <section class="bg-[#0a0e27]/60 backdrop-blur-sm border border-cyan-electric/10 rounded-xl p-6 lesson-card">
-                    <h3 class="text-xl font-bold text-white mb-4">What You'll Learn Today</h3>
+                    <h3 class="text-xl font-bold text-white mb-4">{{ lesson.what_youll_learn_heading|default:"What You'll Learn Today" }}</h3>
                     <p class="text-gray-300 leading-relaxed">
-                        {{ lesson_display.ai_full_description|default:lesson_display.description|default:"Learn the fundamentals of live streaming and how to engage your audience in real-time." }}
+                        {{ learn_body }}
                     </p>
                 </section>
+                {% endif %}
+                {% endwith %}
                 {% endif %}
                 
                 <!-- Lesson Notes / Content Blocks -->
@@ -190,7 +205,18 @@
                                 </figure>
                                 {% endif %}
                             {% elif block.type == 'video' %}
-                                {% if block.data.embed_url %}
+                                {% if block.data.file_url %}
+                                <figure class="lesson-figure lesson-figure-video">
+                                    <video
+                                        src="{{ block.data.file_url }}"
+                                        controls
+                                        playsinline
+                                        preload="metadata"
+                                        class="w-full rounded-xl border border-cyan-electric/20 bg-black"
+                                    ></video>
+                                    {% if block.data.caption %}<figcaption>{{ block.data.caption }}</figcaption>{% endif %}
+                                </figure>
+                                {% elif block.data.embed_url %}
                                 <figure class="lesson-figure lesson-figure-video">
                                     <div class="relative w-full rounded-xl overflow-hidden border border-cyan-electric/20" style="padding-bottom:56.25%;">
                                         <iframe

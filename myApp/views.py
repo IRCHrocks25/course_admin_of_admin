@@ -45,6 +45,8 @@ from .models import (
     CourseEnrollment,
     Event,
     EventRegistration,
+    LibraryCategory,
+    LibraryItem,
     Exam,
     ExamAttempt,
     Certification,
@@ -65,13 +67,13 @@ from .models import (
     category_initial,
     sort_category_names,
 )
-from django.db.models import Avg, Q
+from django.db.models import Avg, Count, Q
 from django.db import models
 from django.db import transaction
 from django.utils import timezone
 from urllib.parse import urlencode, urlparse, parse_qs, unquote
 from .utils.transcription import transcribe_video
-from .utils.access import has_course_access, has_event_access
+from .utils.access import has_course_access, has_event_access, can_access_library
 from .utils.domains import ensure_temporary_domain, get_platform_base_domain, get_tenant_public_home_url
 from .utils.branding import ensure_tenant_branding, get_tenant_branding, build_default_branding
 from .utils.tenancy import get_default_tenant
@@ -3166,6 +3168,105 @@ def register_event(request, event_slug):
     return redirect('event_detail', event_slug=event.slug)
 
 
+def library(request):
+    """Member library catalog. Published items list for everyone; media only for members/staff."""
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        messages.info(request, 'Use your tenant portal URL to access the library.')
+        return redirect('home')
+
+    from myApp.utils.inline_media import is_direct_video_file, normalize_inline_video_embed
+
+    search_query = (request.GET.get('search') or '').strip()
+    type_filter = (request.GET.get('type') or '').strip()
+    category_id = (request.GET.get('category') or '').strip()
+
+    items_qs = (
+        LibraryItem.objects.filter(tenant=tenant, status='published')
+        .select_related('category')
+        .order_by('display_order', 'title', 'id')
+    )
+    if search_query:
+        items_qs = items_qs.filter(
+            Q(title__icontains=search_query) | Q(short_description__icontains=search_query)
+        )
+    if type_filter in dict(LibraryItem.ITEM_TYPES):
+        items_qs = items_qs.filter(item_type=type_filter)
+    if category_id.isdigit():
+        items_qs = items_qs.filter(category_id=int(category_id))
+
+    items = list(items_qs)
+    can_access = can_access_library(request.user, tenant)
+
+    categories = list(
+        LibraryCategory.objects.filter(tenant=tenant)
+        .annotate(
+            item_count=Count(
+                'library_items',
+                filter=Q(library_items__status='published'),
+            )
+        )
+        .order_by('display_order', 'name')
+    )
+    category_cards = [
+        {
+            'id': cat.id,
+            'name': cat.name,
+            'count': cat.item_count,
+            'thumbnail_url': cat.get_thumbnail_url(),
+            'initial': category_initial(cat.name),
+            'color': category_accent_color(cat.name),
+        }
+        for cat in categories
+        if cat.item_count
+    ]
+    show_category_cards = (
+        len(category_cards) > 1
+        and not category_id
+        and not type_filter
+        and not search_query
+    )
+
+    items_payload = []
+    for item in items:
+        payload = {
+            'id': item.id,
+            'title': item.title,
+            'type': item.item_type,
+            'type_label': item.get_item_type_display(),
+            'category': item.category.name if item.category else '',
+            'description': item.description or item.short_description,
+            'short_description': item.short_description,
+            'thumbnail_url': item.get_thumbnail_url(),
+            'is_video': item.is_video_type(),
+        }
+        if can_access:
+            media = item.get_media_url()
+            payload['media_url'] = media
+            payload['is_direct_video'] = bool(item.is_video_type() and is_direct_video_file(media))
+            payload['embed_url'] = (
+                normalize_inline_video_embed(media)
+                if item.is_video_type() and media and not is_direct_video_file(media)
+                else ''
+            )
+        items_payload.append(payload)
+
+    context = {
+        'items': items,
+        'items_payload': items_payload,
+        'can_access_library': can_access,
+        'search_query': search_query,
+        'type_filter': type_filter,
+        'category_id': category_id,
+        'item_type_choices': LibraryItem.ITEM_TYPES,
+        'category_cards': category_cards,
+        'show_category_cards': show_category_cards,
+        'categories': categories,
+    }
+    context.update(_membership_cta_context(request, tenant, request.user))
+    return render(request, 'library.html', context)
+
+
 @login_required
 def course_detail(request, course_slug):
     """Course detail page - redirects to first lesson or course overview. Shows enroll option if no access."""
@@ -3412,9 +3513,12 @@ def lesson_detail(request, course_slug, lesson_slug):
         lesson_display.content if isinstance(getattr(lesson_display, 'content', None), dict) else None,
         title=getattr(lesson_display, 'title', None) or lesson.title,
     )
+    from myApp.utils.inline_media import is_direct_video_file
+
     has_lesson_video = bool(
         lesson.google_drive_url or lesson.get_vimeo_embed_url() or lesson.video_url
     )
+    hero_video_is_file = is_direct_video_file(lesson.video_url or '')
 
     syllabus_modules = []
     for module in all_modules:
@@ -3469,6 +3573,7 @@ def lesson_detail(request, course_slug, lesson_slug):
         'lesson_article': lesson_article,
         'is_pdf_import': is_pdf_import,
         'has_lesson_video': has_lesson_video,
+        'hero_video_is_file': hero_video_is_file,
         'course_complete': course_complete,
         'course_certificate_url': course_certificate_url,
         'course_certificate_id': course_certificate_id,
@@ -4328,6 +4433,93 @@ def upload_lesson_note_image(request, lesson_id):
     if not url:
         return JsonResponse({'error': iceberg.USER_UPLOAD_ERROR}, status=502)
     return JsonResponse({'url': url})
+
+
+@require_http_methods(["POST"])
+@staff_member_required
+def save_lesson_note_blocks(request, lesson_id):
+    """Persist lesson-notes Editor.js blocks without a full form submit."""
+    lesson = get_object_or_404(Lesson.objects.select_related('course'), id=lesson_id)
+    tenant = getattr(request, 'tenant', None)
+    if tenant is not None and lesson.course.tenant_id != tenant.id:
+        return JsonResponse({'error': 'Lesson not found.'}, status=404)
+
+    try:
+        payload = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid notes payload.'}, status=400)
+
+    raw_blocks = payload.get('blocks')
+    if raw_blocks is None and isinstance(payload.get('content'), dict):
+        raw_blocks = payload['content'].get('blocks')
+    if not isinstance(raw_blocks, list):
+        return JsonResponse({'error': 'Notes must be a list of blocks.'}, status=400)
+
+    cleaned = [block for block in raw_blocks if isinstance(block, dict) and block.get('type')]
+    lesson.content = {'blocks': cleaned}
+    lesson.save(update_fields=['content'])
+    return JsonResponse({'ok': True, 'block_count': len(cleaned)})
+
+
+MAX_NOTE_VIDEO_BYTES = 80 * 1024 * 1024
+_NOTE_VIDEO_EXTS = {'.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v', '.mpeg', '.mpg', '.wmv', '.ogv', '.ogg'}
+
+
+@require_http_methods(["POST"])
+@staff_member_required
+def upload_lesson_note_video(request, lesson_id):
+    """Convert an uploaded lesson-note video to WebM, store it on Iceberg, return URL."""
+    import tempfile
+
+    lesson = get_object_or_404(Lesson.objects.select_related('course'), id=lesson_id)
+    tenant = getattr(request, 'tenant', None)
+    if tenant is not None and lesson.course.tenant_id != tenant.id:
+        return JsonResponse({'error': 'Lesson not found.'}, status=404)
+
+    video_file = request.FILES.get('video')
+    if not video_file:
+        return JsonResponse({'error': 'Please choose a video file.'}, status=400)
+    content_type = (getattr(video_file, 'content_type', '') or '').lower()
+    ext = os.path.splitext(getattr(video_file, 'name', '') or '')[1].lower()
+    if content_type and not content_type.startswith('video/') and content_type not in ('application/octet-stream',):
+        return JsonResponse({'error': 'That file is not a video.'}, status=400)
+    if ext and ext not in _NOTE_VIDEO_EXTS:
+        return JsonResponse({'error': 'Use MP4, MOV, WebM, or another common video file.'}, status=400)
+    if video_file.size > MAX_NOTE_VIDEO_BYTES:
+        return JsonResponse({'error': 'Video is too large (max 80 MB).'}, status=400)
+
+    from myApp.utils import iceberg
+    from myApp.utils.video import convert_to_webm
+
+    if not iceberg.is_configured():
+        return JsonResponse({
+            'error': 'Video upload is not configured (Iceberg). Paste a video URL instead.',
+        }, status=503)
+
+    key = f"lesson_note_videos/lesson_{lesson.id}/{uuid.uuid4().hex}.webm"
+    try:
+        with tempfile.TemporaryDirectory(prefix='note_vid_') as tmp:
+            src_path = os.path.join(tmp, f'src{ext or ".mp4"}')
+            dst_path = os.path.join(tmp, 'out.webm')
+            with open(src_path, 'wb') as fh:
+                for chunk in video_file.chunks():
+                    fh.write(chunk)
+            convert_to_webm(src_path, dst_path)
+            with open(dst_path, 'rb') as fh:
+                webm_bytes = fh.read()
+    except RuntimeError as exc:
+        return JsonResponse({'error': str(exc)}, status=422)
+    except Exception:
+        logging.getLogger(__name__).exception('Lesson note video convert failed for lesson %s', lesson.id)
+        return JsonResponse({'error': 'Could not convert that video. Try a shorter MP4.'}, status=500)
+
+    if not webm_bytes:
+        return JsonResponse({'error': 'Conversion produced an empty file.'}, status=500)
+
+    url = iceberg.upload_bytes(webm_bytes, key, 'video/webm')
+    if not url:
+        return JsonResponse({'error': iceberg.USER_UPLOAD_ERROR}, status=502)
+    return JsonResponse({'url': url, 'source': 'upload'})
 
 
 @require_http_methods(["POST"])

@@ -56,6 +56,8 @@ from .models import (
     CourseEnrollment,
     Event,
     EventRegistration,
+    LibraryCategory,
+    LibraryItem,
     Exam,
     ExamQuestion,
     CourseAccess,
@@ -5008,6 +5010,483 @@ def dashboard_add_course(request):
     })
 
 
+DEFAULT_WHAT_YOULL_LEARN_HEADING = "What You'll Learn Today"
+
+
+def _unique_course_slug(tenant, name):
+    slug = generate_slug(name or 'course') or 'course'
+    if len(slug) > 200:
+        slug = slug[:200].rstrip('-') or 'course'
+    base_slug = slug
+    counter = 1
+    while Course.objects.filter(tenant=tenant, slug=slug).exists():
+        slug = f'{base_slug}-{counter}'
+        if len(slug) > 200:
+            slug = f'{base_slug[:190]}-{counter}'
+        counter += 1
+    return slug
+
+
+def _unique_lesson_slug(course, title):
+    base_slug = generate_slug(title) or 'lesson'
+    if len(base_slug) > 200:
+        base_slug = base_slug[:200].rstrip('-') or 'lesson'
+    lesson_slug = base_slug
+    counter = 1
+    while Lesson.objects.filter(course=course, slug=lesson_slug).exists():
+        lesson_slug = f'{base_slug}-{counter}'
+        if len(lesson_slug) > 200:
+            lesson_slug = f'{base_slug[:190]}-{counter}'
+        counter += 1
+    return lesson_slug
+
+
+def _parse_manual_price(payload):
+    pricing_type = (payload.get('pricing_type') or 'free').strip().lower()
+    raw_price = payload.get('price', '')
+    if raw_price is None:
+        raw_price = ''
+    raw_price = str(raw_price).strip()
+    price = None
+    if pricing_type == 'paid' and raw_price:
+        try:
+            price = round(float(raw_price), 2)
+            if price <= 0:
+                price = None
+        except (ValueError, TypeError):
+            price = None
+    enrollment_method = 'purchase' if price else 'open'
+    return price, enrollment_method
+
+
+def _manual_lesson_urls(lesson):
+    return {
+        'lesson_id': lesson.id,
+        'upload_image_url': reverse('upload_lesson_note_image', args=[lesson.id]),
+        'upload_video_url': reverse('upload_lesson_note_video', args=[lesson.id]),
+        'save_notes_url': f'/creator/lessons/{lesson.id}/save-note-blocks/',
+    }
+
+
+def _manual_json_body(request):
+    try:
+        return json.loads(request.body or b'{}')
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _scoped_manual_course(request, course_slug):
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None and not request.user.is_superuser:
+        return None, JsonResponse({'ok': False, 'error': 'Tenant context is required.'}, status=400)
+    if not course_slug:
+        return None, JsonResponse({'ok': False, 'error': 'Course is required.'}, status=400)
+    course = _resolve_dashboard_course(request, course_slug, tenant=tenant)
+    if course is None:
+        return None, JsonResponse({'ok': False, 'error': 'Course not found.'}, status=404)
+    return course, None
+
+
+def _scoped_manual_lesson(request, lesson_id):
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None and not request.user.is_superuser:
+        return None, JsonResponse({'ok': False, 'error': 'Tenant context is required.'}, status=400)
+    try:
+        lesson_id = int(lesson_id)
+    except (TypeError, ValueError):
+        return None, JsonResponse({'ok': False, 'error': 'Lesson is required.'}, status=400)
+    qs = Lesson.objects.select_related('course')
+    if tenant is not None:
+        qs = qs.filter(tenant=tenant)
+    lesson = qs.filter(id=lesson_id).first()
+    if lesson is None:
+        return None, JsonResponse({'ok': False, 'error': 'Lesson not found.'}, status=404)
+    return lesson, None
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_manual_create_course(request):
+    """Create an empty course + default module for the Manual Creation tab."""
+    tenant = _get_dashboard_tenant(request)
+    if tenant is None:
+        return JsonResponse({'ok': False, 'error': 'Tenant context is required.'}, status=400)
+
+    payload = _manual_json_body(request)
+    if payload is None:
+        return JsonResponse({'ok': False, 'error': 'Invalid payload.'}, status=400)
+
+    title = (payload.get('title') or payload.get('name') or '').strip()
+    if not title:
+        return JsonResponse({'ok': False, 'error': 'Course title is required.'}, status=400)
+
+    short_description = (payload.get('short_description') or '').strip() or title
+    price, enrollment_method = _parse_manual_price(payload)
+    slug = _unique_course_slug(tenant, title)
+
+    course = Course.objects.create(
+        tenant=tenant,
+        name=title[:200],
+        slug=slug,
+        short_description=short_description[:1000],
+        description=short_description,
+        course_type='sprint',
+        status='active',
+        coach_name=(payload.get('coach_name') or 'Sprint Coach')[:100],
+        creation_blueprint={'source': 'manual_creation'},
+        price=price,
+        enrollment_method=enrollment_method,
+    )
+    Module.objects.create(
+        tenant=tenant,
+        course=course,
+        name='Lessons',
+        order=0,
+    )
+    return JsonResponse({
+        'ok': True,
+        'course_id': course.id,
+        'slug': course.slug,
+        'name': course.name,
+        'dashboard_url': reverse('dashboard_course_detail', args=[course.slug]),
+        'lessons_url': reverse('dashboard_course_lessons', args=[course.slug]),
+        'live_url': reverse('course_detail', args=[course.slug]),
+    })
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_manual_add_lesson(request):
+    """Create an empty approved lesson so note uploads have a real lesson id."""
+    payload = _manual_json_body(request)
+    if payload is None:
+        return JsonResponse({'ok': False, 'error': 'Invalid payload.'}, status=400)
+
+    course, error = _scoped_manual_course(request, (payload.get('course_slug') or '').strip())
+    if error:
+        return error
+
+    module = course.modules.order_by('order', 'id').first()
+    if module is None:
+        module = Module.objects.create(
+            tenant=course.tenant,
+            course=course,
+            name='Lessons',
+            order=0,
+        )
+
+    next_number = course.lessons.count() + 1
+    title = (payload.get('title') or '').strip() or f'Lesson {next_number}'
+    max_order = course.lessons.aggregate(models.Max('order'))['order__max'] or 0
+    lesson = Lesson.objects.create(
+        tenant=course.tenant,
+        course=course,
+        module=module,
+        title=title[:200],
+        slug=_unique_lesson_slug(course, title),
+        description=title,
+        order=max_order + 1,
+        working_title=title[:200],
+        ai_clean_title=title[:200],
+        ai_full_description='',
+        ai_generation_status='approved',
+        show_what_youll_learn=True,
+        show_lesson_notes=True,
+        what_youll_learn_heading=DEFAULT_WHAT_YOULL_LEARN_HEADING,
+        content={'blocks': []},
+    )
+    data = _manual_lesson_urls(lesson)
+    data.update({
+        'ok': True,
+        'title': lesson.title,
+        'heading': lesson.what_youll_learn_heading,
+        'learn_body': lesson.ai_full_description,
+        'hero_url': lesson.ai_hero_image_url or '',
+        'upload_hero_url': reverse('dashboard_manual_upload_hero'),
+        'hero_video_url': (
+            lesson.google_drive_url
+            or lesson.vimeo_url
+            or lesson.video_url
+            or ''
+        ),
+        'upload_hero_video_url': reverse('dashboard_manual_save_hero_video'),
+    })
+    return JsonResponse(data)
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_manual_save_lesson(request):
+    """Autosave title, What you'll learn, and notes blocks for a manual lesson."""
+    payload = _manual_json_body(request)
+    if payload is None:
+        return JsonResponse({'ok': False, 'error': 'Invalid payload.'}, status=400)
+
+    lesson, error = _scoped_manual_lesson(request, payload.get('lesson_id'))
+    if error:
+        return error
+
+    title = payload.get('title')
+    heading = payload.get('heading')
+    learn_body = payload.get('learn_body')
+    if learn_body is None:
+        learn_body = payload.get('ai_full_description')
+
+    raw_blocks = payload.get('blocks')
+    if raw_blocks is None and isinstance(payload.get('content'), dict):
+        raw_blocks = payload['content'].get('blocks')
+
+    update_fields = ['ai_generation_status', 'show_what_youll_learn', 'show_lesson_notes']
+    lesson.ai_generation_status = 'approved'
+    lesson.show_what_youll_learn = True
+    lesson.show_lesson_notes = True
+
+    if title is not None:
+        cleaned_title = (title or '').strip() or lesson.title
+        lesson.title = cleaned_title[:200]
+        lesson.working_title = cleaned_title[:200]
+        lesson.ai_clean_title = cleaned_title[:200]
+        if not (lesson.description or '').strip() or lesson.description == lesson.working_title:
+            lesson.description = cleaned_title
+            update_fields.append('description')
+        update_fields.extend(['title', 'working_title', 'ai_clean_title'])
+
+    if heading is not None:
+        cleaned_heading = (heading or '').strip() or DEFAULT_WHAT_YOULL_LEARN_HEADING
+        lesson.what_youll_learn_heading = cleaned_heading[:200]
+        update_fields.append('what_youll_learn_heading')
+
+    if learn_body is not None:
+        lesson.ai_full_description = learn_body
+        if not (lesson.description or '').strip() or lesson.description == lesson.title:
+            lesson.description = (learn_body or '').strip() or lesson.title
+            update_fields.append('description')
+        update_fields.append('ai_full_description')
+
+    if raw_blocks is not None:
+        if not isinstance(raw_blocks, list):
+            return JsonResponse({'ok': False, 'error': 'Notes must be a list of blocks.'}, status=400)
+        cleaned = [block for block in raw_blocks if isinstance(block, dict) and block.get('type')]
+        lesson.content = {'blocks': cleaned}
+        update_fields.append('content')
+
+    lesson.save(update_fields=list(dict.fromkeys(update_fields)))
+    return JsonResponse({'ok': True, 'lesson_id': lesson.id})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_manual_add_resource(request):
+    """Attach a course PDF/resource via Iceberg or an external URL."""
+    course_slug = (request.POST.get('course_slug') or '').strip()
+    course, error = _scoped_manual_course(request, course_slug)
+    if error:
+        return error
+
+    title = (request.POST.get('title') or request.POST.get('resource_title') or '').strip()
+    file_url = (request.POST.get('file_url') or request.POST.get('resource_file_url') or '').strip()
+    uploaded_file = request.FILES.get('file') or request.FILES.get('resource_file')
+    resource_type = (request.POST.get('resource_type') or 'other').strip()
+    valid_types = {choice[0] for choice in CourseResource.RESOURCE_TYPES}
+    if resource_type not in valid_types:
+        resource_type = 'other'
+    description = (request.POST.get('description') or request.POST.get('resource_description') or '').strip()
+
+    if not title:
+        return JsonResponse({'ok': False, 'error': 'Resource title is required.'}, status=400)
+    if not uploaded_file and not file_url:
+        return JsonResponse({'ok': False, 'error': 'Upload a file or provide a URL.'}, status=400)
+
+    resolved_url = file_url
+    if uploaded_file:
+        from myApp.utils import iceberg
+        import mimetypes
+
+        if not iceberg.is_configured():
+            return JsonResponse({
+                'ok': False,
+                'error': 'File storage (Iceberg) is not configured. Provide an external URL instead.',
+            }, status=503)
+        ext = (
+            uploaded_file.name.rsplit('.', 1)[-1].lower()
+            if '.' in uploaded_file.name
+            else 'bin'
+        )
+        tenant_id = course.tenant_id or 'global'
+        key = (
+            f'course_resources/tenant_{tenant_id}/'
+            f'course_{course.id}/{uuid.uuid4().hex}.{ext}'
+        )
+        content_type = (
+            uploaded_file.content_type
+            or mimetypes.guess_type(uploaded_file.name)[0]
+            or 'application/octet-stream'
+        )
+        resolved_url = iceberg.upload_fileobj(uploaded_file, key, content_type)
+        if not resolved_url:
+            return JsonResponse({
+                'ok': False,
+                'error': f'Could not upload resource "{title}" to Iceberg.',
+            }, status=502)
+
+    max_order = course.resources.aggregate(models.Max('order'))['order__max'] or 0
+    resource = CourseResource.objects.create(
+        tenant=course.tenant,
+        course=course,
+        title=title[:200],
+        description=description,
+        resource_type=resource_type,
+        file=None,
+        file_url=resolved_url,
+        order=max_order + 1,
+    )
+    return JsonResponse({
+        'ok': True,
+        'resource_id': resource.id,
+        'title': resource.title,
+        'resource_type': resource.resource_type,
+        'file_url': resource.file_url,
+    })
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_manual_upload_hero(request):
+    """Upload or remove a lesson hero image from the Manual Creation tab."""
+    lesson, error = _scoped_manual_lesson(request, request.POST.get('lesson_id'))
+    if error:
+        return error
+
+    action = (request.POST.get('action') or 'upload').strip().lower()
+    if action == 'delete':
+        delete_lesson_hero_image(lesson)
+        return JsonResponse({'ok': True, 'hero_url': ''})
+
+    image_file = request.FILES.get('hero_image') or request.FILES.get('image')
+    if not image_file:
+        return JsonResponse({'ok': False, 'error': 'Choose an image to upload.'}, status=400)
+    content_type = (getattr(image_file, 'content_type', '') or '').lower()
+    if content_type and not content_type.startswith('image/'):
+        return JsonResponse({'ok': False, 'error': 'That file is not an image.'}, status=400)
+    if image_file.size > 10 * 1024 * 1024:
+        return JsonResponse({'ok': False, 'error': 'Image is too large (max 10 MB).'}, status=400)
+
+    hero_url = upload_lesson_hero_image(lesson, image_file)
+    if not hero_url:
+        return JsonResponse({
+            'ok': False,
+            'error': 'Could not upload the hero image. Check file storage and try again.',
+        }, status=502)
+    return JsonResponse({'ok': True, 'hero_url': hero_url})
+
+
+_MANUAL_HERO_VIDEO_FIELDS = [
+    'video_url',
+    'vimeo_url',
+    'vimeo_id',
+    'vimeo_thumbnail',
+    'vimeo_duration_seconds',
+    'video_duration',
+    'google_drive_url',
+    'google_drive_id',
+]
+
+
+def _clear_manual_hero_video(lesson):
+    lesson.video_url = ''
+    lesson.vimeo_url = ''
+    lesson.vimeo_id = ''
+    lesson.vimeo_thumbnail = ''
+    lesson.vimeo_duration_seconds = 0
+    lesson.video_duration = 0
+    lesson.google_drive_url = ''
+    lesson.google_drive_id = ''
+    lesson.save(update_fields=_MANUAL_HERO_VIDEO_FIELDS)
+
+
+def _manual_hero_video_url(lesson):
+    return (
+        (lesson.google_drive_url or '').strip()
+        or (lesson.vimeo_url or '').strip()
+        or (lesson.video_url or '').strip()
+    )
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def dashboard_manual_save_hero_video(request):
+    """Set or clear the student-page hero video (file upload or pasted URL)."""
+    lesson, error = _scoped_manual_lesson(request, request.POST.get('lesson_id'))
+    if error:
+        return error
+
+    action = (request.POST.get('action') or 'save').strip().lower()
+    if action == 'delete':
+        _clear_manual_hero_video(lesson)
+        return JsonResponse({'ok': True, 'hero_video_url': ''})
+
+    video_file = request.FILES.get('hero_video') or request.FILES.get('video')
+    video_url = (request.POST.get('video_url') or request.POST.get('url') or '').strip()
+
+    if video_file:
+        from myApp.views import MAX_NOTE_VIDEO_BYTES, _NOTE_VIDEO_EXTS
+        from myApp.utils import iceberg
+        from myApp.utils.video import convert_to_webm
+        import tempfile
+
+        content_type = (getattr(video_file, 'content_type', '') or '').lower()
+        ext = os.path.splitext(getattr(video_file, 'name', '') or '')[1].lower()
+        if content_type and not content_type.startswith('video/') and content_type not in ('application/octet-stream',):
+            return JsonResponse({'ok': False, 'error': 'That file is not a video.'}, status=400)
+        if ext and ext not in _NOTE_VIDEO_EXTS:
+            return JsonResponse({'ok': False, 'error': 'Use MP4, MOV, WebM, or another common video file.'}, status=400)
+        if video_file.size > MAX_NOTE_VIDEO_BYTES:
+            return JsonResponse({'ok': False, 'error': 'Video is too large (max 80 MB).'}, status=400)
+        if not iceberg.is_configured():
+            return JsonResponse({
+                'ok': False,
+                'error': 'Video upload is not configured. Paste a Vimeo, YouTube, or Drive URL instead.',
+            }, status=503)
+
+        key = f'lesson_hero_videos/lesson_{lesson.id}/{uuid.uuid4().hex}.webm'
+        try:
+            with tempfile.TemporaryDirectory(prefix='hero_vid_') as tmp:
+                src_path = os.path.join(tmp, f'src{ext or ".mp4"}')
+                dst_path = os.path.join(tmp, 'out.webm')
+                with open(src_path, 'wb') as fh:
+                    for chunk in video_file.chunks():
+                        fh.write(chunk)
+                convert_to_webm(src_path, dst_path)
+                with open(dst_path, 'rb') as fh:
+                    webm_bytes = fh.read()
+        except RuntimeError as exc:
+            return JsonResponse({'ok': False, 'error': str(exc)}, status=422)
+        except Exception:
+            logger.exception('Hero video convert failed for lesson %s', lesson.id)
+            return JsonResponse({'ok': False, 'error': 'Could not convert that video. Try a shorter MP4.'}, status=500)
+
+        if not webm_bytes:
+            return JsonResponse({'ok': False, 'error': 'Conversion produced an empty file.'}, status=500)
+        stored_url = iceberg.upload_bytes(webm_bytes, key, 'video/webm')
+        if not stored_url:
+            return JsonResponse({'ok': False, 'error': iceberg.USER_UPLOAD_ERROR}, status=502)
+        _clear_manual_hero_video(lesson)
+        lesson.video_url = stored_url
+        lesson.save(update_fields=['video_url'])
+        return JsonResponse({'ok': True, 'hero_video_url': stored_url, 'source': 'upload'})
+
+    if video_url:
+        from myApp.views import derive_lesson_video_fields
+
+        fields = derive_lesson_video_fields(video_url)
+        for name in _MANUAL_HERO_VIDEO_FIELDS:
+            setattr(lesson, name, fields.get(name, getattr(lesson, name)))
+        lesson.save(update_fields=_MANUAL_HERO_VIDEO_FIELDS)
+        return JsonResponse({'ok': True, 'hero_video_url': _manual_hero_video_url(lesson)})
+
+    return JsonResponse({'ok': False, 'error': 'Upload a video or paste a URL.'}, status=400)
+
+
 @staff_member_required
 def dashboard_lessons(request):
     """List all lessons across all courses"""
@@ -8792,6 +9271,342 @@ def dashboard_delete_event(request, event_slug):
     event.delete()
     messages.success(request, f'Event "{title}" deleted.')
     return redirect('dashboard_events')
+
+
+# ========== LIBRARY (standalone member resources — not courses) ==========
+
+_LIBRARY_ITEM_TYPES = {choice[0] for choice in LibraryItem.ITEM_TYPES}
+_LIBRARY_STATUSES = {choice[0] for choice in LibraryItem.STATUS_CHOICES}
+
+
+def _unique_library_slug(tenant, base_slug, exclude_pk=None):
+    """Ensure slug uniqueness within a tenant (matches uniq_library_item_tenant_slug)."""
+    base = (base_slug or 'item')[:200].rstrip('-') or 'item'
+    slug = base
+    counter = 2
+    while True:
+        qs = LibraryItem.objects.filter(tenant=tenant, slug=slug)
+        if exclude_pk is not None:
+            qs = qs.exclude(pk=exclude_pk)
+        if not qs.exists():
+            return slug
+        suffix = f'-{counter}'
+        slug = f"{base[:200 - len(suffix)].rstrip('-')}{suffix}"
+        counter += 1
+
+
+def _upload_library_file(uploaded_file, tenant):
+    """Upload a library file to Iceberg. Returns (url, error_message)."""
+    from myApp.utils import iceberg
+    import mimetypes
+
+    if not iceberg.is_configured():
+        return None, 'File storage (Iceberg) is not configured. Provide an external URL instead.'
+    ext = (
+        uploaded_file.name.rsplit('.', 1)[-1].lower()
+        if '.' in uploaded_file.name
+        else 'bin'
+    )
+    tenant_id = tenant.id if tenant else 'global'
+    key = f'library/tenant_{tenant_id}/{uuid.uuid4().hex}.{ext}'
+    content_type = (
+        uploaded_file.content_type
+        or mimetypes.guess_type(uploaded_file.name)[0]
+        or 'application/octet-stream'
+    )
+    resolved = iceberg.upload_fileobj(uploaded_file, key, content_type)
+    if not resolved:
+        return None, 'Could not upload the file. Try again or use an external URL.'
+    return resolved, None
+
+
+def _assign_library_thumbnail(obj, uploaded_file, tenant):
+    """Store a thumbnail on Iceberg. Never writes ImageField (avoids Cloudinary)."""
+    url, err = _upload_library_file(uploaded_file, tenant)
+    if err:
+        return err
+    obj.thumbnail_url = url
+    return None
+
+
+def _library_redirect(request):
+    url = reverse('dashboard_library')
+    query = request.GET.urlencode()
+    if query:
+        return redirect(f'{url}?{query}')
+    return redirect(url)
+
+
+@staff_member_required
+def dashboard_library(request):
+    """Single-page Library admin: list + modal create/edit/categories."""
+    tenant = _get_dashboard_tenant(request)
+    is_superadmin = bool(request.user.is_superuser)
+    if tenant is None and not is_superadmin:
+        messages.error(request, 'Tenant context is required to manage the library.')
+        return redirect('dashboard_home')
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'save_item':
+            return _library_save_item(request, tenant)
+        if action == 'delete_item':
+            return _library_delete_item(request, tenant)
+        if action == 'toggle_publish':
+            return _library_toggle_publish(request, tenant)
+        if action == 'save_category':
+            return _library_save_category(request, tenant)
+        if action == 'delete_category':
+            return _library_delete_category(request, tenant)
+        messages.error(request, 'Unknown library action.')
+        return _library_redirect(request)
+
+    items_qs = LibraryItem.objects.select_related('category', 'tenant')
+    categories_qs = LibraryCategory.objects.annotate(item_count=Count('library_items'))
+    if tenant is not None:
+        items_qs = items_qs.filter(tenant=tenant)
+        categories_qs = categories_qs.filter(tenant=tenant)
+    elif not is_superadmin:
+        items_qs = items_qs.none()
+        categories_qs = categories_qs.none()
+
+    items = list(items_qs.order_by('display_order', 'title', 'id'))
+    categories = list(categories_qs.order_by('display_order', 'name', 'id'))
+
+    items_payload = []
+    for item in items:
+        items_payload.append({
+            'id': item.id,
+            'title': item.title,
+            'slug': item.slug,
+            'short_description': item.short_description,
+            'description': item.description,
+            'item_type': item.item_type,
+            'category_id': item.category_id or '',
+            'file_url': item.file_url,
+            'video_url': item.video_url,
+            'status': item.status,
+            'display_order': item.display_order,
+            'thumbnail_url': item.get_thumbnail_url(),
+        })
+
+    return render(request, 'dashboard/library.html', {
+        'items': items,
+        'items_payload': items_payload,
+        'categories': categories,
+        'item_type_choices': LibraryItem.ITEM_TYPES,
+        'is_superadmin': is_superadmin,
+        'cur': 'dashboard_library',
+    })
+
+
+def _resolve_library_item(request, tenant, item_id):
+    qs = LibraryItem.objects.all()
+    if tenant is not None:
+        qs = qs.filter(tenant=tenant)
+    elif not request.user.is_superuser:
+        return None
+    return qs.filter(id=item_id).first()
+
+
+def _resolve_library_category(request, tenant, category_id):
+    qs = LibraryCategory.objects.all()
+    if tenant is not None:
+        qs = qs.filter(tenant=tenant)
+    elif not request.user.is_superuser:
+        return None
+    return qs.filter(id=category_id).first()
+
+
+def _library_save_item(request, tenant):
+    title = (request.POST.get('title') or '').strip()
+    if not title:
+        messages.error(request, 'Title is required.')
+        return _library_redirect(request)
+
+    raw_id = (request.POST.get('item_id') or '').strip()
+    item = None
+    if raw_id:
+        try:
+            item = _resolve_library_item(request, tenant, int(raw_id))
+        except (TypeError, ValueError):
+            item = None
+        if item is None:
+            messages.error(request, 'Library item not found.')
+            return _library_redirect(request)
+    else:
+        if tenant is None:
+            messages.error(request, 'Tenant context is required to create a library item.')
+            return _library_redirect(request)
+        item = LibraryItem(tenant=tenant)
+        item.slug = _unique_library_slug(tenant, generate_slug(title))
+
+    item.title = title
+    item.short_description = (request.POST.get('short_description') or '').strip()
+    item.description = (request.POST.get('description') or '').strip()
+    item_type = (request.POST.get('item_type') or 'document').strip()
+    item.item_type = item_type if item_type in _LIBRARY_ITEM_TYPES else 'document'
+    status = (request.POST.get('status') or '').strip()
+    if request.POST.get('published'):
+        item.status = 'published'
+    elif status in _LIBRARY_STATUSES:
+        item.status = status
+    else:
+        item.status = 'draft'
+
+    raw_order = (request.POST.get('display_order') or '').strip()
+    try:
+        item.display_order = max(0, int(raw_order or 0))
+    except (TypeError, ValueError):
+        item.display_order = item.display_order or 0
+
+    cat_id = (request.POST.get('category_id') or '').strip()
+    if cat_id:
+        try:
+            item.category = _resolve_library_category(request, tenant, int(cat_id))
+        except (TypeError, ValueError):
+            item.category = None
+    else:
+        item.category = None
+
+    file_url = (request.POST.get('file_url') or '').strip()
+    video_url = (request.POST.get('video_url') or '').strip()
+    uploaded_file = request.FILES.get('media_file')
+    if uploaded_file:
+        resolved, err = _upload_library_file(uploaded_file, item.tenant or tenant)
+        if err:
+            messages.error(request, err)
+            return _library_redirect(request)
+        if item.is_video_type():
+            item.video_url = resolved
+        else:
+            item.file_url = resolved
+    else:
+        if file_url:
+            item.file_url = file_url
+        if video_url:
+            item.video_url = video_url
+
+    if request.FILES.get('thumbnail'):
+        thumb_err = _assign_library_thumbnail(
+            item, request.FILES['thumbnail'], item.tenant or tenant,
+        )
+        if thumb_err:
+            messages.warning(request, f'Item saved, but thumbnail was skipped. {thumb_err}')
+
+    item.save()
+    verb = 'updated' if raw_id else 'created'
+    messages.success(request, f'Library item "{item.title}" {verb}.')
+    return _library_redirect(request)
+
+
+def _library_delete_item(request, tenant):
+    raw_id = (request.POST.get('item_id') or '').strip()
+    try:
+        item = _resolve_library_item(request, tenant, int(raw_id))
+    except (TypeError, ValueError):
+        item = None
+    if item is None:
+        messages.error(request, 'Library item not found.')
+        return _library_redirect(request)
+    title = item.title
+    if item.file_url or item.video_url:
+        try:
+            from myApp.utils import iceberg
+            for url in (item.file_url, item.video_url):
+                key = iceberg.key_from_url(url) if url else None
+                if key:
+                    iceberg.delete(key)
+        except Exception:
+            logger.exception('Could not remove remote library file for item %s', raw_id)
+    item.delete()
+    messages.success(request, f'Library item "{title}" deleted.')
+    return _library_redirect(request)
+
+
+def _library_toggle_publish(request, tenant):
+    raw_id = (request.POST.get('item_id') or '').strip()
+    try:
+        item = _resolve_library_item(request, tenant, int(raw_id))
+    except (TypeError, ValueError):
+        item = None
+    if item is None:
+        messages.error(request, 'Library item not found.')
+        return _library_redirect(request)
+    item.status = 'draft' if item.status == 'published' else 'published'
+    item.save(update_fields=['status', 'updated_at'])
+    label = 'published' if item.status == 'published' else 'moved to draft'
+    messages.success(request, f'"{item.title}" {label}.')
+    return _library_redirect(request)
+
+
+def _library_is_ajax(request):
+    return (
+        request.POST.get('ajax') == '1'
+        or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    )
+
+
+def _library_save_category(request, tenant):
+    ajax = _library_is_ajax(request)
+    if tenant is None:
+        if ajax:
+            return JsonResponse({'ok': False, 'error': 'Tenant context is required.'}, status=400)
+        messages.error(request, 'Tenant context is required to manage categories.')
+        return _library_redirect(request)
+    name = (request.POST.get('name') or '').strip()
+    if not name:
+        if ajax:
+            return JsonResponse({'ok': False, 'error': 'Category name is required.'}, status=400)
+        messages.error(request, 'Category name is required.')
+        return _library_redirect(request)
+    raw_id = (request.POST.get('category_id') or '').strip()
+    if raw_id:
+        try:
+            category = _resolve_library_category(request, tenant, int(raw_id))
+        except (TypeError, ValueError):
+            category = None
+        if category is None:
+            if ajax:
+                return JsonResponse({'ok': False, 'error': 'Category not found.'}, status=404)
+            messages.error(request, 'Category not found.')
+            return _library_redirect(request)
+    else:
+        existing = LibraryCategory.objects.filter(tenant=tenant, name=name).first()
+        if existing:
+            if ajax:
+                return JsonResponse({'ok': True, 'id': existing.id, 'name': existing.name, 'existing': True})
+            messages.error(request, f'A category named "{name}" already exists.')
+            return _library_redirect(request)
+        category = LibraryCategory(tenant=tenant, name=name)
+
+    category.name = name
+    if request.FILES.get('thumbnail'):
+        thumb_err = _assign_library_thumbnail(category, request.FILES['thumbnail'], tenant)
+        if thumb_err and ajax:
+            return JsonResponse({'ok': False, 'error': thumb_err}, status=400)
+        if thumb_err:
+            messages.warning(request, f'Category saved, but thumbnail was skipped. {thumb_err}')
+    category.save()
+    if ajax:
+        return JsonResponse({'ok': True, 'id': category.id, 'name': category.name})
+    messages.success(request, f'Category "{category.name}" saved.')
+    return _library_redirect(request)
+
+
+def _library_delete_category(request, tenant):
+    raw_id = (request.POST.get('category_id') or '').strip()
+    try:
+        category = _resolve_library_category(request, tenant, int(raw_id))
+    except (TypeError, ValueError):
+        category = None
+    if category is None:
+        messages.error(request, 'Category not found.')
+        return _library_redirect(request)
+    name = category.name
+    category.delete()
+    messages.success(request, f'Category "{name}" deleted. Items in it are now uncategorized.')
+    return _library_redirect(request)
 
 
 # ========== COURSE / LESSON TRANSLATIONS ==========

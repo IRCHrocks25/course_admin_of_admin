@@ -1,0 +1,78 @@
+<style>
+    .notes-preview h2,
+    .notes-preview h3,
+    .notes-preview h4 {
+        color: #f8fafc;
+        font-weight: 700;
+    }
+    .notes-preview p {
+        line-height: 1.7;
+    }
+    .notes-preview ul,
+    .notes-preview ol {
+        margin-left: 1.25rem;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .notes-preview ul {
+        list-style-type: disc;
+    }
+    .notes-preview ol {
+        list-style-type: decimal;
+    }
+    .notes-preview blockquote {
+        border-left: 3px solid rgba(0, 240, 255, 0.55);
+        padding-left: 0.9rem;
+        color: #d1d5db;
+        font-style: italic;
+    }
+    .notes-editor-card {
+        border: 1px solid rgba(0, 240, 255, 0.18);
+        border-radius: 0.75rem;
+        background: rgba(10, 14, 39, 0.35);
+        padding: 0.85rem;
+    }
+    .notes-editor-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #9ca3af;
+        margin-bottom: 0.3rem;
+        display: block;
+    }
+    .notes-done-primary {
+        box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.15), 0 10px 24px rgba(0, 240, 255, 0.18);
+    }
+    .notes-done-primary:disabled {
+        opacity: 0.85;
+        cursor: wait;
+    }
+    .notes-add-bar { position: sticky; top: 0; z-index: 5; padding: 0.4rem 0 0.55rem; background: linear-gradient(180deg, rgba(10,14,39,0.96) 70%, rgba(10,14,39,0)); }
+    .notes-add-feedback {
+        min-height: 1.15rem;
+        font-size: 12px;
+        font-weight: 600;
+        color: #67e8f9;
+        opacity: 0;
+        transition: opacity .15s;
+    }
+    .notes-add-feedback.show { opacity: 1; }
+    .notes-editor-card-just-added {
+        outline: 2px solid rgba(0, 240, 255, 0.65);
+        box-shadow: 0 0 0 4px rgba(0, 240, 255, 0.14);
+        animation: notesCardFlash 1.4s ease-out;
+    }
+    @keyframes notesCardFlash {
+        0% { outline-color: rgba(0, 240, 255, 0.95); }
+        100% { outline-color: rgba(0, 240, 255, 0.25); }
+    }
+    .brand-theme-light .notes-add-bar { background: linear-gradient(180deg, #ffffff 70%, rgba(255,255,255,0)); }
+    .brand-theme-light .notes-add-feedback { color: #1d4ed8; }
+    .brand-theme-light .notes-editor-card-just-added {
+        outline-color: rgba(37, 99, 235, 0.55);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+    .brand-theme-light .notes-preview blockquote { border-left-color: rgba(30, 58, 138, 0.55); color: #475569; }
+    .brand-theme-light .notes-editor-card { border-color: rgba(15, 23, 42, 0.12); background: #ffffff; }
+    .brand-theme-light .notes-done-primary { box-shadow: 0 0 0 1px rgba(30, 58, 138, 0.20), 0 10px 24px rgba(30, 58, 138, 0.12); }
+</style>

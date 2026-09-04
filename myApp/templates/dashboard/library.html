@@ -1,0 +1,540 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}Library{% endblock %}
+{% block page_title %}Library{% endblock %}
+
+{% block content %}
+<style>
+  .lib-page, .lib-modal {
+    --lib-accent: #38bdf8;
+    --lib-accent-soft: rgba(56,189,248,.14);
+    --lib-line: rgba(0,240,255,.18);
+    --lib-muted: #94a3b8;
+    --lib-surface: rgba(10,14,39,.6);
+    --lib-btn: linear-gradient(135deg, #0891b2, #6366f1);
+  }
+  .brand-theme-light .lib-page,
+  .brand-theme-light .lib-modal {
+    --lib-accent: #1e3a8a;
+    --lib-accent-soft: rgba(30,58,138,.10);
+    --lib-line: rgba(15,23,42,.12);
+    --lib-muted: #475569;
+    --lib-surface: #ffffff;
+    --lib-btn: linear-gradient(135deg, #1e3a8a, #4f46e5);
+  }
+  .lib-head { margin-bottom: 1.4rem; }
+  .lib-head h2 { font-size: 1.35rem; font-weight: 700; margin: 0 0 .35rem; }
+  .lib-head p { color: var(--lib-muted); font-size: 14px; margin: 0; max-width: 42rem; }
+  .lib-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+  .lib-toolbar-left { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+  .lib-count { color: var(--lib-muted); font-size: 14px; margin: 0; }
+  .lib-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .lib-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--lib-line); color: var(--lib-muted); background: transparent; cursor: pointer;
+  }
+  .lib-chip.is-on { background: var(--lib-accent-soft); color: var(--lib-accent); border-color: color-mix(in srgb, var(--lib-accent) 35%, transparent); }
+  .lib-toolbar-right { display: flex; gap: 8px; flex-wrap: wrap; }
+  .lib-select {
+    background: var(--lib-surface); border: 1px solid var(--lib-line);
+    border-radius: 8px; padding: 6px 10px; color: inherit; font-size: 13px;
+  }
+  .lib-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 9px; font-size: 14px; font-weight: 600;
+    border: 0; cursor: pointer; text-decoration: none;
+  }
+  .lib-btn-primary { background: var(--lib-btn); color: #fff; }
+  .lib-btn-primary:hover { filter: brightness(1.08); }
+  .lib-btn-ghost { background: transparent; color: inherit; border: 1px solid var(--lib-line); }
+  .lib-btn-ghost:hover { background: var(--lib-accent-soft); }
+  .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+  .lib-card {
+    display: flex; flex-direction: column;
+    background: var(--lib-surface); border: 1px solid var(--lib-line);
+    border-radius: 16px; overflow: hidden;
+  }
+  .lib-card-thumb {
+    height: 132px; background: linear-gradient(135deg, color-mix(in srgb, var(--lib-accent) 18%, var(--lib-surface)), rgba(99,102,241,.18));
+    background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .lib-card-thumb i { font-size: 32px; color: color-mix(in srgb, var(--lib-accent) 70%, transparent); }
+  .lib-card-body { padding: 1rem 1.05rem 1.1rem; display: flex; flex-direction: column; gap: .45rem; flex: 1; }
+  .lib-card-title { font-size: 16px; font-weight: 700; margin: 0; line-height: 1.3; }
+  .lib-card-desc { font-size: 13px; color: var(--lib-muted); margin: 0; line-height: 1.5; flex: 1; }
+  .lib-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+  .lib-pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; border: 1px solid rgba(148,163,184,.25); color: var(--lib-muted); }
+  .lib-pill.published { color: #15803d; background: rgba(22,163,74,.12); border-color: rgba(22,163,74,.3); }
+  .brand-theme-dark .lib-pill.published { color: #4ade80; }
+  .lib-pill.draft { color: #b45309; background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); }
+  .brand-theme-dark .lib-pill.draft { color: #fbbf24; }
+  .lib-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .4rem; }
+  .act-btn {
+    display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px;
+    border-radius: 7px; font-size: 12px; font-weight: 500; border: .5px solid; cursor: pointer;
+    background: transparent; text-decoration: none;
+  }
+  .act-cyan { color: var(--lib-accent); border-color: color-mix(in srgb, var(--lib-accent) 35%, transparent); }
+  .act-cyan:hover { background: var(--lib-accent-soft); }
+  .act-red { color: #dc2626; border-color: rgba(220,38,38,.3); }
+  .brand-theme-dark .act-red { color: #f87171; }
+  .act-red:hover { background: rgba(248,113,113,.07); }
+  .lib-empty {
+    text-align: center; color: var(--lib-muted); padding: 3.5rem 1.5rem;
+    border: 1px dashed var(--lib-line); border-radius: 16px;
+  }
+  .lib-empty i { font-size: 28px; display: block; margin-bottom: .7rem; color: color-mix(in srgb, var(--lib-accent) 55%, transparent); }
+  .lib-modal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.6); backdrop-filter: blur(6px); }
+  .lib-modal.is-open { display: flex; }
+  .lib-modal-panel {
+    background: var(--lib-surface, #0a0e27); border: 1px solid var(--lib-line); border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45); width: 100%; max-width: 40rem;
+    margin: 1rem; max-height: 90vh; overflow-y: auto;
+  }
+  .brand-theme-light .lib-modal-panel { box-shadow: 0 24px 60px rgba(15,23,42,.18); }
+  .lib-modal-panel.wide { max-width: 36rem; }
+  .lib-modal-hd { display: flex; align-items: center; justify-content: space-between; padding: 1.25rem 1.4rem; border-bottom: 1px solid var(--lib-line); }
+  .lib-modal-hd h3 { font-size: 1.25rem; font-weight: 700; margin: 0; }
+  .lib-modal-x { color: var(--lib-muted); background: none; border: 0; cursor: pointer; font-size: 1.1rem; }
+  .lib-modal-x:hover { color: inherit; }
+  .lib-form { padding: 1.25rem 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .lib-field label { display: block; font-size: 12px; font-weight: 600; color: var(--lib-muted); margin-bottom: 6px; }
+  .lib-field input[type=text],
+  .lib-field input[type=url],
+  .lib-field input[type=number],
+  .lib-field textarea,
+  .lib-field select {
+    width: 100%; background: var(--lib-surface); border: 1px solid var(--lib-line);
+    border-radius: 8px; padding: 8px 12px; color: inherit; font-size: 14px;
+  }
+  .lib-field input:focus, .lib-field textarea:focus, .lib-field select:focus {
+    outline: none; border-color: color-mix(in srgb, var(--lib-accent) 45%, transparent);
+  }
+  .lib-field input[type=file] { font-size: 13px; color: var(--lib-muted); }
+  .lib-types { display: flex; flex-wrap: wrap; gap: 6px; }
+  .lib-type {
+    padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--lib-line); background: transparent; color: var(--lib-muted); cursor: pointer;
+  }
+  .lib-type.is-on { background: var(--lib-accent-soft); color: var(--lib-accent); border-color: color-mix(in srgb, var(--lib-accent) 40%, transparent); }
+  .lib-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .lib-row { grid-template-columns: 1fr; } }
+  .lib-check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: inherit; }
+  .lib-modal-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: .25rem; }
+  .lib-hint { font-size: 12px; color: var(--lib-muted); margin: 4px 0 0; }
+  .lib-cat-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--lib-line); }
+  .lib-cat-row:last-child { border-bottom: 0; }
+  .lib-cat-thumb { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--lib-accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--lib-accent); }
+  .lib-cat-meta { flex: 1; min-width: 0; }
+  .lib-cat-meta strong { display: block; font-size: 14px; }
+  .lib-cat-meta span { font-size: 12px; color: var(--lib-muted); }
+  .lib-cat-inline { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .lib-cat-inline input {
+    flex: 1; background: var(--lib-surface); border: 1px solid var(--lib-line);
+    border-radius: 8px; padding: 7px 10px; color: inherit; font-size: 13px;
+  }
+  .lib-cat-inline input:focus { outline: none; border-color: color-mix(in srgb, var(--lib-accent) 45%, transparent); }
+  .lib-cat-add-link {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--lib-accent);
+  }
+  .lib-cat-add-link:hover { text-decoration: underline; }
+  .lib-cat-inline-err { font-size: 12px; color: #dc2626; margin: 4px 0 0; }
+</style>
+
+<div class="lib-page">
+
+<div class="lib-head">
+  <h2>Library</h2>
+  <p>Member resources — webinar recordings, short lectures, tools, and documents. These are not courses and do not create enrollments.</p>
+</div>
+
+<div class="lib-toolbar">
+  <div class="lib-toolbar-left">
+    <p class="lib-count">{{ items|length }} item{{ items|length|pluralize }}</p>
+    <div class="lib-chips" id="lib-type-filters">
+      <button type="button" class="lib-chip is-on" data-type="">All</button>
+      {% for value, label in item_type_choices %}
+      <button type="button" class="lib-chip" data-type="{{ value }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+    {% if categories %}
+    <select id="lib-cat-filter" class="lib-select">
+      <option value="">All categories</option>
+      {% for cat in categories %}
+      <option value="{{ cat.id }}">{{ cat.name }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+  </div>
+  <div class="lib-toolbar-right">
+    <button type="button" class="lib-btn lib-btn-ghost" onclick="openCategoriesModal()">
+      <i class="fas fa-folder-tree"></i> Manage categories
+    </button>
+    <button type="button" class="lib-btn lib-btn-primary" onclick="openItemModal()">
+      <i class="fas fa-plus"></i> Add item
+    </button>
+  </div>
+</div>
+
+{% if items %}
+<div class="lib-grid" id="lib-grid">
+  {% for item in items %}
+  <article class="lib-card" data-type="{{ item.item_type }}" data-category="{{ item.category_id|default:'' }}">
+    <div class="lib-card-thumb"{% if item.get_thumbnail_url %} style="background-image:url('{{ item.get_thumbnail_url }}')"{% endif %}>
+      {% if not item.get_thumbnail_url %}
+      <i class="fas {% if item.item_type == 'recording' %}fa-video{% elif item.item_type == 'lecture' %}fa-chalkboard-user{% elif item.item_type == 'tool' %}fa-screwdriver-wrench{% else %}fa-file-lines{% endif %}"></i>
+      {% endif %}
+    </div>
+    <div class="lib-card-body">
+      <div class="lib-pills">
+        <span class="lib-pill">{{ item.get_item_type_display }}</span>
+        {% if item.category %}<span class="lib-pill">{{ item.category.name }}</span>{% endif %}
+        <span class="lib-pill {{ item.status }}">{{ item.get_status_display }}</span>
+      </div>
+      <h3 class="lib-card-title">{{ item.title }}</h3>
+      {% if item.short_description %}<p class="lib-card-desc">{{ item.short_description|truncatechars:110 }}</p>{% endif %}
+      <div class="lib-card-actions">
+        <button type="button" class="act-btn act-cyan" onclick="openItemModal({{ item.id }})"><i class="fas fa-pen"></i> Edit</button>
+        <form method="post" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="toggle_publish">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <button type="submit" class="act-btn act-cyan">
+            {% if item.status == 'published' %}Unpublish{% else %}Publish{% endif %}
+          </button>
+        </form>
+        <form method="post" style="display:inline;" onsubmit="return confirm('Delete &quot;{{ item.title|escapejs }}&quot;? This cannot be undone.');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete_item">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <button type="submit" class="act-btn act-red"><i class="fas fa-trash"></i> Delete</button>
+        </form>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="lib-empty">
+  <i class="fas fa-photo-film"></i>
+  No library items yet. Add your first recording, lecture, tool, or document.
+  <div style="margin-top:1rem;">
+    <button type="button" class="lib-btn lib-btn-primary" onclick="openItemModal()"><i class="fas fa-plus"></i> Add your first library item</button>
+  </div>
+</div>
+{% endif %}
+</div>
+
+<!-- Add / Edit item -->
+<div id="lib-item-modal" class="lib-modal" role="dialog" aria-modal="true" aria-labelledby="lib-item-title">
+  <div class="lib-modal-panel">
+    <div class="lib-modal-hd">
+      <h3 id="lib-item-title">Add library item</h3>
+      <button type="button" class="lib-modal-x" onclick="closeItemModal()" aria-label="Close"><i class="fas fa-times"></i></button>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="lib-form" id="lib-item-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_item">
+      <input type="hidden" name="item_id" id="lib-item-id" value="">
+      <input type="hidden" name="item_type" id="lib-item-type" value="recording">
+
+      <div class="lib-field">
+        <label>Title</label>
+        <input type="text" name="title" id="lib-title" required placeholder="e.g. Q3 Faculty Webinar">
+      </div>
+
+      <div class="lib-field">
+        <label>Type</label>
+        <div class="lib-types" id="lib-type-picks">
+          {% for value, label in item_type_choices %}
+          <button type="button" class="lib-type{% if forloop.first %} is-on{% endif %}" data-type="{{ value }}" onclick="setItemType('{{ value }}')">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="lib-row">
+        <div class="lib-field">
+          <label>Category</label>
+          <select name="category_id" id="lib-category">
+            <option value="">Uncategorized</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="lib-cat-add-link" id="lib-cat-toggle" onclick="toggleInlineCategory()">
+            <i class="fas fa-plus"></i> New category
+          </button>
+          <div id="lib-new-cat" class="lib-cat-inline" style="display:none;">
+            <input type="text" id="lib-new-cat-name" maxlength="120" placeholder="e.g. Webinars" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();createCategoryInline();}">
+            <button type="button" class="lib-btn lib-btn-primary" style="padding:7px 12px;font-size:13px;" onclick="createCategoryInline()">Add</button>
+          </div>
+          <p class="lib-cat-inline-err" id="lib-new-cat-err" hidden></p>
+        </div>
+        <div class="lib-field">
+          <label>Display order</label>
+          <input type="number" name="display_order" id="lib-order" min="0" value="0">
+        </div>
+      </div>
+
+      <div class="lib-field">
+        <label>Short description</label>
+        <input type="text" name="short_description" id="lib-short" maxlength="1000" placeholder="One-line summary shown on the card">
+      </div>
+      <div class="lib-field">
+        <label>Description</label>
+        <textarea name="description" id="lib-desc" rows="3" placeholder="Optional longer notes for members"></textarea>
+      </div>
+      <div class="lib-field">
+        <label>Thumbnail</label>
+        <input type="file" name="thumbnail" accept="image/*">
+        <p class="lib-hint" id="lib-thumb-hint"></p>
+      </div>
+
+      <div class="lib-field" id="lib-video-fields">
+        <label>Video file or URL</label>
+        <input type="file" name="media_file" id="lib-media-video" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+        <input type="url" name="video_url" id="lib-video-url" placeholder="https://vimeo.com/… or YouTube / Drive link" style="margin-top:8px;">
+        <p class="lib-hint">Upload a recording as-is, or paste Vimeo, YouTube, or Drive. Large webinar files are stored without conversion.</p>
+      </div>
+      <div class="lib-field" id="lib-file-fields" style="display:none;">
+        <label>File or URL</label>
+        <input type="file" name="media_file" id="lib-media-file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.ppt,.pptx">
+        <input type="url" name="file_url" id="lib-file-url" placeholder="https://…" style="margin-top:8px;">
+        <p class="lib-hint">Upload a PDF or workbook, or link to an external file.</p>
+      </div>
+
+      <label class="lib-check">
+        <input type="checkbox" name="published" id="lib-published" value="1">
+        Published — visible to academy members
+      </label>
+
+      <div class="lib-modal-actions">
+        <button type="button" class="lib-btn lib-btn-ghost" onclick="closeItemModal()">Cancel</button>
+        <button type="submit" class="lib-btn lib-btn-primary">Save item</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Categories -->
+<div id="lib-cat-modal" class="lib-modal" role="dialog" aria-modal="true" aria-labelledby="lib-cat-title">
+  <div class="lib-modal-panel wide">
+    <div class="lib-modal-hd">
+      <h3 id="lib-cat-title">Library categories</h3>
+      <button type="button" class="lib-modal-x" onclick="closeCategoriesModal()" aria-label="Close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="lib-form">
+      <form method="post" enctype="multipart/form-data" class="lib-row" style="align-items:end;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_category">
+        <div class="lib-field">
+          <label>Name</label>
+          <input type="text" name="name" required placeholder="e.g. Webinars">
+        </div>
+        <div class="lib-field">
+          <label>Thumbnail <span style="font-weight:400;color:#64748b;">optional</span></label>
+          <input type="file" name="thumbnail" accept="image/*">
+        </div>
+        <button type="submit" class="lib-btn lib-btn-primary" style="height:40px;"><i class="fas fa-plus"></i> Add</button>
+      </form>
+
+      {% if categories %}
+        {% for cat in categories %}
+        <div class="lib-cat-row">
+          {% if cat.get_thumbnail_url %}
+          <img src="{{ cat.get_thumbnail_url }}" alt="" class="lib-cat-thumb">
+          {% else %}
+          <span class="lib-cat-thumb"><i class="fas fa-folder"></i></span>
+          {% endif %}
+          <div class="lib-cat-meta">
+            <strong>{{ cat.name }}</strong>
+            <span>{{ cat.item_count }} item{{ cat.item_count|pluralize }}</span>
+          </div>
+          <form method="post" onsubmit="return confirm('Delete category &quot;{{ cat.name|escapejs }}&quot;? Items stay, uncategorized.');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_category">
+            <input type="hidden" name="category_id" value="{{ cat.id }}">
+            <button type="submit" class="act-btn act-red">Delete</button>
+          </form>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="lib-hint" style="margin:0;">No categories yet. Add “Webinars” or “Tools” so members can browse by shelf.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{{ items_payload|json_script:"lib-items-data" }}
+<script>
+const LIB_ITEMS = JSON.parse(document.getElementById('lib-items-data').textContent);
+const VIDEO_TYPES = new Set(['recording', 'lecture']);
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  el.classList.add('is-open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('is-open');
+  if (!document.querySelector('.lib-modal.is-open')) document.body.style.overflow = '';
+}
+function openCategoriesModal() { openModal('lib-cat-modal'); }
+function closeCategoriesModal() { closeModal('lib-cat-modal'); }
+
+function setItemType(type) {
+  document.getElementById('lib-item-type').value = type;
+  document.querySelectorAll('#lib-type-picks .lib-type').forEach(btn => {
+    btn.classList.toggle('is-on', btn.dataset.type === type);
+  });
+  const isVideo = VIDEO_TYPES.has(type);
+  document.getElementById('lib-video-fields').style.display = isVideo ? '' : 'none';
+  document.getElementById('lib-file-fields').style.display = isVideo ? 'none' : '';
+  document.getElementById('lib-media-video').disabled = !isVideo;
+  document.getElementById('lib-media-file').disabled = isVideo;
+}
+
+function resetItemForm() {
+  document.getElementById('lib-item-form').reset();
+  document.getElementById('lib-item-id').value = '';
+  document.getElementById('lib-item-title').textContent = 'Add library item';
+  document.getElementById('lib-thumb-hint').textContent = '';
+  document.getElementById('lib-new-cat').style.display = 'none';
+  document.getElementById('lib-new-cat-name').value = '';
+  document.getElementById('lib-new-cat-err').hidden = true;
+  document.getElementById('lib-cat-toggle').style.display = '';
+  setItemType('recording');
+}
+
+function toggleInlineCategory() {
+  const row = document.getElementById('lib-new-cat');
+  const show = row.style.display === 'none';
+  row.style.display = show ? 'flex' : 'none';
+  document.getElementById('lib-cat-toggle').style.display = show ? 'none' : '';
+  document.getElementById('lib-new-cat-err').hidden = true;
+  if (show) document.getElementById('lib-new-cat-name').focus();
+}
+
+function addCategoryOption(id, name) {
+  const select = document.getElementById('lib-category');
+  if (![...select.options].some(o => o.value === String(id))) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  select.value = String(id);
+  const filter = document.getElementById('lib-cat-filter');
+  if (filter && ![...filter.options].some(o => o.value === String(id))) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = name;
+    filter.appendChild(opt);
+  }
+}
+
+async function createCategoryInline() {
+  const input = document.getElementById('lib-new-cat-name');
+  const err = document.getElementById('lib-new-cat-err');
+  const name = (input.value || '').trim();
+  err.hidden = true;
+  if (!name) {
+    err.textContent = 'Enter a category name.';
+    err.hidden = false;
+    return;
+  }
+  const token = document.querySelector('#lib-item-form [name=csrfmiddlewaretoken]').value;
+  const data = new FormData();
+  data.append('csrfmiddlewaretoken', token);
+  data.append('action', 'save_category');
+  data.append('name', name);
+  data.append('ajax', '1');
+  const btn = document.querySelector('#lib-new-cat .lib-btn-primary');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  try {
+    const res = await fetch(window.location.href, {
+      method: 'POST',
+      body: data,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      err.textContent = json.error || 'Could not add category.';
+      err.hidden = false;
+      return;
+    }
+    addCategoryOption(json.id, json.name);
+    input.value = '';
+    document.getElementById('lib-new-cat').style.display = 'none';
+    document.getElementById('lib-cat-toggle').style.display = '';
+  } catch (e) {
+    err.textContent = 'Could not add category. Try again.';
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function openItemModal(id) {
+  resetItemForm();
+  if (id) {
+    const item = LIB_ITEMS.find(x => x.id === id);
+    if (item) {
+      document.getElementById('lib-item-title').textContent = 'Edit library item';
+      document.getElementById('lib-item-id').value = item.id;
+      document.getElementById('lib-title').value = item.title || '';
+      document.getElementById('lib-short').value = item.short_description || '';
+      document.getElementById('lib-desc').value = item.description || '';
+      document.getElementById('lib-category').value = item.category_id || '';
+      document.getElementById('lib-order').value = item.display_order || 0;
+      document.getElementById('lib-video-url').value = item.video_url || '';
+      document.getElementById('lib-file-url').value = item.file_url || '';
+      document.getElementById('lib-published').checked = item.status === 'published';
+      document.getElementById('lib-thumb-hint').textContent = item.thumbnail_url ? 'A thumbnail is already set. Upload to replace it.' : '';
+      setItemType(item.item_type || 'document');
+    }
+  }
+  openModal('lib-item-modal');
+}
+function closeItemModal() { closeModal('lib-item-modal'); }
+
+function applyFilters() {
+  const typeBtn = document.querySelector('#lib-type-filters .lib-chip.is-on');
+  const type = typeBtn ? typeBtn.dataset.type : '';
+  const catSel = document.getElementById('lib-cat-filter');
+  const cat = catSel ? catSel.value : '';
+  document.querySelectorAll('#lib-grid .lib-card').forEach(card => {
+    const typeOk = !type || card.dataset.type === type;
+    const catOk = !cat || card.dataset.category === cat;
+    card.style.display = (typeOk && catOk) ? '' : 'none';
+  });
+}
+document.getElementById('lib-type-filters')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.lib-chip');
+  if (!btn) return;
+  document.querySelectorAll('#lib-type-filters .lib-chip').forEach(c => c.classList.remove('is-on'));
+  btn.classList.add('is-on');
+  applyFilters();
+});
+document.getElementById('lib-cat-filter')?.addEventListener('change', applyFilters);
+
+['lib-item-modal', 'lib-cat-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', (e) => {
+    if (e.target.id === id) closeModal(id);
+  });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeItemModal();
+    closeCategoriesModal();
+  }
+});
+</script>
+{% endblock %}
